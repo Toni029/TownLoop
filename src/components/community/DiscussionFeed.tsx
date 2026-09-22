@@ -1,0 +1,303 @@
+/*
+ * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
+ * Proprietary and Confidential.
+ * Unauthorized copying, distribution, or modification of this source code,
+ * via any medium, is strictly prohibited.
+ */
+import React, { useState } from 'react';
+import { MessageSquare, Maximize2, Trash2 } from 'lucide-react';
+import type { CommunityState } from '../../hooks/useCommunityState';
+import { canDeleteAnyPost } from '../../utils/permissions';
+
+type DiscussionFeedProps = Pick<
+  CommunityState,
+  | 'currentUser'
+  | 'posts'
+  | 'isItemCreator'
+  | 'handleDeleteItem'
+  | 'setSelectedDetailPost'
+  | 'setFullscreenMedia'
+  | 'toggleLike'
+  | 'setOpenCommentsPostId'
+  | 'openCommentsPostId'
+  | 'commentInputText'
+  | 'setCommentInputText'
+  | 'handleAddComment'
+>;
+
+export function DiscussionFeed({
+  currentUser,
+  posts,
+  isItemCreator,
+  handleDeleteItem,
+  setSelectedDetailPost,
+  setFullscreenMedia,
+  toggleLike,
+  setOpenCommentsPostId,
+  openCommentsPostId,
+  commentInputText,
+  setCommentInputText,
+  handleAddComment,
+}: DiscussionFeedProps) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | string | null>(null);
+
+  return (
+    <div className="space-y-3.5">
+      {posts.map((post) => {
+        const canDelete = canDeleteAnyPost(currentUser) || isItemCreator?.(post);
+        const postMedia = (post.media && post.media.length > 0)
+          ? post.media
+          : post.mediaUrl
+            ? [{ type: 'image' as const, url: post.mediaUrl, name: post.title }]
+            : [];
+
+        return (
+          <div
+            key={post.id}
+            className="bg-white border border-stone-200/80 rounded-[24px] p-4 space-y-3 shadow-xs hover:shadow-md hover:border-stone-300 transition group"
+          >
+            {/* Post Header */}
+            <div className="flex items-center justify-between">
+              <div
+                onClick={() => setSelectedDetailPost(post)}
+                className="flex items-center space-x-2.5 cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-stone-100 border border-emerald-600/30 flex items-center justify-center text-xs font-bold text-emerald-800">
+                  {post.authorAvatar ? (
+                    <img
+                      src={post.authorAvatar}
+                      alt={post.author}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    post.author.slice(0, 2).toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-stone-900 hover:text-emerald-700 transition">
+                    {post.author}
+                  </p>
+                  <p className="text-[10px] text-stone-400">{post.timeAgo}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] bg-stone-100 text-stone-700 font-semibold px-2 py-0.5 rounded-full border border-stone-200">
+                  {post.tag}
+                </span>
+
+                {/* Trash can icon to delete post (Admin, VIP, or Author) */}
+                {canDelete && (
+                  confirmDeleteId === post.id ? (
+                    <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 rounded-lg px-2 py-0.5">
+                      <span className="text-[10px] font-bold text-rose-700">Delete?</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteItem(post.id, false);
+                          setConfirmDeleteId(null);
+                        }}
+                        className="text-[10px] bg-rose-600 hover:bg-rose-700 text-white font-bold px-1.5 py-0.5 rounded"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteId(null);
+                        }}
+                        className="text-[10px] text-stone-500 hover:text-stone-800 px-1"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteId(post.id);
+                      }}
+                      title="Delete post (Admin/VIP/Author)"
+                      className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+
+          {/* Post Title & Content clickable to open detail view */}
+          <div
+            onClick={() => setSelectedDetailPost(post)}
+            className="cursor-pointer space-y-1.5"
+          >
+            <h4 className="font-bold text-stone-900 text-sm group-hover:text-emerald-800 transition">
+              {post.title}
+            </h4>
+            <p className="text-xs text-stone-600 leading-relaxed line-clamp-3">
+              {post.content}
+            </p>
+          </div>
+
+          {/* Media preview if attached */}
+          {postMedia.length > 0 && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setFullscreenMedia({
+                  media: postMedia,
+                  initialIndex: 0,
+                  title: post.title,
+                  author: post.author,
+                });
+              }}
+              className="cursor-pointer relative rounded-2xl overflow-hidden bg-stone-900 aspect-video max-h-48 border border-stone-200 shadow-2xs group/media hover:ring-2 hover:ring-emerald-600/40 transition"
+              title="Click to view full screen with pinch-to-zoom"
+            >
+              {postMedia[0].type === 'image' ? (
+                <img
+                  src={postMedia[0].url}
+                  alt="attached media"
+                  className="w-full h-full object-cover group-hover/media:scale-102 transition duration-300"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center relative bg-stone-950">
+                  <video
+                    src={postMedia[0].url}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-white/90 text-stone-900 flex items-center justify-center shadow-md">
+                      <span className="text-xs font-bold pl-0.5">▶</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Full Screen Badge in corner */}
+              <div className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white text-[10px] font-semibold px-2 py-1 rounded-md flex items-center gap-1 backdrop-blur-xs transition">
+                <Maximize2 className="w-3 h-3" />
+                <span>Full Screen</span>
+              </div>
+
+              {postMedia.length > 1 && (
+                <span className="absolute bottom-2 right-2 bg-stone-950/75 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-xs">
+                  +{postMedia.length - 1} more
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Action Bar */}
+          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
+            <button
+              onClick={() => toggleLike(post.id)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition font-medium ${
+                post.liked
+                  ? 'text-rose-600 font-bold bg-rose-50'
+                  : 'hover:text-rose-600 hover:bg-stone-50'
+              }`}
+            >
+              <span>{post.liked ? '❤️' : '🤍'}</span>
+              <span>{post.likes}</span>
+            </button>
+
+            <button
+              onClick={() =>
+                setOpenCommentsPostId(
+                  openCommentsPostId === post.id ? null : post.id
+                )
+              }
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-stone-100 text-stone-600 font-medium transition"
+            >
+              <MessageSquare className="w-3.5 h-3.5 stroke-current" />
+              <span>
+                {post.comments.length}{' '}
+                {post.comments.length === 1 ? 'Comment' : 'Comments'}
+              </span>
+            </button>
+          </div>
+
+          {/* Improved Inline Comments Section */}
+          {openCommentsPostId === post.id && (
+            <div className="mt-2 pt-3 border-t border-dashed border-stone-200 space-y-2.5">
+              {post.comments.length === 0 ? (
+                <p className="text-[11px] text-stone-400 italic text-center py-2">
+                  No comments yet. Start the conversation!
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {post.comments.map((c) => (
+                    <div
+                      key={c.id}
+                      className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/60 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full overflow-hidden bg-emerald-100 text-emerald-900 font-bold text-[9px] flex items-center justify-center shrink-0">
+                            {c.authorAvatar ? (
+                              <img
+                                src={c.authorAvatar}
+                                alt={c.author}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              c.author.slice(0, 1)
+                            )}
+                          </div>
+                          <span className="font-bold text-stone-800">
+                            {c.author}
+                          </span>
+                          {c.unit && (
+                            <span className="text-[10px] text-stone-400 font-normal">
+                              ({c.unit})
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-stone-400">
+                          {c.timeAgo}
+                        </span>
+                      </div>
+                      <p className="text-stone-700 pl-6 leading-relaxed">
+                        {c.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-1.5 pt-1">
+                <input
+                  value={commentInputText[post.id] || ''}
+                  onChange={(e) =>
+                    setCommentInputText({
+                      ...commentInputText,
+                      [post.id]: e.target.value,
+                    })
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddComment(post.id);
+                  }}
+                  placeholder="Write a comment to Martha and neighbors..."
+                  className="flex-1 px-3.5 py-2 rounded-xl border border-stone-300 text-xs bg-white focus:outline-emerald-600"
+                />
+                <button
+                  onClick={() => handleAddComment(post.id)}
+                  disabled={!(commentInputText[post.id] || '').trim()}
+                  className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-2xs"
+                >
+                  Reply
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+);
+}
