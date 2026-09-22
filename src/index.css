@@ -1,0 +1,1350 @@
+/*
+ * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
+ * Proprietary and Confidential.
+ * Unauthorized copying, distribution, or modification of this source code,
+ * via any medium, is strictly prohibited.
+ */
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.serif-title {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-dotrice {
+  font-family: 'Dotrice Bold', 'Dotrice', 'DotGothic16', 'Silkscreen', 'VT323', monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.liquid-dock {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 
+    0 20px 45px -10px rgba(0, 0, 0, 0.14),
+    0 8px 16px -4px rgba(0, 0, 0, 0.08),
+    inset 0 2px 4px rgba(0, 0, 0, 0.04),
+    inset 0 -1.5px 2px rgba(255, 255, 255, 0.95);
+  padding: 8px 10px;
+}
+
+.dark .liquid-dock {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.35);
+}
+
+.liquid-dock button,
+.liquid-dock button span {
+  color: #000000 !important;
+}
+
+.liquid-dock svg {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
+.dark .liquid-dock button,
+.dark .liquid-dock button span {
+  color: #000000 !important;
+}
+
+.dark .liquid-dock svg {
+  color: #000000 !important;
+  stroke: #000000 !important;
+}
+
+.liquid-glass-oval {
+  border-radius: 9999px;
+  background: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(240, 245, 243, 0.35) 45%,
+    rgba(215, 225, 222, 0.45) 85%,
+    rgba(255, 255, 255, 0.7) 100%
+  );
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  box-shadow: 
+    inset 0 2px 1.5px rgba(255, 255, 255, 1),
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.65),
+    inset 0 -2.5px 3.5px rgba(255, 255, 255, 0.85),
+    inset 0 0 8px rgba(40, 60, 50, 0.10),
+    0 6px 14px -2px rgba(0, 0, 0, 0.14),
+    0 2px 5px rgba(0, 0, 0, 0.06);
+}
+
+.liquid-glass-oval::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 14%;
+  right: 14%;
+  height: 38%;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+/* Liquid Glass Pill Button (Extruded 3D glass lens matching reference image) */
+.liquid-glass-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6.5px;
+  padding: 6px 15px;
+  border-radius: 9999px;
+  /* Crystal-clear liquid glass body with high translucency & subtle refraction */
+  background: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(242, 246, 252, 0.8) 42%,
+    rgba(224, 234, 246, 0.65) 75%,
+    rgba(205, 218, 235, 0.72) 100%
+  );
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  /* Concentric liquid glass refraction rings matching reference photos */
+  box-shadow:
+    /* Ring 1: Inner crisp glass meniscus highlight */
+    0 0 0 1.5px rgba(255, 255, 255, 0.95),
+    /* Ring 2: Concentric glass refractive groove */
+    0 0 0 3px rgba(175, 192, 212, 0.65),
+    /* Ring 3: Outer glass bevel rim highlight */
+    0 0 0 4.5px rgba(255, 255, 255, 0.85),
+    /* 3D ambient drop-shadow beneath glass */
+    0 5px 14px -2px rgba(15, 23, 42, 0.16),
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    /* Internal glass specular bevel & reflection */
+    inset 0 2px 2px rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(50, 70, 95, 0.22);
+  color: #1e293b;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.9);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* Glass specular light arc across the top curve */
+.liquid-glass-pill::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 10%;
+  right: 10%;
+  height: 46%;
+  border-radius: 9999px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.25) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+
+.liquid-glass-pill:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(246, 250, 255, 0.88) 42%,
+    rgba(232, 240, 250, 0.72) 75%,
+    rgba(215, 226, 242, 0.8) 100%
+  );
+  box-shadow:
+    0 0 0 1.5px #ffffff,
+    0 0 0 3px rgba(155, 178, 205, 0.8),
+    0 0 0 5px rgba(255, 255, 255, 0.95),
+    0 7px 18px -2px rgba(15, 23, 42, 0.22),
+    0 3px 6px rgba(0, 0, 0, 0.07),
+    inset 0 2.5px 2px rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(50, 70, 95, 0.25);
+}
+
+.liquid-glass-pill:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 0 0 2.5px rgba(175, 192, 212, 0.6),
+    0 0 0 4px rgba(255, 255, 255, 0.8),
+    0 2px 5px rgba(15, 23, 42, 0.14),
+    inset 0 1.5px 2px rgba(50, 70, 95, 0.2);
+}
+
+/* For "Mark as Available" (already sold) state */
+.liquid-glass-pill.sold-state {
+  background: linear-gradient(
+    175deg,
+    rgba(250, 250, 250, 0.9) 0%,
+    rgba(238, 240, 244, 0.75) 45%,
+    rgba(220, 225, 232, 0.65) 100%
+  );
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 0 0 2.5px rgba(190, 200, 210, 0.55),
+    0 0 0 4px rgba(255, 255, 255, 0.8),
+    0 3px 8px -1px rgba(0, 0, 0, 0.1),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.9),
+    inset 0 -1.5px 2px rgba(80, 90, 105, 0.18);
+  color: #475569;
+}
+
+/* Weather Animations (iPhone Weather App style) */
+@keyframes weather-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes weather-pulse-glow {
+  0%, 100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes weather-cloud-drift-1 {
+  0% {
+    transform: translateX(-12%) translateY(0px);
+  }
+  50% {
+    transform: translateX(8%) translateY(-4px);
+  }
+  100% {
+    transform: translateX(-12%) translateY(0px);
+  }
+}
+
+@keyframes weather-cloud-drift-2 {
+  0% {
+    transform: translateX(10%) translateY(0px);
+  }
+  50% {
+    transform: translateX(-10%) translateY(3px);
+  }
+  100% {
+    transform: translateX(10%) translateY(0px);
+  }
+}
+
+@keyframes weather-flare-drift {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(-12px, 8px) scale(1.15);
+    opacity: 0.75;
+  }
+}
+
+@keyframes weather-mote-rise {
+  0% {
+    transform: translateY(18px) translateX(0px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-45px) translateX(14px);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-rain-fall {
+  0% {
+    transform: translateY(-30px) translateX(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(340px) translateX(-35px);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-rain-thunder {
+  0% {
+    transform: translateY(-40px) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.95;
+  }
+  90% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(350px) translateX(-55px);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-ripple {
+  0% {
+    transform: scale(0.2);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* ================= ENHANCED LIGHTNING & THUNDERSTORM ANIMATIONS ================= */
+
+/* Main Ambient Lightning Sky Flashes (Continuous active sequence across 4.8s loop) */
+@keyframes weather-lightning-flash-main {
+  0%, 100% {
+    opacity: 0;
+  }
+  /* Strike 1: Right heavy strike (double-strobe at ~10%) */
+  8% {
+    opacity: 0;
+  }
+  8.5% {
+    opacity: 0.9;
+  }
+  9.2% {
+    opacity: 0.25;
+  }
+  9.8% {
+    opacity: 1;
+  }
+  11.5% {
+    opacity: 0.15;
+  }
+  12% {
+    opacity: 0.7;
+  }
+  13% {
+    opacity: 0;
+  }
+  /* Strike 2: Left sharp strike (at ~30%) */
+  28% {
+    opacity: 0;
+  }
+  28.6% {
+    opacity: 0.95;
+  }
+  29.3% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 0.85;
+  }
+  31.5% {
+    opacity: 0;
+  }
+  /* Strike 3: Center-Right fork strike (at ~62%) */
+  60% {
+    opacity: 0;
+  }
+  60.6% {
+    opacity: 0.95;
+  }
+  61.2% {
+    opacity: 0.3;
+  }
+  61.8% {
+    opacity: 1;
+  }
+  63% {
+    opacity: 0;
+  }
+  /* Strike 4: Needle whip strike (at ~84%) */
+  83% {
+    opacity: 0;
+  }
+  83.5% {
+    opacity: 0.85;
+  }
+  84.2% {
+    opacity: 0.2;
+  }
+  84.8% {
+    opacity: 0.9;
+  }
+  86% {
+    opacity: 0;
+  }
+}
+
+/* Secondary Horizon Sheet Lightning & Distant Crawler Flash */
+@keyframes weather-lightning-flash-sheet {
+  0%, 100% {
+    opacity: 0;
+  }
+  /* Crawler discharge across top clouds at ~46% */
+  45% {
+    opacity: 0;
+  }
+  45.6% {
+    opacity: 0.75;
+  }
+  46.4% {
+    opacity: 0.2;
+  }
+  47% {
+    opacity: 0.85;
+  }
+  48.2% {
+    opacity: 0;
+  }
+  /* Distant rolling sheet rumble flash at ~72% */
+  71% {
+    opacity: 0;
+  }
+  71.8% {
+    opacity: 0.55;
+  }
+  72.5% {
+    opacity: 0.15;
+  }
+  73.2% {
+    opacity: 0.65;
+  }
+  74.5% {
+    opacity: 0;
+  }
+}
+
+/* Internal Cloud Glow (illuminates dark thunderheads from within during strikes) */
+@keyframes weather-cloud-backlight {
+  0%, 100% {
+    opacity: 0.15;
+    filter: drop-shadow(0 0 0px transparent);
+  }
+  8.5%, 9.8%, 28.6%, 45.6%, 47%, 60.6%, 61.8%, 83.5% {
+    opacity: 0.95;
+    filter: drop-shadow(0 0 16px rgba(186, 230, 253, 0.9));
+  }
+  13%, 32%, 49%, 64%, 87% {
+    opacity: 0.15;
+    filter: drop-shadow(0 0 0px transparent);
+  }
+}
+
+/* Strike 1: Major Fractal Branching Bolt on Right (4.8s master loop) */
+@keyframes weather-lightning-bolt-1 {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  8% {
+    opacity: 0;
+  }
+  8.5% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  9.2% {
+    opacity: 0.35;
+  }
+  9.8% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  11.5% {
+    opacity: 0.4;
+  }
+  12% {
+    opacity: 0.8;
+  }
+  13% {
+    opacity: 0;
+  }
+}
+
+/* Strike 2: Sharp High-Voltage Zig-Zag Bolt on Left */
+@keyframes weather-lightning-bolt-2 {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  28% {
+    opacity: 0;
+  }
+  28.6% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  29.3% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  31.5% {
+    opacity: 0;
+  }
+}
+
+/* Strike 3: Center-Right Double Fork Strike */
+@keyframes weather-lightning-bolt-3 {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  60% {
+    opacity: 0;
+  }
+  60.6% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  61.2% {
+    opacity: 0.3;
+  }
+  61.8% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  63% {
+    opacity: 0;
+  }
+}
+
+/* Strike 4: Needle Whip Strike on Center-Left */
+@keyframes weather-lightning-bolt-4 {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  83% {
+    opacity: 0;
+  }
+  83.5% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  84.2% {
+    opacity: 0.25;
+  }
+  84.8% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  86% {
+    opacity: 0;
+  }
+}
+
+/* Intra-Cloud Spider / Crawler Lightning (creeps horizontally across top cloud deck) */
+@keyframes weather-lightning-crawler {
+  0%, 100% {
+    opacity: 0;
+  }
+  45% {
+    opacity: 0;
+  }
+  45.5% {
+    opacity: 0.9;
+  }
+  46.2% {
+    opacity: 0.3;
+  }
+  47% {
+    opacity: 1;
+  }
+  48.2% {
+    opacity: 0;
+  }
+}
+
+/* Volumetric Cloud Rolling / Drifting */
+@keyframes weather-cloud-drift-slow {
+  0% {
+    transform: translateX(-10%) translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateX(8%) translateY(-4px) scale(1.03);
+  }
+  100% {
+    transform: translateX(-10%) translateY(0px) scale(1);
+  }
+}
+
+@keyframes weather-cloud-drift-fast {
+  0% {
+    transform: translateX(12%) translateY(0px) scale(1.02);
+  }
+  50% {
+    transform: translateX(-12%) translateY(3px) scale(0.98);
+  }
+  100% {
+    transform: translateX(12%) translateY(0px) scale(1.02);
+  }
+}
+
+@keyframes weather-sunbeam-sway {
+  0%, 100% {
+    opacity: 0.45;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: rotate(3deg) scale(1.08);
+  }
+}
+
+.animate-spin-very-slow {
+  animation: weather-spin-slow 48s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: weather-pulse-glow 5s ease-in-out infinite;
+}
+
+.animate-cloud-1 {
+  animation: weather-cloud-drift-1 26s ease-in-out infinite;
+}
+
+.animate-cloud-2 {
+  animation: weather-cloud-drift-2 36s ease-in-out infinite;
+}
+
+.animate-cloud-slow {
+  animation: weather-cloud-drift-slow 34s ease-in-out infinite;
+}
+
+.animate-cloud-fast {
+  animation: weather-cloud-drift-fast 22s ease-in-out infinite;
+}
+
+.animate-flare {
+  animation: weather-flare-drift 7s ease-in-out infinite;
+}
+
+.animate-sunbeam {
+  animation: weather-sunbeam-sway 9s ease-in-out infinite;
+}
+
+.animate-lightning-flash-main {
+  animation: weather-lightning-flash-main 4.8s ease-in-out infinite;
+}
+
+.animate-lightning-flash-sheet {
+  animation: weather-lightning-flash-sheet 4.8s ease-in-out infinite;
+}
+
+.animate-cloud-backlight {
+  animation: weather-cloud-backlight 4.8s ease-in-out infinite;
+}
+
+.animate-lightning-bolt-1 {
+  animation: weather-lightning-bolt-1 4.8s ease-in-out infinite;
+}
+
+.animate-lightning-bolt-2 {
+  animation: weather-lightning-bolt-2 4.8s ease-in-out infinite;
+}
+
+.animate-lightning-bolt-3 {
+  animation: weather-lightning-bolt-3 4.8s ease-in-out infinite;
+}
+
+.animate-lightning-bolt-4 {
+  animation: weather-lightning-bolt-4 4.8s ease-in-out infinite;
+}
+
+.animate-lightning-crawler {
+  animation: weather-lightning-crawler 4.8s ease-in-out infinite;
+}
+
+.weather-mote {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(254, 240, 138, 0.4) 60%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+  animation: weather-mote-rise 4.5s ease-in-out infinite;
+}
+
+.rain-drop {
+  position: absolute;
+  width: 1.5px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(186, 230, 253, 0.35) 30%, rgba(224, 242, 254, 0.8) 75%, #ffffff 100%);
+  border-radius: 9999px;
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.7), 0 0 1px rgba(186, 230, 253, 0.9);
+  transform: rotate(13deg);
+  animation: weather-rain-fall 0.9s linear infinite;
+}
+
+.rain-drop-thunder {
+  position: absolute;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(147, 197, 253, 0.4) 25%, rgba(224, 242, 254, 0.9) 70%, #ffffff 100%);
+  border-radius: 9999px;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.85), 0 0 2px rgba(125, 211, 252, 0.9);
+  transform: rotate(18deg);
+  animation: weather-rain-thunder 0.65s linear infinite;
+}
+
+/* ================= PHOTOREALISTIC GLASS WATER DROPLETS ================= */
+/* Refractive, 3D caustic liquid water droplets resting on camera / window glass */
+.realistic-glass-drop {
+  position: absolute;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.5) 20%, rgba(186, 230, 253, 0.2) 55%, rgba(15, 23, 42, 0.45) 100%);
+  box-shadow: 
+    0 1.5px 3px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 2px rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(0.5px);
+  pointer-events: none;
+}
+
+/* Water Droplet trickling down the glass surface */
+@keyframes weather-glass-trickle-1 {
+  0% {
+    transform: translateY(0) scaleY(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  30% {
+    transform: translateY(18px) scaleY(1.35);
+  }
+  35% {
+    /* Hesitation / surface tension bead */
+    transform: translateY(22px) scaleY(1.1);
+  }
+  65% {
+    transform: translateY(68px) scaleY(1.4);
+  }
+  85% {
+    transform: translateY(115px) scaleY(1.2);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(155px) scaleY(1.1);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-glass-trickle-2 {
+  0% {
+    transform: translateY(0) scaleY(1);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.9;
+  }
+  40% {
+    transform: translateY(35px) scaleY(1.3);
+  }
+  75% {
+    transform: translateY(95px) scaleY(1.45);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(140px) scaleY(1.1);
+    opacity: 0;
+  }
+}
+
+.animate-glass-trickle-1 {
+  animation: weather-glass-trickle-1 7.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.animate-glass-trickle-2 {
+  animation: weather-glass-trickle-2 9s cubic-bezier(0.45, 0, 0.55, 1) infinite 3.5s;
+}
+
+/* Wet condensation streak trail left by trickling droplet */
+@keyframes weather-glass-trail-fade-1 {
+  0%, 100% {
+    opacity: 0;
+    height: 0px;
+  }
+  10% {
+    opacity: 0.55;
+    height: 18px;
+  }
+  65% {
+    opacity: 0.5;
+    height: 70px;
+  }
+  85% {
+    opacity: 0.3;
+    height: 120px;
+  }
+  95% {
+    opacity: 0;
+    height: 155px;
+  }
+}
+
+.animate-glass-trail-1 {
+  animation: weather-glass-trail-fade-1 7.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* ================= REALISTIC WIND-TORN CLOUD DRIFT ================= */
+
+/* Wind-sheared cloud fragments (fractus) racing across sky */
+@keyframes weather-wind-cloud-fast-1 {
+  0% {
+    transform: translate3d(-140%, 0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(240%, -8px, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-wind-cloud-fast-2 {
+  0% {
+    transform: translate3d(-130%, 0, 0);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.75;
+  }
+  82% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate3d(250%, 6px, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-wind-cloud-fast-3 {
+  0% {
+    transform: translate3d(-150%, 0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(230%, -12px, 0);
+    opacity: 0;
+  }
+}
+
+.animate-wind-cloud-1 {
+  animation: weather-wind-cloud-fast-1 7s linear infinite;
+}
+
+.animate-wind-cloud-2 {
+  animation: weather-wind-cloud-fast-2 9.5s linear infinite 2.8s;
+}
+
+.animate-wind-cloud-3 {
+  animation: weather-wind-cloud-fast-3 8.2s linear infinite 5.4s;
+}
+
+/* Natural Airborne Seed Fluff & Wind Filaments */
+@keyframes weather-wind-particle-fast {
+  0% {
+    transform: translate3d(-40px, 0, 0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.95;
+  }
+  90% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(480px, -15px, 0);
+    opacity: 0;
+  }
+}
+
+.animate-wind-particle {
+  animation: weather-wind-particle-fast 2.4s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+/* ================= NEW REALISTIC WEATHER ANIMATIONS ================= */
+
+/* 1. Full-tile Sweeping Sunbeams (Spans entire card) */
+@keyframes weather-sunbeam-full {
+  0%, 100% {
+    opacity: 0.38;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: rotate(2.5deg) scale(1.06);
+  }
+}
+
+.animate-sunbeam-full {
+  animation: weather-sunbeam-full 8s ease-in-out infinite;
+}
+
+/* 2. Windy Animations: Wind Streamlines & Fluttering Leaves/Motes */
+@keyframes weather-wind-stream {
+  0% {
+    transform: translateX(-120%) scaleY(0.7);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(220%) scaleY(1.3);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-wind-leaf-1 {
+  0% {
+    transform: translate(-40px, 10px) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(200px, 45px) rotate(240deg);
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(440px, 20px) rotate(540deg);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-wind-leaf-2 {
+  0% {
+    transform: translate(-30px, 60px) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate(190px, 20px) rotate(-180deg);
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(420px, 80px) rotate(-420deg);
+    opacity: 0;
+  }
+}
+
+.animate-wind-stream-1 {
+  animation: weather-wind-stream 3.2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+.animate-wind-stream-2 {
+  animation: weather-wind-stream 4.1s cubic-bezier(0.25, 1, 0.5, 1) infinite 1.4s;
+}
+
+.animate-wind-stream-3 {
+  animation: weather-wind-stream 3.6s cubic-bezier(0.25, 1, 0.5, 1) infinite 0.7s;
+}
+
+.animate-wind-leaf-1 {
+  animation: weather-wind-leaf-1 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-wind-leaf-2 {
+  animation: weather-wind-leaf-2 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite 1.6s;
+}
+
+/* 3. Snowy Animations: Soft Tumbling & Fluttering Snow Crystals */
+@keyframes weather-snow-fall-soft {
+  0% {
+    transform: translateY(-20px) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.95;
+  }
+  50% {
+    transform: translateY(160px) translateX(18px) rotate(180deg);
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(340px) translateX(-12px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-snow-fall-slow {
+  0% {
+    transform: translateY(-20px) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(170px) translateX(-22px) rotate(-140deg);
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(350px) translateX(14px) rotate(-320deg);
+    opacity: 0;
+  }
+}
+
+.snow-flake-soft {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.85) 60%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+  animation: weather-snow-fall-soft 4.2s ease-in-out infinite;
+}
+
+.snow-flake-slow {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(230, 245, 255, 0.75) 65%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+  animation: weather-snow-fall-slow 5.8s ease-in-out infinite;
+}
+
+/* 4. Foggy / Misty Animations: Low-altitude undulating rolling fog banks */
+@keyframes weather-fog-roll-1 {
+  0% {
+    transform: translateX(-18%) scaleY(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translateX(12%) scaleY(1.1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(-18%) scaleY(1);
+    opacity: 0.65;
+  }
+}
+
+@keyframes weather-fog-roll-2 {
+  0% {
+    transform: translateX(14%) scaleY(1.05);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateX(-16%) scaleY(0.95);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateX(14%) scaleY(1.05);
+    opacity: 0.75;
+  }
+}
+
+@keyframes weather-fog-drift-low {
+  0% {
+    transform: translateX(-25%) translateY(0px);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(20%) translateY(-6px);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateX(-25%) translateY(0px);
+    opacity: 0.7;
+  }
+}
+
+.animate-fog-roll-1 {
+  animation: weather-fog-roll-1 24s ease-in-out infinite;
+}
+
+.animate-fog-roll-2 {
+  animation: weather-fog-roll-2 30s ease-in-out infinite;
+}
+
+.animate-fog-drift-low {
+  animation: weather-fog-drift-low 18s ease-in-out infinite;
+}
+
+/* Enhanced 3D Foliage Tumbling for Windy State */
+@keyframes weather-wind-leaf-3d-1 {
+  0% {
+    transform: translate3d(-50px, 20px, 0) rotateZ(0deg) rotateY(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  45% {
+    transform: translate3d(180px, 70px, 30px) rotateZ(190deg) rotateY(180deg);
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(480px, 30px, -20px) rotateZ(460deg) rotateY(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-wind-leaf-3d-2 {
+  0% {
+    transform: translate3d(-40px, 80px, 0) rotateZ(0deg) rotateX(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(210px, 25px, 40px) rotateZ(-220deg) rotateX(200deg);
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(460px, 95px, -10px) rotateZ(-480deg) rotateX(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes weather-wind-leaf-3d-3 {
+  0% {
+    transform: translate3d(-30px, 45px, 0) rotateZ(10deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.95;
+  }
+  55% {
+    transform: translate3d(230px, 90px, 20px) rotateZ(280deg);
+    opacity: 0.95;
+  }
+  88% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(490px, 50px, 0) rotateZ(580deg);
+    opacity: 0;
+  }
+}
+
+.animate-wind-leaf-3d-1 {
+  animation: weather-wind-leaf-3d-1 3.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+.animate-wind-leaf-3d-2 {
+  animation: weather-wind-leaf-3d-2 4.1s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 1.2s;
+}
+
+.animate-wind-leaf-3d-3 {
+  animation: weather-wind-leaf-3d-3 3.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 2.1s;
+}
+
+/* Rain Splash Droplet Rebound */
+@keyframes weather-splash-rebound {
+  0% {
+    transform: translateY(0) scale(0.4);
+    opacity: 0.9;
+  }
+  40% {
+    transform: translateY(-8px) scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(2px) scale(0.2);
+    opacity: 0;
+  }
+}
+
+.animate-splash-rebound {
+  animation: weather-splash-rebound 1.2s ease-out infinite;
+}
+
+/* Volumetric Cloud Billowing breathing */
+@keyframes weather-cloud-billow {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.03) translateY(-3px);
+  }
+}
+
+.animate-cloud-billow {
+  animation: weather-cloud-billow 14s ease-in-out infinite;
+}
+
+/* ================= ADVANCED REALISTIC WINDY ANIMATIONS ================= */
+
+/* Wind-Sheared Cirrus Clouds & Scud Streamers racing across sky */
+@keyframes weather-cirrus-drift-1 {
+  0% {
+    transform: translate3d(-15%, 0, 0) scaleY(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate3d(8%, -4px, 0) scaleY(1.05);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(-15%, 0, 0) scaleY(1);
+    opacity: 0.7;
+  }
+}
+
+@keyframes weather-cirrus-drift-2 {
+  0% {
+    transform: translate3d(10%, 0, 0) scaleY(1.04);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate3d(-12%, 3px, 0) scaleY(0.96);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(10%, 0, 0) scaleY(1.04);
+    opacity: 0.6;
+  }
+}
+
+.animate-cirrus-1 {
+  animation: weather-cirrus-drift-1 16s ease-in-out infinite;
+}
+
+.animate-cirrus-2 {
+  animation: weather-cirrus-drift-2 22s ease-in-out infinite;
+}
+
+/* Atmospheric Wind Gust Pressure Wave */
+@keyframes weather-wind-gust-pulse {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scaleX(0.96);
+  }
+  35% {
+    opacity: 0.45;
+    transform: scaleX(1.03);
+  }
+  65% {
+    opacity: 0.6;
+    transform: scaleX(1.06);
+  }
+  80% {
+    opacity: 0.25;
+    transform: scaleX(0.98);
+  }
+}
+
+.animate-wind-gust-pulse {
+  animation: weather-wind-gust-pulse 4.2s ease-in-out infinite;
+}
+
+/* High-Speed Aerodynamic Wind Velocity Streaks (Fine vapor streamers) */
+@keyframes weather-wind-stream-fast {
+  0% {
+    transform: translateX(-140%) scaleY(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.75;
+  }
+  80% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(250%) scaleY(1.3);
+    opacity: 0;
+  }
+}
+
+.animate-wind-fast-1 {
+  animation: weather-wind-stream-fast 2.1s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.animate-wind-fast-2 {
+  animation: weather-wind-stream-fast 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 0.9s;
+}
+
+.animate-wind-fast-3 {
+  animation: weather-wind-stream-fast 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 1.4s;
+}
+
+/* Realistic Cloud Billowing & Subtle Micro-Morphing */
+@keyframes weather-cloud-realistic-billow {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  33% {
+    transform: translateY(-2px) scale(1.012);
+  }
+  66% {
+    transform: translateY(1.5px) scale(0.992);
+  }
+}
+
+.animate-cloud-realistic-billow {
+  animation: weather-cloud-realistic-billow 12s ease-in-out infinite;
+}
+
+
