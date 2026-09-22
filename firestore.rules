@@ -1,0 +1,104 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function currentProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isApproved() {
+      return isSignedIn() && currentProfile().approved != false;
+    }
+
+    function isManager() {
+      return isApproved() &&
+        (currentProfile().role == 'admin' || currentProfile().role == 'vip');
+    }
+
+    function isCrewOrManager() {
+      return isApproved() &&
+        (currentProfile().role == 'crew' || isManager());
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) &&
+        request.resource.data.id == request.auth.uid &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.role == '' &&
+        request.resource.data.approved == false;
+      allow update: if isManager() ||
+        (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'address', 'avatarUrl', 'avatar_url', 'phone', 'wing',
+                    'emergencyContact', 'emergency_contact', 'dietaryPreference',
+                    'dietary_preference']));
+      allow delete: if isManager();
+    }
+
+    match /posts/{postId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isManager() || resource.data.authorId == request.auth.uid;
+    }
+
+    match /marketItems/{itemId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isManager() || resource.data.authorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed']);
+      allow delete: if isManager() || resource.data.authorId == request.auth.uid;
+    }
+
+    match /marketplace_posts/{postId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update: if isManager() || resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'claimed']);
+      allow delete: if isManager() || resource.data.userId == request.auth.uid;
+    }
+
+    match /discussion_feed/{postId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update: if isManager() || resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'likes']);
+      allow delete: if isManager() || resource.data.userId == request.auth.uid;
+    }
+
+    match /work_orders/{orderId} {
+      allow read: if isCrewOrManager() || resource.data.userId == request.auth.uid;
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update: if isCrewOrManager() || resource.data.userId == request.auth.uid;
+      allow delete: if isManager() ||
+        (resource.data.userId == request.auth.uid && resource.data.status != 'Done') ||
+        (currentProfile().role == 'crew' && resource.data.status == 'Done');
+    }
+
+    match /newsletters/{newsletterId} {
+      allow read: if isApproved();
+      allow write: if isManager();
+    }
+
+    match /community_events/{eventId} {
+      allow read: if isApproved();
+      allow write: if isManager();
+    }
+
+    match /community_highlights/{highlightId} {
+      allow read: if isApproved();
+      allow write: if isManager();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

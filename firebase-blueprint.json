@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "User": {
+      "title": "Resident User Profile",
+      "description": "Resident profile data including community contact and living details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Resident full name", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "description": "Resident email address", "format": "email", "maxLength": 120 },
+        "address": { "type": "string", "description": "Resident street address", "maxLength": 200 },
+        "phone": { "type": "string", "description": "Contact phone number", "maxLength": 30 },
+        "emergencyContact": { "type": "string", "description": "Emergency contact name and phone", "maxLength": 150 },
+        "dietaryPreference": { "type": "string", "description": "Dietary preferences or allergies", "maxLength": 100 },
+        "avatarUrl": { "type": "string", "description": "Avatar profile photo URL", "maxLength": 500 },
+        "role": { "type": "string", "description": "User role: admin, vip, crew, resident, or empty string for pending applicant" },
+        "approved": { "type": "boolean", "description": "Admin approval status for resident portal access" },
+        "createdAt": { "type": "string", "description": "Account creation timestamp" }
+      },
+      "required": ["id", "name", "email", "approved"]
+    },
+    "Post": {
+      "title": "Community Social Post",
+      "description": "Resident bulletin board posts and questions.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string", "description": "Author UID" },
+        "author": { "type": "string", "description": "Author display name", "maxLength": 100 },
+        "authorAvatar": { "type": "string", "description": "Author avatar URL", "maxLength": 500 },
+        "unit": { "type": "string", "description": "Apartment unit", "maxLength": 30 },
+        "tag": { "type": "string", "description": "Post category tag", "maxLength": 30 },
+        "title": { "type": "string", "description": "Post headline", "maxLength": 200 },
+        "body": { "type": "string", "description": "Post content", "maxLength": 2000 },
+        "likes": { "type": "number", "description": "Number of likes" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["authorId", "author", "title", "body"]
+    },
+    "MarketItem": {
+      "title": "Community Market Item",
+      "description": "Resident buy, sell, or giveaway listings.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string", "description": "Seller UID" },
+        "author": { "type": "string", "description": "Seller display name", "maxLength": 100 },
+        "authorAvatar": { "type": "string", "description": "Seller avatar URL", "maxLength": 500 },
+        "unit": { "type": "string", "description": "Apartment unit", "maxLength": 30 },
+        "title": { "type": "string", "description": "Item title", "maxLength": 150 },
+        "price": { "type": "string", "description": "Listing price or FREE", "maxLength": 40 },
+        "description": { "type": "string", "description": "Item description", "maxLength": 1000 },
+        "claimed": { "type": "boolean", "description": "Whether item is claimed" },
+        "createdAt": { "type": "string", "description": "Listing timestamp" }
+      },
+      "required": ["authorId", "author", "title", "price", "description"]
+    },
+    "MarketplacePost": {
+      "title": "Marketplace Listing Post",
+      "description": "Marketplace item post with live uploaded media and pricing.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Item listing title", "maxLength": 200 },
+        "description": { "type": "string", "description": "Item details and condition", "maxLength": 2000 },
+        "price": { "type": "string", "description": "Price or FREE", "maxLength": 50 },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "userId": { "type": "string", "description": "Resident UID" },
+        "mediaUrl": { "type": "string", "description": "Live Firebase Storage web URL link" }
+      },
+      "required": ["title", "description", "price", "userId", "mediaUrl"]
+    },
+    "DiscussionFeedPost": {
+      "title": "Discussion Feed Post",
+      "description": "Resident discussion feed post with text content and media URL.",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string", "description": "Post body text content", "maxLength": 3000 },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "userId": { "type": "string", "description": "Author UID" },
+        "mediaUrl": { "type": "string", "description": "Live Firebase Storage web URL link" }
+      },
+      "required": ["content", "userId", "mediaUrl"]
+    },
+    "WorkOrder": {
+      "title": "Maintenance Work Order",
+      "description": "Work order ticket with issue description and attached photo URL.",
+      "type": "object",
+      "properties": {
+        "description": { "type": "string", "description": "Work order maintenance description", "maxLength": 3000 },
+        "status": { "type": "string", "description": "Status of the order", "enum": ["Pending", "In Progress", "Queued", "Submitted", "Done"] },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "userId": { "type": "string", "description": "Resident UID" },
+        "photoUrl": { "type": "string", "description": "Live Firebase Storage photo web URL" }
+      },
+      "required": ["description", "status", "userId", "photoUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Resident profiles keyed by their Firebase Auth UID."
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Community posts shared on the resident portal bulletin board."
+    },
+    "/marketItems/{itemId}": {
+      "schema": "MarketItem",
+      "description": "Classifieds and marketplace items listed by residents."
+    },
+    "/marketplace_posts/{postId}": {
+      "schema": "MarketplacePost",
+      "description": "Marketplace posts collection containing title, description, price, createdAt, userId, and mediaUrl."
+    },
+    "/discussion_feed/{postId}": {
+      "schema": "DiscussionFeedPost",
+      "description": "Discussion feed posts collection containing content, createdAt, userId, and mediaUrl."
+    },
+    "/work_orders/{orderId}": {
+      "schema": "WorkOrder",
+      "description": "Maintenance work orders collection containing description, status, createdAt, userId, and photoUrl."
+    }
+  }
+}
