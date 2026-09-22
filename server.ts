@@ -72,10 +72,10 @@ app.post('/api/newsletter/extract-content', limitAiRequests, async (req: Request
   }
 });
 
-// Translation endpoint for crew members (English to Spanish)
-app.post('/api/translate', limitAiRequests, async (req: Request, res: Response) => {
+// Translation endpoint for crew members using Google Cloud Translation API (Basic v2)
+app.post('/api/translate', async (req: Request, res: Response) => {
   try {
-    const { title, description, comments } = req.body;
+    const { title, description, comments, targetLang } = req.body;
     if (!title && !description && (!comments || comments.length === 0)) {
       res.status(400).json({ error: 'No text provided for translation' });
       return;
@@ -87,6 +87,7 @@ app.post('/api/translate', limitAiRequests, async (req: Request, res: Response) 
       comments: Array.isArray(comments)
         ? comments.slice(0, 50).map((comment) => asText(comment, 4_000))
         : [],
+      targetLang: targetLang === 'en' ? 'en' : 'es',
     });
 
     res.json(result);

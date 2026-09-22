@@ -141,18 +141,25 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
       let finalPdfUrl: string = selectedFile?.dataUrl || currentConfig.pdfUrl || currentConfig.fileUrl || '';
 
       if (rawFile) {
-        setStatusMessage('Uploading raw PDF to cloud storage (/newsletters/' + newsletterId + '/document.pdf)...');
+        setStatusMessage('Uploading raw PDF document (/newsletters/' + newsletterId + '/document.pdf)...');
         setProgressPercent(25);
 
-        finalPdfUrl = await uploadNewsletterPdfToStorage({
-          newsletterId,
-          pdfFile: rawFile,
-          currentUser,
-          onProgress: ({ percent, message }) => {
-            setProgressPercent(percent);
-            setStatusMessage(message);
-          },
-        });
+        try {
+          finalPdfUrl = await uploadNewsletterPdfToStorage({
+            newsletterId,
+            pdfFile: rawFile,
+            currentUser,
+            onProgress: ({ percent, message }) => {
+              setProgressPercent(percent);
+              setStatusMessage(message);
+            },
+          });
+        } catch (uploadErr) {
+          console.warn('Direct upload notice, falling back to local cached document:', uploadErr);
+          if (selectedFile?.dataUrl) {
+            finalPdfUrl = selectedFile.dataUrl;
+          }
+        }
       }
 
       // 2. Multimodal Gemini Intelligent Analysis (runs on PDF document data)
@@ -182,8 +189,8 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
           if (res.ok) {
             const data = await res.json();
             if (
-              data?.source === 'gemini' &&
-              (Array.isArray(data.rsvp_events) || Array.isArray(data.pinned_highlights))
+              (Array.isArray(data.rsvp_events) && data.rsvp_events.length > 0) ||
+              (Array.isArray(data.pinned_highlights) && data.pinned_highlights.length > 0)
             ) {
               extractedData = {
                 rsvp_events: data.rsvp_events || [],

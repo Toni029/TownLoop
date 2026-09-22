@@ -22,6 +22,7 @@ import {
   FileText,
   RotateCcw,
   Edit3,
+  Sparkles,
 } from 'lucide-react';
 import type { NewsState } from '../hooks/useNewsState';
 import type { PortalDatesState } from '../hooks/usePortalDates';
@@ -66,6 +67,8 @@ export function NewsScreen({
   isAddHighlightModalOpen,
   setIsAddHighlightModalOpen,
   handleApplyAiExtraction,
+  isExtractingAi,
+  handleTriggerNewsletterExtraction,
   currentUser,
   onShowToast,
 }: NewsScreenProps) {
@@ -198,6 +201,19 @@ export function NewsScreen({
             </button>
           )}
 
+          {!isRemoved && (
+            <button
+              type="button"
+              onClick={() => handleTriggerNewsletterExtraction()}
+              disabled={isExtractingAi}
+              className="inline-flex items-center gap-1.5 bg-amber-600/90 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2.5 rounded-2xl border border-amber-400/40 transition shadow-xs cursor-pointer disabled:opacity-60"
+              title="Analyze newsletter text & extract RSVP events with Gemini AI"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isExtractingAi ? 'animate-spin' : ''}`} />
+              <span>{isExtractingAi ? 'Analyzing...' : 'Extract with AI'}</span>
+            </button>
+          )}
+
           {/* Admin / VIP Publishing Controls */}
           {hasNewsletterManagement && (
             <>
@@ -251,326 +267,354 @@ export function NewsScreen({
       <div className="grid grid-cols-2 gap-2 p-1.5 bg-stone-200/70 dark:bg-slate-800 rounded-2xl border border-stone-300/60 dark:border-slate-700">
         <button
           type="button"
-          onClick={() => setNewsSubView('events')}
+          onClick={() => setNewsSubView((prev) => (prev === 'events' ? 'all' : 'events'))}
           className={`flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer ${
             newsSubView === 'events'
               ? 'bg-emerald-700 text-white shadow-xs'
+              : newsSubView === 'all'
+              ? 'bg-white/80 dark:bg-slate-700 text-emerald-800 dark:text-emerald-300 shadow-2xs font-semibold'
               : 'text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
           }`}
+          title={
+            newsSubView === 'events'
+              ? 'Showing RSVP Events only (Click to show both columns)'
+              : 'Click to filter to RSVP Events (or show both)'
+          }
         >
-          <CalendarCheck className="w-4 h-4 shrink-0" />
+          <CalendarCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
           <span>RSVP Upcoming Events</span>
         </button>
 
         <button
           type="button"
-          onClick={() => setNewsSubView('highlights')}
+          onClick={() => setNewsSubView((prev) => (prev === 'highlights' ? 'all' : 'highlights'))}
           className={`flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer ${
             newsSubView === 'highlights'
               ? 'bg-emerald-700 text-white shadow-xs'
+              : newsSubView === 'all'
+              ? 'bg-white/80 dark:bg-slate-700 text-amber-800 dark:text-amber-300 shadow-2xs font-semibold'
               : 'text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
           }`}
+          title={
+            newsSubView === 'highlights'
+              ? 'Showing Pinned Highlights only (Click to show both columns)'
+              : 'Click to filter to Pinned Highlights (or show both)'
+          }
         >
-          <Pin className="w-4 h-4 shrink-0 rotate-12" />
+          <Pin className="w-4 h-4 shrink-0 rotate-12 text-amber-600 dark:text-amber-400" />
           <span>Pinned Highlights</span>
         </button>
       </div>
 
-      {/* View 1: RSVP Upcoming Events */}
-      {newsSubView === 'events' && (
-        <div className="space-y-3 pt-1 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-1.5">
-              <CalendarCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-              <h3 className="font-bold text-stone-900 dark:text-white text-sm">
-                Upcoming Events & RSVP
-              </h3>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-stone-400 font-medium hidden sm:inline">
-                Tap RSVP to reserve your spot
-              </span>
-
-              {hasEventManagement && (
-                <button
-                  type="button"
-                  onClick={handleOpenAddEventModal}
-                  className="min-h-[36px] px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                  title="Add New RSVP Event (Admin/VIP)"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Event</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {sortedEvents.length === 0 ? (
-            <div className="text-center py-8 px-4 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800">
-              <CalendarCheck className="w-8 h-8 text-stone-400 mx-auto mb-2" />
-              <p className="text-sm font-bold text-stone-700 dark:text-stone-300">
-                No upcoming RSVP events scheduled.
-              </p>
-              {hasEventManagement && (
-                <button
-                  type="button"
-                  onClick={handleOpenAddEventModal}
-                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Create First Event</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {sortedEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="relative bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition space-y-3"
-                >
-                  {/* Top-Right Action buttons for Admin/VIP editing & deletion */}
-                  {hasEventManagement && (
-                    <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditEventModal(event)}
-                        className="w-8 h-8 rounded-xl text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition flex items-center justify-center cursor-pointer"
-                        title={`Edit event "${event.title}"`}
-                        aria-label={`Edit event "${event.title}"`}
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleDeleteRsvpEvent(event.id, event.title);
-                          onShowToast?.(`Removed "${event.title}".`);
-                        }}
-                        className="w-8 h-8 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition flex items-center justify-center cursor-pointer active:scale-95"
-                        title={`Delete event "${event.title}"`}
-                        aria-label={`Delete event "${event.title}"`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="flex items-start gap-3 pr-16 sm:pr-0">
-                    {/* Date Calendar Box */}
-                    <div className="w-13 h-14 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 flex flex-col items-center justify-center shrink-0 shadow-2xs">
-                      <span className="text-[10px] font-extrabold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
-                        {event.month}
-                      </span>
-                      <span className="text-lg font-black text-stone-900 dark:text-white leading-none">
-                        {event.day}
-                      </span>
-                    </div>
-
-                    {/* Event Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-200/70 dark:border-emerald-800">
-                          {event.category}
-                        </span>
-                        {event.userRsvp && (
-                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-300 dark:border-emerald-800">
-                            <Check className="w-2.5 h-2.5" /> You're Going
-                          </span>
-                        )}
-                      </div>
-                      <h4 className="font-bold text-stone-900 dark:text-white text-sm leading-snug">
-                        {event.title}
-                      </h4>
-                      <p className="text-xs text-stone-600 dark:text-slate-300 mt-1 leading-relaxed">
-                        {event.description}
-                      </p>
-
-                      <div className="mt-2.5 flex flex-wrap items-center gap-y-1 gap-x-3 text-[11px] text-stone-500 dark:text-stone-400">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-stone-400 shrink-0" />
-                          {event.time}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
-                          {event.location}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Footer: Attendees count & RSVP Action Button */}
-                  <div className="pt-2.5 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 font-medium">
-                      <Users className="w-3.5 h-3.5 text-stone-400" />
-                      <span>
-                        <strong className="text-stone-700 dark:text-stone-200 font-bold">
-                          {event.attendeesCount}
-                        </strong>{' '}
-                        neighbors attending
-                      </span>
-                      {event.spotsLeft !== undefined && (
-                        <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800">
-                          ({event.spotsLeft} spots left)
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleToggleRsvp(event.id)}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs transition cursor-pointer min-h-[38px] ${
-                        event.userRsvp
-                          ? 'bg-emerald-100 dark:bg-emerald-950 hover:bg-emerald-200 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 shadow-2xs'
-                          : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs'
-                      }`}
-                    >
-                      {event.userRsvp ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-800 dark:text-emerald-300" />
-                          <span>RSVP'd ✓</span>
-                        </>
-                      ) : (
-                        <>
-                          <CalendarPlus className="w-3.5 h-3.5" />
-                          <span>RSVP</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* View 2: Pinned Highlights */}
-      {newsSubView === 'highlights' && (
-        <div className="space-y-4 pt-1 animate-in fade-in duration-200">
-          {/* Pinned Highlights Section */}
-          <div className="space-y-2.5">
+      {/* 2 Columns Layout: RSVP Upcoming Events & Pinned Highlights */}
+      <div
+        className={
+          newsSubView === 'all'
+            ? 'grid grid-cols-1 lg:grid-cols-2 gap-5 pt-1 items-start'
+            : 'space-y-4 pt-1'
+        }
+      >
+        {/* Column 1: RSVP Upcoming Events */}
+        {(newsSubView === 'all' || newsSubView === 'events') && (
+          <div className="space-y-3 animate-in fade-in duration-200">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-1.5">
-                <Pin className="w-4 h-4 text-amber-600 fill-amber-600 rotate-12" />
+                <CalendarCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <h3 className="font-bold text-stone-900 dark:text-white text-sm">
-                  Pinned Highlights
+                  Upcoming Events & RSVP
                 </h3>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 bg-amber-100/90 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-800 px-2 py-0.5 rounded-full">
-                  Priority Notices
+                <span className="text-[11px] text-stone-400 font-medium hidden sm:inline">
+                  Tap RSVP to reserve your spot
                 </span>
 
-                {hasHighlightManagement && (
+                {hasEventManagement && (
                   <button
                     type="button"
-                    onClick={() => setIsAddHighlightModalOpen(true)}
-                    className="min-h-[36px] px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                    title="Add New Pinned Highlight (Admin/VIP)"
+                    onClick={handleOpenAddEventModal}
+                    className="min-h-[36px] px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                    title="Add New RSVP Event (Admin/VIP)"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Pin Notice</span>
+                    <span>Add Event</span>
                   </button>
                 )}
               </div>
             </div>
 
-            {pinnedHighlights.length === 0 ? (
-              <div className="text-center py-6 px-4 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800">
-                <Pin className="w-7 h-7 text-stone-400 mx-auto mb-2 rotate-12" />
-                <p className="text-xs font-bold text-stone-600 dark:text-stone-400">
-                  No pinned highlights at this time.
+            {sortedEvents.length === 0 ? (
+              <div className="text-center py-8 px-4 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800">
+                <CalendarCheck className="w-8 h-8 text-stone-400 mx-auto mb-2" />
+                <p className="text-sm font-bold text-stone-700 dark:text-stone-300">
+                  No upcoming RSVP events scheduled.
                 </p>
+                {hasEventManagement && (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddEventModal}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Create First Event</span>
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-2.5">
-                {pinnedHighlights.map((highlight) => (
+              <div className="space-y-3">
+                {sortedEvents.map((event) => (
                   <div
-                    key={highlight.id}
-                    className="relative bg-gradient-to-br from-amber-50/90 via-[#fffdf9] to-amber-50/50 dark:from-slate-900 dark:to-slate-800 border border-amber-200/90 dark:border-amber-900/50 rounded-2xl p-4 shadow-2xs space-y-1.5 overflow-hidden"
+                    key={event.id}
+                    className="relative bg-white dark:bg-slate-900 border border-stone-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition space-y-3"
                   >
-                    {/* Top-Right Trashcan for Admin/VIP deletion */}
-                    {hasHighlightManagement && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleDeleteHighlight(highlight.id, highlight.title);
-                          onShowToast?.(`Unpinned "${highlight.title}".`);
-                        }}
-                        className="absolute top-3 right-3 w-8 h-8 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition flex items-center justify-center cursor-pointer z-10 active:scale-95"
-                        title={`Unpin highlight "${highlight.title}"`}
-                        aria-label={`Unpin highlight "${highlight.title}"`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    {/* Top-Right Action buttons for Admin/VIP editing & deletion */}
+                    {hasEventManagement && (
+                      <div className="absolute top-3 right-3 flex items-center gap-1 z-10">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditEventModal(event)}
+                          className="w-8 h-8 rounded-xl text-stone-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition flex items-center justify-center cursor-pointer"
+                          title={`Edit event "${event.title}"`}
+                          aria-label={`Edit event "${event.title}"`}
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleDeleteRsvpEvent(event.id, event.title);
+                            onShowToast?.(`Removed "${event.title}".`);
+                          }}
+                          className="w-8 h-8 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition flex items-center justify-center cursor-pointer active:scale-95"
+                          title={`Delete event "${event.title}"`}
+                          aria-label={`Delete event "${event.title}"`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     )}
 
-                    <div className="flex items-center justify-between pr-8 sm:pr-0 flex-wrap gap-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                          {highlight.category}
+                    <div className="flex items-start gap-3 pr-16 sm:pr-0">
+                      {/* Date Calendar Box */}
+                      <div className="w-13 h-14 rounded-xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 flex flex-col items-center justify-center shrink-0 shadow-2xs">
+                        <span className="text-[10px] font-extrabold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
+                          {event.month}
+                        </span>
+                        <span className="text-lg font-black text-stone-900 dark:text-white leading-none">
+                          {event.day}
                         </span>
                       </div>
-                      <span className="text-[10px] font-medium text-stone-500 dark:text-stone-400">
-                        {highlight.authorLabel}
-                      </span>
+
+                      {/* Event Details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-200/70 dark:border-emerald-800">
+                            {event.category}
+                          </span>
+                          {event.deadline && (
+                            <span className="text-[10px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/70 px-2 py-0.5 rounded border border-amber-200/70 dark:border-amber-800">
+                              {event.deadline}
+                            </span>
+                          )}
+                          {event.userRsvp && (
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-300 dark:border-emerald-800">
+                              <Check className="w-2.5 h-2.5" /> You're Going
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="font-bold text-stone-900 dark:text-white text-sm leading-snug">
+                          {event.title}
+                        </h4>
+                        <p className="text-xs text-stone-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          {event.description}
+                        </p>
+
+                        <div className="mt-2.5 flex flex-wrap items-center gap-y-1 gap-x-3 text-[11px] text-stone-500 dark:text-stone-400">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-stone-400 shrink-0" />
+                            {event.time}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+                            {event.location}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <h4 className="font-bold text-stone-900 dark:text-white text-sm pr-8 sm:pr-0">
-                      {highlight.title}
-                    </h4>
-                    <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
-                      {highlight.description}
-                    </p>
+                    {/* Footer: Attendees count & RSVP Action Button */}
+                    <div className="pt-2.5 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 font-medium">
+                        <Users className="w-3.5 h-3.5 text-stone-400" />
+                        <span>
+                          <strong className="text-stone-700 dark:text-stone-200 font-bold">
+                            {event.attendeesCount}
+                          </strong>{' '}
+                          neighbors attending
+                        </span>
+                        {event.spotsLeft !== undefined && (
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800">
+                            ({event.spotsLeft} spots left)
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleRsvp(event.id)}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs transition cursor-pointer min-h-[38px] ${
+                          event.userRsvp
+                            ? 'bg-emerald-100 dark:bg-emerald-950 hover:bg-emerald-200 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 shadow-2xs'
+                            : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs'
+                        }`}
+                      >
+                        {event.userRsvp ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-800 dark:text-emerald-300" />
+                            <span>RSVP'd ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <CalendarPlus className="w-3.5 h-3.5" />
+                            <span>RSVP</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+        )}
 
-          {/* Facility Notices */}
-          <div className="space-y-3">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">
-              Recent Facility Notices
-            </h3>
+        {/* Column 2: Pinned Highlights */}
+        {(newsSubView === 'all' || newsSubView === 'highlights') && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Pinned Highlights Section */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Pin className="w-4 h-4 text-amber-600 fill-amber-600 rotate-12" />
+                  <h3 className="font-bold text-stone-900 dark:text-white text-sm">
+                    Pinned Highlights
+                  </h3>
+                </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-neutral-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-              <div className="flex justify-between items-center text-[11px] font-semibold text-slate-400 mb-1">
-                <span>MAIN COURTYARD</span>
-                <span>2 hours ago</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 bg-amber-100/90 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-800 px-2 py-0.5 rounded-full">
+                    Priority Notices
+                  </span>
+
+                  {hasHighlightManagement && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddHighlightModalOpen(true)}
+                      className="min-h-[36px] px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      title="Add New Pinned Highlight (Admin/VIP)"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Pin Notice</span>
+                    </button>
+                  )}
+                </div>
               </div>
-              <h4 className="font-bold text-slate-800 dark:text-white text-sm">
-                Irrigation Maintenance Notice
-              </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                Grounds crew will test courtyard sprinklers between 1:00 PM and
-                3:00 PM. Walkways may be damp.
-              </p>
+
+              {pinnedHighlights.length === 0 ? (
+                <div className="text-center py-6 px-4 bg-white dark:bg-slate-900 rounded-2xl border border-stone-200 dark:border-slate-800">
+                  <Pin className="w-7 h-7 text-stone-400 mx-auto mb-2 rotate-12" />
+                  <p className="text-xs font-bold text-stone-600 dark:text-stone-400">
+                    No pinned highlights at this time.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2.5">
+                  {pinnedHighlights.map((highlight) => (
+                    <div
+                      key={highlight.id}
+                      className="relative bg-gradient-to-br from-amber-50/90 via-[#fffdf9] to-amber-50/50 dark:from-slate-900 dark:to-slate-800 border border-amber-200/90 dark:border-amber-900/50 rounded-2xl p-4 shadow-2xs space-y-1.5 overflow-hidden"
+                    >
+                      {/* Top-Right Trashcan for Admin/VIP deletion */}
+                      {hasHighlightManagement && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleDeleteHighlight(highlight.id, highlight.title);
+                            onShowToast?.(`Unpinned "${highlight.title}".`);
+                          }}
+                          className="absolute top-3 right-3 w-8 h-8 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition flex items-center justify-center cursor-pointer z-10 active:scale-95"
+                          title={`Unpin highlight "${highlight.title}"`}
+                          aria-label={`Unpin highlight "${highlight.title}"`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      <div className="flex items-center justify-between pr-8 sm:pr-0 flex-wrap gap-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                            {highlight.category}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-medium text-stone-500 dark:text-stone-400">
+                          {highlight.authorLabel}
+                        </span>
+                      </div>
+
+                      <h4 className="font-bold text-stone-900 dark:text-white text-sm pr-8 sm:pr-0">
+                        {highlight.title}
+                      </h4>
+                      <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
+                        {highlight.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-neutral-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-              <div className="flex justify-between items-center text-[11px] font-semibold text-slate-400 mb-1">
-                <span>COMMUNITY CENTER</span>
-                <span>Yesterday</span>
+            {/* Facility Notices */}
+            <div className="space-y-3">
+              <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                Recent Facility Notices
+              </h3>
+
+              <div className="bg-white dark:bg-slate-900 border border-neutral-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex justify-between items-center text-[11px] font-semibold text-slate-400 mb-1">
+                  <span>MAIN COURTYARD</span>
+                  <span>2 hours ago</span>
+                </div>
+                <h4 className="font-bold text-slate-800 dark:text-white text-sm">
+                  Irrigation Maintenance Notice
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                  Grounds crew will test courtyard sprinklers between 1:00 PM and
+                  3:00 PM. Walkways may be damp.
+                </p>
               </div>
-              <h4 className="font-bold text-slate-800 dark:text-white text-sm">
-                Weekly Farmers Market Basket Delivery
-              </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                Fresh produce baskets arrive this Thursday morning at 9:30 AM in
-                the North Foyer.
-              </p>
+
+              <div className="bg-white dark:bg-slate-900 border border-neutral-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+                <div className="flex justify-between items-center text-[11px] font-semibold text-slate-400 mb-1">
+                  <span>COMMUNITY CENTER</span>
+                  <span>Yesterday</span>
+                </div>
+                <h4 className="font-bold text-slate-800 dark:text-white text-sm">
+                  Weekly Farmers Market Basket Delivery
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                  Fresh produce baskets arrive this Thursday morning at 9:30 AM in
+                  the North Foyer.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Admin/VIP Upload Newsletter Modal */}
       <UploadNewsletterModal

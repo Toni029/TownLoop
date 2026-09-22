@@ -181,11 +181,25 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
           </div>
         ) : resolvedUrl ? (
           <div className="w-full h-full max-w-6xl mx-auto flex flex-col bg-white dark:bg-stone-900 rounded-2xl border border-stone-800 shadow-2xl overflow-hidden">
-            <iframe
-              src={`${resolvedUrl}#toolbar=1&navpanes=0`}
-              title={title}
-              className="w-full flex-1 border-0 rounded-2xl bg-white"
-            />
+            <object
+              data={resolvedUrl}
+              type="application/pdf"
+              className="w-full flex-1 border-0 rounded-2xl bg-white min-h-[500px]"
+            >
+              <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-stone-900 text-stone-200 h-full">
+                <FileText className="w-10 h-10 text-emerald-400 mb-2" />
+                <p className="text-sm font-semibold">Unable to display PDF preview directly.</p>
+                <a
+                  href={resolvedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition inline-flex items-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open PDF in New Tab
+                </a>
+              </div>
+            </object>
           </div>
         ) : (
           <div className="max-w-md bg-stone-900 border border-stone-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">

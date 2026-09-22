@@ -119,6 +119,7 @@ export interface CommunityRsvpEvent {
   createdBy?: string;
   createdAt?: number;
   isAiExtracted?: boolean;
+  deadline?: string;
 }
 
 export interface PinnedHighlight {
@@ -143,6 +144,7 @@ export interface ExtractedRsvpEventInput {
   category: string;
   capacity: number | null;
   description: string;
+  deadline?: string;
 }
 
 export interface ExtractedPinnedHighlightInput {
@@ -176,6 +178,7 @@ export interface NewsletterConfig {
   pageImages?: string[];
   uploadedAt?: number;
   uploadedBy?: string;
+  lastExtractedAt?: number;
   isCustomUpload?: boolean;
   isRemoved?: boolean;
 }

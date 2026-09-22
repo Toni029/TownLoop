@@ -4,35 +4,6 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import { GoogleGenAI, Type } from '@google/genai';
-
-let aiClient: GoogleGenAI | null = null;
-const withTimeout = <T>(operation: Promise<T>, timeoutMs = 15_000): Promise<T> =>
-  new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Gemini request timed out.')), timeoutMs);
-    operation.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); },
-    );
-  });
-
-function getGenAI(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return null;
-  }
-  if (!aiClient) {
-    aiClient = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
-  }
-  return aiClient;
-}
 
 export interface TranslationPayload {
   title: string;
@@ -45,7 +16,7 @@ export interface TranslationResult {
   title: string;
   description?: string;
   comments?: string[];
-  source: 'gemini' | 'dictionary-fallback';
+  source: 'google-translate' | 'fallback';
 }
 
 /**
@@ -58,6 +29,10 @@ export function fallbackTranslateToSpanish(text: string): string {
 
   // Common complete phrases mapping
   const commonExactPhrases: Record<string, string> = {
+    'Master bathroom sink dripping constantly': 'Lavabo del baño principal goteando constantemente',
+    'Hot water faucet has a slow drip that got worse over the weekend.': 'La llave de agua caliente tiene un goteo lento que empeoró durante el fin de semana.',
+    'Patio screen door off track': 'Puerta mosquitera del patio fuera de riel',
+    'The sliding screen door keeps jamming when opening.': 'La puerta corrediza con mosquitero se sigue trabando al abrir.',
     'AC leaking water in hallway': 'Aire acondicionado goteando agua en el pasillo',
     'Garbage disposal broken': 'Triturador de basura descompuesto',
     'Kitchen sink faucet dripping': 'Grifo del fregadero de la cocina goteando',
@@ -66,14 +41,14 @@ export function fallbackTranslateToSpanish(text: string): string {
     'Toilet running constantly': 'El inodoro corre agua constantemente',
     'Toilet constantly running': 'El inodoro corre agua constantemente',
     'Smoke detector beeping': 'Detector de humo pitando (cambio de batería)',
-    'Light fixture flickering': 'Lámpara o lámpara de techo parpadeando',
+    'Light fixture flickering': 'Lámpara de techo parpadeando',
     'Clogged bathroom drain': 'Drenaje del baño tapado / obstruido',
     'Broken window latch': 'Pestillo o seguro de ventana roto',
     'Refrigerator not cooling': 'El refrigerador no está enfriando',
     'Dishwasher leaking soap': 'Lavavajillas goteando agua con jabón',
     'Dryer not spinning': 'La secadora no está girando',
     'Washer overflowing': 'La lavadora se está desbordando',
-    'Ceiling fan squeaking': 'El ventilador de techo rechina al girar',
+    'Ceiling fan squeaking': 'El ventilador de techo rechinando al girar',
     'Outlet sparking in kitchen': 'Enchufe sacando chispas en la cocina',
     'Door handle loose': 'Manija de la puerta floja',
     'Permission to enter given': 'Permiso otorgado para ingresar a la unidad',
@@ -82,6 +57,14 @@ export function fallbackTranslateToSpanish(text: string): string {
     'Please call before entering': 'Por favor llamar antes de entrar',
     'Dog in bedroom': 'Hay perro en la recámara',
     'Cat inside': 'Gato adentro de la vivienda',
+    'Technician currently on site': 'Técnico actualmente en el sitio',
+    'Queued for maintenance technician': 'En cola para técnico de mantenimiento',
+    'Pending review': 'Pendiente de revisión',
+    'Work completed': 'Trabajo completado',
+    'Repaired and tested': 'Reparado y probado',
+    'Replaced parts': 'Partes reemplazadas',
+    'Parts ordered': 'Partes ordenadas',
+    'Waiting on parts': 'En espera de repuestos',
   };
 
   if (commonExactPhrases[t]) {
@@ -90,16 +73,35 @@ export function fallbackTranslateToSpanish(text: string): string {
 
   // Common replacements
   const replacements: [RegExp, string][] = [
+    [/\bmaster bathroom sink\b/gi, 'lavabo del baño principal'],
+    [/\bmaster bathroom\b/gi, 'baño principal'],
+    [/\bguest bathroom\b/gi, 'baño de visitas'],
+    [/\bhalf bath\b/gi, 'medio baño'],
+    [/\bkitchen sink\b/gi, 'fregadero de la cocina'],
+    [/\bbathroom sink\b/gi, 'lavabo del baño'],
+    [/\bmaster bedroom\b/gi, 'recámara principal'],
+    [/\bliving room\b/gi, 'sala'],
+    [/\bdining room\b/gi, 'comedor'],
+    [/\blaundry room\b/gi, 'cuarto de lavado'],
+    [/\bpatio screen door\b/gi, 'puerta mosquitera del patio'],
+    [/\bsliding screen door\b/gi, 'puerta corrediza con mosquitero'],
+    [/\bsliding glass door\b/gi, 'puerta corrediza de vidrio'],
+    [/\bscreen door\b/gi, 'puerta mosquitera'],
+    [/\bfront door\b/gi, 'puerta principal'],
+    [/\bback door\b/gi, 'puerta trasera'],
+    [/\bpatio door\b/gi, 'puerta del patio'],
+    [/\bbalcony door\b/gi, 'puerta del balcón'],
+    [/\bcloset door\b/gi, 'puerta del clóset'],
+    [/\b(AC unit|A\/C unit|AC system|A\/C system)\b/gi, 'unidad de aire acondicionado'],
     [/\b(AC|A\/C|air conditioner|air conditioning)\b/gi, 'aire acondicionado'],
     [/\b(water heater)\b/gi, 'calentador de agua'],
+    [/\bhot water\b/gi, 'agua caliente'],
+    [/\bcold water\b/gi, 'agua fría'],
     [/\b(garbage disposal)\b/gi, 'triturador de basura'],
-    [/\b(kitchen sink)\b/gi, 'fregadero de la cocina'],
-    [/\b(bathroom sink)\b/gi, 'lavabo del baño'],
     [/\b(smoke detector)\b/gi, 'detector de humo'],
+    [/\b(carbon monoxide detector)\b/gi, 'detector de monóxido de carbono'],
     [/\b(ceiling fan)\b/gi, 'ventilador de techo'],
-    [/\b(front door)\b/gi, 'puerta principal'],
-    [/\b(back door)\b/gi, 'puerta trasera'],
-    [/\b(patio door|sliding door)\b/gi, 'puerta corrediza del patio'],
+    [/\b(exhaust fan)\b/gi, 'extractor de aire'],
     [/\b(light fixture)\b/gi, 'lámpara de techo'],
     [/\b(circuit breaker|breaker box)\b/gi, 'caja de fusibles'],
     [/\b(washing machine|washer)\b/gi, 'lavadora'],
@@ -112,7 +114,7 @@ export function fallbackTranslateToSpanish(text: string): string {
     [/\b(faucet)\b/gi, 'grifo / llave'],
     [/\b(toilet)\b/gi, 'inodoro'],
     [/\b(drain)\b/gi, 'drenaje'],
-    [/\b(pipe)\b/gi, 'tubería'],
+    [/\b(pipe|pipes)\b/gi, 'tubería'],
     [/\b(window)\b/gi, 'ventana'],
     [/\b(hallway)\b/gi, 'pasillo'],
     [/\b(kitchen)\b/gi, 'cocina'],
@@ -166,96 +168,147 @@ export function fallbackTranslateToSpanish(text: string): string {
 }
 
 /**
- * Translates work order texts to Spanish using Gemini API (gemini-3.8-flash)
- * with robust fallback handling.
+ * Decodes common HTML entities returned by Google Translate v2
+ */
+function decodeHtmlEntities(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&#039;|&apos;|&#x27;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ');
+}
+
+/**
+ * Google Translate API key resolution from environment variable
+ * Secure placeholder: process.env.GOOGLE_TRANSLATE_API_KEY or process.env.REACT_APP_GOOGLE_TRANSLATE_API_KEY
+ */
+function getGoogleTranslateApiKey(): string {
+  return (
+    process.env.GOOGLE_TRANSLATE_API_KEY ||
+    process.env.REACT_APP_GOOGLE_TRANSLATE_API_KEY ||
+    process.env.GOOGLE_CLOUD_TRANSLATION_API_KEY ||
+    ''
+  ).trim();
+}
+
+/**
+ * Batch-translates work order title, description/notes, and comments together
+ * in a single Google Cloud Translation API (Basic v2 endpoint) request using standard fetch.
+ * Fails gracefully with domain dictionary fallback if network drops or key is absent.
  */
 export async function translateWorkOrderContent(
   payload: TranslationPayload
 ): Promise<TranslationResult> {
-  const { title, description = '', comments = [] } = payload;
-  const ai = getGenAI();
+  const { title, description = '', comments = [], targetLang = 'es' } = payload;
+  const apiKey = getGoogleTranslateApiKey();
 
-  if (!ai) {
-    // Graceful dictionary fallback
+  // If no API key is provided, fail gracefully to instant fallback dictionary
+  if (!apiKey) {
     return {
       title: fallbackTranslateToSpanish(title),
       description: description ? fallbackTranslateToSpanish(description) : '',
       comments: comments.map((c) => fallbackTranslateToSpanish(c)),
-      source: 'dictionary-fallback',
+      source: 'fallback',
+    };
+  }
+
+  // Construct batch array for the single Google Translate API Basic v2 call
+  // We index items so we can simultaneously unpack them upon response
+  const batchTexts: string[] = [];
+  const titleIdx = title ? batchTexts.push(title) - 1 : -1;
+  const descIdx = description ? batchTexts.push(description) - 1 : -1;
+  const commentIndices: number[] = [];
+
+  for (const c of comments) {
+    if (c) {
+      commentIndices.push(batchTexts.push(c) - 1);
+    } else {
+      commentIndices.push(-1);
+    }
+  }
+
+  if (batchTexts.length === 0) {
+    return {
+      title,
+      description,
+      comments,
+      source: 'google-translate',
     };
   }
 
   try {
-    const prompt = `You are a professional maintenance translator assisting Spanish-speaking maintenance and repair technicians in an apartment / residential community.
+    const endpoint = `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(apiKey)}`;
 
-Translate the following English maintenance work order into clear, direct, and natural Mexican / Latin American Spanish commonly used in maintenance, plumbing, HVAC, electrical, and facility repair work.
+    // Abort controller with 8s timeout to handle network drops gracefully
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-Items to translate:
-1. Title: "${title}"
-2. Description / Resident Notes: "${description}"
-3. Comments: ${JSON.stringify(comments)}
-
-Requirements:
-- Provide natural, accurate Spanish translations for maintenance crew members.
-- Keep technical terms accurate (e.g., A/C -> Aire acondicionado, breaker -> caja de fusibles, disposal -> triturador).
-- Preserve all unit numbers, names, phone numbers, and formatting.
-- Return valid JSON matching the schema with "title", "description", and "comments".`;
-
-    const response = await withTimeout(ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        systemInstruction:
-          'You are a specialized Spanish translator for residential property maintenance work orders. Output clean JSON only.',
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: {
-              type: Type.STRING,
-              description: 'Translated title in clear Spanish',
-            },
-            description: {
-              type: Type.STRING,
-              description: 'Translated description/notes in clear Spanish',
-            },
-            comments: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: 'Translated comments in Spanish in the exact same array sequence',
-            },
-          },
-          required: ['title'],
-        },
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
-    }));
+      body: JSON.stringify({
+        q: batchTexts,
+        target: targetLang,
+        format: 'text',
+      }),
+      signal: controller.signal,
+    });
 
-    const text = response.text;
-    if (!text) {
-      throw new Error('Empty response from Gemini translation');
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.warn(`Google Cloud Translation API error (HTTP ${response.status}):`, errorText);
+      throw new Error(`Google Cloud Translation API returned status ${response.status}`);
     }
 
-    const parsed = JSON.parse(text);
+    const data = await response.json();
+    const translations = data?.data?.translations;
+
+    if (!Array.isArray(translations)) {
+      throw new Error('Malformed response from Google Cloud Translation API');
+    }
+
+    const translatedTitle =
+      titleIdx >= 0 && translations[titleIdx]?.translatedText
+        ? decodeHtmlEntities(translations[titleIdx].translatedText)
+        : fallbackTranslateToSpanish(title);
+
+    const translatedDesc =
+      descIdx >= 0 && translations[descIdx]?.translatedText
+        ? decodeHtmlEntities(translations[descIdx].translatedText)
+        : description
+        ? fallbackTranslateToSpanish(description)
+        : '';
+
+    const translatedComments = commentIndices.map((idx, i) => {
+      if (idx >= 0 && translations[idx]?.translatedText) {
+        return decodeHtmlEntities(translations[idx].translatedText);
+      }
+      return fallbackTranslateToSpanish(comments[i] || '');
+    });
+
     return {
-      title: parsed.title || fallbackTranslateToSpanish(title),
-      description:
-        parsed.description !== undefined
-          ? parsed.description
-          : description
-          ? fallbackTranslateToSpanish(description)
-          : '',
-      comments: Array.isArray(parsed.comments)
-        ? parsed.comments
-        : comments.map((c) => fallbackTranslateToSpanish(c)),
-      source: 'gemini',
+      title: translatedTitle,
+      description: translatedDesc,
+      comments: translatedComments,
+      source: 'google-translate',
     };
-  } catch (err) {
-    console.warn('Gemini translation notice (falling back to dictionary):', err);
+  } catch (error) {
+    // Fails gracefully if network drops or service is unavailable
+    console.warn('Google Translation network/service notice (falling back gracefully):', error);
     return {
       title: fallbackTranslateToSpanish(title),
       description: description ? fallbackTranslateToSpanish(description) : '',
       comments: comments.map((c) => fallbackTranslateToSpanish(c)),
-      source: 'dictionary-fallback',
+      source: 'fallback',
     };
   }
 }
+

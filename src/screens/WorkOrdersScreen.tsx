@@ -74,10 +74,11 @@ export function WorkOrdersScreen({
   const [expandedId, setExpandedId] = useState<number | string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | string | null>(null);
 
-  // Translation State for Crew / Spanish-speaking staff
+  // Translation State for Crew / Spanish-speaking staff and residents
   const [translatedMap, setTranslatedMap] = useState<{ [woId: string]: TranslatedContent }>({});
   const [translatingMap, setTranslatingMap] = useState<{ [woId: string]: boolean }>({});
   const [activeLanguageMap, setActiveLanguageMap] = useState<{ [woId: string]: 'es' | 'en' }>({});
+  const [translateErrorMap, setTranslateErrorMap] = useState<{ [woId: string]: string | null }>({});
 
   // Crew reply + photo state for marking as done
   const [crewReplyText, setCrewReplyText] = useState<{ [woId: string]: string }>({});
@@ -103,8 +104,8 @@ export function WorkOrdersScreen({
   const seesAllWorkOrders = canViewAllWorkOrders(currentUser);
   const allowCreate = canCreateWorkOrder(currentUser);
   const allowComment = canCommentOnWorkOrder(currentUser);
-  // Only Admin, VIP, and Crew roles are permitted to see and use the translation features
-  const canTranslate = isUserAdmin || isUserCrew || isVip(currentUser);
+  // Translation feature enabled for all users (both residents and maintenance staff)
+  const canTranslate = true;
 
   // Filter visible work orders: Admin, VIP, and Crew see all; regular residents only see their own
   const visibleWorkOrders = workOrders.filter((wo) => canViewWorkOrder(wo, currentUser));
@@ -243,12 +244,17 @@ export function WorkOrdersScreen({
 
     // Fetch translation dynamically
     setTranslatingMap((prev) => ({ ...prev, [idStr]: true }));
+    setTranslateErrorMap((prev) => ({ ...prev, [idStr]: null }));
     try {
       const result = await translateWorkOrder(wo);
       setTranslatedMap((prev) => ({ ...prev, [idStr]: result }));
       setActiveLanguageMap((prev) => ({ ...prev, [idStr]: 'es' }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to translate work order:', error);
+      setTranslateErrorMap((prev) => ({
+        ...prev,
+        [idStr]: error?.message || 'Translation unavailable. Please try again.',
+      }));
     } finally {
       setTranslatingMap((prev) => ({ ...prev, [idStr]: false }));
     }
@@ -542,6 +548,12 @@ export function WorkOrdersScreen({
                                 </>
                               )}
                             </button>
+                          )}
+
+                          {translateErrorMap[idStr] && (
+                            <span className="text-[11px] font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-lg border border-rose-200 dark:border-rose-800 animate-in fade-in">
+                              ⚠️ {translateErrorMap[idStr]}
+                            </span>
                           )}
                         </div>
 
