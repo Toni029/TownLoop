@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   X,
   Users,
@@ -86,6 +86,46 @@ export function NewsScreen({
   // Events sorted from the beginning of the month to the last of the month (early first)
   const sortedEvents = useMemo(() => sortEventsEarlyFirst(rsvpEvents), [rsvpEvents]);
 
+  // Forward toast to global floating toast so scroll position is never shifted by in-flow DOM elements
+  useEffect(() => {
+    if (rsvpToast) {
+      onShowToast?.(rsvpToast);
+      setRsvpToast(null);
+    }
+  }, [rsvpToast, onShowToast, setRsvpToast]);
+
+  const selectorRef = useRef<HTMLDivElement>(null);
+  const savedSelectorTopRef = useRef<number | null>(null);
+
+  // Maintain completely static scroll position when switching subviews (prevents teleporting to middle of screen)
+  useLayoutEffect(() => {
+    if (savedSelectorTopRef.current !== null && selectorRef.current) {
+      const targetTop = savedSelectorTopRef.current;
+      savedSelectorTopRef.current = null;
+      const mainEl = selectorRef.current.closest('main') || document.querySelector('main');
+      const currentTop = selectorRef.current.getBoundingClientRect().top;
+      const diff = currentTop - targetTop;
+      if (Math.abs(diff) > 0.5) {
+        if (mainEl && mainEl.scrollHeight > mainEl.clientHeight) {
+          mainEl.scrollTop += diff;
+        } else {
+          window.scrollBy(0, diff);
+        }
+      }
+    }
+  }, [newsSubView]);
+
+  const handleSelectSubView = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    subView: 'events' | 'highlights'
+  ) => {
+    e.currentTarget.blur();
+    if (selectorRef.current) {
+      savedSelectorTopRef.current = selectorRef.current.getBoundingClientRect().top;
+    }
+    setNewsSubView(subView);
+  };
+
   return (
     <section className="space-y-4 animate-in fade-in duration-200">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -104,23 +144,6 @@ export function NewsScreen({
           </span>
         )}
       </div>
-
-      {/* Toast confirmation when RSVP / item is updated */}
-      {rsvpToast && (
-        <div className="bg-emerald-800 text-white text-xs px-4 py-2.5 rounded-2xl shadow-md flex items-center justify-between gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-300 shrink-0" />
-            <span className="font-semibold">{rsvpToast}</span>
-          </div>
-          <button
-            onClick={() => setRsvpToast(null)}
-            className="text-white/70 hover:text-white transition cursor-pointer"
-            title="Dismiss notification"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Official Publication — AT THE TOP OF NEWS */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-[30px] p-5 sm:p-6 shadow-md relative overflow-hidden">
@@ -263,64 +286,92 @@ export function NewsScreen({
         </div>
       </div>
 
-      {/* Two Option Buttons: RSVP Upcoming Events & Pinned Highlights */}
-      <div className="grid grid-cols-2 gap-2 p-1.5 bg-stone-200/70 dark:bg-slate-800 rounded-2xl border border-stone-300/60 dark:border-slate-700">
+      {/* Pretty and simple 2-selection selector with signature greenish tone */}
+      <div
+        id="news-view-selector"
+        ref={selectorRef}
+        className="grid grid-cols-2 gap-2 sm:gap-3 p-2 bg-gradient-to-r from-emerald-50/95 via-[#f2f7f4] to-teal-50/95 dark:from-emerald-950/60 dark:via-slate-900 dark:to-teal-950/50 rounded-2xl border border-emerald-200/90 dark:border-emerald-800/70 shadow-2xs"
+        role="tablist"
+        aria-label="News view selector"
+      >
+        {/* Selection 1: RSVP Upcoming Events */}
         <button
           type="button"
-          onClick={() => setNewsSubView((prev) => (prev === 'events' ? 'all' : 'events'))}
-          className={`flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer ${
-            newsSubView === 'events'
+          id="news-filter-events"
+          role="tab"
+          aria-selected={newsSubView !== 'highlights'}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSelectSubView(e, 'events');
+          }}
+          className={`flex flex-col items-center justify-center gap-1.5 py-3 sm:py-3.5 px-2.5 sm:px-3 rounded-xl transition cursor-pointer text-center min-h-[78px] sm:min-h-[86px] ${
+            newsSubView !== 'highlights'
               ? 'bg-emerald-700 text-white shadow-xs'
-              : newsSubView === 'all'
-              ? 'bg-white/80 dark:bg-slate-700 text-emerald-800 dark:text-emerald-300 shadow-2xs font-semibold'
-              : 'text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
+              : 'text-emerald-900/90 dark:text-emerald-200/90 hover:bg-white/80 dark:hover:bg-emerald-900/30 hover:text-emerald-950 dark:hover:text-emerald-100 font-semibold'
           }`}
-          title={
-            newsSubView === 'events'
-              ? 'Showing RSVP Events only (Click to show both columns)'
-              : 'Click to filter to RSVP Events (or show both)'
-          }
+          title="Show RSVP Upcoming Events"
         >
-          <CalendarCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <span>RSVP Upcoming Events</span>
+          <div className="flex items-center gap-1.5">
+            <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-current" />
+            <span
+              className={`text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-full transition ${
+                newsSubView !== 'highlights'
+                  ? 'bg-emerald-800 text-emerald-100'
+                  : 'bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+              }`}
+            >
+              {sortedEvents.length}
+            </span>
+          </div>
+          <span className="text-sm sm:text-base font-extrabold leading-snug">
+            RSVP Upcoming Events
+          </span>
         </button>
 
+        {/* Selection 2: Pinned Highlights */}
         <button
           type="button"
-          onClick={() => setNewsSubView((prev) => (prev === 'highlights' ? 'all' : 'highlights'))}
-          className={`flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer ${
+          id="news-filter-highlights"
+          role="tab"
+          aria-selected={newsSubView === 'highlights'}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSelectSubView(e, 'highlights');
+          }}
+          className={`flex flex-col items-center justify-center gap-1.5 py-3 sm:py-3.5 px-2.5 sm:px-3 rounded-xl transition cursor-pointer text-center min-h-[78px] sm:min-h-[86px] ${
             newsSubView === 'highlights'
               ? 'bg-emerald-700 text-white shadow-xs'
-              : newsSubView === 'all'
-              ? 'bg-white/80 dark:bg-slate-700 text-amber-800 dark:text-amber-300 shadow-2xs font-semibold'
-              : 'text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
+              : 'text-emerald-900/90 dark:text-emerald-200/90 hover:bg-white/80 dark:hover:bg-emerald-900/30 hover:text-emerald-950 dark:hover:text-emerald-100 font-semibold'
           }`}
-          title={
-            newsSubView === 'highlights'
-              ? 'Showing Pinned Highlights only (Click to show both columns)'
-              : 'Click to filter to Pinned Highlights (or show both)'
-          }
+          title="Show Pinned Highlights"
         >
-          <Pin className="w-4 h-4 shrink-0 rotate-12 text-amber-600 dark:text-amber-400" />
-          <span>Pinned Highlights</span>
+          <div className="flex items-center gap-1.5">
+            <Pin className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 rotate-12 text-current" />
+            <span
+              className={`text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-full transition ${
+                newsSubView === 'highlights'
+                  ? 'bg-emerald-800 text-emerald-100'
+                  : 'bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+              }`}
+            >
+              {pinnedHighlights.length}
+            </span>
+          </div>
+          <span className="text-sm sm:text-base font-extrabold leading-snug">
+            Pinned Highlights
+          </span>
         </button>
       </div>
 
-      {/* 2 Columns Layout: RSVP Upcoming Events & Pinned Highlights */}
-      <div
-        className={
-          newsSubView === 'all'
-            ? 'grid grid-cols-1 lg:grid-cols-2 gap-5 pt-1 items-start'
-            : 'space-y-4 pt-1'
-        }
-      >
-        {/* Column 1: RSVP Upcoming Events */}
-        {(newsSubView === 'all' || newsSubView === 'events') && (
+      {/* Selected View: RSVP Upcoming Events or Pinned Highlights */}
+      <div className="space-y-4 pt-1">
+        {/* View 1: RSVP Upcoming Events */}
+        {newsSubView !== 'highlights' && (
           <div className="space-y-3 animate-in fade-in duration-200">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-1.5">
                 <CalendarCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                <h3 className="font-bold text-stone-900 dark:text-white text-sm">
+                <h3 className="font-extrabold text-stone-900 dark:text-white text-sm sm:text-base">
                   Upcoming Events & RSVP
                 </h3>
               </div>
@@ -491,15 +542,15 @@ export function NewsScreen({
           </div>
         )}
 
-        {/* Column 2: Pinned Highlights */}
-        {(newsSubView === 'all' || newsSubView === 'highlights') && (
+        {/* View 2: Pinned Highlights */}
+        {newsSubView === 'highlights' && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Pinned Highlights Section */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-1.5">
                   <Pin className="w-4 h-4 text-amber-600 fill-amber-600 rotate-12" />
-                  <h3 className="font-bold text-stone-900 dark:text-white text-sm">
+                  <h3 className="font-extrabold text-stone-900 dark:text-white text-sm sm:text-base">
                     Pinned Highlights
                   </h3>
                 </div>

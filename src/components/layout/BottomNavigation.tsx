@@ -5,7 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion, LayoutGroup } from 'motion/react';
 import { FileText, Wrench, Users, Home as HomeIcon } from 'lucide-react';
 import type { PortalTab } from '../../types';
 
@@ -21,68 +21,71 @@ const TABS: { id: PortalTab; label: string; icon: typeof HomeIcon }[] = [
   { id: 'social', label: 'Social', icon: Users },
 ];
 
-export function BottomNavigation({
+export const BottomNavigation = React.memo(function BottomNavigation({
   setActiveTab,
   activeTab,
 }: BottomNavigationProps) {
   return (
     <div className="fixed sm:absolute bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-[430px] sm:max-w-[450px] z-30">
-      <nav
-        className="liquid-dock relative grid grid-cols-4 w-full items-center"
-        aria-label="Bottom navigation dock"
-      >
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          const Icon = tab.icon;
-          const isWorkOrders = tab.id === 'workorders';
+      <LayoutGroup id="bottom-dock-nav">
+        <nav
+          className="liquid-dock relative grid grid-cols-4 w-full items-center"
+          aria-label="Bottom navigation dock"
+        >
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            const Icon = tab.icon;
+            const isWorkOrders = tab.id === 'workorders';
 
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="relative flex flex-col items-center justify-center py-2 sm:py-2.5 transition-all cursor-pointer text-black"
-              aria-label={`${tab.label} tab`}
-            >
-              {/* Liquid Glass Bubble Indicator directly anchored and centered to each tab button */}
-              {isActive && (
-                <motion.div
-                  layoutId="liquid-glass-indicator"
-                  className={`liquid-glass-oval absolute inset-y-0 pointer-events-none ${
-                    isWorkOrders
-                      ? '-inset-x-2 sm:-inset-x-2.5'
-                      : 'inset-x-1 sm:inset-x-1.5'
-                  }`}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 420,
-                    damping: 30,
-                  }}
-                />
-              )}
-
-              <div
-                className={`relative z-10 flex flex-col items-center justify-center transition-transform duration-200 ${
-                  isActive ? 'scale-105 font-black' : 'font-extrabold hover:scale-102'
-                }`}
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="relative flex flex-col items-center justify-center py-2 sm:py-2.5 transition-all cursor-pointer text-black"
+                aria-label={`${tab.label} tab`}
               >
-                <Icon
-                  className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]"
-                  stroke="#000000"
-                  color="#000000"
-                />
-                <span
-                  className={`text-xs sm:text-[13px] font-black tracking-tight mt-1 text-black ${
-                    isWorkOrders ? 'whitespace-nowrap px-0.5' : ''
+                {/* Liquid Glass Bubble Indicator directly anchored and centered to each tab button */}
+                {isActive && (
+                  <motion.div
+                    layoutId="liquid-glass-indicator"
+                    layoutDependency={activeTab}
+                    className={`liquid-glass-oval absolute inset-y-0 pointer-events-none ${
+                      isWorkOrders
+                        ? '-inset-x-2 sm:-inset-x-2.5'
+                        : 'inset-x-1 sm:inset-x-1.5'
+                    }`}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 420,
+                      damping: 30,
+                    }}
+                  />
+                )}
+
+                <div
+                  className={`relative z-10 flex flex-col items-center justify-center transition-transform duration-200 ${
+                    isActive ? 'scale-105 font-black' : 'font-extrabold hover:scale-102'
                   }`}
-                  style={{ color: '#000000' }}
                 >
-                  {tab.label}
-                </span>
-              </div>
-            </button>
-          );
-        })}
-      </nav>
+                  <Icon
+                    className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]"
+                    stroke="#000000"
+                    color="#000000"
+                  />
+                  <span
+                    className={`text-xs sm:text-[13px] font-black tracking-tight mt-1 text-black ${
+                      isWorkOrders ? 'whitespace-nowrap px-0.5' : ''
+                    }`}
+                    style={{ color: '#000000' }}
+                  >
+                    {tab.label}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </nav>
+      </LayoutGroup>
     </div>
   );
-}
+});

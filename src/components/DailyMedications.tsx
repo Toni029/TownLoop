@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Pill,
   CheckCircle2,
@@ -238,6 +238,47 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
     }
   }, [isExpanded]);
 
+  const sectionRef = useRef<HTMLElement>(null);
+  const savedTopRef = useRef<number | null>(null);
+
+  // Maintain completely static scroll position when expanding or collapsing the tile
+  useLayoutEffect(() => {
+    if (savedTopRef.current !== null && sectionRef.current) {
+      const targetTop = savedTopRef.current;
+      savedTopRef.current = null;
+      const mainEl = sectionRef.current.closest('main') || document.querySelector('main');
+
+      const fixScroll = () => {
+        if (!sectionRef.current) return;
+        const currentTop = sectionRef.current.getBoundingClientRect().top;
+        const diff = currentTop - targetTop;
+        if (Math.abs(diff) > 0.5) {
+          if (mainEl && mainEl.scrollHeight > mainEl.clientHeight) {
+            mainEl.scrollTop += diff;
+          } else {
+            window.scrollBy(0, diff);
+          }
+        }
+      };
+
+      // Run immediately before paint
+      fixScroll();
+
+      // Also monitor during the transition animation frames to counteract any browser scroll drift
+      const startTime = performance.now();
+      let animId: number;
+      const step = (time: number) => {
+        fixScroll();
+        if (time - startTime < 350) {
+          animId = requestAnimationFrame(step);
+        }
+      };
+      animId = requestAnimationFrame(step);
+
+      return () => cancelAnimationFrame(animId);
+    }
+  }, [isExpanded]);
+
   // Action: Take dose now
   const handleTakeDose = (med: MedicationItem) => {
     const now = new Date();
@@ -344,13 +385,20 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
   return (
     <>
       <section
+        ref={sectionRef}
         aria-label="Daily Medications"
-        className="relative bg-gradient-to-br from-[#f8fbfd] via-[#f1f6fa] to-[#e8f2f9] dark:from-slate-900/90 dark:to-slate-800/90 border border-[#cfe0ee] dark:border-slate-800 rounded-[30px] p-4 sm:p-5 shadow-sm transition-all duration-300"
+        className="daily-medications-tile relative bg-gradient-to-br from-[#f8fbfd] via-[#f1f6fa] to-[#e8f2f9] dark:from-slate-900/90 dark:to-slate-800/90 border border-[#cfe0ee] dark:border-slate-800 rounded-[30px] p-4 sm:p-5 shadow-sm transition-all duration-300"
       >
         {/* Expand / Collapse Button strictly pinned at the Top Right Corner */}
         <button
           type="button"
-          onClick={() => setIsExpanded((prev) => !prev)}
+          onClick={(e) => {
+            e.currentTarget.blur();
+            if (sectionRef.current) {
+              savedTopRef.current = sectionRef.current.getBoundingClientRect().top;
+            }
+            setIsExpanded((prev) => !prev);
+          }}
           className={`absolute top-4 right-4 sm:top-5 sm:right-5 w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center transition-colors duration-300 z-10 shadow-xs border cursor-pointer ${
             isExpanded
               ? 'bg-sky-700 text-white border-sky-600 shadow-sky-700/25'

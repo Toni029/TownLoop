@@ -33,6 +33,16 @@
   scrollbar-width: none;
 }
 
+/* Prevent browser automatic scroll anchoring jumps on dynamic DOM content change */
+main,
+.hide-scrollbar,
+#news-view-selector,
+[role="tablist"],
+section[aria-label="Daily Medications"],
+.daily-medications-tile {
+  overflow-anchor: none;
+}
+
 .liquid-dock {
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(28px) saturate(190%);

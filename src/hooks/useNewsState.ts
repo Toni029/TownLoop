@@ -76,7 +76,7 @@ export function useNewsState(): NewsState {
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isUploadNewsletterModalOpen, setIsUploadNewsletterModalOpen] = useState(false);
-  const [newsSubView, setNewsSubView] = useState<'all' | 'events' | 'gazette' | 'highlights'>('all');
+  const [newsSubView, setNewsSubView] = useState<'all' | 'events' | 'gazette' | 'highlights'>('events');
 
   const [rsvpEvents, setRsvpEvents] = useState<CommunityRsvpEvent[]>(() => {
     try {
