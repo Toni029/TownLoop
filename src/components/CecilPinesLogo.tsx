@@ -131,3 +131,26 @@ export const CecilPinesPines: React.FC<CecilPinesPinesProps> = ({
     </svg>
   );
 };
+
+export interface CecilPinesBadgeProps {
+  className?: string;
+  pineClassName?: string;
+}
+
+/**
+ * Official Cecil Pines green emblem badge with 3 golden pines and amber border,
+ * matching the central brand emblem on the login and selection screens.
+ */
+export const CecilPinesBadge: React.FC<CecilPinesBadgeProps> = ({
+  className = 'w-20 h-20 sm:w-22 sm:h-22 rounded-3xl p-3',
+  pineClassName = 'w-14 h-14 sm:w-16 sm:h-16',
+}) => {
+  return (
+    <div
+      className={`bg-gradient-to-br from-[#185d3b] via-[#145334] to-[#0c3621] flex items-center justify-center shadow-lg shadow-emerald-950/25 border-2 border-amber-400/70 shrink-0 ${className}`}
+    >
+      <CecilPinesPines className={pineClassName} />
+    </div>
+  );
+};
+

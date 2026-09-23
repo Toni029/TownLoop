@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { loginUser, loginWithGoogle, signupUser, sendPasswordReset } from '../services/auth';
 import { UserProfile } from '../types';
-import { CecilPinesPines } from './CecilPinesLogo';
+import { CecilPinesPines, CecilPinesBadge } from './CecilPinesLogo';
 
 interface AuthScreenProps {
   onAuthSuccess: (user: UserProfile) => void;
@@ -218,9 +218,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {!isDarkMode && (
           <div className="absolute inset-0 bg-amber-400/20 rounded-3xl blur-md scale-110 -z-10" />
         )}
-        <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-br from-[#185d3b] via-[#145334] to-[#0c3621] p-3 flex items-center justify-center shadow-lg shadow-emerald-950/25 border-2 border-amber-400/70">
-          <CecilPinesPines className="w-14 h-14 sm:w-16 sm:h-16" />
-        </div>
+        <CecilPinesBadge />
       </div>
 
       {/* Brand Typography matching official Cecil Pines logo - large and readable for seniors */}

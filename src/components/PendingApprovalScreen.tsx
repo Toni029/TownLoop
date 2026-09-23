@@ -20,7 +20,7 @@ import {
   Lock
 } from 'lucide-react';
 import { UserProfile } from '../types';
-import { CecilPinesPines } from './CecilPinesLogo';
+import { CecilPinesPines, CecilPinesBadge } from './CecilPinesLogo';
 import { checkUserApprovalStatus } from '../services/auth';
 
 interface PendingApprovalScreenProps {
@@ -108,9 +108,10 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
       )}
 
       {/* Brand Emblem */}
-      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-[#185d3b] via-[#145334] to-[#0c3621] p-2 flex items-center justify-center shadow-md shadow-emerald-950/20 mb-3 border-2 border-amber-400/50">
-        <CecilPinesPines className="w-12 h-12 sm:w-14 sm:h-14" />
-      </div>
+      <CecilPinesBadge
+        className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-2 mb-3 shadow-md"
+        pineClassName="w-12 h-12 sm:w-14 sm:h-14"
+      />
 
       <div className="flex flex-col items-center mb-4">
         <h1 className="text-2xl sm:text-3xl font-black serif-title tracking-tight text-[#006238] dark:text-[#006238] leading-none">

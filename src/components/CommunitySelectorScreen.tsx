@@ -19,7 +19,7 @@ import {
   Calendar,
   ShieldCheck,
 } from 'lucide-react';
-import { CecilPinesPines } from './CecilPinesLogo';
+import { CecilPinesPines, CecilPinesBadge } from './CecilPinesLogo';
 
 export interface CommunityOption {
   id: string;
@@ -145,8 +145,11 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
                 <div className="flex items-start gap-3.5">
                   {/* Community Graphic or Icon */}
                   {isPrimary ? (
-                    <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 flex items-center justify-center shrink-0 p-1 shadow-2xs group-hover:scale-105 transition-transform">
-                      <CecilPinesPines className="w-11 h-11" />
+                    <div className="relative shrink-0">
+                      <CecilPinesBadge
+                        className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl p-2 sm:p-2.5 shadow-md shadow-emerald-950/25 group-hover:scale-105 transition-transform"
+                        pineClassName="w-9 h-9 sm:w-10 sm:h-10"
+                      />
                     </div>
                   ) : (
                     <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 flex items-center justify-center shrink-0 text-stone-500 dark:text-slate-400 shadow-2xs group-hover:scale-105 transition-transform">
