@@ -152,6 +152,8 @@ export function PortalModals({
         newsletterConfig={news.newsletterConfig}
         onOpenUploadModal={() => news.setIsUploadNewsletterModalOpen(true)}
         onRemoveNewsletter={news.handleRemoveNewsletter}
+        onReanalyzeNewsletter={news.handleReanalyzeNewsletter}
+        isReanalyzingAi={news.isReanalyzingAi}
         canManage={canManageNewsletter(community.currentUser)}
       />
 

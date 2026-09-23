@@ -52,7 +52,7 @@ export const AddRsvpEventModal: React.FC<AddRsvpEventModalProps> = ({
   const [time, setTime] = useState('2:00 PM – 3:30 PM');
   const [location, setLocation] = useState('Community Center');
   const [category, setCategory] = useState('Social Event');
-  const [spotsLeft, setSpotsLeft] = useState<number | ''>(25);
+  const [spotsLeft, setSpotsLeft] = useState<number | ''>('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -83,7 +83,7 @@ export const AddRsvpEventModal: React.FC<AddRsvpEventModalProps> = ({
         setTime('2:00 PM – 3:30 PM');
         setLocation('Community Center');
         setCategory('Social Event');
-        setSpotsLeft(25);
+        setSpotsLeft('');
         setDescription('');
       }
       setError(null);

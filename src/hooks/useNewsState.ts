@@ -19,6 +19,7 @@ import {
   deleteRsvpEventFromFirestore,
   deletePinnedHighlightFromFirestore,
 } from '../services/firestoreSync';
+import { clearAllNewsletterPdfStorage, removePdfFromStorage, getPdfFromStorage } from '../utils/pdfStorage';
 
 const STORAGE_EVENTS_KEY = 'portal_rsvp_events_list';
 const STORAGE_HIGHLIGHTS_KEY = 'portal_pinned_highlights_list';
@@ -34,8 +35,8 @@ export interface NewsState {
   isUploadNewsletterModalOpen: boolean;
   setIsUploadNewsletterModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleSaveNewsletterConfig: (config: NewsletterConfig) => Promise<void> | void;
-  handleRemoveNewsletter: () => void;
-  handleRestoreDefaultNewsletter: () => void;
+  handleRemoveNewsletter: () => Promise<void> | void;
+  handleRestoreDefaultNewsletter: () => Promise<void> | void;
   newsSubView: 'all' | 'events' | 'gazette' | 'highlights';
   setNewsSubView: React.Dispatch<React.SetStateAction<'all' | 'events' | 'gazette' | 'highlights'>>;
   rsvpEvents: CommunityRsvpEvent[];
@@ -57,8 +58,8 @@ export interface NewsState {
   isAddHighlightModalOpen: boolean;
   setIsAddHighlightModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleApplyAiExtraction: (extracted: NewsletterAiExtractionResult) => void;
-  isExtractingAi: boolean;
-  handleTriggerNewsletterExtraction: () => Promise<void>;
+  isReanalyzingAi: boolean;
+  handleReanalyzeNewsletter: () => Promise<void>;
 }
 
 export function useNewsState(): NewsState {
@@ -102,7 +103,7 @@ export function useNewsState(): NewsState {
   });
 
   const [isAddHighlightModalOpen, setIsAddHighlightModalOpen] = useState(false);
-  const [isExtractingAi, setIsExtractingAi] = useState(false);
+  const [isReanalyzingAi, setIsReanalyzingAi] = useState(false);
 
   // Auto-dismiss rsvpToast
   useEffect(() => {
@@ -153,12 +154,81 @@ export function useNewsState(): NewsState {
     await saveNewsletterConfigToFirestore(config);
   }, []);
 
-  const handleRemoveNewsletter = useCallback(() => {
-    setNewsletterConfig((prev) => (prev ? { ...prev, isRemoved: true } : null));
+  const handleRemoveNewsletter = useCallback(async () => {
+    const cleanConfig: NewsletterConfig = {
+      id: 'current_newsletter',
+      editionTitle: 'Community Newsletter',
+      monthEdition: '',
+      description: 'The community newsletter was removed. Admins may upload a new edition at any time.',
+      pdfUrl: '',
+      fileUrl: '',
+      fileName: '',
+      fileType: 'application/pdf',
+      fileSize: undefined,
+      pageImages: [],
+      isCustomUpload: false,
+      isRemoved: true,
+      uploadedAt: Date.now(),
+    };
+
+    setNewsletterConfig(cleanConfig);
+    setIsPdfModalOpen(false);
+    setIsUploadNewsletterModalOpen(false);
+
+    // 1. Clean localStorage
+    try {
+      localStorage.setItem(STORAGE_NEWSLETTER_KEY, JSON.stringify(cleanConfig));
+    } catch (e) {
+      console.warn('Failed to update localStorage on newsletter remove:', e);
+    }
+
+    // 2. Clean IndexedDB
+    try {
+      await clearAllNewsletterPdfStorage();
+      await removePdfFromStorage('current_newsletter_pdf');
+    } catch (e) {
+      console.warn('Failed to clean IndexedDB on newsletter remove:', e);
+    }
+
+    // 3. Clean Firestore
+    try {
+      await saveNewsletterConfigToFirestore(cleanConfig);
+    } catch (e) {
+      console.warn('Failed to sync newsletter remove to Firestore:', e);
+    }
+
+    setRsvpToast('Newsletter PDF has been removed.');
   }, []);
 
-  const handleRestoreDefaultNewsletter = useCallback(() => {
-    setNewsletterConfig(DEFAULT_NEWSLETTER_CONFIG);
+  const handleRestoreDefaultNewsletter = useCallback(async () => {
+    const restored: NewsletterConfig = {
+      ...DEFAULT_NEWSLETTER_CONFIG,
+      isRemoved: false,
+      isCustomUpload: false,
+    };
+
+    setNewsletterConfig(restored);
+
+    try {
+      localStorage.setItem(STORAGE_NEWSLETTER_KEY, JSON.stringify(restored));
+    } catch (e) {
+      console.warn('Failed to persist restored config:', e);
+    }
+
+    try {
+      await clearAllNewsletterPdfStorage();
+      await removePdfFromStorage('current_newsletter_pdf');
+    } catch (e) {
+      console.warn('Failed to clean IndexedDB on restore:', e);
+    }
+
+    try {
+      await saveNewsletterConfigToFirestore(restored);
+    } catch (e) {
+      console.warn('Failed to sync restored newsletter to Firestore:', e);
+    }
+
+    setRsvpToast('Restored default September 2026 edition.');
   }, []);
 
   const handleToggleRsvp = useCallback((eventId: number | string) => {
@@ -256,7 +326,7 @@ export function useNewsState(): NewsState {
       const newEvents: CommunityRsvpEvent[] = extracted.rsvp_events.map((e, idx) => ({
         id: `ai-ev-${Date.now()}-${idx}`,
         title: e.title,
-        month: String(e.month || 'OCT').toUpperCase().slice(0, 3),
+        month: String(e.month || 'SEP').toUpperCase().slice(0, 3),
         day: String(e.day || '15'),
         time: e.time,
         location: e.location,
@@ -272,12 +342,41 @@ export function useNewsState(): NewsState {
       }));
 
       setRsvpEvents((prev) => {
-        const existingTitles = new Set(prev.map((p) => p.title.toLowerCase().trim()));
-        const filteredNew = newEvents.filter((n) => !existingTitles.has(n.title.toLowerCase().trim()));
-        eventsAddedCount = filteredNew.length;
-        const combined = [...filteredNew, ...prev];
-        saveRsvpEventsToFirestore(combined);
-        return combined;
+        const existingMap = new Map<string, CommunityRsvpEvent>(
+          prev.map((p) => [p.title.toLowerCase().trim(), p])
+        );
+        const merged: CommunityRsvpEvent[] = [...prev];
+
+        for (const ne of newEvents) {
+          const key = ne.title.toLowerCase().trim();
+          if (existingMap.has(key)) {
+            // Update existing event details while preserving user RSVP status & existing counts
+            const existing = existingMap.get(key)!;
+            const idx = merged.findIndex((m) => m.id === existing.id);
+            if (idx >= 0) {
+              merged[idx] = {
+                ...existing,
+                month: ne.month || existing.month,
+                day: ne.day || existing.day,
+                time: ne.time || existing.time,
+                location: ne.location || existing.location,
+                category: ne.category || existing.category,
+                deadline: ne.deadline || existing.deadline,
+                description: ne.description || existing.description,
+                capacity: ne.capacity,
+                spotsLeft: ne.capacity ?? undefined,
+                isAiExtracted: true,
+              };
+            }
+          } else {
+            // New event to add
+            merged.unshift(ne);
+            eventsAddedCount++;
+          }
+        }
+
+        saveRsvpEventsToFirestore(merged);
+        return merged;
       });
     }
 
@@ -297,11 +396,26 @@ export function useNewsState(): NewsState {
 
       setPinnedHighlights((prev) => {
         const existingTitles = new Set(prev.map((p) => p.title.toLowerCase().trim()));
-        const filteredNew = newHighlights.filter((n) => !existingTitles.has(n.title.toLowerCase().trim()));
-        highlightsAddedCount = filteredNew.length;
-        const combined = [...filteredNew, ...prev];
-        savePinnedHighlightsToFirestore(combined);
-        return combined;
+        const merged: PinnedHighlight[] = [...prev];
+
+        for (const nh of newHighlights) {
+          const key = nh.title.toLowerCase().trim();
+          if (existingTitles.has(key)) {
+            const idx = merged.findIndex((m) => m.title.toLowerCase().trim() === key);
+            if (idx >= 0) {
+              merged[idx] = {
+                ...merged[idx],
+                ...nh,
+              };
+            }
+          } else {
+            merged.unshift(nh);
+            highlightsAddedCount++;
+          }
+        }
+
+        savePinnedHighlightsToFirestore(merged);
+        return merged;
       });
     }
 
@@ -313,25 +427,43 @@ export function useNewsState(): NewsState {
       return updated;
     });
 
-    setRsvpToast(`✨ AI Extraction Complete: Added ${extracted.rsvp_events?.length || 0} RSVP events & ${extracted.pinned_highlights?.length || 0} community highlights!`);
+    setRsvpToast(
+      `✨ AI Extraction Complete: Extracted ${extracted.rsvp_events?.length || 0} RSVP events & ${extracted.pinned_highlights?.length || 0} community highlights!`
+    );
   }, []);
 
-  const handleTriggerNewsletterExtraction = useCallback(async () => {
-    if (isExtractingAi) return;
-    setIsExtractingAi(true);
+  const handleReanalyzeNewsletter = useCallback(async () => {
+    if (isReanalyzingAi) return;
+    setIsReanalyzingAi(true);
+    setRsvpToast('🔍 Gemini AI is scanning every page & sidebar to detect all RSVP events and sign-ups...');
 
     try {
       const currentDoc = newsletterConfig;
+      let effectivePdfUrl = currentDoc?.pdfUrl || currentDoc?.fileUrl || '';
+      if (!effectivePdfUrl || effectivePdfUrl.startsWith('indexeddb:')) {
+        try {
+          const storedPdf = await getPdfFromStorage('current_newsletter_pdf');
+          if (storedPdf) {
+            effectivePdfUrl = storedPdf;
+          }
+        } catch (e) {
+          console.warn('Could not read from IndexedDB:', e);
+        }
+      }
+
       const res = await fetch('/api/newsletter/extract-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fileDataUrl: currentDoc?.pdfUrl || currentDoc?.fileUrl || '',
-          fileName: currentDoc?.fileName || 'document.pdf',
+          fileDataUrl: effectivePdfUrl,
+          fileName: currentDoc?.fileName || 'Newsletter.pdf',
           fileType: currentDoc?.fileType || 'application/pdf',
-          editionTitle: currentDoc?.editionTitle || 'The Breeze: Monthly Edition',
-          monthEdition: currentDoc?.monthEdition || 'Current Edition',
+          editionTitle: currentDoc?.editionTitle || 'The Breeze: September 2026',
+          monthEdition: currentDoc?.monthEdition || 'September 2026',
           textContent: currentDoc?.description || '',
+          isReanalysis: true,
+          extraInstructions:
+            'RSVP upcoming events for the months are missed and need to be detected. Scan specifically for all events mentioning RSVP, sign up by, register, or deadlines.',
         }),
       });
 
@@ -342,12 +474,12 @@ export function useNewsState(): NewsState {
       const data: NewsletterAiExtractionResult = await res.json();
       handleApplyAiExtraction(data);
     } catch (err: any) {
-      console.warn('Manual AI newsletter extraction notice:', err);
-      setRsvpToast('Unable to extract AI highlights at this moment. Please check your connection.');
+      console.warn('Re-analysis error notice:', err);
+      setRsvpToast('Unable to complete deep re-analysis at this moment. Please check your connection.');
     } finally {
-      setIsExtractingAi(false);
+      setIsReanalyzingAi(false);
     }
-  }, [isExtractingAi, newsletterConfig, handleApplyAiExtraction]);
+  }, [isReanalyzingAi, newsletterConfig, handleApplyAiExtraction]);
 
   return {
     rsvpToast,
@@ -382,7 +514,7 @@ export function useNewsState(): NewsState {
     isAddHighlightModalOpen,
     setIsAddHighlightModalOpen,
     handleApplyAiExtraction,
-    isExtractingAi,
-    handleTriggerNewsletterExtraction,
+    isReanalyzingAi,
+    handleReanalyzeNewsletter,
   };
 }

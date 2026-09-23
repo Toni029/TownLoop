@@ -8,12 +8,11 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   Download,
-  ExternalLink,
   BookOpen,
   FileText,
   AlertCircle,
 } from 'lucide-react';
-import { getPdfFromStorage } from '../utils/pdfStorage';
+import { getPdfFromStorage, convertDataUrlToBlobUrl } from '../utils/pdfStorage';
 
 interface PdfReaderViewProps {
   fileUrl: string;
@@ -33,6 +32,7 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
 }) => {
   const [resolvedUrl, setResolvedUrl] = useState<string>(pdfUrl || fileUrl || '');
   const [isLoading, setIsLoading] = useState<boolean>(!resolvedUrl);
+  const [blobUrl, setBlobUrl] = useState<string>(() => convertDataUrlToBlobUrl(pdfUrl || fileUrl || ''));
 
   useEffect(() => {
     let active = true;
@@ -67,6 +67,25 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
     };
   }, [fileUrl, pdfUrl]);
 
+  // Convert base64 data URLs to same-origin Blob URLs so browser security permits inline rendering
+  useEffect(() => {
+    if (!resolvedUrl) {
+      setBlobUrl('');
+      return;
+    }
+
+    const converted = convertDataUrlToBlobUrl(resolvedUrl);
+    setBlobUrl(converted);
+
+    return () => {
+      if (converted && converted.startsWith('blob:') && !resolvedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(converted);
+      }
+    };
+  }, [resolvedUrl]);
+
+  const activePdfUrl = blobUrl || resolvedUrl;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && onClose) {
@@ -93,29 +112,40 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {resolvedUrl && (
-            <a
-              href={resolvedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
-              title="Open document in a separate browser tab"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Open in New Tab</span>
-            </a>
-          )}
-
-          {resolvedUrl && (
-            <a
-              href={resolvedUrl}
-              download={fileName}
+          {activePdfUrl && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  if (activePdfUrl.startsWith('blob:') || activePdfUrl.startsWith('data:')) {
+                    const a = document.createElement('a');
+                    a.href = activePdfUrl;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    return;
+                  }
+                  const res = await fetch(activePdfUrl);
+                  const blob = await res.blob();
+                  const bUrl = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = bUrl;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(bUrl);
+                } catch {
+                  // Fallback
+                }
+              }}
               className="px-3.5 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold border border-stone-700 transition flex items-center gap-1.5 cursor-pointer"
               title="Download PDF to device"
             >
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Download</span>
-            </a>
+            </button>
           )}
 
           {onClose && (
@@ -133,7 +163,7 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
       </header>
 
       {/* Embedded PDF View */}
-      <main className="flex-1 w-full h-full p-2 sm:p-4 md:p-6 flex flex-col items-center justify-center overflow-hidden">
+      <main className="flex-1 w-full h-full p-2 sm:p-4 md:p-6 flex flex-col items-center justify-center overflow-y-auto">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center gap-3 text-center">
             <div className="w-10 h-10 rounded-2xl bg-emerald-950 border border-emerald-700 flex items-center justify-center">
@@ -141,26 +171,31 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
             </div>
             <p className="text-base font-bold text-stone-200">Opening newsletter...</p>
           </div>
-        ) : resolvedUrl ? (
-          <div className="w-full h-full max-w-6xl mx-auto flex flex-col bg-white rounded-2xl border border-stone-800 shadow-2xl overflow-hidden">
+        ) : activePdfUrl ? (
+          <div className="w-full max-w-6xl mx-auto flex flex-col bg-white rounded-2xl border border-stone-800 shadow-2xl overflow-hidden relative">
             <object
-              data={resolvedUrl}
+              data={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
               type="application/pdf"
-              className="w-full flex-1 border-0 rounded-2xl bg-white min-h-[500px]"
+              width="100%"
+              height="720px"
+              className="w-full h-[720px] border-0 rounded-2xl bg-white shadow-inner"
+              title={title}
             >
-              <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-stone-900 text-stone-200 h-full">
-                <FileText className="w-10 h-10 text-emerald-400 mb-2" />
-                <p className="text-sm font-semibold">Unable to display PDF preview directly.</p>
-                <a
-                  href={resolvedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition inline-flex items-center gap-2"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Open PDF in New Tab
-                </a>
-              </div>
+              <iframe
+                src={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+                width="100%"
+                height="720px"
+                className="w-full h-[720px] border-0 rounded-2xl bg-white shadow-inner"
+                title={title}
+              >
+                <embed
+                  src={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+                  type="application/pdf"
+                  width="100%"
+                  height="720px"
+                  className="w-full h-[720px]"
+                />
+              </iframe>
             </object>
           </div>
         ) : (
@@ -176,3 +211,5 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
     </div>
   );
 };
+
+

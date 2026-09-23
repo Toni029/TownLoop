@@ -8,14 +8,12 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   Download,
-  ExternalLink,
   BookOpen,
   FileText,
   Upload,
   AlertCircle,
-  Maximize2,
 } from 'lucide-react';
-import { getPdfFromStorage } from '../utils/pdfStorage';
+import { getPdfFromStorage, convertDataUrlToBlobUrl } from '../utils/pdfStorage';
 import type { NewsletterConfig } from '../types';
 
 interface NewsletterGalleryViewProps {
@@ -44,6 +42,7 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
 }) => {
   const [resolvedUrl, setResolvedUrl] = useState<string>(pdfUrl || fileUrl || newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl || '');
   const [isLoading, setIsLoading] = useState<boolean>(!resolvedUrl);
+  const [blobUrl, setBlobUrl] = useState<string>(() => convertDataUrlToBlobUrl(pdfUrl || fileUrl || newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl || ''));
 
   useEffect(() => {
     let active = true;
@@ -79,6 +78,25 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
     };
   }, [fileUrl, pdfUrl, newsletterConfig?.pdfUrl, newsletterConfig?.fileUrl]);
 
+  // Convert base64 data URLs to same-origin Blob URLs so browser security permits inline rendering
+  useEffect(() => {
+    if (!resolvedUrl) {
+      setBlobUrl('');
+      return;
+    }
+
+    const converted = convertDataUrlToBlobUrl(resolvedUrl);
+    setBlobUrl(converted);
+
+    return () => {
+      if (converted && converted.startsWith('blob:') && !resolvedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(converted);
+      }
+    };
+  }, [resolvedUrl]);
+
+  const activePdfUrl = blobUrl || resolvedUrl;
+
   // Keyboard shortcut listener (Escape to close)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -113,34 +131,43 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
           </div>
         </div>
 
-        {/* Action Controls (New Tab, Download, Upload New, Close) */}
+        {/* Action Controls (Download, Upload New, Close) */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Open in New Tab Button */}
-          {resolvedUrl && (
-            <a
-              href={resolvedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
-              title="Open newsletter in full browser tab"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Open in New Tab</span>
-              <span className="sm:hidden">Full Tab</span>
-            </a>
-          )}
-
           {/* Download Original PDF Button */}
-          {resolvedUrl && (
-            <a
-              href={resolvedUrl}
-              download={fileName}
+          {activePdfUrl && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  if (activePdfUrl.startsWith('blob:') || activePdfUrl.startsWith('data:')) {
+                    const a = document.createElement('a');
+                    a.href = activePdfUrl;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    return;
+                  }
+                  const res = await fetch(activePdfUrl);
+                  const blob = await res.blob();
+                  const bUrl = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = bUrl;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(bUrl);
+                } catch {
+                  // Fallback
+                }
+              }}
               className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700 text-stone-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
               title="Download PDF to your device"
             >
               <Download className="w-4 h-4 text-emerald-400" />
               <span className="hidden md:inline">Download</span>
-            </a>
+            </button>
           )}
 
           {/* Admin Manage/Upload Button */}
@@ -171,7 +198,7 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
       </header>
 
       {/* Main PDF Frame Viewer Area */}
-      <main className="flex-1 w-full h-full overflow-hidden p-2 sm:p-4 md:p-6 flex flex-col items-center justify-center">
+      <main className="flex-1 w-full h-full overflow-y-auto p-2 sm:p-4 md:p-6 flex flex-col items-center justify-center">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center p-8 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-emerald-950 border border-emerald-700/50 flex items-center justify-center">
@@ -179,26 +206,31 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
             </div>
             <p className="text-sm font-bold text-stone-200">Loading newsletter document...</p>
           </div>
-        ) : resolvedUrl ? (
-          <div className="w-full h-full max-w-6xl mx-auto flex flex-col bg-white dark:bg-stone-900 rounded-2xl border border-stone-800 shadow-2xl overflow-hidden">
+        ) : activePdfUrl ? (
+          <div className="w-full max-w-6xl mx-auto flex flex-col bg-white dark:bg-stone-900 rounded-2xl border border-stone-800 shadow-2xl overflow-hidden relative">
             <object
-              data={resolvedUrl}
+              data={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
               type="application/pdf"
-              className="w-full flex-1 border-0 rounded-2xl bg-white min-h-[500px]"
+              width="100%"
+              height="720px"
+              className="w-full h-[720px] border-0 rounded-2xl bg-white shadow-inner"
+              title={title}
             >
-              <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-stone-900 text-stone-200 h-full">
-                <FileText className="w-10 h-10 text-emerald-400 mb-2" />
-                <p className="text-sm font-semibold">Unable to display PDF preview directly.</p>
-                <a
-                  href={resolvedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition inline-flex items-center gap-2"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Open PDF in New Tab
-                </a>
-              </div>
+              <iframe
+                src={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+                width="100%"
+                height="720px"
+                className="w-full h-[720px] border-0 rounded-2xl bg-white shadow-inner"
+                title={title}
+              >
+                <embed
+                  src={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+                  type="application/pdf"
+                  width="100%"
+                  height="720px"
+                  className="w-full h-[720px]"
+                />
+              </iframe>
             </object>
           </div>
         ) : (
@@ -230,7 +262,7 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
       </main>
 
       {/* Floating Bottom Quick Action Banner */}
-      {resolvedUrl && (
+      {activePdfUrl && (
         <footer className="shrink-0 bg-stone-900/90 border-t border-stone-800/80 px-4 py-2.5 flex items-center justify-between text-stone-300 text-xs backdrop-blur-xl z-20">
           <span className="hidden sm:inline text-[11px] text-stone-400">
             Official publication of Cecil Pines Adult Living Community
@@ -238,19 +270,9 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
           <span className="sm:hidden text-[11px] text-stone-400">
             Cecil Pines Bulletin
           </span>
-          <div className="flex items-center gap-2">
-            <a
-              href={resolvedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 transition"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Open in Full Browser Window</span>
-            </a>
-          </div>
         </footer>
       )}
     </div>
   );
 };
+

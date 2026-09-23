@@ -85,6 +85,22 @@ export async function removePdfFromStorage(key: string): Promise<void> {
   }
 }
 
+export async function clearAllNewsletterPdfStorage(): Promise<void> {
+  try {
+    const db = await openPdfDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.clear();
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn('Failed to clear PDF storage from IndexedDB:', err);
+  }
+}
+
 export async function saveNewsletterPageImagesToIndexedDb(
   newsletterId: string,
   images: string[]
@@ -123,5 +139,44 @@ export async function getNewsletterPageImagesFromIndexedDb(
     console.warn('Failed to retrieve newsletter page images from IndexedDB:', err);
     return null;
   }
+}
+
+/**
+ * Converts a base64 data URL into an in-memory same-origin Blob URL.
+ * Browsers block data: URLs inside embedded <object> and <iframe> elements for security,
+ * whereas Blob URLs render natively without sandbox or navigation restrictions.
+ */
+export function convertDataUrlToBlobUrl(sourceUrl: string): string {
+  if (!sourceUrl) return '';
+  if (
+    sourceUrl.startsWith('blob:') ||
+    sourceUrl.startsWith('http://') ||
+    sourceUrl.startsWith('https://') ||
+    sourceUrl.startsWith('/')
+  ) {
+    return sourceUrl;
+  }
+  if (sourceUrl.startsWith('data:')) {
+    try {
+      const parts = sourceUrl.split(',');
+      const header = parts[0];
+      const base64Data = parts[1];
+      if (!base64Data) return sourceUrl;
+      const mimeMatch = header.match(/:(.*?);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+      const binaryString = atob(base64Data.trim());
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: mimeType });
+      return URL.createObjectURL(blob);
+    } catch (err) {
+      console.warn('Failed to convert base64 data URL to Blob URL:', err);
+      return sourceUrl;
+    }
+  }
+  return sourceUrl;
 }
 

@@ -41,28 +41,30 @@ function limitAiRequests(req: Request, res: Response, next: () => void) {
   next();
 }
 
-// Parse JSON and urlencoded bodies with sufficient size limit for PDF documents
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+// Parse JSON and urlencoded bodies with sufficient size limit for large PDF documents & text payloads
+app.use(express.json({ limit: '35mb' }));
+app.use(express.urlencoded({ extended: true, limit: '35mb' }));
 
 // ==================== API ROUTES ====================
 
 // Newsletter AI extraction endpoint for PDF / community bulletin documents
 app.post('/api/newsletter/extract-content', limitAiRequests, async (req: Request, res: Response) => {
   try {
-    const { fileDataUrl, fileName, fileType, editionTitle, monthEdition, textContent } = req.body;
-    if (typeof fileDataUrl === 'string' && fileDataUrl.length > 24_000_000) {
+    const { fileDataUrl, fileName, fileType, editionTitle, monthEdition, textContent, isReanalysis, extraInstructions } = req.body;
+    if (typeof fileDataUrl === 'string' && fileDataUrl.length > 34_000_000) {
       res.status(413).json({ error: 'Document is too large to analyze.' });
       return;
     }
 
     const result = await extractNewsletterContent({
-      fileDataUrl: asText(fileDataUrl, 24_000_000),
+      fileDataUrl: asText(fileDataUrl, 34_000_000),
       fileName: asText(fileName, 255),
       fileType: asText(fileType, 100),
       editionTitle: asText(editionTitle, 200),
       monthEdition: asText(monthEdition, 100),
-      textContent: asText(textContent, 20_000),
+      textContent: asText(textContent, 5_000_000),
+      isReanalysis: Boolean(isReanalysis),
+      extraInstructions: asText(extraInstructions, 10_000),
     });
 
     res.json(result);

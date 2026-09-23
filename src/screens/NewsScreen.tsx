@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useMemo, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   X,
   Users,
@@ -29,6 +29,7 @@ import type { PortalDatesState } from '../hooks/usePortalDates';
 import type { UserProfile } from '../types';
 import { canManageNewsletter, canManagePinnedHighlights, isVip } from '../utils/permissions';
 import { sortEventsEarlyFirst } from '../utils/eventSort';
+import { convertDataUrlToBlobUrl } from '../utils/pdfStorage';
 import { UploadNewsletterModal } from '../components/UploadNewsletterModal';
 import { AddRsvpEventModal } from '../components/AddRsvpEventModal';
 import { AddHighlightModal } from '../components/AddHighlightModal';
@@ -67,8 +68,8 @@ export function NewsScreen({
   isAddHighlightModalOpen,
   setIsAddHighlightModalOpen,
   handleApplyAiExtraction,
-  isExtractingAi,
-  handleTriggerNewsletterExtraction,
+  isReanalyzingAi,
+  handleReanalyzeNewsletter,
   currentUser,
   onShowToast,
 }: NewsScreenProps) {
@@ -76,12 +77,25 @@ export function NewsScreen({
   const hasHighlightManagement = canManagePinnedHighlights(currentUser);
   const hasEventManagement = isVip(currentUser);
 
-  const isRemoved = newsletterConfig?.isRemoved;
-  const isCustom = newsletterConfig?.isCustomUpload && !!newsletterConfig?.fileUrl;
+  const isRemoved = Boolean(newsletterConfig?.isRemoved);
+  const pdfUrl = newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl || '';
+  const hasPdf = Boolean(!isRemoved && pdfUrl);
+  const isCustom = Boolean(hasPdf && (newsletterConfig?.isCustomUpload || pdfUrl.length > 0));
   const editionTitle = newsletterConfig?.editionTitle || `The Breeze: ${currentMonthEdition}`;
   const effectiveDescription =
     newsletterConfig?.description ||
     'Featuring the 2026 Pet Gallery, Flu Shot Clinic, Continuum of Care Olive Garden Lunch, Make Your Own Sundae Social, Wii Bowling Results & Community Potlucks.';
+
+  const handleOpenPdfInNewTab = () => {
+    if (pdfUrl) {
+      const targetUrl = convertDataUrlToBlobUrl(pdfUrl);
+      if (targetUrl) {
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+    }
+    setIsPdfModalOpen(true);
+  };
 
   // Events sorted from the beginning of the month to the last of the month (early first)
   const sortedEvents = useMemo(() => sortEventsEarlyFirst(rsvpEvents), [rsvpEvents]);
@@ -94,6 +108,7 @@ export function NewsScreen({
     }
   }, [rsvpToast, onShowToast, setRsvpToast]);
 
+  const [confirmingRemovePdf, setConfirmingRemovePdf] = useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
   const savedSelectorTopRef = useRef<number | null>(null);
 
@@ -190,22 +205,46 @@ export function NewsScreen({
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {!isRemoved && (
             <button
-              onClick={() => setIsPdfModalOpen(true)}
+              type="button"
+              onClick={handleOpenPdfInNewTab}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow transition cursor-pointer"
+              title="Open newsletter PDF in new tab"
             >
               <BookOpen className="w-4 h-4" />
-              <span>Read Newsletter {isCustom ? '(PDF)' : '(The Breeze)'}</span>
+              <span>Open PDF in new tab</span>
             </button>
           )}
 
           {!isRemoved && (
             <button
-              onClick={() => {
-                if (isCustom && newsletterConfig?.fileUrl) {
-                  const a = document.createElement('a');
-                  a.href = newsletterConfig.fileUrl;
-                  a.download = newsletterConfig.fileName || 'Newsletter.pdf';
-                  a.click();
+              type="button"
+              onClick={async () => {
+                if (hasPdf && (newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl)) {
+                  const targetUrl = newsletterConfig.pdfUrl || newsletterConfig.fileUrl || '';
+                  try {
+                    if (targetUrl.startsWith('blob:') || targetUrl.startsWith('data:')) {
+                      const a = document.createElement('a');
+                      a.href = targetUrl;
+                      a.download = newsletterConfig.fileName || 'Newsletter.pdf';
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      return;
+                    }
+                    const res = await fetch(targetUrl);
+                    const blob = await res.blob();
+                    const bUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = bUrl;
+                    a.download = newsletterConfig.fileName || 'Newsletter.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(bUrl);
+                  } catch {
+                    // Fallback to opening reader directly so browser never navigates away
+                    setIsPdfModalOpen(true);
+                  }
                 } else {
                   const text = `THE BREEZE - CECIL PINES COMMUNITY NEWSLETTER (${currentMonthEdition})\nFeaturing Pet Gallery, Flu Shot Clinic, CPAC Updates & Activities.`;
                   const blob = new Blob([text], { type: 'text/plain' });
@@ -213,7 +252,9 @@ export function NewsScreen({
                   const a = document.createElement('a');
                   a.href = url;
                   a.download = `Cecil-Pines-The-Breeze-${currentMonthEdition.replace(/\s+/g, '-')}.txt`;
+                  document.body.appendChild(a);
                   a.click();
+                  document.body.removeChild(a);
                   URL.revokeObjectURL(url);
                 }
               }}
@@ -221,19 +262,6 @@ export function NewsScreen({
             >
               <Download className="w-3.5 h-3.5" />
               <span>Download Edition</span>
-            </button>
-          )}
-
-          {!isRemoved && (
-            <button
-              type="button"
-              onClick={() => handleTriggerNewsletterExtraction()}
-              disabled={isExtractingAi}
-              className="inline-flex items-center gap-1.5 bg-amber-600/90 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2.5 rounded-2xl border border-amber-400/40 transition shadow-xs cursor-pointer disabled:opacity-60"
-              title="Analyze newsletter text & extract RSVP events with Gemini AI"
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${isExtractingAi ? 'animate-spin' : ''}`} />
-              <span>{isExtractingAi ? 'Analyzing...' : 'Extract with AI'}</span>
             </button>
           )}
 
@@ -250,24 +278,54 @@ export function NewsScreen({
                 <span>{isRemoved ? 'Upload PDF' : isCustom ? 'Replace PDF' : 'Upload New PDF'}</span>
               </button>
 
+              {/* Stacked Admin Column: Re-analyze with AI strictly above Remove PDF */}
               {!isRemoved && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        'Are you sure you want to remove the current newsletter PDF? Community residents will see an empty publication card until a new edition is published.'
-                      )
-                    ) {
-                      handleRemoveNewsletter();
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-200 font-bold text-xs px-3.5 py-2.5 rounded-2xl border border-rose-700/50 transition cursor-pointer"
-                  title="Remove Current Newsletter"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Remove PDF</span>
-                </button>
+                <div className="inline-flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleReanalyzeNewsletter?.()}
+                    disabled={isReanalyzingAi}
+                    className="inline-flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-3.5 py-2 rounded-2xl border border-amber-400/40 transition shadow-xs cursor-pointer disabled:opacity-60"
+                    title="Re-read and analyze thoroughly in depth to extract missed RSVP events & highlights"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isReanalyzingAi ? 'animate-spin' : ''}`} />
+                    <span>{isReanalyzingAi ? 'Re-analyzing Thoroughly...' : 'Re-analyze with AI'}</span>
+                  </button>
+
+                  {confirmingRemovePdf ? (
+                    <div className="inline-flex items-center gap-1.5 animate-in fade-in duration-150">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setConfirmingRemovePdf(false);
+                          await handleRemoveNewsletter();
+                        }}
+                        className="inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-rose-500 transition shadow-sm cursor-pointer animate-pulse"
+                        title="Confirm removal of newsletter PDF"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Confirm Remove PDF</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingRemovePdf(false)}
+                        className="inline-flex items-center px-2 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-xl text-xs font-semibold cursor-pointer border border-stone-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingRemovePdf(true)}
+                      className="inline-flex items-center justify-center gap-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-200 font-bold text-xs px-3.5 py-1.5 rounded-2xl border border-rose-700/50 transition cursor-pointer"
+                      title="Remove Current Newsletter"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove PDF</span>
+                    </button>
+                  )}
+                </div>
               )}
 
               {isRemoved && (

@@ -44,6 +44,8 @@ interface NewsletterModalProps {
   newsletterConfig?: NewsletterConfig;
   onOpenUploadModal?: () => void;
   onRemoveNewsletter?: () => void;
+  onReanalyzeNewsletter?: () => void;
+  isReanalyzingAi?: boolean;
   canManage?: boolean;
 }
 
@@ -54,6 +56,8 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
   newsletterConfig,
   onOpenUploadModal,
   onRemoveNewsletter,
+  onReanalyzeNewsletter,
+  isReanalyzingAi = false,
   canManage = false,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,8 +66,10 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const dragControls = useDragControls();
 
-  const isRemoved = newsletterConfig?.isRemoved;
-  const isCustom = Boolean(newsletterConfig?.isCustomUpload && !newsletterConfig?.isRemoved);
+  const isRemoved = Boolean(newsletterConfig?.isRemoved);
+  const pdfUrl = newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl || '';
+  const hasPdf = Boolean(!isRemoved && pdfUrl);
+  const isCustom = Boolean(hasPdf && (newsletterConfig?.isCustomUpload || pdfUrl.length > 0));
   const editionTitle = newsletterConfig?.editionTitle || `The Breeze: ${monthEdition}`;
   const effectiveMonth = newsletterConfig?.monthEdition || monthEdition;
 
@@ -96,12 +102,12 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Full-screen direct standard PDF reader for custom uploaded documents
-  if (isOpen && isCustom && !isRemoved) {
+  // Full-screen direct standard PDF reader for custom uploaded documents or documents with PDF URL
+  if (isOpen && hasPdf && !isRemoved) {
     return (
       <NewsletterGalleryView
-        pdfUrl={newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl || ''}
-        fileUrl={newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl || ''}
+        pdfUrl={pdfUrl}
+        fileUrl={pdfUrl}
         fileName={newsletterConfig?.fileName || 'Newsletter.pdf'}
         title={editionTitle}
         monthEdition={effectiveMonth}
@@ -364,6 +370,7 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
                         type="button"
                         onClick={() => {
                           onRemoveNewsletter?.();
+                          onClose();
                         }}
                         className="w-8 h-8 rounded-full bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-white flex items-center justify-center transition border border-rose-800/50 cursor-pointer"
                         title="Remove Current Newsletter PDF"
@@ -373,6 +380,21 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
                       </button>
                     )}
                   </>
+                )}
+
+                {!isRemoved && onReanalyzeNewsletter && (
+                  <button
+                    type="button"
+                    onClick={() => onReanalyzeNewsletter()}
+                    disabled={isReanalyzingAi}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    title="Extract all RSVP events and highlights with AI"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isReanalyzingAi ? 'animate-spin text-amber-400' : 'text-amber-300'}`} />
+                    <span className="hidden sm:inline">
+                      {isReanalyzingAi ? 'Extracting Events...' : 'Extract RSVP Events with AI'}
+                    </span>
+                  </button>
                 )}
 
                 <button
@@ -391,14 +413,35 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
                 {!isRemoved && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (isCustom && newsletterConfig?.fileUrl) {
-                        const a = document.createElement('a');
-                        a.href = newsletterConfig.fileUrl;
-                        a.download = newsletterConfig.fileName || 'Newsletter.pdf';
-                        a.click();
-                        setDownloadSuccess(true);
-                        setTimeout(() => setDownloadSuccess(false), 2500);
+                    onClick={async () => {
+                      if (hasPdf && (newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl)) {
+                        const targetUrl = newsletterConfig.pdfUrl || newsletterConfig.fileUrl || '';
+                        try {
+                          if (targetUrl.startsWith('blob:') || targetUrl.startsWith('data:')) {
+                            const a = document.createElement('a');
+                            a.href = targetUrl;
+                            a.download = newsletterConfig.fileName || 'Newsletter.pdf';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                          } else {
+                            const res = await fetch(targetUrl);
+                            const blob = await res.blob();
+                            const bUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = bUrl;
+                            a.download = newsletterConfig.fileName || 'Newsletter.pdf';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(bUrl);
+                          }
+                          setDownloadSuccess(true);
+                          setTimeout(() => setDownloadSuccess(false), 2500);
+                        } catch {
+                          setDownloadSuccess(true);
+                          setTimeout(() => setDownloadSuccess(false), 2500);
+                        }
                       } else {
                         handleDownload();
                       }
@@ -475,6 +518,21 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {onReanalyzeNewsletter && (
+                        <button
+                          type="button"
+                          onClick={() => onReanalyzeNewsletter()}
+                          disabled={isReanalyzingAi}
+                          className="px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          title="Extract all RSVP events and highlights from this newsletter"
+                        >
+                          <Sparkles className={`w-3.5 h-3.5 ${isReanalyzingAi ? 'animate-spin' : ''}`} />
+                          <span className="hidden sm:inline">
+                            {isReanalyzingAi ? 'Extracting...' : 'Extract RSVP Events'}
+                          </span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => setIsFullScreen((prev) => !prev)}
@@ -492,14 +550,39 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
                       </button>
 
                       {(newsletterConfig?.pdfUrl || newsletterConfig?.fileUrl) && (
-                        <a
-                          href={newsletterConfig.pdfUrl || newsletterConfig.fileUrl}
-                          download={newsletterConfig.fileName || 'Newsletter.pdf'}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const target = newsletterConfig.pdfUrl || newsletterConfig.fileUrl || '';
+                            try {
+                              if (target.startsWith('blob:') || target.startsWith('data:')) {
+                                const a = document.createElement('a');
+                                a.href = target;
+                                a.download = newsletterConfig.fileName || 'Newsletter.pdf';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                              } else {
+                                const res = await fetch(target);
+                                const blob = await res.blob();
+                                const bUrl = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = bUrl;
+                                a.download = newsletterConfig.fileName || 'Newsletter.pdf';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(bUrl);
+                              }
+                            } catch {
+                              // fallback
+                            }
+                          }}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>Download</span>
-                        </a>
+                        </button>
                       )}
                     </div>
                   </div>

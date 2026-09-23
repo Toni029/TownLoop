@@ -506,7 +506,7 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                       >
                         {/* Card Header & Content */}
                         <div className="space-y-3.5">
-                          {/* Top Row: Name, Time Slot Badge, Dose Info, & Quick Edit/Delete */}
+                          {/* Top Row: Name, Time Slot Badge, & Quick Edit/Delete */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 min-w-0">
                               {/* Orange Pill Bottle Icon Box */}
@@ -527,28 +527,6 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                                       <span>Taken {med.lastTakenTime || 'Today'}</span>
                                     </span>
                                   )}
-                                </div>
-
-                                {/* Dose & Bottle Count Pill Indicators - Strictly Side by Side */}
-                                <div className="flex flex-row items-center gap-2 mt-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                  <span className="h-8 inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 rounded-xl border border-slate-200 dark:border-slate-700 whitespace-nowrap shrink-0 font-bold text-slate-800 dark:text-slate-200 shadow-2xs">
-                                    <Pill className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                                    <span>
-                                      Take {med.doseCount}{' '}
-                                      {med.doseCount === 1 ? 'pill' : 'pills'}
-                                    </span>
-                                  </span>
-
-                                  <span
-                                    className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-xl font-bold border whitespace-nowrap shrink-0 shadow-2xs ${
-                                      isLowSupply
-                                        ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800 animate-pulse'
-                                        : 'bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 border-amber-200/90 dark:border-amber-800'
-                                    }`}
-                                  >
-                                    <OrangePillBottleIcon className="w-3.5 h-3.5 shrink-0" />
-                                    <span>{med.bottleCount} in bottle</span>
-                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -577,6 +555,28 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
+                          </div>
+
+                          {/* Dose & Bottle Count Pill Indicators - Enlarged boxes so all text and letters fit cleanly */}
+                          <div className="grid grid-cols-2 gap-2 sm:gap-2.5 w-full text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            <span className="min-h-[42px] sm:min-h-[44px] py-2 px-2.5 sm:px-3.5 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-extrabold text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 shadow-2xs whitespace-nowrap">
+                              <Pill className="w-4 h-4 text-sky-600 shrink-0" />
+                              <span>
+                                Take {med.doseCount}{' '}
+                                {med.doseCount === 1 ? 'pill' : 'pills'}
+                              </span>
+                            </span>
+
+                            <span
+                              className={`min-h-[42px] sm:min-h-[44px] py-2 px-2.5 sm:px-3.5 inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl font-extrabold text-xs sm:text-[13px] border shadow-2xs whitespace-nowrap ${
+                                isLowSupply
+                                  ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800 animate-pulse'
+                                  : 'bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 border-amber-200/90 dark:border-amber-800'
+                              }`}
+                            >
+                              <OrangePillBottleIcon className="w-4 h-4 shrink-0" />
+                              <span>{med.bottleCount} left in bottle</span>
+                            </span>
                           </div>
 
                           {/* ========================================================= */}
@@ -634,25 +634,25 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                               )}
                             </div>
 
-                            {/* Clean Responsive Buttons in Web View */}
-                            <div className="flex items-center gap-2 flex-wrap">
+                            {/* Clean Responsive Buttons - Strictly in the Same Row on Mobile and Desktop */}
+                            <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:items-center">
                               {isTakenToday ? (
                                 <button
                                   type="button"
                                   onClick={() => handleUndoDose(med)}
-                                  className="min-h-[42px] px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                                  className="min-h-[42px] px-3.5 sm:px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap"
                                   title="Accidental tap? Undo dose"
                                 >
-                                  <RotateCcw className="w-4 h-4 text-slate-500" />
+                                  <RotateCcw className="w-4 h-4 text-slate-500 shrink-0" />
                                   <span>Undo Dose</span>
                                 </button>
                               ) : (
                                 <button
                                   type="button"
                                   onClick={() => handleTakeDose(med)}
-                                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-black text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
+                                  className="min-h-[42px] px-4 sm:px-6 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-black text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                                 >
-                                  <Check className="w-5 h-5 stroke-[3]" />
+                                  <Check className="w-5 h-5 stroke-[3] shrink-0" />
                                   <span>Take Now</span>
                                 </button>
                               )}
@@ -661,10 +661,10 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleRestock(med.id, 30)}
-                                className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                className="min-h-[42px] px-3 sm:px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap"
                                 title="Picked up pharmacy refill? Add +30 pills"
                               >
-                                <PlusCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                <PlusCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 <span>+30 Refill</span>
                               </button>
                             </div>
@@ -682,23 +682,23 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                                 </p>
                               </div>
 
-                              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                              <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:items-center sm:justify-end">
                                 <a
                                   href={`tel:${med.pharmacyPhone || DEFAULT_PHARMACY_PHONE}`}
-                                  className="min-h-[40px] px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer"
+                                  className="min-h-[40px] px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                                   title={`Call Pharmacy at ${med.pharmacyPhone || DEFAULT_PHARMACY_PHONE}`}
                                 >
-                                  <Phone className="w-3.5 h-3.5" />
+                                  <Phone className="w-3.5 h-3.5 shrink-0" />
                                   <span>Call Pharmacy</span>
                                 </a>
 
                                 <button
                                   type="button"
                                   onClick={() => handleRestock(med.id, 30)}
-                                  className="min-h-[40px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 transition shadow-xs cursor-pointer inline-flex items-center gap-1"
+                                  className="min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 transition shadow-xs cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
                                   title="Picked up refill? Add 30 pills"
                                 >
-                                  <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                  <PlusCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <span>+30 Refill</span>
                                 </button>
                               </div>

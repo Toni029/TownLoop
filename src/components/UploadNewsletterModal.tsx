@@ -55,6 +55,7 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
   const [monthEdition, setMonthEdition] = useState(
     currentConfig.monthEdition || 'September 2026'
   );
+  const [textContent, setTextContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
     size: string;
@@ -62,12 +63,12 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
     type: string;
   } | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
-  const [autoExtract, setAutoExtract] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
@@ -103,9 +104,28 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
         dataUrl,
         type: 'application/pdf',
       });
-      // Auto-fill title if default
-      if (!editionTitle || editionTitle === 'The Breeze: September 2026') {
-        const cleanName = file.name.replace(/\.[^/.]+$/, '');
+
+      // Auto-detect Month and Year from file name
+      const nameLower = file.name.toLowerCase();
+      const monthNames = [
+        'january', 'february', 'march', 'april', 'may', 'june',
+        'july', 'august', 'september', 'october', 'november', 'december'
+      ];
+      let detectedMonth: string | null = null;
+      for (const m of monthNames) {
+        if (nameLower.includes(m)) {
+          detectedMonth = m.charAt(0).toUpperCase() + m.slice(1);
+          break;
+        }
+      }
+      const yearMatch = file.name.match(/\b(202\d)\b/);
+      const detectedYear = yearMatch ? yearMatch[1] : '2026';
+
+      if (detectedMonth) {
+        setMonthEdition(`${detectedMonth} ${detectedYear}`);
+        setEditionTitle(`The Breeze: ${detectedMonth} ${detectedYear}`);
+      } else if (!editionTitle || editionTitle === 'The Breeze: September 2026') {
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
         setEditionTitle(cleanName);
       }
     };
@@ -168,9 +188,9 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
         pinned_highlights: ExtractedPinnedHighlightInput[];
       } | null = null;
 
-      if (autoExtract && onExtractContent && (selectedFile?.dataUrl || currentConfig.fileUrl)) {
-        setStatusMessage('Gemini AI analyzing newsletter for calendar events & notices...');
-        setProgressPercent(75);
+      if (onExtractContent && (selectedFile?.dataUrl || currentConfig.fileUrl)) {
+        setStatusMessage('AI scanning all newsletter pages & sidebars for monthly RSVP events...');
+        setProgressPercent(70);
 
         try {
           const res = await fetch('/api/newsletter/extract-content', {
@@ -182,7 +202,8 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
               fileType: 'application/pdf',
               editionTitle: editionTitle.trim(),
               monthEdition: monthEdition.trim(),
-              textContent: '',
+              textContent: textContent.trim(),
+              isReanalysis: true,
             }),
           });
 
@@ -196,10 +217,13 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
                 rsvp_events: data.rsvp_events || [],
                 pinned_highlights: data.pinned_highlights || [],
               };
+              setStatusMessage(
+                `Extracted ${extractedData.rsvp_events.length} monthly RSVP events & ${extractedData.pinned_highlights.length} highlights!`
+              );
             }
           }
         } catch (extractErr) {
-          console.warn('Gemini extraction notice:', extractErr);
+          console.warn('AI extraction notice:', extractErr);
         }
       }
 
@@ -249,14 +273,18 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
     }
   };
 
-  const handleRemove = () => {
-    if (
-      window.confirm(
-        'Are you sure you want to remove the current newsletter PDF? Residents will see the default publication until a new edition is uploaded.'
-      )
-    ) {
-      onRemoveNewsletter();
+  const handleRemove = async () => {
+    try {
+      setIsProcessing(true);
+      await onRemoveNewsletter();
+      setSelectedFile(null);
+      setRawFile(null);
       onClose();
+    } catch (err) {
+      console.warn('Remove newsletter error:', err);
+    } finally {
+      setIsProcessing(false);
+      setConfirmingRemove(false);
     }
   };
 
@@ -426,31 +454,46 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
                 </div>
               </div>
 
-              {/* Gemini AI Extraction Feature */}
+              {/* Optional Text Notes / Content */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                    Additional Newsletter Text or Notice Content (Optional)
+                  </label>
+                  <span className="text-[10px] text-stone-500 dark:text-stone-400">
+                    Supplemental text or notes
+                  </span>
+                </div>
+                <textarea
+                  value={textContent}
+                  onChange={(e) => setTextContent(e.target.value)}
+                  disabled={isProcessing}
+                  rows={2}
+                  placeholder="Paste any supplemental newsletter text, manager notes, or bulletin highlights here..."
+                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-white focus:outline-emerald-600 disabled:opacity-60 resize-y"
+                />
+              </div>
+
+              {/* Gemini AI Automatic Extraction Feature */}
               <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50/60 to-stone-50 dark:from-emerald-950/40 dark:via-teal-950/20 dark:to-stone-900/40 border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs">
-                <label className="flex items-start gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={autoExtract}
-                    onChange={(e) => setAutoExtract(e.target.checked)}
-                    disabled={isProcessing}
-                    className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-stone-300 dark:border-stone-700 cursor-pointer disabled:opacity-60"
-                  />
+                <div className="flex items-start gap-3 select-none">
+                  <div className="mt-0.5 w-6 h-6 rounded-lg bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-black text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        Multimodal Gemini AI Extraction
+                      <span className="text-xs font-black text-emerald-900 dark:text-emerald-300">
+                        Automatic Monthly RSVP & Highlight Extraction
                       </span>
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
-                        Automatic
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                        Guaranteed on Upload
                       </span>
                     </div>
                     <p className="text-[11px] text-stone-600 dark:text-stone-300 font-medium mt-1 leading-relaxed">
-                      Reads the PDF to extract calendar & RSVP events, clinics, and priority community notices directly into the app.
+                      Every time you upload or update the newsletter, the AI thoroughly scans all pages, sidebars, and calendars to extract every RSVP event and community highlight for that month.
                     </p>
                   </div>
-                </label>
+                </div>
               </div>
 
               {/* Upload Progress Status Banner */}
@@ -483,16 +526,43 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
 
               {/* Action Buttons */}
               <div className="pt-2 flex items-center justify-between gap-3 border-t border-stone-200 dark:border-stone-800">
-                <button
-                  type="button"
-                  onClick={handleRemove}
-                  disabled={isProcessing}
-                  className="min-h-[44px] px-3 py-2 rounded-xl border border-rose-300 dark:border-rose-900 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  title="Remove Current Newsletter PDF"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Remove Current PDF</span>
-                </button>
+                {!currentConfig?.isRemoved ? (
+                  confirmingRemove ? (
+                    <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                      <button
+                        type="button"
+                        onClick={handleRemove}
+                        disabled={isProcessing}
+                        className="min-h-[44px] px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm animate-pulse"
+                        title="Confirm removal of current newsletter PDF"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Confirm Remove?</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingRemove(false)}
+                        disabled={isProcessing}
+                        className="min-h-[44px] px-2.5 py-2 rounded-xl border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs font-semibold hover:bg-stone-100 dark:hover:bg-stone-800 transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingRemove(true)}
+                      disabled={isProcessing}
+                      className="min-h-[44px] px-3 py-2 rounded-xl border border-rose-300 dark:border-rose-900 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Remove Current Newsletter PDF"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Remove Current PDF</span>
+                    </button>
+                  )
+                ) : (
+                  <div />
+                )}
 
                 <div className="flex items-center gap-2">
                   <button
