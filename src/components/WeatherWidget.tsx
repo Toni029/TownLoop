@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Sun,
   Cloud,
@@ -788,8 +788,82 @@ export const WeatherWidget: React.FC = () => {
     };
   }, []);
 
+  // Handlers wrapped in useCallback at top level
+  const handleSelectDay = useCallback((dayIdx: number) => {
+    setSelectedDayIndex(dayIdx);
+    setSelectedHourIndex(0);
+  }, []);
+
+  const handleSelectHour = useCallback((hourIdx: number) => {
+    setSelectedHourIndex(hourIdx);
+  }, []);
+
+  // Memoized current active day (with safe fallback if data is still loading)
+  const currentDay = useMemo(() => {
+    if (forecastDays.length === 0) return null;
+    return forecastDays[selectedDayIndex] || forecastDays[0] || null;
+  }, [forecastDays, selectedDayIndex]);
+
+  // Memoized active hour forecast
+  const activeHour = useMemo(() => {
+    if (!currentDay || !currentDay.hourly || currentDay.hourly.length === 0) return null;
+    return currentDay.hourly[selectedHourIndex] || currentDay.hourly[0] || null;
+  }, [currentDay, selectedHourIndex]);
+
+  const isViewingCurrent = selectedDayIndex === 0 && selectedHourIndex === 0;
+
+  // 'Current Temperature' maps directly to current.temperature_2m field from API response
+  const currentTemperatureDisplay = useMemo(() => {
+    if (isViewingCurrent && currentRealTimeWeather !== null) {
+      return currentRealTimeWeather.temp;
+    }
+    return activeHour?.temp || '--°';
+  }, [isViewingCurrent, currentRealTimeWeather, activeHour]);
+
+  const currentConditionDisplay = useMemo(() => {
+    if (isViewingCurrent && currentRealTimeWeather !== null) {
+      return stripWindSpeed(
+        `${currentRealTimeWeather.label} • ${currentRealTimeWeather.humidity}% Humidity`
+      );
+    }
+    return stripWindSpeed(activeHour?.condition || 'Clear');
+  }, [isViewingCurrent, currentRealTimeWeather, activeHour]);
+
+  const currentShortForecastDisplay = useMemo(() => {
+    if (isViewingCurrent && currentRealTimeWeather !== null) {
+      return stripWindSpeed(
+        currentRealTimeWeather.label || currentRealTimeWeather.shortForecast
+      );
+    }
+    return stripWindSpeed(activeHour?.shortForecast || 'Clear');
+  }, [isViewingCurrent, currentRealTimeWeather, activeHour]);
+
+  const activeCondition: WeatherConditionType = useMemo(() => {
+    if (isViewingCurrent && currentRealTimeWeather !== null) {
+      return currentRealTimeWeather.icon;
+    }
+    return activeHour?.icon || 'sunny';
+  }, [isViewingCurrent, currentRealTimeWeather, activeHour]);
+
+  const theme = useMemo(() => getConditionTheme(activeCondition), [activeCondition]);
+
+  // Top right tag text: purely Day name and Weather Condition (zero wind speed)
+  const topRightTagText = useMemo(() => {
+    if (!currentDay || !activeHour) return 'Clear';
+    const dayPrefix = currentDay.dayName ? currentDay.dayName.slice(0, 3) : 'Now';
+    if (activeHour.time === 'Now') {
+      const conditionName =
+        (isViewingCurrent && currentRealTimeWeather?.label) ||
+        currentDay.tag?.split('•')[1]?.trim() ||
+        activeHour.shortForecast?.split('•')[0]?.trim() ||
+        'Clear';
+      return `${dayPrefix} • ${stripWindSpeed(conditionName)}`;
+    }
+    return `${dayPrefix} • ${activeHour.time}: ${stripWindSpeed(activeHour.shortForecast || '')}`;
+  }, [currentDay, activeHour, isViewingCurrent, currentRealTimeWeather]);
+
   // If no cached or fetched data is available yet, display subtle skeleton loader without hardcoded flash
-  if (forecastDays.length === 0) {
+  if (forecastDays.length === 0 || !currentDay || !activeHour) {
     return (
       <div className="space-y-2">
         {/* Top Header Row with Location */}
@@ -855,50 +929,6 @@ export const WeatherWidget: React.FC = () => {
       </div>
     );
   }
-
-  const currentDay = forecastDays[selectedDayIndex] || forecastDays[0];
-  const activeHour = currentDay.hourly[selectedHourIndex] || currentDay.hourly[0];
-  const isViewingCurrent = selectedDayIndex === 0 && selectedHourIndex === 0;
-
-  // 'Current Temperature' maps directly to current.temperature_2m field from API response
-  const currentTemperatureDisplay = isViewingCurrent && currentRealTimeWeather !== null
-    ? currentRealTimeWeather.temp
-    : activeHour.temp;
-  const currentConditionDisplay = stripWindSpeed(
-    isViewingCurrent && currentRealTimeWeather !== null
-      ? `${currentRealTimeWeather.label} • ${currentRealTimeWeather.humidity}% Humidity`
-      : activeHour.condition
-  );
-  const currentShortForecastDisplay = stripWindSpeed(
-    isViewingCurrent && currentRealTimeWeather !== null
-      ? (currentRealTimeWeather.label || currentRealTimeWeather.shortForecast)
-      : activeHour.shortForecast
-  );
-  const activeCondition: WeatherConditionType = (isViewingCurrent && currentRealTimeWeather !== null)
-    ? currentRealTimeWeather.icon
-    : activeHour.icon;
-  const theme = getConditionTheme(activeCondition);
-
-  // Top right tag text: purely Day name and Weather Condition (zero wind speed)
-  const dayPrefix = currentDay.dayName.slice(0, 3);
-  const conditionName =
-    (isViewingCurrent && currentRealTimeWeather?.label) ||
-    currentDay.tag.split('•')[1]?.trim() ||
-    activeHour.shortForecast.split('•')[0]?.trim() ||
-    'Clear';
-  const topRightTagText =
-    activeHour.time === 'Now'
-      ? `${dayPrefix} • ${stripWindSpeed(conditionName)}`
-      : `${dayPrefix} • ${activeHour.time}: ${stripWindSpeed(activeHour.shortForecast)}`;
-
-  const handleSelectDay = (dayIdx: number) => {
-    setSelectedDayIndex(dayIdx);
-    setSelectedHourIndex(0);
-  };
-
-  const handleSelectHour = (hourIdx: number) => {
-    setSelectedHourIndex(hourIdx);
-  };
 
   return (
     <div className="space-y-2">
