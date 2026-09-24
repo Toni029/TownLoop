@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sun,
   Cloud,
@@ -880,18 +880,16 @@ export const WeatherWidget: React.FC = () => {
   const theme = getConditionTheme(activeCondition);
 
   // Top right tag text: purely Day name and Weather Condition (zero wind speed)
-  const topRightTagText = useMemo(() => {
-    const dayPrefix = currentDay.dayName.slice(0, 3);
-    if (activeHour.time === 'Now') {
-      const conditionName =
-        (isViewingCurrent && currentRealTimeWeather?.label) ||
-        currentDay.tag.split('•')[1]?.trim() ||
-        activeHour.shortForecast.split('•')[0]?.trim() ||
-        'Clear';
-      return `${dayPrefix} • ${stripWindSpeed(conditionName)}`;
-    }
-    return `${dayPrefix} • ${activeHour.time}: ${stripWindSpeed(activeHour.shortForecast)}`;
-  }, [currentDay, activeHour, isViewingCurrent, currentRealTimeWeather]);
+  const dayPrefix = currentDay.dayName.slice(0, 3);
+  const conditionName =
+    (isViewingCurrent && currentRealTimeWeather?.label) ||
+    currentDay.tag.split('•')[1]?.trim() ||
+    activeHour.shortForecast.split('•')[0]?.trim() ||
+    'Clear';
+  const topRightTagText =
+    activeHour.time === 'Now'
+      ? `${dayPrefix} • ${stripWindSpeed(conditionName)}`
+      : `${dayPrefix} • ${activeHour.time}: ${stripWindSpeed(activeHour.shortForecast)}`;
 
   const handleSelectDay = (dayIdx: number) => {
     setSelectedDayIndex(dayIdx);

@@ -26,6 +26,7 @@ import { PortalHeader } from './components/layout/PortalHeader';
 import { BottomNavigation } from './components/layout/BottomNavigation';
 import { PortalModals } from './components/PortalModals';
 import { AdminPanelModal } from './components/AdminPanelModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   const COMMUNITY_STORAGE_KEY = 'selected_community';
@@ -256,7 +257,7 @@ export default function App() {
             }}
           />
         ) : (
-          <>
+          <ErrorBoundary viewName="Main Dashboard">
             {/* Ambient background glow for light mode matching sign-in page */}
             {!isDarkMode && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden -z-0">
@@ -286,11 +287,13 @@ export default function App() {
                     : 'hidden'
                 }
               >
-                <HomeScreen
-                  {...home}
-                  {...dates}
-                  onShowToast={showAppToast}
-                />
+                <ErrorBoundary viewName="Home">
+                  <HomeScreen
+                    {...home}
+                    {...dates}
+                    onShowToast={showAppToast}
+                  />
+                </ErrorBoundary>
               </div>
 
               {/* ================= TAB 2: NEWS ================= */}
@@ -303,12 +306,14 @@ export default function App() {
                     : 'hidden'
                 }
               >
-                <NewsScreen
-                  {...news}
-                  {...dates}
-                  currentUser={session.currentUser}
-                  onShowToast={showAppToast}
-                />
+                <ErrorBoundary viewName="News & Activities">
+                  <NewsScreen
+                    {...news}
+                    {...dates}
+                    currentUser={session.currentUser}
+                    onShowToast={showAppToast}
+                  />
+                </ErrorBoundary>
               </div>
 
               {/* ================= TAB 3: WORK ORDERS ================= */}
@@ -321,10 +326,12 @@ export default function App() {
                     : 'hidden'
                 }
               >
-                <WorkOrdersScreen
-                  {...workOrders}
-                  currentUser={session.currentUser}
-                />
+                <ErrorBoundary viewName="Maintenance & Work Orders">
+                  <WorkOrdersScreen
+                    {...workOrders}
+                    currentUser={session.currentUser}
+                  />
+                </ErrorBoundary>
               </div>
 
               {/* ================= TAB 4: SOCIAL ================= */}
@@ -337,7 +344,9 @@ export default function App() {
                     : 'hidden'
                 }
               >
-                <CommunityScreen {...community} />
+                <ErrorBoundary viewName="Community & Social">
+                  <CommunityScreen {...community} />
+                </ErrorBoundary>
               </div>
             </main>
 
@@ -346,7 +355,7 @@ export default function App() {
               setActiveTab={handleSelectTab}
               activeTab={activeTab}
             />
-          </>
+          </ErrorBoundary>
         )}
 
         <PortalModals
