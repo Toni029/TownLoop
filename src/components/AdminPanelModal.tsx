@@ -204,8 +204,8 @@ export function AdminPanelModal({
             {/* Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-900 via-amber-800 to-stone-900 text-white flex items-center justify-between gap-3 shadow-md shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shadow-xs shrink-0">
-                  <Shield className="w-5 h-5 text-amber-300" />
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shadow-xs shrink-0 overflow-hidden p-1.5">
+                  <img src="/favicon.svg" alt="Townloop Logo" className="w-7 h-7 object-contain" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">

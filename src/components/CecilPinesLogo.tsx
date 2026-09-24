@@ -6,7 +6,7 @@
  */
 import React from 'react';
 
-interface CecilPinesPinesProps {
+export interface CecilPinesPinesProps {
   className?: string;
   color?: string;
 }
@@ -153,4 +153,6 @@ export const CecilPinesBadge: React.FC<CecilPinesBadgeProps> = ({
     </div>
   );
 };
+
+
 

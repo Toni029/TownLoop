@@ -1,10 +1,12 @@
 {
+  "projectId": "cc-livingcommunity-app",
+  "appId": "1:883715389126:web:7400c4f711dd8bdc27c9c7",
   "apiKey": "AIzaSyBgDavlmIKxMpPcZfxwKLpXI_0kWXvreYg",
   "authDomain": "cc-livingcommunity-app.firebaseapp.com",
-  "projectId": "cc-livingcommunity-app",
+  "firestoreDatabaseId": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
   "storageBucket": "cc-livingcommunity-app.firebasestorage.app",
   "messagingSenderId": "883715389126",
-  "appId": "1:883715389126:web:5af5bf03ca32516827c9c7",
-  "measurementId": "G-1GB12S4PV3",
-  "firestoreDatabaseId": "(default)"
+  "measurementId": "",
+  "oAuthClientId": "883715389126-m7620ld4hl03bqh861vmj21vkjc60rfc.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

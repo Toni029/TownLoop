@@ -244,7 +244,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             ? 'bg-slate-800 text-emerald-300 border border-slate-700' 
             : 'bg-[#edf5ee] text-[#124d2c] border border-[#bcdbc6] shadow-xs'
         }`}>
-          <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+          <img 
+            src="/favicon.svg" 
+            alt="Townloop Logo" 
+            className="w-4 h-4 object-contain inline-block" 
+          />
           TownLoop Resident Portal
         </span>
       </div>

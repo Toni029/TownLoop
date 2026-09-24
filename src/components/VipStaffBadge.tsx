@@ -31,8 +31,8 @@ export const VipStaffBadge: React.FC<VipStaffBadgeProps> = ({
     >
       <img
         src="/vip-badge.svg"
-        alt={title || 'VIP Badge'}
-        className="w-full h-full object-contain filter drop-shadow-sm pointer-events-none select-none inline-block"
+        alt="VIP Badge"
+        className="w-5 h-5 object-contain inline-block"
       />
     </div>
   );

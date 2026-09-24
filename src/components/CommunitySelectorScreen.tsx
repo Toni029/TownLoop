@@ -84,7 +84,11 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
       <div className="mt-1 mb-5 text-center space-y-2.5">
         <div className="inline-flex items-center justify-center gap-2">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <img
+              src="/favicon.svg"
+              alt="Townloop Logo"
+              className="w-4 h-4 object-contain inline-block"
+            />
             <span>TownLoop Living Portal</span>
           </div>
 
