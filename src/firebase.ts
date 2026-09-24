@@ -8,22 +8,21 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import firebaseAppletConfig from '../firebase-applet-config.json';
 
 // ============================================================================
-// 🔥 FIREBASE CONFIGURATION PLACEHOLDERS
-// Paste your Firebase Web App configuration below.
-// You can find these values in the Firebase Console:
-// -> Project Settings -> General -> Your apps -> Web app (</>) -> SDK setup and configuration
+// 🔥 LIVE FIREBASE CONFIGURATION
+// Configured for cc-livingcommunity-app from firebase-applet-config.json
 // ============================================================================
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_FIREBASE_API_KEY",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "YOUR_MEASUREMENT_ID",
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || "(default)"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey || "AIzaSyBgDavlmIKxMpPcZfxwKLpXI_0kWXvreYg",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseAppletConfig.authDomain || "cc-livingcommunity-app.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseAppletConfig.projectId || "cc-livingcommunity-app",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseAppletConfig.storageBucket || "cc-livingcommunity-app.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseAppletConfig.messagingSenderId || "883715389126",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseAppletConfig.appId || "1:883715389126:web:5af5bf03ca32516827c9c7",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || firebaseAppletConfig.measurementId || "G-1GB12S4PV3",
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseAppletConfig.firestoreDatabaseId || "(default)"
 };
 
 /**
@@ -39,18 +38,18 @@ export function isFirebaseConfigured(): boolean {
   );
 }
 
-let app: FirebaseApp | null = null;
+let appInstance: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
 let dbInstance: Firestore | null = null;
 let storageInstance: FirebaseStorage | null = null;
 
 if (isFirebaseConfigured()) {
   try {
-    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    authInstance = getAuth(app);
-    dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    appInstance = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    authInstance = getAuth(appInstance);
+    dbInstance = getFirestore(appInstance, firebaseConfig.firestoreDatabaseId);
     try {
-      storageInstance = getStorage(app);
+      storageInstance = getStorage(appInstance);
     } catch (storageError) {
       console.warn('Firebase Storage initialization notice:', storageError);
     }
@@ -59,6 +58,7 @@ if (isFirebaseConfigured()) {
   }
 }
 
+export const app = appInstance;
 export const auth = authInstance;
 export const db = dbInstance;
 export const storage = storageInstance;

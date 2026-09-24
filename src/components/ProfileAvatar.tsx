@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { updateResidentProfile, subscribeToCommunityDirectory } from '../services/auth';
-import { canAccessAdminPanel, getUserRole, getRoleBadgeInfo, isCrew, isStrictVip, isAdmin } from '../utils/permissions';
+import { canAccessAdminPanel, getUserRole, getRoleBadgeInfo, isCrew, isStrictVip, isVip, isAdmin, isStaff } from '../utils/permissions';
 import { UserAvatar } from './UserAvatar';
 import { CrewShieldBadge } from './CrewShieldBadge';
 import { VipStaffBadge } from './VipStaffBadge';
@@ -460,12 +460,20 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   {(() => {
                     const role = getUserRole(currentUser);
                     const badge = getRoleBadgeInfo(role);
+                    const hasSpecialRole = isAdmin(currentUser) || isVip(currentUser) || isStaff(currentUser);
                     return (
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span
-                          className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badge.bg}`}
+                          className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${badge.bg}`}
                         >
-                          {badge.label}
+                          {hasSpecialRole && (
+                            <img
+                              src="/vip-badge.svg"
+                              alt="VIP Badge"
+                              className="w-3.5 h-3.5 object-contain inline-block"
+                            />
+                          )}
+                          <span>{badge.label}</span>
                         </span>
                       </div>
                     );
@@ -1592,13 +1600,17 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           </div>
         </button>
 
-        {/* VIP & Admin Role Staff Badge: Displayed at bottom-left corner of the profile picture only */}
-        {(isStrictVip(currentUser) || isAdmin(currentUser)) && (
+        {/* VIP, Staff & Admin Role Staff Badge: Displayed at bottom-left corner of the profile picture only */}
+        {(isAdmin(currentUser) || isStaff(currentUser) || isStrictVip(currentUser)) && (
           <div
             className="absolute -bottom-1 -left-1 sm:-bottom-1.5 sm:-left-1.5 z-10 pointer-events-none"
-            title={isAdmin(currentUser) ? "Admin Staff Badge" : "VIP Staff Badge"}
+            title={isAdmin(currentUser) ? "Admin Staff Badge" : isStaff(currentUser) ? "Staff Badge" : "VIP Staff Badge"}
           >
-            <VipStaffBadge size={size} title={isAdmin(currentUser) ? "Admin Staff Badge" : "VIP Staff Badge"} />
+            <VipStaffBadge
+              size={size}
+              role={isAdmin(currentUser) ? 'admin' : isStaff(currentUser) ? 'staff' : 'vip'}
+              title={isAdmin(currentUser) ? "Admin Staff Badge" : isStaff(currentUser) ? "Staff Badge" : "VIP Staff Badge"}
+            />
           </div>
         )}
 

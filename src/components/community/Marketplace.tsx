@@ -43,8 +43,23 @@ export function Marketplace({
 
   return (
     <div className="space-y-3.5">
-      {marketItems.map((item) => {
-        const isSold = Boolean(item.sold || item.claimed);
+      {marketItems.length === 0 ? (
+        <div className="rounded-3xl p-8 bg-white/90 dark:bg-slate-900/90 border border-stone-200/90 dark:border-slate-800 text-center space-y-3 shadow-2xs backdrop-blur-xs my-2">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200/60 dark:border-emerald-800/40">
+            <Tag className="w-6 h-6 stroke-[2]" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
+              No Marketplace Listings Yet
+            </h3>
+            <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+              The marketplace feed is currently empty. Tap the post button above to list furniture, tools, books, or giveaways for your neighbors!
+            </p>
+          </div>
+        </div>
+      ) : (
+        marketItems.map((item) => {
+          const isSold = Boolean(item.sold || item.claimed);
         const isOwner = isItemCreator(item);
         const canDelete = canDeleteAnyPost(currentUser) || isOwner;
         const itemMedia = (item.media && item.media.length > 0)
@@ -291,7 +306,7 @@ export function Marketplace({
             </div>
           </div>
         );
-      })}
+      }))}
     </div>
   );
 }

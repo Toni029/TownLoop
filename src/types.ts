@@ -13,7 +13,7 @@ export interface ActivityEvent {
   attending: boolean;
 }
 
-export type UserRole = 'admin' | 'vip' | 'crew' | 'resident' | '';
+export type UserRole = 'admin' | 'staff' | 'vip' | 'crew' | 'resident' | '';
 
 export interface WorkOrderComment {
   id: number | string;
@@ -200,6 +200,10 @@ export interface UserProfile {
   avatar_url?: string;
   avatarUrl?: string;
   approved?: boolean;
+  isAdmin?: boolean;
+  isStaff?: boolean;
+  isVip?: boolean;
+  isCrew?: boolean;
   created_at?: string;
   createdAt?: string;
 }

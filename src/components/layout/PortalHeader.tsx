@@ -6,6 +6,7 @@
  */
 import { ProfileAvatar } from '../../components/ProfileAvatar';
 import { logoutUser } from '../../services/auth';
+import { getUserRole, getRoleBadgeInfo } from '../../utils/permissions';
 import type { PortalSessionState } from '../../hooks/usePortalSession';
 import type { PortalDatesState } from '../../hooks/usePortalDates';
 import type { AppToastState } from '../../hooks/useAppToast';
@@ -36,6 +37,9 @@ export function PortalHeader({
   onOpenAdminPanel,
   onSwitchCommunity,
 }: PortalHeaderProps) {
+  const role = getUserRole(currentUser);
+  const badgeInfo = role && role !== 'resident' ? getRoleBadgeInfo(role) : null;
+
   return (
     <header
       className={`shrink-0 pt-6 px-6 pb-3.5 ${
@@ -61,7 +65,7 @@ export function PortalHeader({
             {currentUser?.name ? currentUser.name.split(' ')[0] : 'Resident'}
           </span>
         </h1>
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
           <p
             className={`text-[13px] font-semibold uppercase tracking-wider ${
               isDarkMode ? 'text-slate-400' : 'text-[#000000]'
@@ -69,6 +73,20 @@ export function PortalHeader({
           >
             {formattedHeaderDate}
           </p>
+          {badgeInfo && (
+            <span
+              className={`inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${badgeInfo.bg}`}
+            >
+              {(role === 'admin' || role === 'vip' || role === 'staff') && (
+                <img
+                  src="/vip-badge.svg"
+                  alt="VIP Badge"
+                  className="w-3.5 h-3.5 object-contain inline-block"
+                />
+              )}
+              <span>{badgeInfo.label}</span>
+            </span>
+          )}
         </div>
       </div>
       <ProfileAvatar

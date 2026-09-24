@@ -20,71 +20,7 @@ import { db, isFirebaseConfigured } from '../firebase';
 const STORAGE_POSTS_KEY = 'portal_discussion_posts';
 const STORAGE_MARKET_KEY = 'portal_marketplace_items';
 
-const INITIAL_POSTS: PostItem[] = [
-  {
-    id: 'post-1',
-    author: 'Eleanor Vance',
-    unit: 'Bldg 2 • Apt 204',
-    timeAgo: '2h ago',
-    tag: 'Garden & Nature',
-    title: 'The Camellias are blooming near the North Pond!',
-    content:
-      'Took a morning stroll past the North Gazebo and the pink camellias are in full bloom. Highly recommend taking the paved loop today!',
-    likes: 8,
-    liked: false,
-    comments: [
-      {
-        id: 'c1',
-        author: 'Robert Hayes',
-        unit: 'Apt 112',
-        text: 'Saw them too! Simply stunning this time of year.',
-        timeAgo: '1h ago',
-      },
-    ],
-  },
-  {
-    id: 'post-2',
-    author: 'Arthur Pendelton',
-    unit: 'Bldg 1 • Apt 105',
-    timeAgo: '5h ago',
-    tag: 'Clubhouse & Games',
-    title: 'Wii Bowling Championship Thursday at 3 PM',
-    content:
-      'Looking for 2 more players to round out our team for this week’s friendly match in Magnolia Lounge. Beginners welcome!',
-    likes: 5,
-    liked: false,
-    comments: [],
-  },
-];
-
-const INITIAL_MARKET_ITEMS: MarketItem[] = [
-  {
-    id: 'market-1',
-    title: 'Cuisinart 4-Slice Toaster (Stainless Steel)',
-    price: '$15',
-    description:
-      'Works perfectly, very clean. Downsized recently and no longer need a 4-slice model. Porch pickup at Apt 208.',
-    author: 'Eleanor Vance',
-    unit: 'Bldg 2 • Apt 204',
-    timeAgo: '3h ago',
-    isOwner: false,
-    claimed: false,
-    sold: false,
-  },
-  {
-    id: 'market-2',
-    title: 'Hardcover Large Print Mystery Novels (Set of 6)',
-    price: 'FREE',
-    description:
-      'Great collection of Agatha Christie & modern cozy mysteries in clean condition. Free to good home!',
-    author: 'Margaret Higgins',
-    unit: 'Bldg 3 • Apt 301',
-    timeAgo: '1d ago',
-    isOwner: false,
-    claimed: false,
-    sold: false,
-  },
-];
+const INITIAL_POSTS: PostItem[] = [];
 
 export interface CommunityState {
   currentUser?: UserProfile | null;
@@ -160,11 +96,18 @@ export function useCommunityState(
   const [marketItems, setMarketItems] = useState<MarketItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_MARKET_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.some((it) => it.id === 'market-1' || it.id === 'market-2')) {
+          localStorage.removeItem(STORAGE_MARKET_KEY);
+          return [];
+        }
+        return parsed;
+      }
     } catch (e) {
       console.warn('Failed to parse cached marketplace items:', e);
     }
-    return INITIAL_MARKET_ITEMS;
+    return [];
   });
 
   const [socialView, setSocialView] = useState<'chat' | 'market'>('chat');
@@ -210,29 +153,27 @@ export function useCommunityState(
       const unsubPosts = onSnapshot(
         qPosts,
         (snapshot) => {
-          if (!snapshot.empty) {
-            const remotePosts: PostItem[] = snapshot.docs.map((doc) => {
-              const d = doc.data();
-              return {
-                id: doc.id,
-                author: d.author || 'Resident',
-                authorAvatar: d.authorAvatar || '',
-                authorId: d.userId,
-                authorEmail: d.authorEmail || '',
-                unit: d.unit || 'TownLoop Resident',
-                timeAgo: d.timeAgo || 'Recent',
-                tag: d.tag || 'Community',
-                title: d.title || 'Community Post',
-                content: d.content || '',
-                mediaUrl: d.mediaUrl,
-                media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
-                likes: d.likes || 0,
-                liked: false,
-                comments: d.comments || [],
-              };
-            });
-            setPosts(remotePosts);
-          }
+          const remotePosts: PostItem[] = snapshot.docs.map((doc) => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              author: d.author || 'Resident',
+              authorAvatar: d.authorAvatar || '',
+              authorId: d.userId,
+              authorEmail: d.authorEmail || '',
+              unit: d.unit || 'TownLoop Resident',
+              timeAgo: d.timeAgo || 'Recent',
+              tag: d.tag || 'Community',
+              title: d.title || 'Community Post',
+              content: d.content || '',
+              mediaUrl: d.mediaUrl,
+              media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
+              likes: d.likes || 0,
+              liked: false,
+              comments: d.comments || [],
+            };
+          });
+          setPosts(remotePosts);
         },
         (err) => console.warn('Firestore discussion listener error:', err)
       );
@@ -241,31 +182,29 @@ export function useCommunityState(
       const unsubMarket = onSnapshot(
         qMarket,
         (snapshot) => {
-          if (!snapshot.empty) {
-            const remoteMarket: MarketItem[] = snapshot.docs.map((doc) => {
-              const d = doc.data();
-              return {
-                id: doc.id,
-                title: d.title || 'Market Item',
-                price: d.price || 'FREE',
-                description: d.description || '',
-                author: d.author || 'Resident',
-                authorAvatar: d.authorAvatar || '',
-                authorId: d.userId,
-                authorEmail: d.authorEmail || '',
-                unit: d.unit || 'TownLoop Resident',
-                timeAgo: d.timeAgo || 'Recent',
-                isOwner: String(d.userId) === String(currentUser?.id),
-                claimed: Boolean(d.claimed || d.sold),
-                sold: Boolean(d.sold || d.claimed),
-                mediaUrl: d.mediaUrl,
-                photoUrl: d.mediaUrl,
-                media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
-                comments: d.comments || [],
-              };
-            });
-            setMarketItems(remoteMarket);
-          }
+          const remoteMarket: MarketItem[] = snapshot.docs.map((doc) => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              title: d.title || 'Market Item',
+              price: d.price || 'FREE',
+              description: d.description || '',
+              author: d.author || 'Resident',
+              authorAvatar: d.authorAvatar || '',
+              authorId: d.userId,
+              authorEmail: d.authorEmail || '',
+              unit: d.unit || 'TownLoop Resident',
+              timeAgo: d.timeAgo || 'Recent',
+              isOwner: String(d.userId) === String(currentUser?.id),
+              claimed: Boolean(d.claimed || d.sold),
+              sold: Boolean(d.sold || d.claimed),
+              mediaUrl: d.mediaUrl,
+              photoUrl: d.mediaUrl,
+              media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
+              comments: d.comments || [],
+            };
+          });
+          setMarketItems(remoteMarket);
         },
         (err) => console.warn('Firestore marketplace listener error:', err)
       );

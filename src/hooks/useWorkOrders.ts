@@ -13,44 +13,7 @@ import { db, isFirebaseConfigured } from '../firebase';
 
 const STORAGE_KEY = 'portal_work_orders_list';
 
-const INITIAL_WORK_ORDERS: WorkOrderItem[] = [
-  {
-    id: 'wo-101',
-    code: 'WO-1042',
-    title: 'Master bathroom sink dripping constantly',
-    description: 'Hot water faucet has a slow drip that got worse over the weekend.',
-    category: 'Plumbing & Fixtures',
-    categoryEmoji: '🚰',
-    unit: 'Building 2 • Apt 204',
-    placeInLine: 1,
-    aheadCount: 0,
-    status: 'In Progress',
-    statusNote: 'Technician currently on site',
-    timeAgo: '2h ago',
-    userId: 'user_1',
-    userName: 'Eleanor Vance',
-    photos: [],
-    comments: [],
-  },
-  {
-    id: 'wo-102',
-    code: 'WO-1043',
-    title: 'Patio screen door off track',
-    description: 'The sliding screen door keeps jamming when opening.',
-    category: 'Doors, Windows & Locks',
-    categoryEmoji: '🚪',
-    unit: 'Building 3 • Apt 112',
-    placeInLine: 2,
-    aheadCount: 1,
-    status: 'Queued',
-    statusNote: 'Queued for maintenance technician',
-    timeAgo: '4h ago',
-    userId: 'user_2',
-    userName: 'Robert Hayes',
-    photos: [],
-    comments: [],
-  },
-];
+const INITIAL_WORK_ORDERS: WorkOrderItem[] = [];
 
 export interface WorkOrdersState {
   workOrders: WorkOrderItem[];
@@ -83,12 +46,17 @@ export function useWorkOrders(
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.some((it) => it.id === 'wo-101' || it.id === 'wo-102')) {
+          localStorage.removeItem(STORAGE_KEY);
+          return [];
+        }
+        return parsed;
       }
     } catch (e) {
       console.warn('Failed to parse cached work orders:', e);
     }
-    return INITIAL_WORK_ORDERS;
+    return [];
   });
 
   const [isWorkOrderModalOpen, setIsWorkOrderModalOpen] = useState(false);
@@ -114,34 +82,32 @@ export function useWorkOrders(
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
-          if (!snapshot.empty) {
-            const remoteOrders: WorkOrderItem[] = snapshot.docs.map((doc) => {
-              const data = doc.data();
-              return {
-                id: doc.id,
-                code: data.code || `WO-${doc.id.slice(-4)}`,
-                title: data.title || 'Work Order',
-                description: data.description || '',
-                category: data.category || 'General Maintenance',
-                categoryEmoji: data.categoryEmoji || getCategoryEmoji(data.category || ''),
-                unit: data.unit || 'Resident Unit',
-                placeInLine: data.placeInLine || 1,
-                aheadCount: data.aheadCount || 0,
-                status: data.status || 'Queued',
-                statusNote: data.statusNote || 'Pending review',
-                timeAgo: data.timeAgo || 'Recent',
-                completedAt: data.completedAt,
-                completedBy: data.completedBy,
-                photoUrl: data.photoUrl,
-                photos: data.photos || (data.photoUrl ? [data.photoUrl] : []),
-                comments: data.comments || [],
-                userId: data.userId,
-                userEmail: data.userEmail,
-                userName: data.userName,
-              };
-            });
-            setWorkOrders(remoteOrders);
-          }
+          const remoteOrders: WorkOrderItem[] = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              code: data.code || `WO-${doc.id.slice(-4)}`,
+              title: data.title || 'Work Order',
+              description: data.description || '',
+              category: data.category || 'General Maintenance',
+              categoryEmoji: data.categoryEmoji || getCategoryEmoji(data.category || ''),
+              unit: data.unit || 'Resident Unit',
+              placeInLine: data.placeInLine || 1,
+              aheadCount: data.aheadCount || 0,
+              status: data.status || 'Queued',
+              statusNote: data.statusNote || 'Pending review',
+              timeAgo: data.timeAgo || 'Recent',
+              completedAt: data.completedAt,
+              completedBy: data.completedBy,
+              photoUrl: data.photoUrl,
+              photos: data.photos || (data.photoUrl ? [data.photoUrl] : []),
+              comments: data.comments || [],
+              userId: data.userId,
+              userEmail: data.userEmail,
+              userName: data.userName,
+            };
+          });
+          setWorkOrders(remoteOrders);
         },
         (error) => {
           console.warn('Firestore work orders listener error:', error);

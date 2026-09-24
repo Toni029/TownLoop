@@ -24,6 +24,8 @@ import {
   collection,
   onSnapshot,
   getDocs,
+  query,
+  where,
   serverTimestamp
 } from 'firebase/firestore';
 import {
@@ -38,35 +40,136 @@ import { UserProfile, UserRole } from '../types';
 /**
  * Normalizes Firestore or Auth data into consistent UserProfile structure
  */
-function normalizeUserProfile(uid: string, data: any, fbUser?: FirebaseUser | null): UserProfile {
-  const email = data?.email || fbUser?.email || '';
-  const name = data?.name || fbUser?.displayName || 'Resident';
-  const approved = data?.approved !== false;
-  const storedRole = String(data?.role || '').toLowerCase();
-  const role: UserRole = approved && ['admin', 'vip', 'crew', 'resident'].includes(storedRole)
-    ? storedRole as UserRole
-    : '';
+export function normalizeUserProfile(uid: string, data: any, fbUser?: FirebaseUser | null): UserProfile {
+  const email = (data?.email || fbUser?.email || '').toLowerCase().trim();
+
+  // Resolve Real Resident Name from Firestore document fields first
+  const name =
+    data?.displayName ||
+    data?.name ||
+    data?.display_name ||
+    data?.fullName ||
+    data?.full_name ||
+    data?.userName ||
+    data?.username ||
+    (data?.firstName && data?.lastName ? `${data.firstName} ${data.lastName}`.trim() : '') ||
+    (data?.first_name && data?.last_name ? `${data.first_name} ${data.last_name}`.trim() : '') ||
+    fbUser?.displayName ||
+    (email ? email.split('@')[0] : 'Resident');
+
+  // Resolve Real Resident Profile Photo from Firestore document fields first
+  const avatarUrl =
+    data?.avatarUrl ||
+    data?.avatar_url ||
+    data?.photoUrl ||
+    data?.photoURL ||
+    data?.photo_url ||
+    data?.photo ||
+    data?.avatar ||
+    data?.picture ||
+    data?.profilePhoto ||
+    data?.profile_photo ||
+    data?.profileImage ||
+    data?.profile_image ||
+    data?.imageUrl ||
+    data?.image ||
+    fbUser?.photoURL ||
+    '';
+
+  // Role and Badges resolution from Firestore user document
+  const rawRole = String(
+    data?.role ||
+    data?.userRole ||
+    data?.user_role ||
+    (Array.isArray(data?.roles) ? data.roles[0] : '') ||
+    data?.badge ||
+    (Array.isArray(data?.badges) ? data.badges[0] : '') ||
+    data?.type ||
+    ''
+  ).toLowerCase().trim();
+
+  const isAdminFlag = Boolean(
+    data?.isAdmin === true ||
+    data?.is_admin === true ||
+    data?.admin === true ||
+    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('admin')) ||
+    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('admin')) ||
+    rawRole === 'admin' ||
+    rawRole === 'master admin' ||
+    rawRole === 'master_admin' ||
+    rawRole === 'administrator'
+  );
+
+  const isStaffFlag = Boolean(
+    data?.isStaff === true ||
+    data?.is_staff === true ||
+    data?.staff === true ||
+    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('staff')) ||
+    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('staff')) ||
+    rawRole === 'staff'
+  );
+
+  const isVipFlag = Boolean(
+    data?.isVip === true ||
+    data?.is_vip === true ||
+    data?.vip === true ||
+    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('vip')) ||
+    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('vip')) ||
+    rawRole === 'vip' ||
+    rawRole === 'vip resident' ||
+    rawRole === 'vip_resident'
+  );
+
+  const isCrewFlag = Boolean(
+    data?.isCrew === true ||
+    data?.is_crew === true ||
+    data?.crew === true ||
+    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('crew')) ||
+    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('crew')) ||
+    rawRole === 'crew' ||
+    rawRole === 'maintenance' ||
+    rawRole === 'maintenance crew'
+  );
+
+  let role: UserRole = '';
+  if (isAdminFlag) {
+    role = 'admin';
+  } else if (isStaffFlag) {
+    role = 'staff';
+  } else if (isVipFlag) {
+    role = 'vip';
+  } else if (isCrewFlag) {
+    role = 'crew';
+  } else if (rawRole === 'resident') {
+    role = 'resident';
+  } else if (['admin', 'staff', 'vip', 'crew', 'resident'].includes(rawRole)) {
+    role = rawRole as UserRole;
+  } else if (data?.approved !== false && rawRole !== '') {
+    role = 'resident';
+  }
+
+  // Admins, Staff, and VIPs are automatically approved
+  const approved = (isAdminFlag || isStaffFlag || isVipFlag)
+    ? true
+    : (data?.approved !== undefined ? Boolean(data.approved) : true);
 
   let cachedSignupAddr = '';
   if (typeof window !== 'undefined') {
     try {
-      cachedSignupAddr = (email ? sessionStorage.getItem(`cecil_pines_registered_address_${email.toLowerCase()}`) : null)
+      cachedSignupAddr = (email ? sessionStorage.getItem(`cecil_pines_registered_address_${email}`) : null)
         || sessionStorage.getItem('cecil_pines_registered_address')
         || '';
     } catch {}
   }
 
-  // Pure single address field - mapping exactly to user entered street address
   const address = data?.address !== undefined
     ? data.address
-    : cachedSignupAddr;
+    : (data?.unit || cachedSignupAddr || '');
 
-  // No mock data fallbacks for newly registered residents - only populate if actually present in doc
-  const phone = data?.phone !== undefined ? data.phone : undefined;
+  const phone = data?.phone !== undefined ? data.phone : (fbUser?.phoneNumber || undefined);
   const emergencyContact = data?.emergencyContact || data?.emergency_contact || undefined;
   const dietaryPreference = data?.dietaryPreference || data?.dietary_preference || undefined;
   const wing = data?.wing || undefined;
-  const avatarUrl = data?.avatarUrl || data?.avatar_url || fbUser?.photoURL || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&h=256&q=80';
 
   return {
     id: uid,
@@ -83,7 +186,12 @@ function normalizeUserProfile(uid: string, data: any, fbUser?: FirebaseUser | nu
     avatar_url: avatarUrl,
     avatarUrl,
     approved,
-    created_at: data?.createdAt || new Date().toISOString()
+    isAdmin: role === 'admin' || isAdminFlag,
+    isStaff: role === 'staff' || isStaffFlag,
+    isVip: role === 'vip' || isVipFlag,
+    isCrew: role === 'crew' || isCrewFlag,
+    created_at: data?.createdAt || data?.created_at || new Date().toISOString(),
+    createdAt: data?.createdAt || data?.created_at || new Date().toISOString()
   };
 }
 
@@ -93,96 +201,66 @@ function normalizeUserProfile(uid: string, data: any, fbUser?: FirebaseUser | nu
 export async function loginUser(email: string, password: string): Promise<UserProfile> {
   const cleanEmail = email.trim().toLowerCase();
 
-  // Standard Resident Sign-In
-  if (isFirebaseConfigured() && auth && db) {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      const user = userCredential.user;
+  if (!isFirebaseConfigured() || !auth || !db) {
+    throw new Error('Firebase Authentication is not initialized. Please verify configuration.');
+  }
 
-      // Fetch resident profile from Firestore
-      const userDocRef = doc(db, 'users', user.uid);
-      let userData: any = null;
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+    const user = userCredential.user;
+
+    // Fetch resident profile directly from Firestore users/{uid}
+    const userDocRef = doc(db, 'users', user.uid);
+    let userData: any = null;
+
+    try {
+      const snap = await getDoc(userDocRef);
+      if (snap.exists()) {
+        userData = snap.data();
+      } else {
+        // Fallback: check if user document is saved under matching email
+        const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
+        const emailSnap = await getDocs(q);
+        if (!emailSnap.empty) {
+          userData = emailSnap.docs[0].data();
+        }
+      }
+    } catch (err) {
+      console.warn('Notice reading user profile from Firestore:', err);
+    }
+
+    if (!userData) {
+      // If Firestore doc does not exist yet, initialize it
+      userData = {
+        id: user.uid,
+        name: user.displayName || cleanEmail.split('@')[0] || 'Resident',
+        email: user.email || cleanEmail,
+        role: "",
+        address: '',
+        avatarUrl: user.photoURL || '',
+        approved: false,
+        createdAt: new Date().toISOString()
+      };
 
       try {
-        const snap = await getDoc(userDocRef);
-        if (snap.exists()) {
-          userData = snap.data();
-        }
+        await setDoc(userDocRef, userData);
       } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+        handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
       }
-
-        if (!userData) {
-        // If Firestore doc does not exist yet, initialize it with role: ""
-        userData = {
-          id: user.uid,
-          name: user.displayName || cleanEmail.split('@')[0] || 'Resident',
-          email: user.email || cleanEmail,
-          role: "", // default to empty string
-          address: '',
-          avatarUrl: user.photoURL || '',
-          approved: false, // Strict Admin Approval requirement
-          createdAt: new Date().toISOString()
-        };
-
-        try {
-          await setDoc(userDocRef, userData);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
-        }
-      }
-
-      return normalizeUserProfile(user.uid, userData, user);
-    } catch (err: any) {
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        throw new Error('Invalid email or password. If you do not have an account yet, please use the "Create Account" tab.');
-      } else if (err.code === 'auth/invalid-email') {
-        throw new Error('Please enter a valid email address.');
-      } else if (err.code === 'auth/too-many-requests') {
-        throw new Error('Too many failed attempts. Access is temporarily locked. Please try again shortly.');
-      }
-
-      throw new Error(err.message || 'Firebase sign in failed');
     }
-  }
 
-  // Local authentication provider when running in offline preview or without Firebase keys
-  const cleanEmailLower = cleanEmail.toLowerCase();
-  let localUsers: Record<string, any> = {};
-  try {
-    const raw = localStorage.getItem('portal_local_users');
-    if (raw) localUsers = JSON.parse(raw);
-  } catch {}
-
-  const existingRecord = localUsers[cleanEmailLower];
-  if (existingRecord) {
-    if (existingRecord.password && existingRecord.password !== password) {
-      throw new Error('Invalid email or password.');
+    return normalizeUserProfile(user.uid, userData, user);
+  } catch (err: any) {
+    if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      throw new Error('Invalid email or password. If you do not have an account yet, please use the "Create Account" tab.');
+    } else if (err.code === 'auth/invalid-email') {
+      throw new Error('Please enter a valid email address.');
+    } else if (err.code === 'auth/too-many-requests') {
+      throw new Error('Too many failed attempts. Access is temporarily locked. Please try again shortly.');
     }
-    return existingRecord.profile;
-  }
 
-  // If user signs in with a valid password (6+ chars), create their user profile for this session
-  if (password.length >= 6) {
-    const defaultName = cleanEmailLower.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-    const newProfile: UserProfile = {
-      id: `resident-${cleanEmailLower.replace(/[^a-z0-9]/g, '-')}`,
-      name: defaultName,
-      email: cleanEmailLower,
-      role: 'resident',
-      approved: true,
-      address: 'TownLoop Community',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
-      created_at: new Date().toISOString()
-    };
-    localUsers[cleanEmailLower] = { password, profile: newProfile };
-    try {
-      localStorage.setItem('portal_local_users', JSON.stringify(localUsers));
-    } catch {}
-    return newProfile;
+    throw new Error(err.message || 'Firebase sign in failed');
   }
-
-  throw new Error('Invalid email or password. If you do not have an account yet, please use the "Create Account" tab.');
 }
 
 /**
@@ -198,153 +276,109 @@ export async function signupUser(params: {
   const { name, email, password, address, phone } = params;
   const userStreetAddress = address ? address.trim() : '';
 
-  if (typeof window !== 'undefined' && userStreetAddress) {
-    try {
-      sessionStorage.setItem('cecil_pines_registered_address', userStreetAddress);
-      sessionStorage.setItem(`cecil_pines_registered_address_${email.trim().toLowerCase()}`, userStreetAddress);
-      localStorage.setItem('cecil_pines_registered_address', userStreetAddress);
-    } catch {}
+  if (!isFirebaseConfigured() || !auth || !db) {
+    throw new Error('Firebase Authentication is not initialized.');
   }
 
-  if (isFirebaseConfigured() && auth && db) {
-    try {
-      // 1. Create account in Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      const user = userCredential.user;
+  try {
+    // 1. Create account in Firebase Authentication
+    const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const user = userCredential.user;
 
-      // 2. Update Auth display name
-      await updateProfile(user, { displayName: name.trim() });
+    // 2. Update Auth display name
+    await updateProfile(user, { displayName: name.trim() });
 
-      // 3. Persist resident profile document in Firestore
-      const userDocRef = doc(db, 'users', user.uid);
-      const profileData: Record<string, any> = {
-        id: user.uid,
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        role: "", // Auto-Create Role on Registration: strictly defaulted to empty string (pending)
-        address: userStreetAddress,
-        avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&h=256&q=80',
-        approved: false, // Strict Admin Approval requirement
-        createdAt: new Date().toISOString()
-      };
+    // 3. Persist resident profile document in Firestore
+    const userDocRef = doc(db, 'users', user.uid);
+    const profileData: Record<string, any> = {
+      id: user.uid,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      role: "",
+      address: userStreetAddress,
+      avatarUrl: user.photoURL || '',
+      approved: false,
+      createdAt: new Date().toISOString()
+    };
 
-      if (phone && phone.trim()) {
-        profileData.phone = phone.trim();
-      }
-
-      try {
-        await setDoc(userDocRef, profileData);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
-      }
-
-      return normalizeUserProfile(user.uid, profileData, user);
-    } catch (err: any) {
-      console.error('Firebase registration failed:', err);
-      if (err.code === 'auth/email-already-in-use') {
-        throw new Error('An account with this email already exists. Please log in.');
-      } else if (err.code === 'auth/weak-password') {
-        throw new Error('Password should be at least 6 characters.');
-      }
-      throw new Error(err.message || 'Failed to create resident account in Firebase');
+    if (phone && phone.trim()) {
+      profileData.phone = phone.trim();
     }
+
+    try {
+      await setDoc(userDocRef, profileData);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
+    }
+
+    return normalizeUserProfile(user.uid, profileData, user);
+  } catch (err: any) {
+    console.error('Firebase registration failed:', err);
+    if (err.code === 'auth/email-already-in-use') {
+      throw new Error('An account with this email already exists. Please log in.');
+    } else if (err.code === 'auth/weak-password') {
+      throw new Error('Password should be at least 6 characters.');
+    }
+    throw new Error(err.message || 'Failed to create resident account in Firebase');
   }
-
-  // Local authentication provider when running in offline preview or without Firebase keys
-  const cleanEmail = email.trim().toLowerCase();
-  let localUsers: Record<string, any> = {};
-  try {
-    const raw = localStorage.getItem('portal_local_users');
-    if (raw) localUsers = JSON.parse(raw);
-  } catch {}
-
-  const localProfile: UserProfile = {
-    id: `resident-${cleanEmail.replace(/[^a-z0-9]/g, '-')}`,
-    name: name.trim(),
-    email: cleanEmail,
-    role: 'resident',
-    address: userStreetAddress || 'TownLoop Community',
-    phone: phone?.trim(),
-    approved: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
-    created_at: new Date().toISOString()
-  };
-
-  localUsers[cleanEmail] = { password, profile: localProfile };
-  try {
-    localStorage.setItem('portal_local_users', JSON.stringify(localUsers));
-  } catch {}
-  return localProfile;
 }
 
 /**
  * Sign in with Google popup via Firebase Auth
  */
 export async function loginWithGoogle(): Promise<UserProfile> {
-  if (isFirebaseConfigured() && auth && db) {
-    try {
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      const user = userCredential.user;
-
-      const userDocRef = doc(db, 'users', user.uid);
-      let userData: any = null;
-
-      try {
-        const snap = await getDoc(userDocRef);
-        if (snap.exists()) {
-          userData = snap.data();
-        }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
-      }
-
-      if (!userData) {
-        userData = {
-          id: user.uid,
-          name: user.displayName || 'Resident',
-          email: user.email || '',
-          role: "", // default to empty string
-          address: '',
-          avatarUrl: user.photoURL || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&h=256&q=80',
-          approved: false, // Strict Admin Approval requirement
-          createdAt: new Date().toISOString()
-        };
-
-        if (user.phoneNumber) {
-          userData.phone = user.phoneNumber;
-        }
-
-        try {
-          await setDoc(userDocRef, userData);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
-        }
-      }
-
-      const normalized = normalizeUserProfile(user.uid, userData, user);
-      return normalized;
-    } catch (err: any) {
-      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
-        throw new Error('Sign-in popup was closed before completion.');
-      }
-      console.warn('Google sign in:', err?.message || err);
-      throw new Error(err.message || 'Google authentication failed');
-    }
+  if (!isFirebaseConfigured() || !auth || !db) {
+    throw new Error('Firebase Authentication is not configured.');
   }
 
-  // Local Google sign-in fallback when running without Firebase keys
-  const defaultGoogleProfile: UserProfile = {
-    id: `resident-google-${Date.now()}`,
-    name: 'TownLoop Resident',
-    email: 'resident@townloop.org',
-    role: 'resident',
-    address: 'TownLoop Community',
-    approved: true,
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
-    created_at: new Date().toISOString()
-  };
-  return defaultGoogleProfile;
+  try {
+    const provider = new GoogleAuthProvider();
+    const userCredential = await signInWithPopup(auth, provider);
+    const user = userCredential.user;
+
+    const userDocRef = doc(db, 'users', user.uid);
+    let userData: any = null;
+
+    try {
+      const snap = await getDoc(userDocRef);
+      if (snap.exists()) {
+        userData = snap.data();
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+    }
+
+    if (!userData) {
+      userData = {
+        id: user.uid,
+        name: user.displayName || 'Resident',
+        email: user.email || '',
+        role: "",
+        address: '',
+        avatarUrl: user.photoURL || '',
+        approved: false,
+        createdAt: new Date().toISOString()
+      };
+
+      if (user.phoneNumber) {
+        userData.phone = user.phoneNumber;
+      }
+
+      try {
+        await setDoc(userDocRef, userData);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
+      }
+    }
+
+    return normalizeUserProfile(user.uid, userData, user);
+  } catch (err: any) {
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+      throw new Error('Sign-in popup was closed before completion.');
+    }
+    console.warn('Google sign in:', err?.message || err);
+    throw new Error(err.message || 'Google authentication failed');
+  }
 }
 
 /**
@@ -476,9 +510,14 @@ export function subscribeToCommunityDirectory(
           const list = snapshot.docs.map((docSnap) => {
             const data = docSnap.data();
             const isApproved = data.approved !== false;
-            const resolvedRole = isApproved && ['admin', 'vip', 'crew', 'resident'].includes(data.role)
-              ? data.role
-              : '';
+            const rawR = String(data.role || '').toLowerCase().trim();
+            let resolvedRole: UserRole = '';
+            if (data.isAdmin === true || rawR === 'admin' || rawR === 'master admin') resolvedRole = 'admin';
+            else if (data.isStaff === true || rawR === 'staff') resolvedRole = 'staff';
+            else if (data.isVip === true || rawR === 'vip') resolvedRole = 'vip';
+            else if (rawR === 'crew') resolvedRole = 'crew';
+            else if (rawR === 'resident') resolvedRole = 'resident';
+            else if (isApproved && ['admin', 'staff', 'vip', 'crew', 'resident'].includes(data.role)) resolvedRole = data.role as UserRole;
 
             return {
               id: docSnap.id,
@@ -537,11 +576,26 @@ export function subscribeToAuth(callback: (user: UserProfile | null) => void): (
         const userDocRef = doc(db, 'users', fbUser.uid);
         docUnsubscribe = onSnapshot(
           userDocRef,
-          (snap) => {
+          async (snap) => {
             if (snap.exists()) {
               const normalized = normalizeUserProfile(fbUser.uid, snap.data(), fbUser);
               callback(normalized);
             } else {
+              // Check by email in users collection if doc by UID is not yet initialized
+              try {
+                if (fbUser.email && db) {
+                  const q = query(collection(db, 'users'), where('email', '==', fbUser.email.toLowerCase()));
+                  const emailSnap = await getDocs(q);
+                  if (!emailSnap.empty) {
+                    const matchedData = emailSnap.docs[0].data();
+                    const normalized = normalizeUserProfile(fbUser.uid, matchedData, fbUser);
+                    callback(normalized);
+                    return;
+                  }
+                }
+              } catch (e) {
+                console.warn('Notice matching user by email in Firestore:', e);
+              }
               const normalized = normalizeUserProfile(fbUser.uid, null, fbUser);
               callback(normalized);
             }

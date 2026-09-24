@@ -14,35 +14,52 @@ export function isMasterAdminEmail(_email?: string | null): boolean {
  * 5. Default fallback -> 'resident'.
  */
 export function getUserRole(user: UserProfile | null | undefined): UserRole {
-  if (!user || user.approved === false) return '';
-  const r = (user.role || '').toLowerCase().trim();
-  if (r === 'admin' || r === 'master admin' || r === 'master_admin') return 'admin';
+  if (!user) return '';
+  if ((user as any).isAdmin === true || (user as any).is_admin === true || (user as any).admin === true) return 'admin';
+  if ((user as any).isStaff === true || (user as any).is_staff === true || (user as any).staff === true) return 'staff';
+  if ((user as any).isVip === true || (user as any).is_vip === true || (user as any).vip === true) return 'vip';
+  if ((user as any).isCrew === true || (user as any).is_crew === true || (user as any).crew === true) return 'crew';
+  
+  const r = (user.role || (user as any).userRole || (user as any).user_role || (user as any).badge || '').toLowerCase().trim();
+  if (r === 'admin' || r === 'master admin' || r === 'master_admin' || r === 'administrator') return 'admin';
+  if (r === 'staff') return 'staff';
   if (r === 'vip' || r === 'vip resident' || r === 'vip_resident') return 'vip';
   if (r === 'crew' || r === 'maintenance' || r === 'maintenance crew') return 'crew';
-  if (r === '') return '';
   if (r === 'resident') return 'resident';
+  if (user.approved === false && r === '') return '';
   return 'resident';
 }
 
 /**
- * True if user is Admin (either master admin email or role === 'admin').
+ * True if user is Admin (role === 'admin' or isAdmin === true).
  */
 export function isAdmin(user: UserProfile | null | undefined): boolean {
-  return getUserRole(user) === 'admin';
+  if (!user) return false;
+  return getUserRole(user) === 'admin' || (user as any)?.isAdmin === true || (user as any)?.role === 'admin';
 }
 
 /**
- * True if user is VIP (role === 'vip') or higher (Admin).
+ * True if user is Staff (role === 'staff' or isStaff === true).
+ */
+export function isStaff(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
+  return getUserRole(user) === 'staff' || (user as any)?.isStaff === true || (user as any)?.role === 'staff';
+}
+
+/**
+ * True if user is VIP (role === 'vip') or higher (Admin/Staff).
  */
 export function isVip(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
   const role = getUserRole(user);
-  return role === 'vip' || role === 'admin';
+  return role === 'vip' || role === 'admin' || role === 'staff' || (user as any)?.isVip === true || (user as any)?.role === 'vip';
 }
 
 /**
  * True strictly if user is VIP role only (role === 'vip', excluding admin/crew/resident).
  */
 export function isStrictVip(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
   return getUserRole(user) === 'vip';
 }
 
@@ -50,7 +67,8 @@ export function isStrictVip(user: UserProfile | null | undefined): boolean {
  * True if user is Crew (role === 'crew').
  */
 export function isCrew(user: UserProfile | null | undefined): boolean {
-  return getUserRole(user) === 'crew';
+  if (!user) return false;
+  return getUserRole(user) === 'crew' || (user as any)?.isCrew === true || (user as any)?.role === 'crew';
 }
 
 /**
@@ -244,7 +262,7 @@ export function canCommentOnWorkOrder(user: UserProfile | null | undefined): boo
 export function canAccessAdminPanel(user: UserProfile | null | undefined): boolean {
   if (!user) return false;
   const role = getUserRole(user);
-  return role === 'admin' || role === 'vip';
+  return role === 'admin' || role === 'vip' || role === 'staff';
 }
 
 /**
@@ -257,6 +275,12 @@ export function getRoleBadgeInfo(role: UserRole) {
         label: 'Admin',
         bg: 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800',
         dot: 'bg-amber-500',
+      };
+    case 'staff':
+      return {
+        label: 'Staff',
+        bg: 'bg-indigo-100 text-indigo-900 border-indigo-300 dark:bg-indigo-950/80 dark:text-indigo-200 dark:border-indigo-800',
+        dot: 'bg-indigo-500',
       };
     case 'vip':
       return {
