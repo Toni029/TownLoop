@@ -7,20 +7,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { X, Send, User, MapPin, Tag, CheckCircle2 } from 'lucide-react';
-import { MarketItem } from '../types';
+import { MarketItem, UserProfile } from '../types';
 
 interface MessageSellerModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: MarketItem | null;
   onSendMessage: (item: MarketItem, messageText: string) => void | boolean | Promise<void | boolean>;
+  currentUser?: UserProfile | null;
 }
 
 export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
   isOpen,
   onClose,
   item,
-  onSendMessage
+  onSendMessage,
+  currentUser
 }) => {
   const [message, setMessage] = useState('');
   const [includePhone, setIncludePhone] = useState(true);
@@ -55,7 +57,13 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
 
     let finalMessage = message.trim();
     if (includePhone) {
-      finalMessage += '\n\n— Alex Mitchell, Apt 208 • Phone: (904) 555-0142';
+      const senderName = currentUser?.name || 'Resident';
+      const senderDetails = [
+        senderName,
+        currentUser?.address || currentUser?.wing,
+        currentUser?.phone ? `Phone: ${currentUser.phone}` : null
+      ].filter(Boolean).join(' • ');
+      finalMessage += `\n\n— ${senderDetails}`;
     }
 
     try {
@@ -134,7 +142,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
                   Message Seller
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Direct message to your Cecil Pines neighbor
+                  Direct message to your TownLoop neighbor
                 </p>
               </div>
               <button
@@ -236,7 +244,18 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
                 className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
               />
               <span className="text-[11px] leading-tight">
-                Include my resident info <strong className="text-stone-800">(Alex Mitchell, Apt 208 • (904) 555-0142)</strong>
+                Include my resident info{' '}
+                <strong className="text-stone-800">
+                  (
+                  {[
+                    currentUser?.name || 'Resident',
+                    currentUser?.address || currentUser?.wing,
+                    currentUser?.phone || ''
+                  ]
+                    .filter(Boolean)
+                    .join(' • ')}
+                  )
+                </strong>
               </span>
             </label>
 

@@ -237,7 +237,7 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
         monthEdition: monthEdition.trim() || 'Latest Edition',
         description:
           currentConfig.description ||
-          'Official monthly publication for Cecil Pines Adult Living Community.',
+          'Official monthly publication for community residents.',
         pdfUrl: finalPdfUrl,
         fileUrl: finalPdfUrl,
         fileName: selectedFile?.name || currentConfig.fileName || 'document.pdf',

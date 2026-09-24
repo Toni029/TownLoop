@@ -85,7 +85,7 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
         <div className="inline-flex items-center justify-center gap-2">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Community Living Portal</span>
+            <span>TownLoop Living Portal</span>
           </div>
 
           {onToggleTheme && (
@@ -106,7 +106,7 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-white leading-tight">
-          Welcome to Living Portal
+          Welcome to TownLoop
         </h1>
 
         <p className="text-sm sm:text-base font-medium text-stone-600 dark:text-slate-300 max-w-sm mx-auto">

@@ -686,41 +686,6 @@ export function NewsScreen({
                 </div>
               )}
             </div>
-
-            {/* Facility Notices */}
-            <div className="space-y-3">
-              <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">
-                Recent Facility Notices
-              </h3>
-
-              <div className="bg-white dark:bg-slate-900 border border-neutral-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-                <div className="flex justify-between items-center text-[11px] font-semibold text-slate-400 mb-1">
-                  <span>MAIN COURTYARD</span>
-                  <span>2 hours ago</span>
-                </div>
-                <h4 className="font-bold text-slate-800 dark:text-white text-sm">
-                  Irrigation Maintenance Notice
-                </h4>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  Grounds crew will test courtyard sprinklers between 1:00 PM and
-                  3:00 PM. Walkways may be damp.
-                </p>
-              </div>
-
-              <div className="bg-white dark:bg-slate-900 border border-neutral-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-                <div className="flex justify-between items-center text-[11px] font-semibold text-slate-400 mb-1">
-                  <span>COMMUNITY CENTER</span>
-                  <span>Yesterday</span>
-                </div>
-                <h4 className="font-bold text-slate-800 dark:text-white text-sm">
-                  Weekly Farmers Market Basket Delivery
-                </h4>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  Fresh produce baskets arrive this Thursday morning at 9:30 AM in
-                  the North Foyer.
-                </p>
-              </div>
-            </div>
           </div>
         )}
       </div>

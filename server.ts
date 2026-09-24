@@ -141,7 +141,7 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Cecil Pines Portal server running at http://0.0.0.0:${PORT}`);
+    console.log(`TownLoop Portal server running at http://0.0.0.0:${PORT}`);
   });
 }
 

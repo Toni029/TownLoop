@@ -38,7 +38,7 @@ export function PortalHeader({
 }: PortalHeaderProps) {
   return (
     <header
-      className={`pt-6 px-6 pb-3.5 ${
+      className={`shrink-0 pt-6 px-6 pb-3.5 ${
         isDarkMode
           ? 'bg-slate-950/90 text-white border-slate-800/80'
           : 'bg-[#f7f3ea]/90 text-slate-900 border-[#d8cdbc]/70'

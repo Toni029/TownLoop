@@ -1,5 +1,6 @@
 {
-  "name": "cecil-pines-living-portal",
+  "name": "townloop",
+  "description": "TownLoop is an accessible resident living and engagement platform for active senior communities, featuring daily activities, dining menus, announcements, and direct community connectivity.",
   "private": true,
   "version": "2.7.0",
   "type": "module",

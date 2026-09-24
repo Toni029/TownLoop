@@ -7,26 +7,6 @@ import { isFirebaseConfigured } from '../firebase';
 const THEME_STORAGE_KEY = 'portal_theme_dark';
 const USER_STORAGE_KEY = 'portal_current_user';
 
-const DEFAULT_DEMO_USER: UserProfile = {
-  id: 'resident-demo',
-  name: 'Alex Mitchell',
-  email: 'alex.mitchell@cecilpines.org',
-  role: 'admin',
-  address: 'Unit 208 • Magnolia Court',
-  wing: 'Magnolia Court',
-  phone: '(904) 555-0142',
-  emergency_contact: 'Sarah Mitchell (Daughter) - (904) 555-0199',
-  emergencyContact: 'Sarah Mitchell (Daughter) - (904) 555-0199',
-  dietary_preference: 'Low Sodium / Diabetic Friendly',
-  dietaryPreference: 'Low Sodium / Diabetic Friendly',
-  avatar_url:
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&h=256&q=80',
-  avatarUrl:
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&h=256&q=80',
-  approved: true,
-  created_at: new Date().toISOString(),
-};
-
 export interface PortalSessionState {
   currentUser: UserProfile | null;
   setCurrentUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
@@ -50,14 +30,42 @@ export function usePortalSession(): PortalSessionState {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem(USER_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Clear any old hardcoded demo user so user starts clean
+        if (
+          parsed?.id === 'resident-demo' ||
+          parsed?.email === 'alex.mitchell@cecilpines.org' ||
+          parsed?.name === 'Alex Mitchell'
+        ) {
+          localStorage.removeItem(USER_STORAGE_KEY);
+          return null;
+        }
+        return parsed;
+      }
     } catch {
       // ignore
     }
-    return DEFAULT_DEMO_USER;
+    return null;
   });
 
-  const [isLoggedOut, setIsLoggedOut] = useState(false);
+  const [isLoggedOut, setIsLoggedOut] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(USER_STORAGE_KEY);
+      if (!saved) return true;
+      const parsed = JSON.parse(saved);
+      if (
+        parsed?.id === 'resident-demo' ||
+        parsed?.email === 'alex.mitchell@cecilpines.org' ||
+        parsed?.name === 'Alex Mitchell'
+      ) {
+        return true;
+      }
+      return false;
+    } catch {
+      return true;
+    }
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   // Sync dark mode class with root html
@@ -97,6 +105,9 @@ export function usePortalSession(): PortalSessionState {
       if (fbUser) {
         setCurrentUser(fbUser);
         setIsLoggedOut(false);
+      } else {
+        setCurrentUser(null);
+        setIsLoggedOut(true);
       }
     });
 

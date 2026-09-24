@@ -79,7 +79,7 @@ export function AdminPanelModal({
             id: u.id,
             name: u.name,
             email: u.email,
-            unit: u.unit || u.address || 'Cecil Pines Community',
+            unit: u.unit || u.address || 'TownLoop Community',
             role: u.role,
             approved: u.approved,
             avatar: u.avatar,
@@ -210,7 +210,7 @@ export function AdminPanelModal({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <h2 className="font-bold text-base sm:text-lg leading-snug">
-                      Cecil Pines Admin
+                      TownLoop Admin
                     </h2>
                     <span className="text-[9px] sm:text-[10px] font-extrabold uppercase bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full shadow-2xs shrink-0">
                       {activeUserRole === 'vip' ? 'VIP Portal' : 'Admin Portal'}

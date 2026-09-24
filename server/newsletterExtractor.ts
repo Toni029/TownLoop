@@ -579,7 +579,7 @@ export async function extractNewsletterContent(
     return fallback;
   }
 
-  const prompt = `You are an expert community living newsletter analyst and parser for Cecil Pines, an active senior residential community.
+  const prompt = `You are an expert community living newsletter analyst and parser for TownLoop senior residential communities.
 Perform a rigorous, sequential, multi-step, exhaustive scan of the entire provided community newsletter, calendar, bulletin notices, manager notes, and announcements.
 
 *** CRITICAL INSTRUCTION: EXTRACT ALL EVENTS WITHOUT ANY LIMIT ***
@@ -667,7 +667,7 @@ Output strictly valid JSON matching the schema.`;
 
   const generationConfig = {
     systemInstruction:
-      'You are an exhaustive, rigorous community living newsletter parser for Cecil Pines. You must perform a complete, line-by-line, multi-step scan of the entire document text and all sidebars. Extract ALL events mentioned in the newsletter (14 events total) without any limit, capping, or truncation.\n\nRequired Event Rules:\n- Explicitly include Title, Date, Location, and Brief Description for every event.\n- Calculate or set the "RSVP by" date to 4–5 days before the event date if no explicit sign-up deadline is listed in the text.\n- Set Neighbors Attending (attendees_count) strictly to 0 by default.\n- Leave Available Spots / Spots Left completely blank or null (null / 0) so admins can manually manage capacity later.\n\nExtract all major announcements, community notices, or highlighted updates into the pinned_highlights array.',
+      'You are an exhaustive, rigorous community living newsletter parser for TownLoop. You must perform a complete, line-by-line, multi-step scan of the entire document text and all sidebars. Extract ALL events mentioned in the newsletter (14 events total) without any limit, capping, or truncation.\n\nRequired Event Rules:\n- Explicitly include Title, Date, Location, and Brief Description for every event.\n- Calculate or set the "RSVP by" date to 4–5 days before the event date if no explicit sign-up deadline is listed in the text.\n- Set Neighbors Attending (attendees_count) strictly to 0 by default.\n- Leave Available Spots / Spots Left completely blank or null (null / 0) so admins can manually manage capacity later.\n\nExtract all major announcements, community notices, or highlighted updates into the pinned_highlights array.',
     responseMimeType: 'application/json',
     temperature: 0.1,
     maxOutputTokens: 8192,

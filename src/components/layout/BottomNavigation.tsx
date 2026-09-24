@@ -26,7 +26,7 @@ export const BottomNavigation = React.memo(function BottomNavigation({
   activeTab,
 }: BottomNavigationProps) {
   return (
-    <div className="fixed sm:absolute bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-[430px] sm:max-w-[450px] z-30">
+    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-[430px] sm:max-w-[450px] z-30">
       <LayoutGroup id="bottom-dock-nav">
         <nav
           className="liquid-dock relative grid grid-cols-4 w-full items-center"

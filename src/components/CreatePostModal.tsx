@@ -327,7 +327,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   {type === 'market' ? 'Post Item for Sale / Free' : 'Create Community Post'}
                 </h3>
                 <p className="text-[11px] text-stone-500">
-                  Share items, announcements, pictures & videos with Cecil Pines neighbors.
+                  Share items, announcements, pictures & videos with TownLoop neighbors.
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">

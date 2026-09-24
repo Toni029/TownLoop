@@ -265,10 +265,10 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
       {activePdfUrl && (
         <footer className="shrink-0 bg-stone-900/90 border-t border-stone-800/80 px-4 py-2.5 flex items-center justify-between text-stone-300 text-xs backdrop-blur-xl z-20">
           <span className="hidden sm:inline text-[11px] text-stone-400">
-            Official publication of Cecil Pines Adult Living Community
+            Official publication • TownLoop Community Portal
           </span>
           <span className="sm:hidden text-[11px] text-stone-400">
-            Cecil Pines Bulletin
+            TownLoop Bulletin
           </span>
         </footer>
       )}

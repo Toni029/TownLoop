@@ -9,17 +9,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cecil Pines Living Portal</title>
-    <meta name="description" content="Resident living portal for Cecil Pines community featuring daily activities, maintenance work order tracking, checklists, and neighborhood social board." />
-    <meta property="og:title" content="Cecil Pines Living Portal" />
-    <meta property="og:description" content="Resident living portal for Cecil Pines community featuring daily activities, maintenance work order tracking, checklists, and neighborhood social board." />
+    <title>TownLoop</title>
+    <meta name="description" content="TownLoop is an accessible resident living and engagement platform for active senior communities, featuring daily activities, dining menus, announcements, and direct community connectivity." />
+    <meta property="og:title" content="TownLoop" />
+    <meta property="og:description" content="TownLoop is an accessible resident living and engagement platform for active senior communities, featuring daily activities, dining menus, announcements, and direct community connectivity." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#145334" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Cecil Pines" />
+    <meta name="apple-mobile-web-app-title" content="TownLoop" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -38,7 +38,8 @@
           navigator.serviceWorker
             .register('/sw.js')
             .then(function (registration) {
-              console.log('[ServiceWorker] Registered with scope:', registration.scope);
+              registration.update();
+              console.log('[ServiceWorker] Active with scope:', registration.scope);
             })
             .catch(function (error) {
               console.warn('[ServiceWorker] Registration failed:', error);

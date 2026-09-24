@@ -88,24 +88,39 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
        || localStorage.getItem('cecil_pines_registered_address'))
     : null;
 
-  const isDemoAlex = user.email?.toLowerCase() === 'alex@cecilpines.com';
-  const residentAddress = isDemoAlex
-    ? (user.address || '6100 Normandy Blvd, Jacksonville, FL 32205')
-    : (user.address || cachedAddress || '6100 Normandy Blvd');
+  const residentAddress = user.address || cachedAddress || '6100 Normandy Blvd';
 
   return (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-4 sm:p-6 pb-12 sm:pb-16 text-center animate-in fade-in duration-300 relative min-h-[580px]">
-      {/* Theme Toggle Button */}
-      {onToggleTheme && (
-        <button
-          type="button"
-          onClick={() => onToggleTheme(!isDarkMode)}
-          title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="absolute top-4 right-4 p-2 rounded-full bg-stone-100/90 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-600 dark:text-slate-300 border border-stone-200 dark:border-slate-700 transition cursor-pointer"
-        >
-          {isDarkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
-        </button>
-      )}
+      {/* Top Utility Bar: Switch Community & Theme Toggle */}
+      <div className="w-full flex items-center justify-between mb-3 sm:mb-4 z-20">
+        {onSwitchCommunity ? (
+          <button
+            type="button"
+            onClick={onSwitchCommunity}
+            title="Switch Community"
+            aria-label="Switch Community"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-stone-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-stone-200 dark:border-slate-700 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 shrink-0"
+          >
+            <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="whitespace-nowrap">Switch Community</span>
+          </button>
+        ) : (
+          <div />
+        )}
+
+        {onToggleTheme && (
+          <button
+            type="button"
+            onClick={() => onToggleTheme(!isDarkMode)}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="p-2 rounded-full bg-stone-100/90 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-600 dark:text-slate-300 border border-stone-200 dark:border-slate-700 transition cursor-pointer shadow-xs active:scale-95 shrink-0 ml-auto"
+          >
+            {isDarkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
+          </button>
+        )}
+      </div>
 
       {/* Brand Emblem */}
       <CecilPinesBadge
@@ -173,7 +188,7 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
         {/* Explanation Copy */}
         <div className="text-sm sm:text-base text-stone-700 dark:text-slate-200 space-y-2 leading-relaxed">
           <p>
-            Your account was successfully registered, but resident dashboard access is currently pending approval. To safeguard resident privacy and community security, a Cecil Pines administrator will review and approve your application before you can enter.
+            Your account was successfully registered, but resident dashboard access is currently pending approval. To safeguard resident privacy and community security, a community administrator will review and approve your application before you can enter.
           </p>
         </div>
 

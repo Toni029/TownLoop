@@ -188,30 +188,35 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         </div>
       )}
 
-      {/* Switch Community Button */}
-      {onSwitchCommunity && (
-        <button
-          type="button"
-          onClick={onSwitchCommunity}
-          title="Switch Community"
-          className="absolute top-3 left-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 hover:bg-stone-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-stone-200 dark:border-slate-700 text-xs font-bold transition cursor-pointer shadow-xs"
-        >
-          <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-          <span>Switch Community</span>
-        </button>
-      )}
+      {/* Top Utility Bar: Switch Community & Theme Toggle */}
+      <div className="w-full flex items-center justify-between mb-3 sm:mb-4 z-20">
+        {onSwitchCommunity ? (
+          <button
+            type="button"
+            onClick={onSwitchCommunity}
+            title="Switch Community"
+            aria-label="Switch Community"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-stone-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-stone-200 dark:border-slate-700 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 shrink-0"
+          >
+            <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="whitespace-nowrap">Switch Community</span>
+          </button>
+        ) : (
+          <div />
+        )}
 
-      {/* Theme Toggle Button */}
-      {onToggleTheme && (
-        <button
-          type="button"
-          onClick={() => onToggleTheme(!isDarkMode)}
-          title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="absolute top-3 right-4 p-2.5 rounded-full bg-stone-100/95 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-stone-300 dark:border-slate-700 transition cursor-pointer shadow-xs"
-        >
-          {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
-        </button>
-      )}
+        {onToggleTheme && (
+          <button
+            type="button"
+            onClick={() => onToggleTheme(!isDarkMode)}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="p-2 sm:p-2.5 rounded-full bg-stone-100/95 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-stone-300 dark:border-slate-700 transition cursor-pointer shadow-xs active:scale-95 shrink-0 ml-auto"
+          >
+            {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+          </button>
+        )}
+      </div>
 
       {/* Brand Emblem: Green Badge with Cecil Pines 3 Golden Pines */}
       <div className="relative mb-2.5">
@@ -240,7 +245,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             : 'bg-[#edf5ee] text-[#124d2c] border border-[#bcdbc6] shadow-xs'
         }`}>
           <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-          Resident Portal
+          TownLoop Resident Portal
         </span>
       </div>
 

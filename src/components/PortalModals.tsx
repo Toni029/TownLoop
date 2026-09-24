@@ -125,6 +125,7 @@ export function PortalModals({
         }}
         item={selectedMessageSellerItem}
         onSendMessage={handleSendMessageToSeller}
+        currentUser={community.currentUser}
       />
 
       {/* Global Toast Notification with Native iOS Spring Physics */}

@@ -86,8 +86,8 @@ export interface ResidentFriend {
 }
 
 export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
-  apartmentNumber = 'Apt 208',
-  residentName = 'Alex Mitchell',
+  apartmentNumber = '',
+  residentName = 'Resident',
   currentUser,
   size = 'normal',
   isDarkMode = false,
@@ -108,7 +108,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
 
-  // Filter for Inbox (All, Friends, Cecil Pines Office, Maintenance Crew)
+  // Filter for Inbox (All, Friends, Community Office, Maintenance Crew)
   const [inboxFilter, setInboxFilter] = useState<'all' | MessageCategory>('all');
   const [selectedMessage, setSelectedMessage] = useState<InboxMessage | null>(null);
 
@@ -137,7 +137,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   // High quality warm portrait of resident
   const effectiveName = currentUser?.name || residentName || 'Resident';
-  const effectiveAddress = currentUser?.address || currentUser?.unit || 'Cecil Pines Community';
+  const effectiveAddress = currentUser?.address || currentUser?.unit || 'TownLoop Community';
   const effectiveWing = currentUser?.wing || '';
   const effectiveEmail = currentUser?.email || '';
   const effectivePhone = currentUser?.phone || '';
@@ -206,10 +206,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           .map((u, idx) => ({
             id: idx + 1,
             name: u.name || 'Neighbor',
-            apt: u.unit || u.address || 'Cecil Pines Resident',
+            apt: u.unit || u.address || 'TownLoop Resident',
             wing: u.wing || '',
             phone: u.phone || '',
-            address: u.address || u.unit || 'Cecil Pines Community',
+            address: u.address || u.unit || 'TownLoop Community',
             status: 'online',
             photo: u.avatar || '',
             residentSince: u.createdAt ? String(new Date(u.createdAt).getFullYear()) : '2024',
@@ -223,7 +223,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     };
   }, [currentUser?.email]);
 
-  // Messages in Inbox: Friends, Cecil Pines Office, and Maintenance Crew
+  // Messages in Inbox: Friends, Community Office, and Maintenance Crew
   const [messages, setMessages] = useState<InboxMessage[]>([]);
 
   const unreadCount = messages.filter(m => m.unread).length;
@@ -273,7 +273,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   const handleStartComposeToOffice = () => {
     setComposeRecipient({
-      name: 'Cecil Pines Office',
+      name: 'Community Office',
       category: 'office',
       role: 'Concierge & Front Office',
       apt: 'Clubhouse Office',
@@ -530,7 +530,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     <div>
                       <p className="text-sm sm:text-base font-bold leading-snug">Mail (Inbox)</p>
                       <p className="text-xs sm:text-[13px] text-stone-500 dark:text-slate-400">
-                        Friends, Cecil Pines Office & Crew
+                        Friends, Community Office & Crew
                       </p>
                     </div>
                   </div>
@@ -688,7 +688,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     <div>
                       <p className="text-sm sm:text-base font-bold leading-snug">Log Out</p>
                       <p className="text-xs sm:text-[13px] text-rose-500/80 dark:text-rose-400/80">
-                        Sign out of Cecil Pines portal
+                        Sign out of TownLoop portal
                       </p>
                     </div>
                   </div>
@@ -732,7 +732,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </button>
               </div>
 
-              {/* 3 Categories Filter Tabs: Friends, Cecil Pines Office, Maintenance Crew */}
+              {/* 3 Categories Filter Tabs: Friends, Community Office, Maintenance Crew */}
               <div className="grid grid-cols-4 gap-1.5 p-1.5 rounded-2xl bg-stone-100 border border-stone-200/90 text-xs sm:text-sm font-bold shadow-xs">
                 <button
                   onClick={() => setInboxFilter('all')}
@@ -916,7 +916,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   {selectedMessage.senderCategory === 'friend'
                     ? 'Friend'
                     : selectedMessage.senderCategory === 'office'
-                    ? 'Cecil Pines Office'
+                    ? 'Community Office'
                     : 'Maintenance Crew'}
                 </span>
               </div>
@@ -1178,7 +1178,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     {selectedResident.apt} • {selectedResident.wing}
                   </p>
                   <p className="text-[16px] font-bold text-[#000c87] underline mt-0.5">
-                    Cecil Pines Resident since {selectedResident.residentSince}
+                    TownLoop Resident since {selectedResident.residentSince}
                   </p>
                 </div>
               </div>
@@ -1534,7 +1534,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   Log Out of Resident Portal?
                 </h3>
                 <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400 mt-1.5 max-w-xs mx-auto">
-                  You can easily sign back into your Cecil Pines account at any time.
+                  You can easily sign back into your TownLoop account at any time.
                 </p>
               </div>
 

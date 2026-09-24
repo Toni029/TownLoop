@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Cecil Pines Living Portal",
-  "short_name": "Cecil Pines",
-  "description": "Resident living portal for Cecil Pines community featuring daily activities, maintenance work orders, newsletters, and neighborhood social board.",
+  "name": "TownLoop",
+  "short_name": "TownLoop",
+  "description": "TownLoop is an accessible resident living and engagement platform for active senior communities, featuring daily activities, dining menus, announcements, and direct community connectivity.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

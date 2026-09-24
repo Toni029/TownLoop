@@ -1,12 +1,11 @@
 /*
- * Cecil Pines Living Portal - Service Worker
+ * TownLoop Living Portal - Service Worker
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  */
 
-const CACHE_NAME = 'cecil-pines-cache-v1';
+const CACHE_NAME = 'townloop-cache-v1';
 const PRECACHE_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json',
   '/favicon.svg',
   '/pwa-192x192.png',
@@ -28,17 +27,19 @@ const BYPASS_DOMAINS = [
   'apis.google.com',
   'generativelanguage.googleapis.com',
   'translation.googleapis.com',
-  'maps.googleapis.com'
+  'maps.googleapis.com',
+  'api.open-meteo.com'
 ];
 
 // Install: precache app shell
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS).catch((err) => {
         console.warn('[SW] Precache partial error (non-fatal):', err);
       });
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -76,7 +77,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Strictly bypass all Firebase, Google APIs, and auth endpoints
+  // 3. Strictly bypass all Firebase, Google APIs, Open-Meteo, and auth endpoints
   const isBypassDomain = BYPASS_DOMAINS.some(
     (domain) => url.hostname === domain || url.hostname.endsWith('.' + domain)
   );
@@ -89,8 +90,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 5. Bypass Vite development server internals if running in dev
-  if (url.pathname.includes('/@vite/') || url.pathname.includes('/@fs/') || url.pathname.includes('vite-hmr')) {
+  // 5. Bypass development source code, hot updates, and TS/TSX so live edits take effect immediately
+  if (
+    url.pathname.startsWith('/src/') ||
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.includes('/@id/') ||
+    url.pathname.includes('vite-hmr') ||
+    url.search.includes('t=') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx')
+  ) {
     return;
   }
 

@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Sun,
   Cloud,
@@ -70,8 +70,8 @@ const FALLBACK_FORECAST_DAYS: DayForecast[] = [
       { time: 'Now', temp: '74°', condition: 'Pure Clear Sunshine', shortForecast: 'Sunny', icon: 'sun' },
       { time: '1 PM', temp: '76°', condition: 'Direct Radiant Sunlight', shortForecast: 'Sunny', icon: 'sun' },
       { time: '2 PM', temp: '77°', condition: 'Warm High-Visibility Sun', shortForecast: 'Sunny', icon: 'sun' },
-      { time: '3 PM', temp: '78°', condition: 'Brisk Afternoon Air Currents', shortForecast: 'Windy 18mph', icon: 'wind' },
-      { time: '4 PM', temp: '77°', condition: 'Gusty Pine Canopy Wind', shortForecast: 'Windy 22mph', icon: 'wind' },
+      { time: '3 PM', temp: '78°', condition: 'Brisk Afternoon Air Currents', shortForecast: 'Windy', icon: 'wind' },
+      { time: '4 PM', temp: '77°', condition: 'Gusty Pine Canopy Wind', shortForecast: 'Windy', icon: 'wind' },
       { time: '5 PM', temp: '75°', condition: 'Rolling Overcast Cloud Deck', shortForecast: 'Cloudy', icon: 'cloud' },
       { time: '6 PM', temp: '73°', condition: 'Dense Volumetric Clouds', shortForecast: 'Overcast', icon: 'cloud' },
       { time: '7 PM', temp: '70°', condition: 'Golden Clear Horizon Twilight', shortForecast: 'Clear', icon: 'sun' },
@@ -95,7 +95,7 @@ const FALLBACK_FORECAST_DAYS: DayForecast[] = [
     iconType: 'storm',
     hourly: [
       { time: 'Now', temp: '68°', condition: 'Dense Dark Cloud Canopy', shortForecast: 'Cloudy', icon: 'cloud' },
-      { time: '12 PM', temp: '70°', condition: 'Powerful Pre-Storm Wind Gusts', shortForecast: 'Windy 26mph', icon: 'wind' },
+      { time: '12 PM', temp: '70°', condition: 'Powerful Pre-Storm Wind Gusts', shortForecast: 'Windy', icon: 'wind' },
       { time: '1 PM', temp: '69°', condition: 'Liquid Rain Droplets Starting', shortForecast: 'Rain 70%', icon: 'rain', pop: '70%' },
       { time: '2 PM', temp: '68°', condition: 'Heavy Rain Showers', shortForecast: 'Rain 85%', icon: 'rain', pop: '85%' },
       { time: '3 PM', temp: '67°', condition: 'Severe Lightning & Thunder', shortForecast: 'Storm 95%', icon: 'storm', pop: '95%' },
@@ -104,7 +104,7 @@ const FALLBACK_FORECAST_DAYS: DayForecast[] = [
       { time: '6 PM', temp: '63°', condition: 'Driving Liquid Rain Showers', shortForecast: 'Rain 80%', icon: 'rain', pop: '80%' },
       { time: '7 PM', temp: '62°', condition: 'Steady Falling Raindrops', shortForecast: 'Rain 65%', icon: 'rain', pop: '65%' },
       { time: '8 PM', temp: '60°', condition: 'Damp Overcast Cloud Cover', shortForecast: 'Cloudy', icon: 'cloud' },
-      { time: '9 PM', temp: '59°', condition: 'Brisk Chilly Night Wind', shortForecast: 'Windy 20mph', icon: 'wind' },
+      { time: '9 PM', temp: '59°', condition: 'Brisk Chilly Night Wind', shortForecast: 'Windy', icon: 'wind' },
       { time: '10 PM', temp: '58°', condition: 'Rolling Dark Clouds', shortForecast: 'Cloudy', icon: 'cloud' },
       { time: '11 PM', temp: '57°', condition: 'Cool Overcast Night', shortForecast: 'Cloudy', icon: 'cloud' }
     ]
@@ -140,7 +140,7 @@ const FALLBACK_FORECAST_DAYS: DayForecast[] = [
     dayName: 'Saturday',
     isToday: false,
     dateStr: 'Sep 19',
-    tag: 'Sat • Rolling Overcast & Wind',
+    tag: 'Sat • Rolling Overcast',
     temp: '71°',
     high: '74°',
     low: '59°',
@@ -150,14 +150,14 @@ const FALLBACK_FORECAST_DAYS: DayForecast[] = [
     hourly: [
       { time: 'Now', temp: '71°', condition: 'Volumetric Cloud Ceiling', shortForecast: 'Cloudy', icon: 'cloud' },
       { time: '12 PM', temp: '73°', condition: 'Dense Overcast Deck', shortForecast: 'Cloudy', icon: 'cloud' },
-      { time: '1 PM', temp: '74°', condition: 'Fast-Moving Air Currents', shortForecast: 'Windy 22mph', icon: 'wind' },
-      { time: '2 PM', temp: '73°', condition: 'Blustery Pine Gusts', shortForecast: 'Windy 25mph', icon: 'wind' },
+      { time: '1 PM', temp: '74°', condition: 'Fast-Moving Air Currents', shortForecast: 'Windy', icon: 'wind' },
+      { time: '2 PM', temp: '73°', condition: 'Blustery Pine Gusts', shortForecast: 'Windy', icon: 'wind' },
       { time: '3 PM', temp: '72°', condition: 'Heavy Grey Stratus Clouds', shortForecast: 'Cloudy', icon: 'cloud' },
       { time: '4 PM', temp: '71°', condition: 'Billowing Cloud Masses', shortForecast: 'Cloudy', icon: 'cloud' },
       { time: '5 PM', temp: '69°', condition: 'Liquid Rain Droplets', shortForecast: 'Rain 50%', icon: 'rain', pop: '50%' },
       { time: '6 PM', temp: '67°', condition: 'Passing Rain Showers', shortForecast: 'Rain 65%', icon: 'rain', pop: '65%' },
       { time: '7 PM', temp: '65°', condition: 'Overcast Cloud Blanket', shortForecast: 'Cloudy', icon: 'cloud' },
-      { time: '8 PM', temp: '63°', condition: 'Cool Night Breezes', shortForecast: 'Windy 18mph', icon: 'wind' },
+      { time: '8 PM', temp: '63°', condition: 'Cool Night Breezes', shortForecast: 'Windy', icon: 'wind' },
       { time: '9 PM', temp: '61°', condition: 'Heavy Cloud Ceiling', shortForecast: 'Cloudy', icon: 'cloud' },
       { time: '10 PM', temp: '60°', condition: 'Dense Overcast', shortForecast: 'Cloudy', icon: 'cloud' },
       { time: '11 PM', temp: '59°', condition: 'Chilly Cloudy Night', shortForecast: 'Cloudy', icon: 'cloud' }
@@ -180,8 +180,8 @@ const FALLBACK_FORECAST_DAYS: DayForecast[] = [
       { time: '1 PM', temp: '66°', condition: 'Sudden Thunder Flash & Rain', shortForecast: 'Storm 85%', icon: 'storm', pop: '85%' },
       { time: '2 PM', temp: '65°', condition: 'Violent Lightning Strike & Gale', shortForecast: 'Storm 85%', icon: 'storm', pop: '85%' },
       { time: '3 PM', temp: '64°', condition: 'Heavy Liquid Rain Showers', shortForecast: 'Rain 90%', icon: 'rain', pop: '90%' },
-      { time: '4 PM', temp: '63°', condition: 'Wind-Swept Rain Droplets', shortForecast: 'Windy 20mph', icon: 'wind' },
-      { time: '5 PM', temp: '62°', condition: 'Brisk Wet Gale Currents', shortForecast: 'Windy 22mph', icon: 'wind' },
+      { time: '4 PM', temp: '63°', condition: 'Wind-Swept Rain Droplets', shortForecast: 'Windy', icon: 'wind' },
+      { time: '5 PM', temp: '62°', condition: 'Brisk Wet Gale Currents', shortForecast: 'Windy', icon: 'wind' },
       { time: '6 PM', temp: '60°', condition: 'Steady Evening Rain', shortForecast: 'Rain 75%', icon: 'rain', pop: '75%' },
       { time: '7 PM', temp: '58°', condition: 'Gentle Rain Drizzle', shortForecast: 'Rain 60%', icon: 'rain', pop: '60%' },
       { time: '8 PM', temp: '57°', condition: 'Damp Heavy Overcast', shortForecast: 'Cloudy', icon: 'cloud' },
@@ -271,44 +271,41 @@ function getConditionTheme(condition: WeatherConditionType) {
 
 // Weather code interpretation mapping for Zip Code 32221 (Jacksonville, FL)
 export function mapWeatherCode(
-  code: number,
-  windSpeedMph?: number
+  code: number
 ): {
   label: string;
   condition: string;
   shortForecast: string;
   icon: WeatherConditionType;
 } {
-  const isHighWind = (windSpeedMph ?? 0) >= 22;
-
   switch (code) {
     case 0:
       return {
-        label: isHighWind ? 'Windy & Clear' : 'Clear',
-        condition: isHighWind ? 'Clear Skies & Swift Winds' : 'Clear & Sunny Skies',
-        shortForecast: isHighWind ? `Windy ${Math.round(windSpeedMph!)}mph` : 'Clear',
-        icon: isHighWind ? 'wind' : 'sun'
+        label: 'Clear',
+        condition: 'Clear & Sunny Skies',
+        shortForecast: 'Clear',
+        icon: 'sun'
       };
     case 1:
       return {
-        label: isHighWind ? 'Windy & Mainly Clear' : 'Mainly Clear',
-        condition: isHighWind ? 'Mainly Clear Skies & Winds' : 'Mainly Clear Skies',
-        shortForecast: isHighWind ? `Windy ${Math.round(windSpeedMph!)}mph` : 'Mostly Clear',
-        icon: isHighWind ? 'wind' : 'sun'
+        label: 'Mainly Clear',
+        condition: 'Mainly Clear Skies',
+        shortForecast: 'Mostly Clear',
+        icon: 'sun'
       };
     case 2:
       return {
-        label: isHighWind ? 'Breezy & Partly Cloudy' : 'Partly Cloudy',
-        condition: isHighWind ? 'Partly Cloudy & Swift Winds' : 'Partly Cloudy Skies',
-        shortForecast: isHighWind ? `Windy ${Math.round(windSpeedMph!)}mph` : 'Partly Cloudy',
-        icon: isHighWind ? 'wind' : 'cloudSun'
+        label: 'Partly Cloudy',
+        condition: 'Partly Cloudy Skies',
+        shortForecast: 'Partly Cloudy',
+        icon: 'cloudSun'
       };
     case 3:
       return {
-        label: isHighWind ? 'Windy & Overcast' : 'Overcast',
-        condition: isHighWind ? 'Overcast Cloud Deck & Gusty Winds' : 'Overcast Cloud Deck',
-        shortForecast: isHighWind ? `Windy ${Math.round(windSpeedMph!)}mph` : 'Overcast',
-        icon: isHighWind ? 'wind' : 'cloud'
+        label: 'Overcast',
+        condition: 'Overcast Cloud Deck',
+        shortForecast: 'Overcast',
+        icon: 'cloud'
       };
     case 45:
     case 48:
@@ -465,7 +462,41 @@ interface CachedWeatherPayload {
   };
 }
 
-const WEATHER_CACHE_KEY = 'cecil_pines_weather_cache_v2';
+export function stripWindSpeed(str: string | undefined | null): string {
+  if (!str) return '';
+  return str
+    .replace(/\s*•\s*(?:Wind\s*)?\d+(?:\.\d+)?\s*(?:mph|km\/h|kts|knots)?(?:\s*Wind)?/gi, '')
+    .replace(/\b(?:Wind\s*)?\d+(?:\.\d+)?\s*(?:mph|km\/h|kts|knots)(?:\s*Wind)?\b/gi, '')
+    .replace(/\b\d+(?:\.\d+)?\s*mph\b/gi, '')
+    .replace(/\bWind\s+\d+\b/gi, '')
+    .replace(/\s*•\s*•\s*/g, ' • ')
+    .replace(/^\s*•\s*/, '')
+    .replace(/\s*•\s*$/, '')
+    .trim();
+}
+
+// Purge all legacy weather cache keys immediately so old wind speed values are purged
+if (typeof window !== 'undefined') {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.includes('weather')) keysToRemove.push(k);
+    }
+    keysToRemove.forEach((k) => sessionStorage.removeItem(k));
+
+    const localKeysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.includes('weather')) localKeysToRemove.push(k);
+    }
+    localKeysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+const WEATHER_CACHE_KEY = 'cecil_pines_weather_cache_v7';
 const WEATHER_CACHE_TTL_MS = 45 * 60 * 1000; // 45 minutes cache (refreshes only after 30-60 min)
 
 let inMemoryWeatherCache: CachedWeatherPayload | null = null;
@@ -486,6 +517,22 @@ function loadCachedWeather(): CachedWeatherPayload | null {
         parsed.forecastDays.length > 0 &&
         parsed.currentRealTimeWeather?.temp
       ) {
+        // Sanitize any wind speed strings out of cached records
+        parsed.forecastDays = parsed.forecastDays.map((d) => ({
+          ...d,
+          tag: stripWindSpeed(d.tag),
+          condition: stripWindSpeed(d.condition),
+          shortForecast: stripWindSpeed(d.shortForecast),
+          hourly: (d.hourly || []).map((h) => ({
+            ...h,
+            condition: stripWindSpeed(h.condition),
+            shortForecast: stripWindSpeed(h.shortForecast)
+          }))
+        }));
+        if (parsed.currentRealTimeWeather) {
+          parsed.currentRealTimeWeather.condition = stripWindSpeed(parsed.currentRealTimeWeather.condition);
+          parsed.currentRealTimeWeather.shortForecast = stripWindSpeed(parsed.currentRealTimeWeather.shortForecast);
+        }
         inMemoryWeatherCache = parsed;
         return parsed;
       }
@@ -500,8 +547,29 @@ function saveCachedWeather(payload: {
   forecastDays: DayForecast[];
   currentRealTimeWeather: CachedWeatherPayload['currentRealTimeWeather'];
 }) {
+  const sanitizedDays = payload.forecastDays.map((d) => ({
+    ...d,
+    tag: stripWindSpeed(d.tag),
+    condition: stripWindSpeed(d.condition),
+    shortForecast: stripWindSpeed(d.shortForecast),
+    hourly: (d.hourly || []).map((h) => ({
+      ...h,
+      condition: stripWindSpeed(h.condition),
+      shortForecast: stripWindSpeed(h.shortForecast)
+    }))
+  }));
+
+  const sanitizedCurrent = payload.currentRealTimeWeather
+    ? {
+        ...payload.currentRealTimeWeather,
+        condition: stripWindSpeed(payload.currentRealTimeWeather.condition),
+        shortForecast: stripWindSpeed(payload.currentRealTimeWeather.shortForecast)
+      }
+    : payload.currentRealTimeWeather;
+
   const data: CachedWeatherPayload = {
-    ...payload,
+    forecastDays: sanitizedDays,
+    currentRealTimeWeather: sanitizedCurrent,
     timestamp: Date.now()
   };
   inMemoryWeatherCache = data;
@@ -561,7 +629,7 @@ export const WeatherWidget: React.FC = () => {
         const currentWind = Math.round(data.current.wind_speed_10m);
         const currentHumidity = Math.round(data.current.relative_humidity_2m);
         const currentCode = data.current.weather_code;
-        const currentMapped = mapWeatherCode(currentCode, currentWind);
+        const currentMapped = mapWeatherCode(currentCode);
 
         const realTimePayload = {
           temp: `${currentTemp}°`,
@@ -569,7 +637,7 @@ export const WeatherWidget: React.FC = () => {
           humidity: currentHumidity,
           weatherCode: currentCode,
           label: currentMapped.label,
-          condition: `${currentMapped.label} • Wind ${currentWind} mph • ${currentHumidity}% Humidity`,
+          condition: `${currentMapped.label} • ${currentHumidity}% Humidity`,
           shortForecast: currentMapped.label,
           icon: currentMapped.icon
         };
@@ -595,7 +663,7 @@ export const WeatherWidget: React.FC = () => {
             next12Hours.push({
               time: 'Now',
               temp: `${currentTemp}°`,
-              condition: `${currentMapped.label} • Wind ${currentWind} mph • ${currentHumidity}% Humidity`,
+              condition: `${currentMapped.label} • ${currentHumidity}% Humidity`,
               shortForecast: currentMapped.label,
               icon: currentMapped.icon,
               pop: popVal && popVal > 0 ? `${popVal}%` : undefined
@@ -606,12 +674,12 @@ export const WeatherWidget: React.FC = () => {
             const hWind = Math.round(data.hourly.wind_speed_10m[hIdx]);
             const hHum = Math.round(data.hourly.relative_humidity_2m[hIdx]);
             const hPop = data.hourly.precipitation_probability?.[hIdx];
-            const hMapped = mapWeatherCode(data.hourly.weather_code[hIdx], hWind);
+            const hMapped = mapWeatherCode(data.hourly.weather_code[hIdx]);
 
             next12Hours.push({
               time: hTime,
               temp: `${hTemp}°`,
-              condition: `${hMapped.label} • Wind ${hWind} mph • ${hHum}% Humidity`,
+              condition: `${hMapped.label} • ${hHum}% Humidity`,
               shortForecast: hPop && hPop > 30 ? `${hMapped.label} ${hPop}%` : hMapped.label,
               icon: hMapped.icon,
               pop: hPop && hPop > 0 ? `${hPop}%` : undefined
@@ -643,11 +711,11 @@ export const WeatherWidget: React.FC = () => {
               dayName,
               isToday: true,
               dateStr: dateFormatted,
-              tag: `${dayName.slice(0, 3)} • ${currentMapped.label} • ${currentWind} mph Wind`,
+              tag: `${dayName.slice(0, 3)} • ${currentMapped.label}`,
               temp: `${currentTemp}°`,
               high: `${dMax}°`,
               low: `${dMin}°`,
-              condition: `${currentMapped.label} • Wind ${currentWind} mph • ${currentHumidity}% Humidity`,
+              condition: `${currentMapped.label} • ${currentHumidity}% Humidity`,
               shortForecast: `${currentMapped.label} • ${dMax}°/${dMin}°`,
               iconType: currentMapped.icon,
               hourly: next12Hours
@@ -669,12 +737,12 @@ export const WeatherWidget: React.FC = () => {
               const hWind = Math.round(data.hourly.wind_speed_10m[hIdx]);
               const hHum = Math.round(data.hourly.relative_humidity_2m[hIdx]);
               const hPop = data.hourly.precipitation_probability?.[hIdx];
-              const hMapped = mapWeatherCode(data.hourly.weather_code[hIdx], hWind);
+              const hMapped = mapWeatherCode(data.hourly.weather_code[hIdx]);
 
               dayHourly.push({
                 time: hTime,
                 temp: `${hTemp}°`,
-                condition: `${hMapped.label} • Wind ${hWind} mph • ${hHum}% Humidity`,
+                condition: `${hMapped.label} • ${hHum}% Humidity`,
                 shortForecast: hPop && hPop > 30 ? `${hMapped.label} ${hPop}%` : hMapped.label,
                 icon: hMapped.icon,
                 pop: hPop && hPop > 0 ? `${hPop}%` : undefined
@@ -796,16 +864,34 @@ export const WeatherWidget: React.FC = () => {
   const currentTemperatureDisplay = isViewingCurrent && currentRealTimeWeather !== null
     ? currentRealTimeWeather.temp
     : activeHour.temp;
-  const currentConditionDisplay = isViewingCurrent && currentRealTimeWeather !== null
-    ? currentRealTimeWeather.condition
-    : activeHour.condition;
-  const currentShortForecastDisplay = isViewingCurrent && currentRealTimeWeather !== null
-    ? currentRealTimeWeather.shortForecast
-    : activeHour.shortForecast;
+  const currentConditionDisplay = stripWindSpeed(
+    isViewingCurrent && currentRealTimeWeather !== null
+      ? `${currentRealTimeWeather.label} • ${currentRealTimeWeather.humidity}% Humidity`
+      : activeHour.condition
+  );
+  const currentShortForecastDisplay = stripWindSpeed(
+    isViewingCurrent && currentRealTimeWeather !== null
+      ? (currentRealTimeWeather.label || currentRealTimeWeather.shortForecast)
+      : activeHour.shortForecast
+  );
   const activeCondition: WeatherConditionType = (isViewingCurrent && currentRealTimeWeather !== null)
     ? currentRealTimeWeather.icon
     : activeHour.icon;
   const theme = getConditionTheme(activeCondition);
+
+  // Top right tag text: purely Day name and Weather Condition (zero wind speed)
+  const topRightTagText = useMemo(() => {
+    const dayPrefix = currentDay.dayName.slice(0, 3);
+    if (activeHour.time === 'Now') {
+      const conditionName =
+        (isViewingCurrent && currentRealTimeWeather?.label) ||
+        currentDay.tag.split('•')[1]?.trim() ||
+        activeHour.shortForecast.split('•')[0]?.trim() ||
+        'Clear';
+      return `${dayPrefix} • ${stripWindSpeed(conditionName)}`;
+    }
+    return `${dayPrefix} • ${activeHour.time}: ${stripWindSpeed(activeHour.shortForecast)}`;
+  }, [currentDay, activeHour, isViewingCurrent, currentRealTimeWeather]);
 
   const handleSelectDay = (dayIdx: number) => {
     setSelectedDayIndex(dayIdx);
@@ -835,9 +921,7 @@ export const WeatherWidget: React.FC = () => {
           className={`text-xs font-bold px-3 py-1 rounded-full ${theme.tagBg} ${theme.tagText} border ${theme.tagBorder} shadow-2xs flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors duration-300`}
         >
           <span className={`w-2 h-2 rounded-full ${theme.tagDotColor} animate-pulse`} />
-          {activeHour.time === 'Now'
-            ? currentDay.tag
-            : `${currentDay.dayName.slice(0, 3)} • ${activeHour.time}: ${activeHour.shortForecast}`}
+          {topRightTagText}
         </span>
       </div>
 

@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type RefObject } from 'react';
 import { Maximize2, Smartphone } from 'lucide-react';
 import { CommunitySelectorScreen } from './components/CommunitySelectorScreen';
 import { AuthScreen } from './components/AuthScreen';
@@ -82,10 +82,78 @@ export default function App() {
   } = session;
   const { showAppToast } = notifications;
 
+  // Dedicated independent scroll containers for each tab
+  const homeScrollRef = useRef<HTMLDivElement>(null);
+  const newsScrollRef = useRef<HTMLDivElement>(null);
+  const workOrdersScrollRef = useRef<HTMLDivElement>(null);
+  const socialScrollRef = useRef<HTMLDivElement>(null);
+
+  const tabScrollRefs: Record<PortalTab, RefObject<HTMLDivElement | null>> = {
+    home: homeScrollRef,
+    news: newsScrollRef,
+    workorders: workOrdersScrollRef,
+    social: socialScrollRef,
+  };
+
+  // Remember scroll distance independently for each tab
+  const scrollPositionsRef = useRef<Record<PortalTab, number>>({
+    home: 0,
+    news: 0,
+    workorders: 0,
+    social: 0,
+  });
+
+  const handleTabScroll = (tab: PortalTab, scrollTop: number) => {
+    scrollPositionsRef.current[tab] = scrollTop;
+  };
+
+  const handleSelectTab = useCallback(
+    (tab: PortalTab) => {
+      if (tab === activeTab) {
+        // Tapping the active tab smoothly returns to top
+        const targetRef = tabScrollRefs[tab];
+        if (targetRef?.current) {
+          targetRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+          scrollPositionsRef.current[tab] = 0;
+        }
+      } else {
+        setActiveTab(tab);
+      }
+    },
+    [activeTab]
+  );
+
+  // Restore the selected tab's individual scroll position upon switching tabs
+  useLayoutEffect(() => {
+    const targetRef = tabScrollRefs[activeTab];
+    if (targetRef?.current) {
+      const savedPosition = scrollPositionsRef.current[activeTab] || 0;
+      targetRef.current.scrollTop = savedPosition;
+      requestAnimationFrame(() => {
+        if (targetRef.current && targetRef.current.scrollTop !== savedPosition) {
+          targetRef.current.scrollTop = savedPosition;
+        }
+      });
+    }
+    // Safeguard outer viewport scroll on mobile
+    if (typeof window !== 'undefined' && window.scrollY > 0) {
+      window.scrollTo(0, 0);
+    }
+  }, [activeTab]);
+
   // Always reset to the 'home' tab whenever a user logs in, switches accounts, or launches the app
   useEffect(() => {
     if (currentUser && currentUser.approved !== false && !isLoggedOut) {
       setActiveTab('home');
+      scrollPositionsRef.current = {
+        home: 0,
+        news: 0,
+        workorders: 0,
+        social: 0,
+      };
+      if (homeScrollRef.current) {
+        homeScrollRef.current.scrollTop = 0;
+      }
     }
   }, [currentUser?.id, currentUser?.approved, isLoggedOut]);
 
@@ -133,7 +201,7 @@ export default function App() {
         } ${
           !selectedCommunity || isLoggedOut || !currentUser || currentUser?.approved === false
             ? 'min-h-screen sm:min-h-0 sm:max-h-[92vh] sm:my-auto overflow-y-auto'
-            : 'min-h-screen sm:min-h-[860px] sm:max-h-[920px] overflow-hidden'
+            : 'h-[100dvh] sm:h-auto sm:min-h-[860px] sm:max-h-[920px] overflow-hidden'
         } sm:rounded-[44px] shadow-[0_24px_50px_-12px_rgba(110,85,60,0.12)] relative flex flex-col justify-start border transition-all duration-300`}
       >
         {/* Community Selector / Auth / Main Screen State */}
@@ -176,7 +244,7 @@ export default function App() {
               setCurrentUser(updatedUser);
               setActiveTab('home');
               showAppToast(
-                `Access approved! Welcome to Cecil Pines, ${updatedUser.name}!`
+                `Access approved! Welcome to TownLoop, ${updatedUser.name}!`
               );
             }}
             onLogout={async () => {
@@ -206,10 +274,18 @@ export default function App() {
               onSwitchCommunity={handleSwitchCommunity}
             />
 
-            {/* Main Scrollable Content */}
-            <main className="flex-1 px-5 pt-4 pb-32 sm:pb-36 overflow-y-auto hide-scrollbar space-y-4">
+            {/* Main Content Area with Isolated Scroll Containers for Each Tab */}
+            <main className="flex-1 relative w-full overflow-hidden">
               {/* ================= TAB 1: HOME ================= */}
-              <div className={activeTab === 'home' ? 'space-y-4' : 'hidden'}>
+              <div
+                ref={homeScrollRef}
+                onScroll={(e) => handleTabScroll('home', e.currentTarget.scrollTop)}
+                className={
+                  activeTab === 'home'
+                    ? 'absolute inset-0 px-5 pt-4 pb-32 sm:pb-36 overflow-y-auto hide-scrollbar space-y-4'
+                    : 'hidden'
+                }
+              >
                 <HomeScreen
                   {...home}
                   {...dates}
@@ -218,7 +294,15 @@ export default function App() {
               </div>
 
               {/* ================= TAB 2: NEWS ================= */}
-              <div className={activeTab === 'news' ? 'space-y-4' : 'hidden'}>
+              <div
+                ref={newsScrollRef}
+                onScroll={(e) => handleTabScroll('news', e.currentTarget.scrollTop)}
+                className={
+                  activeTab === 'news'
+                    ? 'absolute inset-0 px-5 pt-4 pb-32 sm:pb-36 overflow-y-auto hide-scrollbar space-y-4'
+                    : 'hidden'
+                }
+              >
                 <NewsScreen
                   {...news}
                   {...dates}
@@ -228,7 +312,15 @@ export default function App() {
               </div>
 
               {/* ================= TAB 3: WORK ORDERS ================= */}
-              <div className={activeTab === 'workorders' ? 'space-y-4' : 'hidden'}>
+              <div
+                ref={workOrdersScrollRef}
+                onScroll={(e) => handleTabScroll('workorders', e.currentTarget.scrollTop)}
+                className={
+                  activeTab === 'workorders'
+                    ? 'absolute inset-0 px-5 pt-4 pb-32 sm:pb-36 overflow-y-auto hide-scrollbar space-y-4'
+                    : 'hidden'
+                }
+              >
                 <WorkOrdersScreen
                   {...workOrders}
                   currentUser={session.currentUser}
@@ -236,14 +328,22 @@ export default function App() {
               </div>
 
               {/* ================= TAB 4: SOCIAL ================= */}
-              <div className={activeTab === 'social' ? 'space-y-4' : 'hidden'}>
+              <div
+                ref={socialScrollRef}
+                onScroll={(e) => handleTabScroll('social', e.currentTarget.scrollTop)}
+                className={
+                  activeTab === 'social'
+                    ? 'absolute inset-0 px-5 pt-4 pb-32 sm:pb-36 overflow-y-auto hide-scrollbar space-y-4'
+                    : 'hidden'
+                }
+              >
                 <CommunityScreen {...community} />
               </div>
             </main>
 
             {/* Liquid Glass Dock */}
             <BottomNavigation
-              setActiveTab={setActiveTab}
+              setActiveTab={handleSelectTab}
               activeTab={activeTab}
             />
           </>

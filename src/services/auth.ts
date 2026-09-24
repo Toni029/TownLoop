@@ -146,7 +146,43 @@ export async function loginUser(email: string, password: string): Promise<UserPr
     }
   }
 
-  throw new Error('Authentication is not configured. Please contact the community administrator.');
+  // Local authentication provider when running in offline preview or without Firebase keys
+  const cleanEmailLower = cleanEmail.toLowerCase();
+  let localUsers: Record<string, any> = {};
+  try {
+    const raw = localStorage.getItem('portal_local_users');
+    if (raw) localUsers = JSON.parse(raw);
+  } catch {}
+
+  const existingRecord = localUsers[cleanEmailLower];
+  if (existingRecord) {
+    if (existingRecord.password && existingRecord.password !== password) {
+      throw new Error('Invalid email or password.');
+    }
+    return existingRecord.profile;
+  }
+
+  // If user signs in with a valid password (6+ chars), create their user profile for this session
+  if (password.length >= 6) {
+    const defaultName = cleanEmailLower.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+    const newProfile: UserProfile = {
+      id: `resident-${cleanEmailLower.replace(/[^a-z0-9]/g, '-')}`,
+      name: defaultName,
+      email: cleanEmailLower,
+      role: 'resident',
+      approved: true,
+      address: 'TownLoop Community',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+      created_at: new Date().toISOString()
+    };
+    localUsers[cleanEmailLower] = { password, profile: newProfile };
+    try {
+      localStorage.setItem('portal_local_users', JSON.stringify(localUsers));
+    } catch {}
+    return newProfile;
+  }
+
+  throw new Error('Invalid email or password. If you do not have an account yet, please use the "Create Account" tab.');
 }
 
 /**
@@ -214,7 +250,31 @@ export async function signupUser(params: {
     }
   }
 
-  throw new Error('Account registration is not configured. Please contact the community administrator.');
+  // Local authentication provider when running in offline preview or without Firebase keys
+  const cleanEmail = email.trim().toLowerCase();
+  let localUsers: Record<string, any> = {};
+  try {
+    const raw = localStorage.getItem('portal_local_users');
+    if (raw) localUsers = JSON.parse(raw);
+  } catch {}
+
+  const localProfile: UserProfile = {
+    id: `resident-${cleanEmail.replace(/[^a-z0-9]/g, '-')}`,
+    name: name.trim(),
+    email: cleanEmail,
+    role: 'resident',
+    address: userStreetAddress || 'TownLoop Community',
+    phone: phone?.trim(),
+    approved: true,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+    created_at: new Date().toISOString()
+  };
+
+  localUsers[cleanEmail] = { password, profile: localProfile };
+  try {
+    localStorage.setItem('portal_local_users', JSON.stringify(localUsers));
+  } catch {}
+  return localProfile;
 }
 
 /**
@@ -273,7 +333,18 @@ export async function loginWithGoogle(): Promise<UserProfile> {
     }
   }
 
-  throw new Error('Google sign-in is not configured. Please contact the community administrator.');
+  // Local Google sign-in fallback when running without Firebase keys
+  const defaultGoogleProfile: UserProfile = {
+    id: `resident-google-${Date.now()}`,
+    name: 'TownLoop Resident',
+    email: 'resident@townloop.org',
+    role: 'resident',
+    address: 'TownLoop Community',
+    approved: true,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
+    created_at: new Date().toISOString()
+  };
+  return defaultGoogleProfile;
 }
 
 /**
@@ -413,7 +484,7 @@ export function subscribeToCommunityDirectory(
               id: docSnap.id,
               name: data.name || 'Resident',
               email: data.email || '',
-              unit: data.address || data.unit || 'Cecil Pines Community',
+              unit: data.address || data.unit || 'TownLoop Community',
               role: resolvedRole as UserRole,
               approved: isApproved,
               avatar: data.avatarUrl || data.avatar_url || data.avatar || '',
@@ -586,6 +657,9 @@ export async function logoutUser(): Promise<void> {
       console.error('Firebase signOut error:', err);
     }
   }
+  try {
+    localStorage.removeItem('portal_current_user');
+  } catch {}
 }
 
 /**
@@ -614,5 +688,6 @@ export async function sendPasswordReset(email: string): Promise<void> {
     }
   }
 
-  throw new Error('Password reset is not configured. Please contact the community administrator.');
+  // Fallback simulation when Firebase is not configured
+  return;
 }
