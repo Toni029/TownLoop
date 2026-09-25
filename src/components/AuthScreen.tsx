@@ -239,17 +239,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         }`}>
           Adult Living Community
         </span>
-        <span className={`inline-flex items-center gap-2 text-xs sm:text-sm font-bold mt-2 px-3.5 py-1 rounded-full ${
+        <span className={`inline-flex items-center text-xs sm:text-sm font-bold mt-2 px-3.5 py-1 rounded-full ${
           isDarkMode 
             ? 'bg-slate-800 text-emerald-300 border border-slate-700' 
             : 'bg-[#edf5ee] text-[#124d2c] border border-[#bcdbc6] shadow-xs'
         }`}>
-          <img 
-            src="/favicon.svg" 
-            alt="Townloop Logo" 
-            className="w-4 h-4 object-contain inline-block" 
-          />
-          TownLoop Resident Portal
+          Resident Portal
         </span>
       </div>
 

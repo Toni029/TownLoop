@@ -14,6 +14,7 @@ import {
   deleteMarketplacePostFromFirestore,
   updateFirestoreDocument,
 } from '../services/firestoreSync';
+import { subscribeToCommunityDirectory } from '../services/auth';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase';
 
@@ -127,6 +128,67 @@ export function useCommunityState(
 
   const [openCommentsPostId, setOpenCommentsPostId] = useState<number | string | null>(null);
   const [commentInputText, setCommentInputText] = useState<{ [postId: string]: string }>({});
+  const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
+
+  // Subscribe to community directory to resolve live profile photos
+  useEffect(() => {
+    try {
+      const unsub = subscribeToCommunityDirectory((users) => {
+        if (Array.isArray(users)) {
+          setDirectoryUsers(users);
+        }
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Failed to subscribe to community directory in useCommunityState:', e);
+    }
+  }, []);
+
+  const resolveAvatar = useCallback(
+    (
+      rawAvatar?: string,
+      authorId?: string | number,
+      authorEmail?: string,
+      authorName?: string
+    ): string => {
+      if (rawAvatar && rawAvatar.trim() && !rawAvatar.includes('placeholder')) {
+        return rawAvatar.trim();
+      }
+
+      // Check current user match
+      if (currentUser) {
+        const myAvatar = currentUser.avatarUrl || currentUser.avatar_url;
+        if (myAvatar && myAvatar.trim()) {
+          const idMatch = authorId && String(authorId) === String(currentUser.id);
+          const emailMatch = authorEmail && currentUser.email && authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
+          const nameMatch = authorName && currentUser.name && authorName.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
+          if (idMatch || emailMatch || nameMatch) {
+            return myAvatar.trim();
+          }
+        }
+      }
+
+      // Check community directory match
+      if (directoryUsers.length > 0) {
+        const found = directoryUsers.find((u) => {
+          if (authorId && String(u.id) === String(authorId)) return true;
+          if (authorEmail && u.email && authorEmail.toLowerCase().trim() === u.email.toLowerCase().trim()) return true;
+          if (authorName && u.name && authorName.toLowerCase().trim() === u.name.toLowerCase().trim()) return true;
+          return false;
+        });
+
+        if (found) {
+          const dirAvatar = found.avatar || found.avatarUrl || found.avatar_url;
+          if (dirAvatar && dirAvatar.trim()) {
+            return dirAvatar.trim();
+          }
+        }
+      }
+
+      return rawAvatar?.trim() || '';
+    },
+    [currentUser, directoryUsers]
+  );
 
   // Persist to localStorage
   useEffect(() => {
@@ -155,12 +217,18 @@ export function useCommunityState(
         (snapshot) => {
           const remotePosts: PostItem[] = snapshot.docs.map((doc) => {
             const d = doc.data();
+            const rawAvatar = d.authorAvatar || d.author_avatar || d.avatarUrl || d.avatar_url || d.photoUrl || d.photoURL || d.avatar || d.userAvatar || '';
+            const authorId = d.userId || d.authorId || d.uid;
+            const authorEmail = d.authorEmail || d.email || '';
+            const author = d.author || 'Resident';
+            const resolvedAvatar = resolveAvatar(rawAvatar, authorId, authorEmail, author);
+
             return {
               id: doc.id,
-              author: d.author || 'Resident',
-              authorAvatar: d.authorAvatar || '',
-              authorId: d.userId,
-              authorEmail: d.authorEmail || '',
+              author,
+              authorAvatar: resolvedAvatar,
+              authorId,
+              authorEmail,
               unit: d.unit || 'TownLoop Resident',
               timeAgo: d.timeAgo || 'Recent',
               tag: d.tag || 'Community',
@@ -170,7 +238,10 @@ export function useCommunityState(
               media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
               likes: d.likes || 0,
               liked: false,
-              comments: d.comments || [],
+              comments: (d.comments || []).map((c: any) => ({
+                ...c,
+                authorAvatar: resolveAvatar(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
+              })),
             };
           });
           setPosts(remotePosts);
@@ -184,24 +255,39 @@ export function useCommunityState(
         (snapshot) => {
           const remoteMarket: MarketItem[] = snapshot.docs.map((doc) => {
             const d = doc.data();
+            const rawAvatar = d.authorAvatar || d.author_avatar || d.avatarUrl || d.avatar_url || d.photoUrl || d.photoURL || d.avatar || d.userAvatar || '';
+            const authorId = d.userId || d.authorId || d.uid;
+            const authorEmail = d.authorEmail || d.email || '';
+            const author = d.author || 'Resident';
+            const resolvedAvatar = resolveAvatar(rawAvatar, authorId, authorEmail, author);
+
+            const isOwner = Boolean(
+              (currentUser?.id && String(authorId) === String(currentUser.id)) ||
+              (currentUser?.email && authorEmail && authorEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+              (currentUser?.name && author && author.toLowerCase() === currentUser.name.toLowerCase())
+            );
+
             return {
               id: doc.id,
               title: d.title || 'Market Item',
               price: d.price || 'FREE',
               description: d.description || '',
-              author: d.author || 'Resident',
-              authorAvatar: d.authorAvatar || '',
-              authorId: d.userId,
-              authorEmail: d.authorEmail || '',
+              author,
+              authorAvatar: resolvedAvatar,
+              authorId,
+              authorEmail,
               unit: d.unit || 'TownLoop Resident',
               timeAgo: d.timeAgo || 'Recent',
-              isOwner: String(d.userId) === String(currentUser?.id),
+              isOwner,
               claimed: Boolean(d.claimed || d.sold),
               sold: Boolean(d.sold || d.claimed),
               mediaUrl: d.mediaUrl,
               photoUrl: d.mediaUrl,
               media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
-              comments: d.comments || [],
+              comments: (d.comments || []).map((c: any) => ({
+                ...c,
+                authorAvatar: resolveAvatar(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
+              })),
             };
           });
           setMarketItems(remoteMarket);
@@ -216,7 +302,29 @@ export function useCommunityState(
     } catch (err) {
       console.warn('Failed to attach Firestore community listeners:', err);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.email, currentUser?.name, resolveAvatar]);
+
+  // Sync avatar updates when directory or current user profile picture changes
+  useEffect(() => {
+    setPosts((prev) =>
+      prev.map((p) => {
+        const resolved = resolveAvatar(p.authorAvatar, p.authorId, p.authorEmail, p.author);
+        if (resolved && resolved !== p.authorAvatar) {
+          return { ...p, authorAvatar: resolved };
+        }
+        return p;
+      })
+    );
+    setMarketItems((prev) =>
+      prev.map((m) => {
+        const resolved = resolveAvatar(m.authorAvatar, m.authorId, m.authorEmail, m.author);
+        if (resolved && resolved !== m.authorAvatar) {
+          return { ...m, authorAvatar: resolved };
+        }
+        return m;
+      })
+    );
+  }, [directoryUsers, currentUser, resolveAvatar]);
 
   const toggleLike = useCallback((id: number | string) => {
     setPosts((prev) =>
