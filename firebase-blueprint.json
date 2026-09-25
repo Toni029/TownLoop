@@ -91,6 +91,52 @@
         "photoUrl": { "type": "string", "description": "Live Firebase Storage photo web URL" }
       },
       "required": ["description", "status", "userId", "photoUrl"]
+    },
+    "MaintenanceChat": {
+      "title": "Maintenance Crew Chat Thread",
+      "description": "Direct communication thread between a resident and the maintenance crew team.",
+      "type": "object",
+      "properties": {
+        "residentId": { "type": "string", "description": "Resident UID" },
+        "residentName": { "type": "string", "description": "Resident full name" },
+        "residentEmail": { "type": "string", "description": "Resident email" },
+        "residentApt": { "type": "string", "description": "Resident apartment/unit" },
+        "residentPhone": { "type": "string", "description": "Resident phone number" },
+        "subject": { "type": "string", "description": "Conversation subject" },
+        "lastMessage": { "type": "string", "description": "Most recent message snippet" },
+        "updatedAt": { "type": "number", "description": "Last update timestamp in milliseconds" },
+        "unreadByCrew": { "type": "boolean", "description": "True if there are unread messages for crew members" },
+        "unreadByResident": { "type": "boolean", "description": "True if there are unread messages for resident" },
+        "messages": {
+          "type": "array",
+          "description": "Chronological messages exchanged between resident and crew members",
+          "items": { "type": "object" }
+        }
+      },
+      "required": ["residentId", "residentName", "subject", "messages"]
+    },
+    "OfficeChat": {
+      "title": "Community Office VIP Chat Thread",
+      "description": "Direct communication thread between a resident and VIP community office managers.",
+      "type": "object",
+      "properties": {
+        "residentId": { "type": "string", "description": "Resident UID" },
+        "residentName": { "type": "string", "description": "Resident full name" },
+        "residentEmail": { "type": "string", "description": "Resident email" },
+        "residentApt": { "type": "string", "description": "Resident apartment/unit" },
+        "residentPhone": { "type": "string", "description": "Resident phone number" },
+        "subject": { "type": "string", "description": "Conversation subject" },
+        "lastMessage": { "type": "string", "description": "Most recent message snippet" },
+        "updatedAt": { "type": "number", "description": "Last update timestamp in milliseconds" },
+        "unreadByVip": { "type": "boolean", "description": "True if there are unread messages for VIP role managers" },
+        "unreadByResident": { "type": "boolean", "description": "True if there are unread messages for resident" },
+        "messages": {
+          "type": "array",
+          "description": "Chronological messages exchanged between resident and VIP managers",
+          "items": { "type": "object" }
+        }
+      },
+      "required": ["residentId", "residentName", "subject", "messages"]
     }
   },
   "firestore": {
@@ -117,6 +163,14 @@
     "/work_orders/{orderId}": {
       "schema": "WorkOrder",
       "description": "Maintenance work orders collection containing description, status, createdAt, userId, and photoUrl."
+    },
+    "/maintenance_chats/{chatId}": {
+      "schema": "MaintenanceChat",
+      "description": "Maintenance crew group chat threads between residents and the maintenance crew."
+    },
+    "/office_chats/{chatId}": {
+      "schema": "OfficeChat",
+      "description": "Community office chat threads between residents and VIP managers."
     }
   }
 }

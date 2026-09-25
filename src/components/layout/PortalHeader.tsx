@@ -107,7 +107,6 @@ export function PortalHeader({
           setCurrentUser(updated);
           showAppToast('Profile picture updated');
         }}
-        onSwitchCommunity={onSwitchCommunity}
         onLogout={async () => {
           await logoutUser();
           setCurrentUser(null);

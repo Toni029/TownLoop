@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -36,12 +36,26 @@ import {
   Check,
   RefreshCw
 } from 'lucide-react';
-import { UserProfile } from '../types';
+import { UserProfile, MaintenanceChat, MaintenanceChatMessage } from '../types';
 import { updateResidentProfile, subscribeToCommunityDirectory } from '../services/auth';
 import { canAccessAdminPanel, getUserRole, getRoleBadgeInfo, isCrew, isStrictVip, isVip, isAdmin, isStaff } from '../utils/permissions';
 import { UserAvatar } from './UserAvatar';
 import { CrewShieldBadge } from './CrewShieldBadge';
 import { VipStaffBadge } from './VipStaffBadge';
+import {
+  subscribeToMaintenanceChats,
+  sendMaintenanceChatMessage,
+  markMaintenanceChatRead,
+  formatMessageTime,
+  getResidentChatDocId,
+} from '../services/maintenanceChat';
+import {
+  subscribeToOfficeChats,
+  sendOfficeChatMessage,
+  markOfficeChatRead,
+  isVipOrAdmin,
+} from '../services/officeChat';
+import { OfficeChat, OfficeChatMessage } from '../types';
 
 interface ProfileAvatarProps {
   apartmentNumber?: string;
@@ -59,7 +73,7 @@ interface ProfileAvatarProps {
 export type MessageCategory = 'friend' | 'office' | 'maintenance';
 
 export interface InboxMessage {
-  id: number;
+  id: number | string;
   from: string;
   senderCategory: MessageCategory;
   role: string;
@@ -70,6 +84,8 @@ export interface InboxMessage {
   senderAvatar?: string;
   senderPhone?: string;
   senderApt?: string;
+  maintenanceChatId?: string;
+  officeChatId?: string;
 }
 
 export interface ResidentFriend {
@@ -124,9 +140,11 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     apt?: string;
     phone?: string;
   }>({
-    name: 'Clara Higgins',
-    category: 'friend',
-    apt: 'Apt 204'
+    name: 'Community Office',
+    category: 'office',
+    role: 'Concierge & Front Office',
+    apt: 'Clubhouse Office',
+    phone: '(904) 555-0100',
   });
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
@@ -195,14 +213,35 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   const isLarge = size === 'large';
 
-  // Dynamic list of community residents
+  // Dynamic list of community residents (Friends & Neighbors)
+  // Excludes Admin, VIP, and Crew roles as requested
   const [residents, setResidents] = useState<ResidentFriend[]>([]);
 
   useEffect(() => {
     const unsubscribe = subscribeToCommunityDirectory((users) => {
       if (users) {
         const mapped: ResidentFriend[] = users
-          .filter(u => u.email !== currentUser?.email)
+          .filter(u => {
+            if (!u) return false;
+            // Exclude unapproved accounts
+            if (u.approved === false) return false;
+            // Exclude current user
+            if (currentUser?.email && u.email && u.email.toLowerCase() === currentUser.email.toLowerCase()) {
+              return false;
+            }
+            if (currentUser?.id && u.id && String(u.id) === String(currentUser.id)) {
+              return false;
+            }
+            // CRITICAL: When messaging a friend or neighbor, do NOT list admin, vip, or crew role
+            const role = (getUserRole(u) || u.role || '').toLowerCase();
+            if (role === 'admin' || role === 'vip' || role === 'crew' || role === 'staff') {
+              return false;
+            }
+            if (isAdmin(u) || isVip(u) || isCrew(u) || isStaff(u)) {
+              return false;
+            }
+            return true;
+          })
           .map((u, idx) => ({
             id: idx + 1,
             name: u.name || 'Neighbor',
@@ -221,12 +260,205 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     return () => {
       unsubscribe();
     };
-  }, [currentUser?.email]);
+  }, [currentUser?.email, currentUser?.id]);
 
-  // Messages in Inbox: Friends, Community Office, and Maintenance Crew
+  const userIsCrew = isCrew(currentUser);
+  const userIsVip = isVipOrAdmin(currentUser);
+
+  // Messages in Inbox: Real messages only, no fictitious or dummy data
   const [messages, setMessages] = useState<InboxMessage[]>([]);
 
-  const unreadCount = messages.filter(m => m.unread).length;
+  useEffect(() => {
+    // Clean any previous dummy messages from localStorage
+    try {
+      localStorage.removeItem('townloop_inbox_messages_v1');
+      localStorage.removeItem('townloop_inbox_messages_v2');
+      localStorage.removeItem('townloop_inbox_messages');
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  // Real-time Maintenance Chats from Firestore
+  const [maintenanceChats, setMaintenanceChats] = useState<MaintenanceChat[]>([]);
+  const [activeMaintenanceChat, setActiveMaintenanceChat] = useState<MaintenanceChat | null>(null);
+  const [chatReplyText, setChatReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToMaintenanceChats(currentUser, (chats) => {
+      setMaintenanceChats(chats);
+      setActiveMaintenanceChat((curr) => {
+        if (!curr) return null;
+        const updated = chats.find((c) => c.id === curr.id);
+        return updated || curr;
+      });
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [currentUser?.id, currentUser?.email, currentUser?.role]);
+
+  useEffect(() => {
+    if (activeMaintenanceChat?.messages) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeMaintenanceChat?.messages?.length]);
+
+  // Real-time Office Chats from Firestore (Managed by VIP role users)
+  const [officeChats, setOfficeChats] = useState<OfficeChat[]>([]);
+  const [activeOfficeChat, setActiveOfficeChat] = useState<OfficeChat | null>(null);
+  const [officeReplyText, setOfficeReplyText] = useState('');
+  const [isSendingOfficeReply, setIsSendingOfficeReply] = useState(false);
+  const officeChatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToOfficeChats(currentUser, (chats) => {
+      setOfficeChats(chats);
+      setActiveOfficeChat((curr) => {
+        if (!curr) return null;
+        const updated = chats.find((c) => c.id === curr.id);
+        return updated || curr;
+      });
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [currentUser?.id, currentUser?.email, currentUser?.role]);
+
+  useEffect(() => {
+    if (activeOfficeChat?.messages) {
+      officeChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeOfficeChat?.messages?.length]);
+
+  // Merge regular inbox messages with live maintenance chats and office chats
+  const allInboxMessages: InboxMessage[] = useMemo(() => {
+    const list: InboxMessage[] = [];
+
+    // Local non-maintenance and non-office messages (e.g. Friends)
+    const localFriendMsgs = messages.filter(
+      m => m.senderCategory !== 'maintenance' && m.senderCategory !== 'office'
+    );
+    list.push(...localFriendMsgs);
+
+    // ================= MAINTENANCE CHATS =================
+    const localMaint = messages.filter(m => m.senderCategory === 'maintenance');
+    if (userIsCrew) {
+      // Crew sees all resident threads
+      if (maintenanceChats.length > 0) {
+        maintenanceChats.forEach((chat) => {
+          const lastMsg = chat.messages[chat.messages.length - 1];
+          list.push({
+            id: `maint_${chat.id}`,
+            from: `${chat.residentName} (${chat.residentApt})`,
+            senderCategory: 'maintenance',
+            role: `Resident • ${chat.residentApt}`,
+            subject: chat.subject || 'Maintenance Service Request',
+            body: lastMsg ? `${lastMsg.senderName}: "${lastMsg.body}"` : (chat.lastMessage || 'Maintenance conversation'),
+            time: chat.updatedAt ? formatMessageTime(chat.updatedAt) : 'Recent',
+            unread: Boolean(chat.unreadByCrew),
+            senderAvatar: chat.residentAvatar,
+            senderPhone: chat.residentPhone,
+            senderApt: chat.residentApt,
+            maintenanceChatId: chat.id,
+          });
+        });
+      } else if (localMaint.length > 0) {
+        list.push(...localMaint);
+      }
+    } else {
+      // Resident sees their chat with Maintenance Crew
+      const liveChat = maintenanceChats.length > 0 ? maintenanceChats[0] : null;
+      const latestLiveMsg = liveChat?.messages && liveChat.messages.length > 0
+        ? liveChat.messages[liveChat.messages.length - 1]
+        : null;
+      const latestLocal = localMaint.length > 0 ? localMaint[0] : null;
+
+      if (liveChat || latestLocal) {
+        const lastBody = latestLocal && (!latestLiveMsg || latestLocal.time === 'Just now')
+          ? latestLocal.body
+          : (latestLiveMsg ? (latestLiveMsg.senderRole === 'crew' ? `Crew: "${latestLiveMsg.body}"` : `You: "${latestLiveMsg.body}"`) : (liveChat?.lastMessage || 'Maintenance conversation'));
+
+        list.push({
+          id: liveChat ? `maint_${liveChat.id}` : (latestLocal?.id || 'maint_active'),
+          from: 'Maintenance Crew',
+          senderCategory: 'maintenance',
+          role: 'Facilities & Repairs',
+          subject: liveChat?.subject || latestLocal?.subject || 'Maintenance Service Request',
+          body: lastBody,
+          time: latestLocal && latestLocal.time === 'Just now' ? 'Just now' : (liveChat?.updatedAt ? formatMessageTime(liveChat.updatedAt) : 'Recent'),
+          unread: Boolean(liveChat?.unreadByResident),
+          senderAvatar: '/crew-badge.svg',
+          senderPhone: '(904) 555-0105',
+          senderApt: 'Maintenance Depot',
+          maintenanceChatId: liveChat?.id,
+        });
+      }
+    }
+
+    // ================= OFFICE / VIP CHATS =================
+    const localOffice = messages.filter(m => m.senderCategory === 'office');
+    if (userIsVip) {
+      // VIP role user sees all resident inquiries with the resident's identity
+      if (officeChats.length > 0) {
+        officeChats.forEach((chat) => {
+          const lastMsg = chat.messages[chat.messages.length - 1];
+          list.push({
+            id: `office_${chat.id}`,
+            from: `${chat.residentName} (${chat.residentApt})`,
+            senderCategory: 'office',
+            role: `Resident • ${chat.residentApt}`,
+            subject: chat.subject || 'Office Inquiry',
+            body: lastMsg
+              ? (lastMsg.senderRole === 'vip' ? `You (Office): "${lastMsg.body}"` : `${chat.residentName}: "${lastMsg.body}"`)
+              : (chat.lastMessage || 'Office inquiry conversation'),
+            time: chat.updatedAt ? formatMessageTime(chat.updatedAt) : 'Recent',
+            unread: Boolean(chat.unreadByVip),
+            senderAvatar: chat.residentAvatar,
+            senderPhone: chat.residentPhone,
+            senderApt: chat.residentApt,
+            officeChatId: chat.id,
+          });
+        });
+      } else if (localOffice.length > 0) {
+        list.push(...localOffice);
+      }
+    } else {
+      // Standard Resident sees their chat with Community Office
+      // Resident does NOT know which VIP person is chatting or replying
+      const liveOffice = officeChats.length > 0 ? officeChats[0] : null;
+      const latestLiveMsg = liveOffice?.messages && liveOffice.messages.length > 0
+        ? liveOffice.messages[liveOffice.messages.length - 1]
+        : null;
+      const latestLocalOffice = localOffice.length > 0 ? localOffice[0] : null;
+
+      if (liveOffice || latestLocalOffice) {
+        const lastBody = latestLocalOffice && (!latestLiveMsg || latestLocalOffice.time === 'Just now')
+          ? latestLocalOffice.body
+          : (latestLiveMsg ? (latestLiveMsg.senderRole === 'vip' ? `Office: "${latestLiveMsg.body}"` : `You: "${latestLiveMsg.body}"`) : (liveOffice?.lastMessage || 'Office inquiry'));
+
+        list.push({
+          id: liveOffice ? `office_${liveOffice.id}` : (latestLocalOffice?.id || 'office_active'),
+          from: 'Community Office',
+          senderCategory: 'office',
+          role: 'Concierge & Front Office',
+          subject: liveOffice?.subject || latestLocalOffice?.subject || 'Office Inquiry',
+          body: lastBody,
+          time: latestLocalOffice && latestLocalOffice.time === 'Just now' ? 'Just now' : (liveOffice?.updatedAt ? formatMessageTime(liveOffice.updatedAt) : 'Recent'),
+          unread: Boolean(liveOffice?.unreadByResident),
+          senderPhone: '(904) 555-0100',
+          senderApt: 'Clubhouse Office',
+          officeChatId: liveOffice?.id,
+        });
+      }
+    }
+
+    return list;
+  }, [messages, maintenanceChats, officeChats, userIsCrew, userIsVip]);
+
+  const unreadCount = allInboxMessages.filter(m => m.unread).length;
 
   useEffect(() => {
     const handleNewMail = (e: Event) => {
@@ -254,8 +486,138 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     showToast(dark ? 'Dark theme activated' : 'Light theme activated');
   };
 
-  const markMessageAsRead = (id: number) => {
+  const markMessageAsRead = (id: number | string) => {
     setMessages(prev => prev.map(m => (m.id === id ? { ...m, unread: false } : m)));
+  };
+
+  const handleOpenMessage = (msg: InboxMessage) => {
+    setSelectedMessage(msg);
+    if (msg.senderCategory === 'maintenance') {
+      setActiveOfficeChat(null);
+      if (userIsCrew) {
+        const foundChat = maintenanceChats.find(
+          (c) => `maint_${c.id}` === String(msg.id) || c.id === msg.maintenanceChatId
+        );
+        if (foundChat) {
+          setActiveMaintenanceChat(foundChat);
+          markMaintenanceChatRead(foundChat.id, 'crew');
+        } else {
+          setActiveMaintenanceChat(null);
+        }
+      } else {
+        const foundChat = maintenanceChats[0] || null;
+        if (foundChat) {
+          setActiveMaintenanceChat(foundChat);
+          markMaintenanceChatRead(foundChat.id, 'resident');
+        } else {
+          // If Firestore chat hasn't synchronized yet, create local active chat from the message
+          const cleanBody = msg.body.replace(/^You: "/, '').replace(/"$/, '');
+          setActiveMaintenanceChat({
+            id: String(currentUser?.id || 'resident'),
+            residentId: String(currentUser?.id || 'resident'),
+            residentName: effectiveName,
+            residentEmail: effectiveEmail,
+            residentApt: effectiveAddress,
+            subject: msg.subject || 'Maintenance Service Request',
+            lastMessage: msg.body,
+            updatedAt: Date.now(),
+            unreadByCrew: false,
+            unreadByResident: false,
+            messages: [
+              {
+                id: 'msg_local_init',
+                senderId: String(currentUser?.id || 'resident'),
+                senderName: effectiveName,
+                senderRole: 'resident',
+                senderAvatar: profilePhotoUrl,
+                body: cleanBody,
+                createdAt: Date.now(),
+                time: msg.time || 'Just now',
+              },
+            ],
+          });
+        }
+      }
+    } else if (msg.senderCategory === 'office') {
+      setActiveMaintenanceChat(null);
+      if (userIsVip) {
+        const foundChat = officeChats.find(
+          (c) => `office_${c.id}` === String(msg.id) || c.id === msg.officeChatId
+        );
+        if (foundChat) {
+          setActiveOfficeChat(foundChat);
+          markOfficeChatRead(foundChat.id, 'vip');
+        } else {
+          const cleanId = String(msg.officeChatId || msg.id).replace(/^office_/, '');
+          const cleanBody = msg.body.replace(/^You \(Office\): "/, '').replace(/^(You|Office): "/, '').replace(/"$/, '');
+          setActiveOfficeChat({
+            id: cleanId,
+            residentId: cleanId,
+            residentName: msg.from.split(' (')[0] || 'Resident',
+            residentEmail: '',
+            residentApt: msg.senderApt || 'Resident',
+            residentPhone: msg.senderPhone || '',
+            residentAvatar: msg.senderAvatar || '',
+            subject: msg.subject || 'Office Inquiry',
+            lastMessage: msg.body,
+            updatedAt: Date.now(),
+            unreadByVip: false,
+            unreadByResident: false,
+            messages: [
+              {
+                id: 'msg_local_init',
+                senderId: cleanId,
+                senderName: msg.from.split(' (')[0] || 'Resident',
+                senderRole: 'resident',
+                body: cleanBody,
+                createdAt: Date.now(),
+                time: msg.time || 'Just now',
+              },
+            ],
+          });
+        }
+      } else {
+        const foundChat = officeChats[0] || null;
+        if (foundChat) {
+          setActiveOfficeChat(foundChat);
+          markOfficeChatRead(foundChat.id, 'resident');
+        } else {
+          const cleanBody = msg.body.replace(/^(Office|You): "/, '').replace(/"$/, '');
+          const residentDocId = getResidentChatDocId(currentUser);
+          setActiveOfficeChat({
+            id: residentDocId,
+            residentId: String(currentUser?.id || 'resident'),
+            residentName: effectiveName,
+            residentEmail: effectiveEmail,
+            residentApt: effectiveAddress,
+            residentPhone: effectivePhone,
+            residentAvatar: profilePhotoUrl,
+            subject: msg.subject || 'Office Inquiry',
+            lastMessage: msg.body,
+            updatedAt: Date.now(),
+            unreadByVip: false,
+            unreadByResident: false,
+            messages: [
+              {
+                id: 'msg_local_init',
+                senderId: String(currentUser?.id || 'resident'),
+                senderName: effectiveName,
+                senderRole: 'resident',
+                body: cleanBody,
+                createdAt: Date.now(),
+                time: msg.time || 'Just now',
+              },
+            ],
+          });
+        }
+      }
+    } else {
+      setActiveMaintenanceChat(null);
+      setActiveOfficeChat(null);
+      if (typeof msg.id === 'number') {
+        markMessageAsRead(msg.id);
+      }
+    }
   };
 
   const handleStartComposeToFriend = (friend: ResidentFriend) => {
@@ -271,7 +633,30 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     setActiveView('compose');
   };
 
+  const handleStartComposeToFriendInitial = () => {
+    if (residents.length === 0) {
+      showToast('No neighbor residents available to message');
+      return;
+    }
+    const friend = residents[0];
+    setComposeRecipient({
+      name: friend.name,
+      category: 'friend',
+      role: `Resident (${friend.apt})`,
+      apt: friend.apt,
+      phone: friend.phone,
+    });
+    setComposeSubject(`Hello ${friend.name.split(' ')[0]}!`);
+    setComposeBody('');
+    setActiveView('compose');
+  };
+
   const handleStartComposeToOffice = () => {
+    const existingOffice = allInboxMessages.find(m => m.senderCategory === 'office');
+    if (existingOffice && !userIsVip) {
+      handleOpenMessage(existingOffice);
+      return;
+    }
     setComposeRecipient({
       name: 'Community Office',
       category: 'office',
@@ -285,6 +670,11 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   };
 
   const handleStartComposeToMaintenance = () => {
+    const existingMaint = allInboxMessages.find(m => m.senderCategory === 'maintenance');
+    if (existingMaint && !userIsCrew) {
+      handleOpenMessage(existingMaint);
+      return;
+    }
     setComposeRecipient({
       name: 'Maintenance Crew',
       category: 'maintenance',
@@ -297,13 +687,133 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     setActiveView('compose');
   };
 
-  const handleSendComposedMessage = (e: React.FormEvent) => {
+  const handleSendComposedMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!composeBody.trim()) {
       showToast('Please type a message before sending');
       return;
     }
 
+    if (composeRecipient.category === 'maintenance') {
+      const messageBody = composeBody.trim();
+      const messageSubject = composeSubject.trim() || 'Maintenance Service Request';
+
+      // 1. Prepare resident target for Firestore sync
+      const residentTarget = userIsCrew && activeMaintenanceChat
+        ? {
+            id: activeMaintenanceChat.residentId,
+            name: activeMaintenanceChat.residentName,
+            email: activeMaintenanceChat.residentEmail,
+            unit: activeMaintenanceChat.residentApt,
+            address: activeMaintenanceChat.residentApt,
+            phone: activeMaintenanceChat.residentPhone,
+            avatar: activeMaintenanceChat.residentAvatar,
+          }
+        : {
+            id: currentUser?.id ? String(currentUser.id) : (currentUser?.email ? currentUser.email : 'resident'),
+            name: effectiveName,
+            email: effectiveEmail,
+            unit: effectiveAddress,
+            address: effectiveAddress,
+            phone: effectivePhone,
+            avatar: profilePhotoUrl,
+          };
+
+      const docId = getResidentChatDocId(residentTarget);
+
+      // 2. Immediately create and add to local state messages so it appears instantly in ALL and CREW!
+      const newMaintMsg: InboxMessage = {
+        id: `maint_${docId}`,
+        from: 'Maintenance Crew',
+        senderCategory: 'maintenance',
+        role: 'Facilities & Repairs',
+        subject: messageSubject,
+        body: `You: "${messageBody}"`,
+        time: 'Just now',
+        unread: false,
+        senderAvatar: '/crew-badge.svg',
+        senderPhone: '(904) 555-0105',
+        senderApt: 'Maintenance Depot',
+        maintenanceChatId: docId,
+      };
+
+      setMessages(prev => [newMaintMsg, ...prev.filter(m => m.maintenanceChatId !== docId && m.id !== `maint_${docId}`)]);
+
+      // 3. Persist to Firestore maintenance_chats
+      sendMaintenanceChatMessage({
+        resident: residentTarget,
+        sender: currentUser || { id: 'resident', name: effectiveName, role: 'resident' },
+        body: messageBody,
+        subject: messageSubject,
+      }).catch(err => console.warn('Maintenance chat sync warning:', err));
+
+      showToast(userIsCrew ? 'Reply sent to resident!' : 'Message sent to Maintenance Crew!');
+      setComposeBody('');
+      setComposeSubject('');
+      setActiveView('inbox');
+      setInboxFilter('all');
+      return;
+    }
+
+    if (composeRecipient.category === 'office') {
+      const messageBody = composeBody.trim();
+      const messageSubject = composeSubject.trim() || 'Office Inquiry';
+
+      // 1. Prepare resident target for Firestore sync
+      const residentTarget = userIsVip && activeOfficeChat
+        ? {
+            id: activeOfficeChat.residentId,
+            name: activeOfficeChat.residentName,
+            email: activeOfficeChat.residentEmail,
+            unit: activeOfficeChat.residentApt,
+            address: activeOfficeChat.residentApt,
+            phone: activeOfficeChat.residentPhone,
+            avatar: activeOfficeChat.residentAvatar,
+          }
+        : {
+            id: currentUser?.id ? String(currentUser.id) : (currentUser?.email ? currentUser.email : 'resident'),
+            name: effectiveName,
+            email: effectiveEmail,
+            unit: effectiveAddress,
+            address: effectiveAddress,
+            phone: effectivePhone,
+            avatar: profilePhotoUrl,
+          };
+
+      const docId = getResidentChatDocId(residentTarget);
+
+      const newOfficeMsg: InboxMessage = {
+        id: `office_${docId}`,
+        from: userIsVip && activeOfficeChat ? `${activeOfficeChat.residentName} (${activeOfficeChat.residentApt})` : 'Community Office',
+        senderCategory: 'office',
+        role: userIsVip && activeOfficeChat ? `Resident • ${activeOfficeChat.residentApt}` : 'Concierge & Front Office',
+        subject: messageSubject,
+        body: `You: "${messageBody}"`,
+        time: 'Just now',
+        unread: false,
+        senderPhone: '(904) 555-0100',
+        senderApt: 'Clubhouse Office',
+        officeChatId: docId,
+      };
+
+      setMessages(prev => [newOfficeMsg, ...prev.filter(m => m.officeChatId !== docId && m.id !== `office_${docId}`)]);
+
+      sendOfficeChatMessage({
+        resident: residentTarget,
+        sender: currentUser || { id: 'resident', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
+        body: messageBody,
+        subject: messageSubject,
+      }).catch(err => console.warn('Office chat sync warning:', err));
+
+      showToast(userIsVip ? 'Reply sent to resident!' : 'Message sent to Community Office!');
+      setComposeBody('');
+      setComposeSubject('');
+      setActiveView('inbox');
+      setInboxFilter('all');
+      return;
+    }
+
+    // Regular non-maintenance, non-office message (Friend)
     const newMessage: InboxMessage = {
       id: Date.now(),
       from: composeRecipient.name,
@@ -322,6 +832,176 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     setComposeBody('');
     setComposeSubject('');
     setActiveView('inbox');
+    setInboxFilter('all');
+  };
+
+  const handleSendInlineMaintenanceReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatReplyText.trim() || isSendingReply) return;
+
+    const replyContent = chatReplyText.trim();
+    setIsSendingReply(true);
+    setChatReplyText('');
+
+    // Optimistically append message to activeMaintenanceChat so it shows immediately!
+    const optimisticMessage: MaintenanceChatMessage = {
+      id: `msg_opt_${Date.now()}`,
+      senderId: String(currentUser?.id || currentUser?.email || 'me'),
+      senderName: currentUser?.name || (userIsCrew ? 'Maintenance Crew' : 'Resident'),
+      senderRole: userIsCrew ? 'crew' : 'resident',
+      senderAvatar: profilePhotoUrl,
+      body: replyContent,
+      createdAt: Date.now(),
+      time: 'Just now',
+    };
+
+    setActiveMaintenanceChat(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        messages: [...(prev.messages || []), optimisticMessage],
+        lastMessage: userIsCrew ? `${currentUser?.name || 'Crew'}: ${replyContent}` : replyContent,
+        updatedAt: Date.now(),
+      };
+    });
+
+    try {
+      const residentTarget = userIsCrew && activeMaintenanceChat
+        ? {
+            id: activeMaintenanceChat.residentId,
+            name: activeMaintenanceChat.residentName,
+            email: activeMaintenanceChat.residentEmail,
+            unit: activeMaintenanceChat.residentApt,
+            address: activeMaintenanceChat.residentApt,
+            phone: activeMaintenanceChat.residentPhone,
+            avatar: activeMaintenanceChat.residentAvatar,
+          }
+        : {
+            id: currentUser?.id ? String(currentUser.id) : (currentUser?.email ? currentUser.email : 'resident'),
+            name: effectiveName,
+            email: effectiveEmail,
+            unit: effectiveAddress,
+            address: effectiveAddress,
+            phone: effectivePhone,
+            avatar: profilePhotoUrl,
+          };
+
+      const docId = getResidentChatDocId(residentTarget);
+
+      const updatedMaintMsg: InboxMessage = {
+        id: `maint_${docId}`,
+        from: userIsCrew && activeMaintenanceChat ? `${activeMaintenanceChat.residentName} (${activeMaintenanceChat.residentApt})` : 'Maintenance Crew',
+        senderCategory: 'maintenance',
+        role: userIsCrew && activeMaintenanceChat ? `Resident • ${activeMaintenanceChat.residentApt}` : 'Facilities & Repairs',
+        subject: activeMaintenanceChat?.subject || 'Maintenance Service Request',
+        body: userIsCrew ? `${currentUser?.name || 'Crew'}: "${replyContent}"` : `You: "${replyContent}"`,
+        time: 'Just now',
+        unread: false,
+        senderAvatar: userIsCrew && activeMaintenanceChat ? activeMaintenanceChat.residentAvatar : '/crew-badge.svg',
+        senderPhone: userIsCrew && activeMaintenanceChat ? activeMaintenanceChat.residentPhone : '(904) 555-0105',
+        senderApt: userIsCrew && activeMaintenanceChat ? activeMaintenanceChat.residentApt : 'Maintenance Depot',
+        maintenanceChatId: docId,
+      };
+
+      setMessages(prev => [updatedMaintMsg, ...prev.filter(m => m.maintenanceChatId !== docId && m.id !== `maint_${docId}`)]);
+
+      await sendMaintenanceChatMessage({
+        resident: residentTarget,
+        sender: currentUser || { id: 'resident', name: effectiveName, role: userIsCrew ? 'crew' : 'resident' },
+        body: replyContent,
+        subject: activeMaintenanceChat?.subject || 'Maintenance Service Request',
+      });
+
+      showToast(userIsCrew ? 'Reply sent to resident!' : 'Message sent to Maintenance Crew!');
+    } catch (err) {
+      console.error('Failed to send maintenance reply:', err);
+      showToast('Failed to send message.');
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  const handleSendInlineOfficeReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!officeReplyText.trim() || isSendingOfficeReply) return;
+
+    const replyContent = officeReplyText.trim();
+    setIsSendingOfficeReply(true);
+    setOfficeReplyText('');
+
+    const optimisticMessage: OfficeChatMessage = {
+      id: `msg_opt_${Date.now()}`,
+      senderId: String(currentUser?.id || currentUser?.email || 'me'),
+      senderName: userIsVip ? 'Community Office' : (currentUser?.name || 'Resident'),
+      senderRole: userIsVip ? 'vip' : 'resident',
+      body: replyContent,
+      createdAt: Date.now(),
+      time: 'Just now',
+    };
+
+    setActiveOfficeChat(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        messages: [...(prev.messages || []), optimisticMessage],
+        lastMessage: replyContent,
+        updatedAt: Date.now(),
+      };
+    });
+
+    try {
+      const residentTarget = userIsVip && activeOfficeChat
+        ? {
+            id: activeOfficeChat.residentId,
+            name: activeOfficeChat.residentName,
+            email: activeOfficeChat.residentEmail,
+            unit: activeOfficeChat.residentApt,
+            address: activeOfficeChat.residentApt,
+            phone: activeOfficeChat.residentPhone,
+            avatar: activeOfficeChat.residentAvatar,
+          }
+        : {
+            id: currentUser?.id ? String(currentUser.id) : (currentUser?.email ? currentUser.email : 'resident'),
+            name: effectiveName,
+            email: effectiveEmail,
+            unit: effectiveAddress,
+            address: effectiveAddress,
+            phone: effectivePhone,
+            avatar: profilePhotoUrl,
+          };
+
+      const docId = getResidentChatDocId(residentTarget);
+
+      const updatedOfficeMsg: InboxMessage = {
+        id: `office_${docId}`,
+        from: userIsVip && activeOfficeChat ? `${activeOfficeChat.residentName} (${activeOfficeChat.residentApt})` : 'Community Office',
+        senderCategory: 'office',
+        role: userIsVip && activeOfficeChat ? `Resident • ${activeOfficeChat.residentApt}` : 'Concierge & Front Office',
+        subject: activeOfficeChat?.subject || 'Office Inquiry',
+        body: userIsVip ? `You (Office): "${replyContent}"` : `You: "${replyContent}"`,
+        time: 'Just now',
+        unread: false,
+        senderPhone: userIsVip && activeOfficeChat ? activeOfficeChat.residentPhone : '(904) 555-0100',
+        senderApt: userIsVip && activeOfficeChat ? activeOfficeChat.residentApt : 'Clubhouse Office',
+        officeChatId: docId,
+      };
+
+      setMessages(prev => [updatedOfficeMsg, ...prev.filter(m => m.officeChatId !== docId && m.id !== `office_${docId}`)]);
+
+      await sendOfficeChatMessage({
+        resident: residentTarget,
+        sender: currentUser || { id: 'resident', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
+        body: replyContent,
+        subject: activeOfficeChat?.subject || 'Office Inquiry',
+      });
+
+      showToast(userIsVip ? 'Reply sent to resident!' : 'Message sent to Community Office!');
+    } catch (err) {
+      console.error('Failed to send office reply:', err);
+      showToast('Failed to send message.');
+    } finally {
+      setIsSendingOfficeReply(false);
+    }
   };
 
   const handleLogout = () => {
@@ -334,8 +1014,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     }
   };
 
-  // Filtered Messages
-  const filteredMessages = messages.filter(msg => {
+  // Filtered Messages: ALWAYS based on allInboxMessages so live chats and updates appear properly in ALL and CREW!
+  const filteredMessages = allInboxMessages.filter(msg => {
     if (inboxFilter === 'all') return true;
     return msg.senderCategory === inboxFilter;
   });
@@ -659,36 +1339,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   </div>
                 </div>
 
-                {/* 5. SWITCH COMMUNITY */}
-                {onSwitchCommunity && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsOpen(false);
-                      onSwitchCommunity();
-                    }}
-                    className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left ${
-                      internalDarkMode
-                        ? 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80 text-slate-200'
-                        : 'bg-[#faf8f5] hover:bg-stone-100/90 border-stone-200/70 text-stone-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                        <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
-                      </div>
-                      <div>
-                        <p className="text-sm sm:text-base font-bold leading-snug">Switch Community</p>
-                        <p className="text-xs sm:text-[13px] text-stone-500 dark:text-slate-400">
-                          Return to community selection screen
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-stone-400 shrink-0" />
-                  </button>
-                )}
-
-                {/* 6. LOG OUT */}
+                {/* 5. LOG OUT */}
                 <button
                   onClick={() => setActiveView('logoutConfirm')}
                   className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left text-rose-600 dark:text-rose-400 ${
@@ -800,89 +1451,117 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     <p className="text-sm">No messages in this folder.</p>
                   </div>
                 ) : (
-                  filteredMessages.map(msg => (
-                    <div
-                      key={msg.id}
-                      onClick={() => {
-                        markMessageAsRead(msg.id);
-                        setSelectedMessage(msg);
-                      }}
-                      className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left group ${
-                        msg.unread
-                          ? internalDarkMode
-                            ? 'bg-slate-800/90 border-blue-500/50 shadow-xs'
-                            : 'bg-blue-50/60 border-blue-200/80 shadow-xs'
-                          : internalDarkMode
-                          ? 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800/70'
-                          : 'bg-[#faf8f5] border-stone-200/70 hover:bg-[#f3efe8]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-center gap-2.5">
-                          {/* Sender Category Tag / Icon */}
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                              msg.senderCategory === 'friend'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                : msg.senderCategory === 'office'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                            }`}
-                          >
-                            {msg.senderCategory === 'friend' && <Users className="w-4 h-4" />}
-                            {msg.senderCategory === 'office' && <Building2 className="w-4 h-4" />}
-                            {msg.senderCategory === 'maintenance' && <Wrench className="w-4 h-4" />}
-                          </div>
+                  filteredMessages.map(msg => {
+                    const isOffice = msg.senderCategory === 'office';
+                    const isCrew = msg.senderCategory === 'maintenance';
+                    const isFriend = msg.senderCategory === 'friend';
 
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold leading-tight truncate">{msg.from}</p>
-                              <span
-                                className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
-                                  msg.senderCategory === 'friend'
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
-                                    : msg.senderCategory === 'office'
-                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
-                                }`}
-                              >
-                                {msg.senderCategory === 'friend'
-                                  ? 'Friend'
-                                  : msg.senderCategory === 'office'
-                                  ? 'Office'
-                                  : 'Crew'}
-                              </span>
+                    const cardTheme = isOffice
+                      ? msg.unread
+                        ? internalDarkMode
+                          ? 'bg-blue-950/60 border-blue-500/80 border-l-[5px] border-l-blue-400 ring-1 ring-blue-500/40 shadow-xs'
+                          : 'bg-blue-50/90 border-blue-300 border-l-[5px] border-l-blue-600 ring-1 ring-blue-400/40 shadow-xs'
+                        : internalDarkMode
+                        ? 'bg-blue-950/30 border-blue-900/50 border-l-[5px] border-l-blue-500 hover:bg-blue-950/50 hover:border-blue-700'
+                        : 'bg-blue-50/55 border-blue-200/80 border-l-[5px] border-l-blue-500 hover:bg-blue-100/60 hover:border-blue-300'
+                      : isCrew
+                      ? msg.unread
+                        ? internalDarkMode
+                          ? 'bg-amber-950/60 border-amber-500/80 border-l-[5px] border-l-amber-400 ring-1 ring-amber-500/40 shadow-xs'
+                          : 'bg-amber-50/90 border-amber-300 border-l-[5px] border-l-amber-600 ring-1 ring-amber-400/40 shadow-xs'
+                        : internalDarkMode
+                        ? 'bg-amber-950/30 border-amber-900/50 border-l-[5px] border-l-amber-500 hover:bg-amber-950/50 hover:border-amber-700'
+                        : 'bg-amber-50/55 border-amber-200/80 border-l-[5px] border-l-amber-500 hover:bg-amber-100/60 hover:border-amber-300'
+                      : msg.unread
+                      ? internalDarkMode
+                        ? 'bg-emerald-950/60 border-emerald-500/80 border-l-[5px] border-l-emerald-400 ring-1 ring-emerald-500/40 shadow-xs'
+                        : 'bg-emerald-50/90 border-emerald-300 border-l-[5px] border-l-emerald-600 ring-1 ring-emerald-400/40 shadow-xs'
+                      : internalDarkMode
+                      ? 'bg-emerald-950/30 border-emerald-900/50 border-l-[5px] border-l-emerald-500 hover:bg-emerald-950/50 hover:border-emerald-700'
+                      : 'bg-emerald-50/55 border-emerald-200/80 border-l-[5px] border-l-emerald-500 hover:bg-emerald-100/60 hover:border-emerald-300';
+
+                    const dotColor = isOffice
+                      ? 'bg-blue-600 dark:bg-blue-400'
+                      : isCrew
+                      ? 'bg-amber-600 dark:bg-amber-400'
+                      : 'bg-emerald-600 dark:bg-emerald-400';
+
+                    return (
+                      <div
+                        key={msg.id}
+                        onClick={() => handleOpenMessage(msg)}
+                        className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left group ${cardTheme}`}
+                      >
+                        <div className="flex items-start justify-between gap-2.5">
+                          <div className="flex items-center gap-2.5">
+                            {/* Sender Category Tag / Icon */}
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                                isFriend
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200/70 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800/60'
+                                  : isOffice
+                                  ? 'bg-blue-100 text-blue-800 border-blue-200/70 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800/60'
+                                  : 'bg-amber-100 text-amber-800 border-amber-200/70 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/60'
+                              }`}
+                            >
+                              {isFriend && <Users className="w-4 h-4" />}
+                              {isOffice && <Building2 className="w-4 h-4" />}
+                              {isCrew && (
+                                <img src="/crew-badge.svg" alt="Crew" className="w-4 h-4 object-contain inline-block" />
+                              )}
                             </div>
-                            <p className="text-xs text-stone-500 dark:text-slate-400 truncate mt-0.5">
-                              {msg.role}
-                            </p>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold leading-tight truncate">{msg.from}</p>
+                                <span
+                                  className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${
+                                    isFriend
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200/80 dark:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800/60'
+                                      : isOffice
+                                      ? 'bg-blue-100 text-blue-800 border-blue-200/80 dark:bg-blue-900/60 dark:text-blue-300 dark:border-blue-800/60'
+                                      : 'bg-amber-100 text-amber-800 border-amber-200/80 dark:bg-amber-900/60 dark:text-amber-300 dark:border-amber-800/60'
+                                  }`}
+                                >
+                                  {isFriend
+                                    ? 'Friend'
+                                    : isOffice
+                                    ? 'Office'
+                                    : 'Crew'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-stone-500 dark:text-slate-400 truncate mt-0.5">
+                                {msg.role}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs text-stone-400 dark:text-slate-500 font-medium">
+                              {msg.time}
+                            </span>
+                            {msg.unread && (
+                              <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs text-stone-400 dark:text-slate-500">
-                            {msg.time}
-                          </span>
-                          {msg.unread && (
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                          )}
-                        </div>
+                        <h4 className="text-sm font-bold mt-2.5 text-stone-900 dark:text-white leading-snug line-clamp-1 group-hover:underline">
+                          {msg.subject}
+                        </h4>
+                        <p className="text-xs sm:text-sm text-stone-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                          {msg.body}
+                        </p>
                       </div>
-
-                      <h4 className="text-sm font-bold mt-2.5 text-stone-900 dark:text-white leading-snug line-clamp-1">
-                        {msg.subject}
-                      </h4>
-                      <p className="text-xs sm:text-sm text-stone-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
-                        {msg.body}
-                      </p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
               {/* Compose New Message Shortcuts */}
               <div className="pt-1 flex gap-2">
                 <button
+                  type="button"
                   onClick={handleStartComposeToOffice}
                   className="flex-1 py-2.5 px-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800 transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
@@ -891,15 +1570,17 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleStartComposeToMaintenance}
                   className="flex-1 py-2.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-xs font-bold border border-amber-200 dark:border-amber-800 transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <Wrench className="w-4 h-4" />
+                  <img src="/crew-badge.svg" alt="Crew" className="w-4 h-4 object-contain inline-block" />
                   <span>Msg Crew</span>
                 </button>
 
                 <button
-                  onClick={() => setActiveView('friends')}
+                  type="button"
+                  onClick={handleStartComposeToFriendInitial}
                   className="flex-1 py-2.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Users className="w-4 h-4" />
@@ -909,8 +1590,378 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
             </div>
           )}
 
-          {/* ================= VIEW 2B: SINGLE MESSAGE DETAIL ================= */}
-          {activeView === 'inbox' && selectedMessage && (
+          {/* ================= VIEW 2B: MAINTENANCE GROUP CHAT VIEW ================= */}
+          {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'maintenance' && (
+            <div className="space-y-3 flex flex-col h-[520px] sm:h-[580px]">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 shrink-0">
+                <button
+                  onClick={() => {
+                    setSelectedMessage(null);
+                    setActiveMaintenanceChat(null);
+                  }}
+                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                  All Messages
+                </button>
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800">
+                  <img src="/crew-badge.svg" alt="Crew" className="w-3.5 h-3.5 object-contain inline-block" />
+                  <span>Maintenance Team</span>
+                </span>
+              </div>
+
+              {/* Chat Subject / Info Banner */}
+              <div
+                className={`p-3 rounded-2xl border flex items-center justify-between shrink-0 ${
+                  internalDarkMode ? 'bg-amber-950/20 border-amber-900/50' : 'bg-amber-50/50 border-amber-200/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 flex items-center justify-center shrink-0">
+                    <img src="/crew-badge.svg" alt="Crew" className="w-5 h-5 object-contain inline-block" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold truncate">
+                      {userIsCrew && activeMaintenanceChat
+                        ? `${activeMaintenanceChat.residentName} (${activeMaintenanceChat.residentApt})`
+                        : 'Maintenance Crew'}
+                    </h4>
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate">
+                      {userIsCrew && activeMaintenanceChat
+                        ? (activeMaintenanceChat.residentPhone ? `Tel: ${activeMaintenanceChat.residentPhone}` : 'Direct Resident Inquiry')
+                        : 'Facilities & Repairs • (904) 555-0105'}
+                    </p>
+                  </div>
+                </div>
+                {userIsCrew && activeMaintenanceChat && activeMaintenanceChat.residentPhone && (
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText?.(activeMaintenanceChat.residentPhone || '');
+                      showToast(`Copied ${activeMaintenanceChat.residentPhone}`);
+                    }}
+                    className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline shrink-0"
+                  >
+                    Copy Phone
+                  </button>
+                )}
+              </div>
+
+              {/* Conversation Messages Thread */}
+              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl bg-stone-50/70 dark:bg-slate-900/60 border border-stone-200/80 dark:border-slate-800 pr-2">
+                {activeMaintenanceChat && activeMaintenanceChat.messages && activeMaintenanceChat.messages.length > 0 ? (
+                  activeMaintenanceChat.messages.map((m) => {
+                    if (userIsCrew) {
+                      // CREW PERSPECTIVE:
+                      // Crew sees each crew member distinctly and the resident!
+                      const isFromMe = m.senderId === String(currentUser?.id || currentUser?.email);
+                      const isFromOtherCrew = m.senderRole === 'crew' && !isFromMe;
+                      const isFromResident = m.senderRole !== 'crew';
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col ${isFromMe ? 'items-end' : 'items-start'}`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1 px-1">
+                            {m.senderRole === 'crew' && (
+                              <img
+                                src="/crew-badge.svg"
+                                alt="Crew"
+                                className="w-3.5 h-3.5 object-contain inline-block"
+                              />
+                            )}
+                            <span className="text-[11px] font-bold text-stone-600 dark:text-slate-300">
+                              {isFromMe
+                                ? `You (${currentUser?.name || 'Crew'})`
+                                : isFromOtherCrew
+                                ? `${m.senderName} (Crew)`
+                                : `${activeMaintenanceChat.residentName} (Resident)`}
+                            </span>
+                            <span className="text-[10px] text-stone-400">{m.time}</span>
+                          </div>
+                          <div
+                            className={`p-3 rounded-2xl max-w-[85%] text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-2xs ${
+                              isFromMe
+                                ? 'bg-blue-600 text-white rounded-br-xs'
+                                : isFromOtherCrew
+                                ? 'bg-indigo-100 text-indigo-950 dark:bg-indigo-950/80 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800 rounded-bl-xs'
+                                : 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/60 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 rounded-bl-xs'
+                            }`}
+                          >
+                            {m.body}
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      // RESIDENT PERSPECTIVE:
+                      // Resident sees one single chat with Maintenance Crew!
+                      const isFromResident = m.senderRole !== 'crew';
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col ${isFromResident ? 'items-end' : 'items-start'}`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1 px-1">
+                            {!isFromResident && (
+                              <img
+                                src="/crew-badge.svg"
+                                alt="Crew"
+                                className="w-3.5 h-3.5 object-contain inline-block"
+                              />
+                            )}
+                            <span className="text-[11px] font-bold text-stone-600 dark:text-slate-300">
+                              {isFromResident ? 'You' : 'Maintenance Crew'}
+                            </span>
+                            <span className="text-[10px] text-stone-400">{m.time}</span>
+                          </div>
+                          <div
+                            className={`p-3 rounded-2xl max-w-[85%] text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-2xs ${
+                              isFromResident
+                                ? 'bg-emerald-600 text-white rounded-br-xs'
+                                : 'bg-[#edf5ee] text-[#124d2c] dark:bg-slate-800 dark:text-emerald-300 border border-[#bcdbc6] dark:border-slate-700 rounded-bl-xs'
+                            }`}
+                          >
+                            {m.body}
+                          </div>
+                        </div>
+                      );
+                    }
+                  })
+                ) : (
+                  <div className="text-center py-10 text-stone-400 dark:text-slate-500 space-y-2">
+                    <img src="/crew-badge.svg" alt="Crew" className="w-10 h-10 object-contain mx-auto opacity-70" />
+                    <p className="text-xs sm:text-sm font-semibold">
+                      {userIsCrew ? 'No previous messages in this thread.' : 'Send a message to our Maintenance Crew.'}
+                    </p>
+                    <p className="text-[11px] text-stone-400 max-w-xs mx-auto">
+                      {userIsCrew
+                        ? 'Any reply you send will be visible to all crew members and the resident.'
+                        : 'All on-duty crew members will receive your message and can reply directly here.'}
+                    </p>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Inline Reply Input */}
+              <form onSubmit={handleSendInlineMaintenanceReply} className="flex gap-2 items-center pt-1 shrink-0">
+                <input
+                  type="text"
+                  value={chatReplyText}
+                  onChange={(e) => setChatReplyText(e.target.value)}
+                  placeholder={
+                    userIsCrew
+                      ? `Reply as ${currentUser?.name || 'Crew'} (Maintenance Crew)...`
+                      : 'Type a message to Maintenance Crew...'
+                  }
+                  className="flex-1 py-2.5 px-3.5 rounded-xl border border-stone-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                  disabled={isSendingReply}
+                />
+                <button
+                  type="submit"
+                  disabled={!chatReplyText.trim() || isSendingReply}
+                  className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">Send</span>
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ================= VIEW 2C: COMMUNITY OFFICE CHAT VIEW (INTERACTIVE) ================= */}
+          {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'office' && (
+            <div className="space-y-3 flex flex-col h-[520px] sm:h-[580px]">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 shrink-0">
+                <button
+                  onClick={() => {
+                    setSelectedMessage(null);
+                    setActiveOfficeChat(null);
+                  }}
+                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                  All Messages
+                </button>
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-800">
+                  <Building2 className="w-3.5 h-3.5 inline-block" />
+                  <span>{userIsVip ? 'Resident Office Inquiry' : 'Community Office'}</span>
+                </span>
+              </div>
+
+              {/* Chat Subject / Info Banner */}
+              <div
+                className={`p-3 rounded-2xl border flex items-center justify-between shrink-0 ${
+                  internalDarkMode ? 'bg-blue-950/20 border-blue-900/50' : 'bg-blue-50/50 border-blue-200/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/80 flex items-center justify-center shrink-0">
+                    {userIsVip && activeOfficeChat?.residentAvatar ? (
+                      <img
+                        src={activeOfficeChat.residentAvatar}
+                        alt={activeOfficeChat.residentName}
+                        className="w-full h-full rounded-xl object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <Building2 className="w-5 h-5 text-blue-800 dark:text-blue-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold truncate">
+                      {userIsVip && activeOfficeChat
+                        ? `${activeOfficeChat.residentName} (${activeOfficeChat.residentApt})`
+                        : 'Community Office'}
+                    </h4>
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate">
+                      {userIsVip && activeOfficeChat
+                        ? (activeOfficeChat.residentPhone ? `Tel: ${activeOfficeChat.residentPhone}` : 'Direct Resident Inquiry')
+                        : 'Concierge & Front Office • (904) 555-0100 • Clubhouse'}
+                    </p>
+                  </div>
+                </div>
+
+                {userIsVip && activeOfficeChat?.residentPhone ? (
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText?.(activeOfficeChat.residentPhone || '');
+                      showToast(`Copied ${activeOfficeChat.residentPhone}`);
+                    }}
+                    className="text-xs font-bold text-blue-700 dark:text-blue-400 hover:underline shrink-0"
+                  >
+                    Copy Phone
+                  </button>
+                ) : (
+                  !userIsVip && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText?.('(904) 555-0100');
+                        showToast('Copied (904) 555-0100');
+                      }}
+                      className="text-xs font-bold text-blue-700 dark:text-blue-400 hover:underline shrink-0"
+                    >
+                      Copy Phone
+                    </button>
+                  )
+                )}
+              </div>
+
+              {/* Conversation Messages Thread */}
+              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl bg-stone-50/70 dark:bg-slate-900/60 border border-stone-200/80 dark:border-slate-800 pr-2">
+                {activeOfficeChat && activeOfficeChat.messages && activeOfficeChat.messages.length > 0 ? (
+                  activeOfficeChat.messages.map((m) => {
+                    if (userIsVip) {
+                      // VIP PERSPECTIVE:
+                      // VIP sees which resident they're chatting with, and their own replies as You (Community Office)
+                      const isFromVip = m.senderRole === 'vip' || m.senderId === String(currentUser?.id || currentUser?.email);
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col ${isFromVip ? 'items-end' : 'items-start'}`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1 px-1">
+                            {isFromVip ? (
+                              <Building2 className="w-3.5 h-3.5 text-blue-600 inline-block" />
+                            ) : null}
+                            <span className="text-[11px] font-bold text-stone-600 dark:text-slate-300">
+                              {isFromVip
+                                ? 'You (Community Office)'
+                                : `${activeOfficeChat.residentName} (Resident)`}
+                            </span>
+                            <span className="text-[10px] text-stone-400">{m.time}</span>
+                          </div>
+                          <div
+                            className={`p-3 rounded-2xl max-w-[85%] text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-2xs ${
+                              isFromVip
+                                ? 'bg-blue-600 text-white rounded-br-xs'
+                                : 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/60 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 rounded-bl-xs'
+                            }`}
+                          >
+                            {m.body}
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      // RESIDENT PERSPECTIVE:
+                      // Resident only sees "Community Office" — never knows the personal identity or name of the VIP
+                      const isFromResident = m.senderRole !== 'vip';
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col ${isFromResident ? 'items-end' : 'items-start'}`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1 px-1">
+                            {!isFromResident && (
+                              <Building2 className="w-3.5 h-3.5 text-blue-600 inline-block" />
+                            )}
+                            <span className="text-[11px] font-bold text-stone-600 dark:text-slate-300">
+                              {isFromResident ? 'You' : 'Community Office'}
+                            </span>
+                            <span className="text-[10px] text-stone-400">{m.time}</span>
+                          </div>
+                          <div
+                            className={`p-3 rounded-2xl max-w-[85%] text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-2xs ${
+                              isFromResident
+                                ? 'bg-emerald-600 text-white rounded-br-xs'
+                                : 'bg-blue-50 text-blue-950 dark:bg-slate-800 dark:text-blue-200 border border-blue-200 dark:border-slate-700 rounded-bl-xs'
+                            }`}
+                          >
+                            {m.body}
+                          </div>
+                        </div>
+                      );
+                    }
+                  })
+                ) : (
+                  <div className="text-center py-10 text-stone-400 dark:text-slate-500 space-y-2">
+                    <Building2 className="w-10 h-10 mx-auto opacity-70 text-blue-600" />
+                    <p className="text-xs sm:text-sm font-semibold">
+                      {userIsVip ? 'No previous messages in this resident inquiry.' : 'Send an inquiry to the Community Office.'}
+                    </p>
+                    <p className="text-[11px] text-stone-400 max-w-xs mx-auto">
+                      {userIsVip
+                        ? 'Your replies appear to the resident as Community Office, keeping staff personal profiles private.'
+                        : 'Our Community Office team will receive your message and respond directly here.'}
+                    </p>
+                  </div>
+                )}
+                <div ref={officeChatEndRef} />
+              </div>
+
+              {/* Inline Office Reply Input */}
+              <form onSubmit={handleSendInlineOfficeReply} className="flex gap-2 items-center pt-1 shrink-0">
+                <input
+                  type="text"
+                  value={officeReplyText}
+                  onChange={(e) => setOfficeReplyText(e.target.value)}
+                  placeholder={
+                    userIsVip
+                      ? `Reply as Community Office to ${activeOfficeChat?.residentName || 'resident'}...`
+                      : 'Type a message to Community Office...'
+                  }
+                  className="flex-1 py-2.5 px-3.5 rounded-xl border border-stone-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  disabled={isSendingOfficeReply}
+                />
+                <button
+                  type="submit"
+                  disabled={!officeReplyText.trim() || isSendingOfficeReply}
+                  className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">Send</span>
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ================= VIEW 2D: SINGLE FRIEND MESSAGE VIEW ================= */}
+          {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'friend' && (
             <div className="space-y-3.5">
               <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800">
                 <button
@@ -920,27 +1971,15 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   <ChevronLeft className="w-5 h-5" />
                   All Messages
                 </button>
-                <span
-                  className={`text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
-                    selectedMessage.senderCategory === 'friend'
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
-                      : selectedMessage.senderCategory === 'office'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300'
-                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
-                  }`}
-                >
-                  {selectedMessage.senderCategory === 'friend'
-                    ? 'Friend'
-                    : selectedMessage.senderCategory === 'office'
-                    ? 'Community Office'
-                    : 'Maintenance Crew'}
+                <span className="text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+                  Friend
                 </span>
               </div>
 
               {/* Message Header */}
               <div
                 className={`p-4 sm:p-5 rounded-2xl border space-y-3 ${
-                  internalDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-[#faf8f5] border-stone-200/80'
+                  internalDarkMode ? 'bg-emerald-950/20 border-emerald-900/50' : 'bg-emerald-50/50 border-emerald-200/80'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -953,18 +1992,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div
-                        className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm ${
-                          selectedMessage.senderCategory === 'office'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {selectedMessage.senderCategory === 'office' ? (
-                          <Building2 className="w-5 h-5" />
-                        ) : (
-                          <Wrench className="w-5 h-5" />
-                        )}
+                      <div className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm bg-emerald-100 text-emerald-800">
+                        <Users className="w-5 h-5" />
                       </div>
                     )}
                     <div>
@@ -1343,7 +2372,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     >
                       {composeRecipient.category === 'friend' && <Users className="w-4 h-4" />}
                       {composeRecipient.category === 'office' && <Building2 className="w-4 h-4" />}
-                      {composeRecipient.category === 'maintenance' && <Wrench className="w-4 h-4" />}
+                      {composeRecipient.category === 'maintenance' && (
+                        <img src="/crew-badge.svg" alt="Crew" className="w-4 h-4 object-contain inline-block" />
+                      )}
                     </div>
                     <div>
                       <p className="text-xs uppercase font-bold text-stone-400">Recipient</p>
@@ -1364,9 +2395,45 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                       ? 'Friend'
                       : composeRecipient.category === 'office'
                       ? 'Office'
-                      : 'Maintenance'}
+                      : 'Crew'}
                   </span>
                 </div>
+
+                {/* If Friend: allow switching recipient friend directly without having to visit another directory */}
+                {composeRecipient.category === 'friend' && residents.length > 0 && (
+                  <div>
+                    <label className="block text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 mb-1">
+                      Choose Neighbor / Friend
+                    </label>
+                    <select
+                      value={composeRecipient.name}
+                      onChange={(e) => {
+                        const target = residents.find(r => r.name === e.target.value);
+                        if (target) {
+                          setComposeRecipient({
+                            name: target.name,
+                            category: 'friend',
+                            role: `Resident (${target.apt})`,
+                            apt: target.apt,
+                            phone: target.phone,
+                          });
+                          setComposeSubject(`Hello ${target.name.split(' ')[0]}!`);
+                        }
+                      }}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border outline-none font-medium cursor-pointer ${
+                        internalDarkMode
+                          ? 'bg-slate-800 border-slate-700 text-white'
+                          : 'bg-[#faf8f5] border-stone-200 text-stone-900'
+                      }`}
+                    >
+                      {residents.map((r) => (
+                        <option key={r.id} value={r.name}>
+                          {r.name} ({r.apt})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Subject Input */}
                 <div>
@@ -1516,24 +2583,6 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 >
                   Request Profile Update
                 </button>
-
-                {onSwitchCommunity && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsOpen(false);
-                      onSwitchCommunity();
-                    }}
-                    className={`w-full py-2.5 px-3 rounded-2xl border text-xs sm:text-sm font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs ${
-                      internalDarkMode
-                        ? 'border-slate-700 hover:bg-slate-800 text-slate-200'
-                        : 'border-stone-300 hover:bg-stone-100 text-stone-700'
-                    }`}
-                  >
-                    <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span>Switch Community</span>
-                  </button>
-                )}
               </div>
             </div>
           )}

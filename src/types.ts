@@ -224,3 +224,58 @@ export interface MedicationItem {
 }
 
 export type PortalTab = 'home' | 'news' | 'workorders' | 'social';
+
+export interface MaintenanceChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'resident' | 'crew' | 'admin' | string;
+  senderAvatar?: string;
+  body: string;
+  createdAt: number;
+  time: string;
+}
+
+export interface MaintenanceChat {
+  id: string; // residentId
+  residentId: string;
+  residentName: string;
+  residentEmail: string;
+  residentApt: string;
+  residentPhone?: string;
+  residentAvatar?: string;
+  subject: string;
+  lastMessage: string;
+  updatedAt: number;
+  unreadByCrew: boolean;
+  unreadByResident: boolean;
+  messages: MaintenanceChatMessage[];
+}
+
+export interface OfficeChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'resident' | 'vip' | 'admin' | string;
+  senderAvatar?: string;
+  body: string;
+  createdAt: number;
+  time: string;
+}
+
+export interface OfficeChat {
+  id: string; // residentId
+  residentId: string;
+  residentName: string;
+  residentEmail: string;
+  residentApt: string;
+  residentPhone?: string;
+  residentAvatar?: string;
+  subject: string;
+  lastMessage: string;
+  updatedAt: number;
+  unreadByVip: boolean;
+  unreadByResident: boolean;
+  messages: OfficeChatMessage[];
+}
+

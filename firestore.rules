@@ -97,6 +97,16 @@ service cloud.firestore {
       allow write: if isManager();
     }
 
+    match /maintenance_chats/{chatId} {
+      allow read: if isApproved();
+      allow write: if isApproved();
+    }
+
+    match /office_chats/{chatId} {
+      allow read: if isApproved();
+      allow write: if isApproved();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
