@@ -44,45 +44,57 @@ section[aria-label="Daily Medications"],
 }
 
 .liquid-dock {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  background-color: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(24px) saturate(190%) contrast(110%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%) contrast(110%);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform, backdrop-filter;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 
-    0 20px 45px -10px rgba(0, 0, 0, 0.14),
-    0 8px 16px -4px rgba(0, 0, 0, 0.08),
-    inset 0 2px 4px rgba(0, 0, 0, 0.04),
-    inset 0 -1.5px 2px rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
   padding: 8px 10px;
 }
 
 .dark .liquid-dock {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.35);
+  background-color: rgba(2, 6, 23, 0.50); /* slate-950/50 */
+  backdrop-filter: blur(24px) saturate(190%) contrast(110%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%) contrast(110%);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform, backdrop-filter;
+  border: 1px solid rgba(255, 255, 255, 0.10); /* border-white/10 */
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
 }
 
-.liquid-dock button,
-.liquid-dock button span {
-  color: #000000 !important;
+.liquid-dock button.is-active,
+.liquid-dock button.is-active span {
+  color: #000000;
 }
 
-.liquid-dock svg {
-  color: #000000 !important;
-  stroke: #000000 !important;
+.liquid-dock button.is-active svg {
+  color: #000000;
+  stroke: #000000;
 }
 
-.dark .liquid-dock button,
-.dark .liquid-dock button span {
-  color: #000000 !important;
+.dark .liquid-dock button.is-active,
+.dark .liquid-dock button.is-active span {
+  color: #f1f5f9; /* slate-100 */
 }
 
-.dark .liquid-dock svg {
-  color: #000000 !important;
-  stroke: #000000 !important;
+.dark .liquid-dock button.is-active svg {
+  color: #f1f5f9;
+  stroke: #f1f5f9;
+}
+
+.dark .liquid-dock button:not(.is-active),
+.dark .liquid-dock button:not(.is-active) span {
+  color: #94a3b8; /* slate-400 */
+}
+
+.dark .liquid-dock button:not(.is-active) svg {
+  color: #94a3b8;
+  stroke: #94a3b8;
 }
 
 .liquid-glass-oval {
@@ -115,6 +127,28 @@ section[aria-label="Daily Medications"],
   border-radius: 9999px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
   pointer-events: none;
+}
+
+/* Dark mode liquid glass oval indicator: eliminates solid white block artifacts with crystal-clear refractive acrylic */
+.dark .liquid-glass-oval {
+  background: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.10) 85%,
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 -1.5px 2px rgba(255, 255, 255, 0.15),
+    0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.dark .liquid-glass-oval::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
 /* Liquid Glass Pill Button (Extruded 3D glass lens matching reference image) */
@@ -224,6 +258,46 @@ section[aria-label="Daily Medications"],
     inset 0 1.5px 1.5px rgba(255, 255, 255, 0.9),
     inset 0 -1.5px 2px rgba(80, 90, 105, 0.18);
   color: #475569;
+}
+
+/* Dark mode liquid glass pill */
+.dark .liquid-glass-pill {
+  background: linear-gradient(
+    175deg,
+    rgba(30, 41, 59, 0.90) 0%,
+    rgba(15, 23, 42, 0.85) 45%,
+    rgba(30, 41, 59, 0.80) 100%
+  );
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.15),
+    0 0 0 3px rgba(51, 65, 85, 0.4),
+    0 5px 14px -2px rgba(0, 0, 0, 0.4),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.2),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.4);
+  color: #f1f5f9;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.dark .liquid-glass-pill::before {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(255, 255, 255, 0.05) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+.dark .liquid-glass-pill.sold-state {
+  background: linear-gradient(
+    175deg,
+    rgba(15, 23, 42, 0.85) 0%,
+    rgba(30, 41, 59, 0.75) 100%
+  );
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.1),
+    0 0 0 2.5px rgba(51, 65, 85, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
 }
 
 /* Weather Animations (iPhone Weather App style) */

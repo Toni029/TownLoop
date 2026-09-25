@@ -266,7 +266,7 @@ export function WorkOrdersScreen({
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-stone-100 serif-title">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 serif-title">
               Work Orders
             </h2>
             {isUserCrew ? (
@@ -287,7 +287,7 @@ export function WorkOrdersScreen({
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 dark:text-stone-400 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {seesAllWorkOrders
               ? `All community maintenance tickets (${visibleWorkOrders.length}) • Live tracking & photo verification`
               : `Your maintenance requests (${visibleWorkOrders.length}) • Live tracking & photo verification`}
@@ -324,14 +324,14 @@ export function WorkOrdersScreen({
       {/* Tickets List */}
       <div className="space-y-3">
         {visibleWorkOrders.length === 0 ? (
-          <div className="text-center py-10 px-4 bg-white dark:bg-stone-800 rounded-2xl border border-stone-200 dark:border-stone-700 space-y-2">
+          <div className="text-center py-10 px-4 bg-white dark:bg-slate-900/80 rounded-2xl border border-stone-200/80 dark:border-slate-800 space-y-2">
             <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center mx-auto mb-1">
               <Wrench className="w-6 h-6" />
             </div>
-            <p className="font-bold text-stone-800 dark:text-stone-100 text-sm">
+            <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">
               {seesAllWorkOrders ? 'No work orders in queue' : 'You have no active work orders'}
             </p>
-            <p className="text-xs text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
               {seesAllWorkOrders
                 ? 'All maintenance tickets have been resolved or deleted.'
                 : 'As a resident, you only see the requests you create. Tap "New Request" above to submit a maintenance issue.'}
@@ -385,10 +385,10 @@ export function WorkOrdersScreen({
                     isExpanded ? 'p-3.5 sm:p-4 space-y-3.5 shadow-sm' : 'pl-0.5 sm:pl-1 pr-2 sm:pr-3 py-1.5 sm:py-2 shadow-xs'
                   } ${
                     isDone
-                      ? 'bg-stone-100/90 dark:bg-stone-900/90 border border-stone-300 dark:border-stone-800 text-stone-500 dark:text-stone-400 opacity-60 grayscale hover:opacity-85'
+                      ? 'bg-stone-100/90 dark:bg-slate-900/90 border border-stone-300 dark:border-slate-800 text-stone-500 dark:text-slate-400 opacity-60 grayscale hover:opacity-85'
                       : isInProgress
-                      ? 'bg-white dark:bg-stone-900 border-2 border-emerald-500/80 ring-2 ring-emerald-100 dark:ring-emerald-950'
-                      : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 hover:border-emerald-300 dark:hover:border-emerald-700/60'
+                      ? 'bg-white dark:bg-slate-900/90 border-2 border-emerald-500/80 ring-2 ring-emerald-100 dark:ring-emerald-950'
+                      : 'bg-white dark:bg-slate-900/80 border border-stone-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700/60'
                   }`}
                 >
                   {/* ======================================================== */}
@@ -408,7 +408,7 @@ export function WorkOrdersScreen({
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 ${
                               isDone
-                                ? 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-300 dark:border-stone-700'
+                                ? 'bg-stone-200 dark:bg-slate-800 text-stone-600 dark:text-slate-400 border border-stone-300 dark:border-slate-700'
                                 : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                             }`}
                           >
@@ -416,8 +416,8 @@ export function WorkOrdersScreen({
                             <span>{wo.category}</span>
                           </span>
                           {seesAllWorkOrders && wo.userName && (
-                            <span className="text-[10px] text-stone-500 dark:text-stone-400 hidden sm:inline">
-                              • Requested by <span className="font-semibold text-stone-700 dark:text-stone-200">{isCreator ? 'You' : wo.userName}</span>
+                            <span className="text-[10px] text-stone-500 dark:text-slate-400 hidden sm:inline">
+                              • Requested by <span className="font-semibold text-stone-700 dark:text-slate-200">{isCreator ? 'You' : wo.userName}</span>
                             </span>
                           )}
                         </div>
@@ -427,8 +427,8 @@ export function WorkOrdersScreen({
                             isExpanded ? 'break-words whitespace-normal' : 'line-clamp-1'
                           } ${
                             isDone
-                              ? 'text-stone-500 dark:text-stone-400 line-through decoration-stone-400'
-                              : 'text-stone-900 dark:text-stone-100 hover:text-emerald-700 dark:hover:text-emerald-400'
+                              ? 'text-stone-500 dark:text-slate-400 line-through decoration-stone-400'
+                              : 'text-stone-900 dark:text-slate-100 hover:text-emerald-700 dark:hover:text-emerald-400'
                           }`}
                         >
                           {displayTitle}
@@ -500,11 +500,11 @@ export function WorkOrdersScreen({
                       onClick={(e) => e.stopPropagation()}
                     >
                       {/* Meaningful Unified Status Tag, Translation Badge & Trashcan Delete Row */}
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-200 dark:border-stone-700/80">
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-200 dark:border-slate-800">
                         {/* Left: Status Badge & Translation */}
                         <div className="flex items-center gap-2 min-w-0 flex-wrap">
                           {isDone ? (
-                            <span className="text-xs font-bold bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-300 px-3 py-1 rounded-full flex items-center gap-1.5 border border-stone-300 dark:border-stone-700 shadow-2xs shrink-0">
+                            <span className="text-xs font-bold bg-stone-200 dark:bg-slate-800 text-stone-600 dark:text-slate-300 px-3 py-1 rounded-full flex items-center gap-1.5 border border-stone-300 dark:border-slate-700 shadow-2xs shrink-0">
                               <Check className="w-3.5 h-3.5 text-stone-500 stroke-[3]" />
                               Completed (Done)
                             </span>
@@ -563,7 +563,7 @@ export function WorkOrdersScreen({
                             {confirmDeleteId === wo.id ? (
                               <div
                                 onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-xl px-2.5 py-1 animate-in fade-in"
+                                className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-xl px-2.5 py-1 animate-in fade-in"
                               >
                                 <span className="text-[11px] font-bold text-rose-700 dark:text-rose-300">
                                   Delete?
@@ -583,7 +583,7 @@ export function WorkOrdersScreen({
                                     e.stopPropagation();
                                     setConfirmDeleteId(null);
                                   }}
-                                  className="text-[11px] text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 font-medium px-1.5 py-0.5 cursor-pointer"
+                                  className="text-[11px] text-stone-500 hover:text-stone-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium px-1.5 py-0.5 cursor-pointer"
                                 >
                                   Cancel
                                 </button>
@@ -606,12 +606,12 @@ export function WorkOrdersScreen({
 
                       {/* Detailed Description with small thin line frame */}
                       {displayDescription && (
-                        <div className="p-3 sm:p-3.5 rounded-xl border border-stone-200 dark:border-stone-700/80 bg-stone-50/70 dark:bg-stone-800/50 shadow-2xs">
+                        <div className="p-3 sm:p-3.5 rounded-xl border border-stone-200 dark:border-slate-700/80 bg-stone-50/70 dark:bg-slate-800/70 shadow-2xs">
                           <p
                             className={`text-sm sm:text-base leading-relaxed font-medium whitespace-pre-wrap ${
                               isDone
-                                ? 'text-stone-500 dark:text-stone-400'
-                                : 'text-stone-800 dark:text-stone-100'
+                                ? 'text-stone-500 dark:text-slate-400'
+                                : 'text-stone-800 dark:text-slate-100'
                             }`}
                           >
                             {displayDescription}
@@ -632,7 +632,7 @@ export function WorkOrdersScreen({
                                 `${wo.code}: ${wo.title}`
                               )
                             }
-                            className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shrink-0 cursor-pointer shadow-xs hover:ring-2 hover:ring-emerald-500 transition"
+                            className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 shrink-0 cursor-pointer shadow-xs hover:ring-2 hover:ring-emerald-500 transition"
                             title="Click to view full screen"
                           >
                             <img
@@ -650,17 +650,17 @@ export function WorkOrdersScreen({
                     )}
 
                     {/* Location / Address placed underneath resident pictures with location emoji */}
-                    <div className="pt-0.5 flex items-center flex-wrap gap-2 text-xs sm:text-sm font-bold text-stone-700 dark:text-stone-300">
+                    <div className="pt-0.5 flex items-center flex-wrap gap-2 text-xs sm:text-sm font-bold text-stone-700 dark:text-slate-300">
                       <span className="flex items-center gap-1.5">
                         <span className="text-base">📍</span>
                         <span>{wo.unit}</span>
                       </span>
                       {wo.userName && (
                         <>
-                          <span className="text-stone-300 dark:text-stone-600 font-normal">•</span>
-                          <span className="text-xs font-normal text-stone-500 dark:text-stone-400">
+                          <span className="text-stone-300 dark:text-slate-600 font-normal">•</span>
+                          <span className="text-xs font-normal text-stone-500 dark:text-slate-400">
                             Requested by{' '}
-                            <span className="font-semibold text-stone-700 dark:text-stone-200">
+                            <span className="font-semibold text-stone-700 dark:text-slate-200">
                               {isCreator ? 'You' : wo.userName}
                             </span>
                           </span>
@@ -673,11 +673,11 @@ export function WorkOrdersScreen({
                       <div
                         className={`pt-2 border-t space-y-2 ${
                           isDone
-                            ? 'border-stone-300 dark:border-stone-700'
-                            : 'border-stone-200 dark:border-stone-800'
+                            ? 'border-stone-300 dark:border-slate-700'
+                            : 'border-stone-200 dark:border-slate-800'
                         }`}
                       >
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400 flex items-center justify-between">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-slate-400 flex items-center justify-between">
                           <span>Crew Updates & Replies ({wo.comments.length})</span>
                           {isSpanish && (
                             <span className="text-blue-600 dark:text-blue-400 font-normal normal-case">
@@ -696,18 +696,18 @@ export function WorkOrdersScreen({
                               key={comm.id}
                               className={`p-3 rounded-2xl text-xs space-y-1.5 border ${
                                 isDone
-                                  ? 'bg-stone-300/60 dark:bg-stone-700/60 border-stone-400/60 text-stone-600'
-                                  : 'bg-stone-50 dark:bg-stone-800/80 border-stone-200/60 dark:border-stone-700 text-stone-800 dark:text-stone-200'
+                                  ? 'bg-stone-300/60 dark:bg-slate-800/60 border-stone-400/60 dark:border-slate-700 text-stone-600 dark:text-slate-400'
+                                  : 'bg-stone-50 dark:bg-slate-800/80 border-stone-200/60 dark:border-slate-700 text-stone-800 dark:text-slate-200'
                               }`}
                             >
-                              <div className="flex items-center justify-between text-[10px] text-stone-500">
+                              <div className="flex items-center justify-between text-[10px] text-stone-500 dark:text-slate-400">
                                 <span className="font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1">
                                   <Wrench className="w-3 h-3 text-blue-700 dark:text-blue-400" />
                                   {comm.author} ({comm.role})
                                 </span>
                                 <span>{comm.timestamp}</span>
                               </div>
-                              <p className="text-stone-800 dark:text-stone-200 font-medium">
+                              <p className="text-stone-800 dark:text-slate-200 font-medium">
                                 {commentText}
                               </p>
 
@@ -791,14 +791,14 @@ export function WorkOrdersScreen({
 
                         {/* Reply with a picture before marking as done box (when not done) */}
                         {!isDone && (
-                          <div className="bg-stone-50 dark:bg-stone-800/80 p-3.5 rounded-2xl border border-stone-200 dark:border-stone-700 space-y-3">
-                            <p className="text-xs font-bold text-stone-700 dark:text-stone-200">
+                          <div className="bg-stone-50 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-stone-200 dark:border-slate-700 space-y-3">
+                            <p className="text-xs font-bold text-stone-700 dark:text-slate-200">
                               Reply with a picture before marking as done
                             </p>
 
                             {/* Error message if validation fails */}
                             {crewReplyError[wo.id] && (
-                              <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-1.5">
+                              <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-1.5">
                                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                                 <span>{crewReplyError[wo.id]}</span>
                               </div>
@@ -806,7 +806,7 @@ export function WorkOrdersScreen({
 
                             {/* 1. Reply Description */}
                             <div>
-                              <label className="block text-[11px] font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1">
+                              <label className="block text-[11px] font-bold text-stone-600 dark:text-slate-400 uppercase tracking-wider mb-1">
                                 Resolution Note / Description <span className="text-rose-500">*</span>
                               </label>
                               <textarea
@@ -819,17 +819,17 @@ export function WorkOrdersScreen({
                                   }))
                                 }
                                 placeholder="e.g. Replaced faulty washer, pressure tested at 45 PSI, tested lines."
-                                className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-stone-700 text-xs bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:outline-emerald-600 resize-none"
+                                className="w-full px-3 py-2 rounded-xl border border-stone-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 focus:outline-emerald-600 resize-none"
                               />
                             </div>
 
                             {/* 2. Reply Picture Upload (Pictures only, NO videos) */}
                             <div>
                               <div className="flex items-center justify-between mb-1">
-                                <label className="block text-[11px] font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider">
+                                <label className="block text-[11px] font-bold text-stone-600 dark:text-slate-400 uppercase tracking-wider">
                                   Resolution Picture <span className="text-rose-500">*</span>
                                 </label>
-                                <span className="text-[10px] text-stone-500 bg-white dark:bg-stone-800 px-2 py-0.5 rounded-full border border-stone-200 dark:border-stone-700">
+                                <span className="text-[10px] text-stone-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-stone-200 dark:border-slate-700">
                                   Photos Only • No Videos
                                 </span>
                               </div>
@@ -845,7 +845,7 @@ export function WorkOrdersScreen({
 
                               {/* Picture Preview or Upload Button */}
                               {crewReplyPhoto[wo.id] ? (
-                                <div className="flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700">
+                                <div className="flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700">
                                   <div
                                     onClick={() =>
                                       openFullscreenPhotos(
@@ -854,7 +854,7 @@ export function WorkOrdersScreen({
                                         'Resolution Picture Preview'
                                       )
                                     }
-                                    className="group relative w-16 h-16 rounded-lg overflow-hidden border border-stone-300 shrink-0 cursor-pointer shadow-xs"
+                                    className="group relative w-16 h-16 rounded-lg overflow-hidden border border-stone-300 dark:border-slate-600 shrink-0 cursor-pointer shadow-xs"
                                     title="Click to zoom in full screen"
                                   >
                                     <img
@@ -898,7 +898,7 @@ export function WorkOrdersScreen({
                                   className={`border-2 border-dashed rounded-xl p-3 text-center transition ${
                                     crewIsUploading[wo.id]
                                       ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 cursor-wait'
-                                      : 'border-stone-300 dark:border-stone-700 hover:border-emerald-500 bg-white dark:bg-stone-800/50 cursor-pointer hover:bg-emerald-50/20'
+                                      : 'border-stone-300 dark:border-slate-700 hover:border-emerald-500 bg-white dark:bg-slate-800/70 cursor-pointer hover:bg-emerald-50/20 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   {crewIsUploading[wo.id] ? (
@@ -906,7 +906,7 @@ export function WorkOrdersScreen({
                                   ) : (
                                     <Camera className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                                   )}
-                                  <p className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+                                  <p className="text-xs font-semibold text-stone-700 dark:text-slate-200">
                                     {crewIsUploading[wo.id]
                                       ? 'Uploading proof photo...'
                                       : 'Click to upload resolution picture'}
@@ -954,7 +954,7 @@ export function WorkOrdersScreen({
                                 onClick={() => handleSubmitCrewCompletion(wo.id)}
                                 className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition shadow-xs flex items-center justify-center gap-1.5 ${
                                   crewIsUploading[wo.id]
-                                    ? 'bg-stone-300 dark:bg-stone-700 text-stone-500 cursor-not-allowed'
+                                    ? 'bg-stone-300 dark:bg-slate-800 text-stone-500 dark:text-slate-500 cursor-not-allowed'
                                     : 'bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white cursor-pointer active:scale-98'
                                 }`}
                               >
@@ -997,7 +997,7 @@ export function WorkOrdersScreen({
                                 }
                               }}
                               placeholder="Add general maintenance note..."
-                              className="flex-1 px-3 py-1.5 rounded-xl border border-stone-300 dark:border-stone-700 text-xs bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:outline-blue-600"
+                              className="flex-1 px-3 py-1.5 rounded-xl border border-stone-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 focus:outline-blue-600"
                             />
                             <button
                               onClick={() => {

@@ -123,7 +123,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               }
             }}
             onClick={e => e.stopPropagation()}
-            className="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 shadow-2xl border-t sm:border border-stone-200 space-y-4 max-h-[92vh] overflow-y-auto will-change-transform"
+            className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 shadow-2xl border-t sm:border border-stone-200 dark:border-slate-800 space-y-4 max-h-[92vh] overflow-y-auto will-change-transform"
           >
             {/* iOS pull/grab indicator bar */}
             <div
@@ -132,33 +132,33 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               style={{ touchAction: 'none' }}
               className="w-full py-1.5 flex items-center justify-center cursor-grab active:cursor-grabbing sm:hidden shrink-0 group select-none -mt-2 mb-1"
             >
-              <div className="w-12 h-1.5 bg-stone-300 group-hover:bg-stone-400 rounded-full" />
+              <div className="w-12 h-1.5 bg-stone-300 dark:bg-slate-700 group-hover:bg-stone-400 rounded-full" />
             </div>
 
             {/* Header */}
-            <div className="flex justify-between items-center border-b border-stone-100 pb-3">
+            <div className="flex justify-between items-center border-b border-stone-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-bold text-stone-900 serif-title">
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100 serif-title">
                   Message Seller
                 </h3>
-                <p className="text-[11px] text-stone-500">
+                <p className="text-[11px] text-stone-500 dark:text-slate-400">
                   Direct message to your TownLoop neighbor
                 </p>
               </div>
               <button
                 id="close-message-seller-modal"
                 onClick={handleClose}
-                className="w-8 h-8 rounded-full bg-stone-100 text-stone-500 hover:text-stone-900 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
+                className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-700 flex items-center justify-center transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
         {/* Item & Seller Card Preview */}
-        <div className="bg-stone-50 border border-stone-200/80 rounded-2xl p-3.5 space-y-2.5">
+        <div className="bg-stone-50 dark:bg-slate-800/70 border border-stone-200/80 dark:border-slate-700/80 rounded-2xl p-3.5 space-y-2.5">
           {/* Seller details */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full overflow-hidden bg-stone-200 border border-stone-300 shrink-0 flex items-center justify-center text-xs font-bold text-emerald-800">
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-stone-200 dark:bg-slate-700 border border-stone-300 dark:border-slate-600 shrink-0 flex items-center justify-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
               {item.authorAvatar ? (
                 <img
                   src={item.authorAvatar}
@@ -167,28 +167,28 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <User className="w-4 h-4 text-stone-600" />
+                <User className="w-4 h-4 text-stone-600 dark:text-slate-300" />
               )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs sm:text-sm font-bold text-stone-900 truncate">
+                <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-slate-100 truncate">
                   {item.author}
                 </h4>
-                <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 border border-emerald-200 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
                   Neighbor
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[11px] text-stone-500">
-                <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+              <div className="flex items-center gap-1 text-[11px] text-stone-500 dark:text-slate-400">
+                <MapPin className="w-3 h-3 text-stone-400 dark:text-slate-500 shrink-0" />
                 <span>Porch pickup at {item.unit}</span>
               </div>
             </div>
           </div>
 
           {/* Item snippet */}
-          <div className="pt-2 border-t border-stone-200/60 flex items-center gap-2.5">
-            <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0 flex items-center justify-center">
+          <div className="pt-2 border-t border-stone-200/60 dark:border-slate-700/60 flex items-center gap-2.5">
+            <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 dark:bg-slate-700 border border-stone-200 dark:border-slate-600 shrink-0 flex items-center justify-center">
               {item.media && item.media.length > 0 && item.media[0].type === 'image' ? (
                 <img
                   src={item.media[0].url}
@@ -197,12 +197,12 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <Tag className="w-5 h-5 text-emerald-700" />
+                <Tag className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h5 className="text-xs font-bold text-stone-900 truncate">{item.title}</h5>
-              <span className="text-[11px] font-bold text-emerald-700">
+              <h5 className="text-xs font-bold text-stone-900 dark:text-slate-100 truncate">{item.title}</h5>
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                 {item.price}
               </span>
             </div>
@@ -211,18 +211,18 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
 
         {isSent ? (
           <div className="py-6 text-center space-y-2 animate-in fade-in">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 mx-auto flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6" />
             </div>
-            <h4 className="text-sm font-bold text-stone-900">Message Sent!</h4>
-            <p className="text-xs text-stone-500">
+            <h4 className="text-sm font-bold text-stone-900 dark:text-slate-100">Message Sent!</h4>
+            <p className="text-xs text-stone-500 dark:text-slate-400">
               Your inquiry was sent to {item.author}. Check your Mail (Inbox) for any updates!
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-bold text-stone-700 mb-1">
+              <label className="block text-xs font-bold text-stone-700 dark:text-slate-300 mb-1">
                 Your Message
               </label>
               <textarea
@@ -231,12 +231,12 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 placeholder="Write your note to the neighbor..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:outline-emerald-600 bg-stone-50/50 leading-relaxed"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 text-xs focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 leading-relaxed"
               />
             </div>
 
             {/* Include phone checkbox */}
-            <label className="flex items-center gap-2 text-xs text-stone-600 select-none cursor-pointer bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+            <label className="flex items-center gap-2 text-xs text-stone-600 dark:text-slate-300 select-none cursor-pointer bg-stone-50 dark:bg-slate-800/70 p-2.5 rounded-xl border border-stone-200 dark:border-slate-700">
               <input
                 type="checkbox"
                 checked={includePhone}
@@ -245,7 +245,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               />
               <span className="text-[11px] leading-tight">
                 Include my resident info{' '}
-                <strong className="text-stone-800">
+                <strong className="text-stone-800 dark:text-slate-100">
                   (
                   {[
                     currentUser?.name || 'Resident',
@@ -264,7 +264,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-2.5 rounded-xl border border-stone-300 text-xs font-semibold text-stone-700 hover:bg-stone-100 transition cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 text-xs font-semibold text-stone-700 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
               >
                 Cancel
               </button>

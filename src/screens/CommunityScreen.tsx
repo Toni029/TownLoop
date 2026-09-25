@@ -60,10 +60,10 @@ export function CommunityScreen({
     <section className="space-y-4 animate-in fade-in duration-200">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 serif-title">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 serif-title">
             Community
           </h2>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-stone-500 dark:text-slate-400">
             Neighbors, conversations & marketplace
           </p>
         </div>
@@ -81,13 +81,13 @@ export function CommunityScreen({
       </div>
 
       {/* Subtabs */}
-      <div className="flex bg-stone-200/80 p-1 rounded-2xl text-xs font-semibold">
+      <div className="flex bg-stone-200/80 dark:bg-slate-800/80 p-1 rounded-2xl text-xs font-semibold">
         <button
           onClick={() => setSocialView('chat')}
-          className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
             socialView === 'chat'
-              ? 'bg-white text-emerald-950 font-bold shadow-xs'
-              : 'text-stone-600 hover:text-stone-900'
+              ? 'bg-white dark:bg-slate-900 text-emerald-950 dark:text-emerald-300 font-bold shadow-xs'
+              : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
           }`}
         >
           <MessageSquare className="w-3.5 h-3.5" />
@@ -95,10 +95,10 @@ export function CommunityScreen({
         </button>
         <button
           onClick={() => setSocialView('market')}
-          className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
             socialView === 'market'
-              ? 'bg-white text-emerald-950 font-bold shadow-xs'
-              : 'text-stone-600 hover:text-stone-900'
+              ? 'bg-white dark:bg-slate-900 text-emerald-950 dark:text-emerald-300 font-bold shadow-xs'
+              : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
           }`}
         >
           <Tag className="w-3.5 h-3.5" />

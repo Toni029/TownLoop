@@ -644,7 +644,7 @@ export function NewsScreen({
                   {pinnedHighlights.map((highlight) => (
                     <div
                       key={highlight.id}
-                      className="relative bg-gradient-to-br from-amber-50/90 via-[#fffdf9] to-amber-50/50 dark:from-slate-900 dark:to-slate-800 border border-amber-200/90 dark:border-amber-900/50 rounded-2xl p-4 shadow-2xs space-y-1.5 overflow-hidden"
+                      className="relative bg-gradient-to-br from-amber-50/90 via-[#fffdf9] to-amber-50/50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/90 border border-amber-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1.5 overflow-hidden"
                     >
                       {/* Top-Right Trashcan for Admin/VIP deletion */}
                       {hasHighlightManagement && (

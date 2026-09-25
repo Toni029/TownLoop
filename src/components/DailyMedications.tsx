@@ -387,7 +387,7 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
       <section
         ref={sectionRef}
         aria-label="Daily Medications"
-        className="daily-medications-tile relative bg-gradient-to-br from-[#f8fbfd] via-[#f1f6fa] to-[#e8f2f9] dark:from-slate-900/90 dark:to-slate-800/90 border border-[#cfe0ee] dark:border-slate-800 rounded-[30px] p-4 sm:p-5 shadow-sm transition-all duration-300"
+        className="daily-medications-tile relative bg-gradient-to-br from-[#f8fbfd] via-[#f1f6fa] to-[#e8f2f9] dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-800/90 border border-[#cfe0ee] dark:border-slate-800 rounded-[30px] p-4 sm:p-5 shadow-sm transition-all duration-300"
       >
         {/* Expand / Collapse Button strictly pinned at the Top Right Corner */}
         <button
@@ -695,10 +695,10 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleRestock(med.id, 30)}
-                                  className="min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 transition shadow-xs cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
+                                  className="min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-xs cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
                                   title="Picked up refill? Add 30 pills"
                                 >
-                                  <PlusCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <PlusCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                   <span>+30 Refill</span>
                                 </button>
                               </div>

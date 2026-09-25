@@ -75,15 +75,15 @@ export function Marketplace({
             key={item.id}
             className={`rounded-2xl p-4 transition space-y-3 relative ${
               isSold
-                ? 'bg-stone-100/90 border border-stone-300/80 opacity-60 grayscale-[35%]'
-                : 'bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-stone-300'
+                ? 'bg-stone-100/90 dark:bg-slate-900/90 border border-stone-300/80 dark:border-slate-800 opacity-60 grayscale-[35%]'
+                : 'bg-white dark:bg-slate-900/80 border border-stone-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs hover:border-stone-300 dark:hover:border-slate-700'
             }`}
           >
             {/* Top Header Row: Author Name, Unit, Time Ago & Badges */}
-            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100">
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5 min-w-0">
                 {/* Author Avatar */}
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-stone-100 border border-stone-200 shrink-0 flex items-center justify-center text-xs font-bold text-emerald-800">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 shrink-0 flex items-center justify-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
                   {item.authorAvatar ? (
                     <img
                       src={item.authorAvatar}
@@ -97,11 +97,11 @@ export function Marketplace({
                 </div>
                 {/* Author Name and Timestamp */}
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-stone-900 truncate">
+                  <p className="text-xs sm:text-sm font-bold text-stone-900 dark:text-slate-100 truncate">
                     {item.author}
                   </p>
-                  <div className="flex items-center gap-1 text-[11px] text-stone-400">
-                    <Clock className="w-3 h-3 text-stone-400 shrink-0" />
+                  <div className="flex items-center gap-1 text-[11px] text-stone-400 dark:text-slate-500">
+                    <Clock className="w-3 h-3 text-stone-400 dark:text-slate-500 shrink-0" />
                     <span>{item.timeAgo || 'Recently posted'}</span>
                   </div>
                 </div>
@@ -112,8 +112,8 @@ export function Marketplace({
                 <span
                   className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-2xs ${
                     isSold
-                      ? 'text-stone-600 bg-stone-200/90 border border-stone-300'
-                      : 'text-emerald-800 bg-emerald-100/90 border border-emerald-300/80'
+                      ? 'text-stone-600 dark:text-slate-300 bg-stone-200/90 dark:bg-slate-800 border border-stone-300 dark:border-slate-700'
+                      : 'text-emerald-800 dark:text-emerald-200 bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-800'
                   }`}
                 >
                   <span
@@ -139,15 +139,15 @@ export function Marketplace({
                 {/* Trash can icon to delete listing for Admin, VIP, or Item Owner */}
                 {canDelete && (
                   confirmDeleteId === item.id ? (
-                    <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 rounded-lg px-2 py-0.5">
-                      <span className="text-[10px] font-bold text-rose-700">Delete?</span>
+                    <div className="flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-lg px-2 py-0.5">
+                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300">Delete?</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteItem(item.id, true);
                           setConfirmDeleteId(null);
                         }}
-                        className="text-[10px] bg-rose-600 hover:bg-rose-700 text-white font-bold px-1.5 py-0.5 rounded"
+                        className="text-[10px] bg-rose-600 hover:bg-rose-700 text-white font-bold px-1.5 py-0.5 rounded cursor-pointer"
                       >
                         Yes
                       </button>
@@ -156,7 +156,7 @@ export function Marketplace({
                           e.stopPropagation();
                           setConfirmDeleteId(null);
                         }}
-                        className="text-[10px] text-stone-500 hover:text-stone-800 px-1"
+                        className="text-[10px] text-stone-500 dark:text-slate-400 hover:text-stone-800 dark:hover:text-slate-200 px-1 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -168,7 +168,7 @@ export function Marketplace({
                         setConfirmDeleteId(item.id);
                       }}
                       title="Delete listing (Admin/VIP/Author)"
-                      className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                      className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -194,7 +194,7 @@ export function Marketplace({
                     setSelectedDetailMarket(item);
                   }
                 }}
-                className="cursor-pointer w-20 h-20 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0 flex items-center justify-center relative hover:opacity-95 transition group/thumb hover:ring-2 hover:ring-emerald-600/30"
+                className="cursor-pointer w-20 h-20 rounded-xl overflow-hidden bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 shrink-0 flex items-center justify-center relative hover:opacity-95 transition group/thumb hover:ring-2 hover:ring-emerald-600/30"
                 title={
                   itemMedia.length > 0
                     ? 'Click to view full screen & pinch-to-zoom'
@@ -222,7 +222,7 @@ export function Marketplace({
                     </div>
                   )
                 ) : (
-                  <div className="w-full h-full bg-emerald-50 text-emerald-800 flex items-center justify-center">
+                  <div className="w-full h-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center">
                     <Tag className="w-7 h-7 stroke-current" />
                   </div>
                 )}
@@ -246,15 +246,15 @@ export function Marketplace({
                   onClick={() => setSelectedDetailMarket(item)}
                   className={`font-bold text-sm cursor-pointer transition leading-snug ${
                     isSold
-                      ? 'text-stone-600 line-through decoration-stone-400'
-                      : 'text-stone-900 hover:text-emerald-800'
+                      ? 'text-stone-600 dark:text-slate-500 line-through decoration-stone-400 dark:decoration-slate-600'
+                      : 'text-stone-900 dark:text-slate-100 hover:text-emerald-800 dark:hover:text-emerald-400'
                   }`}
                 >
                   {item.title}
                 </h4>
                 <p
                   onClick={() => setSelectedDetailMarket(item)}
-                  className="text-xs text-stone-600 mt-1 line-clamp-2 cursor-pointer leading-relaxed"
+                  className="text-xs text-stone-600 dark:text-slate-300 mt-1 line-clamp-2 cursor-pointer leading-relaxed"
                 >
                   {item.description}
                 </p>
@@ -262,8 +262,8 @@ export function Marketplace({
             </div>
 
             {/* Footer: Pickup location & Actions (Mark as Sold for owner, Message Seller for neighbors) */}
-            <div className="pt-2.5 border-t border-stone-100 flex items-center justify-between text-xs gap-2">
-              <span className="text-stone-500 text-[11px] sm:text-xs font-medium truncate">
+            <div className="pt-2.5 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between text-xs gap-2">
+              <span className="text-stone-500 dark:text-slate-400 text-[11px] sm:text-xs font-medium truncate">
                 Porch pickup
               </span>
 
@@ -278,18 +278,18 @@ export function Marketplace({
                   >
                     {isSold ? (
                       <>
-                        <RotateCcw className="w-3.5 h-3.5 text-stone-600 shrink-0" />
+                        <RotateCcw className="w-3.5 h-3.5 text-stone-600 dark:text-slate-400 shrink-0" />
                         <span>Mark as Available</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                         <span>Mark as Sold</span>
                       </>
                     )}
                   </button>
                 ) : isSold ? (
-                  <span className="text-stone-500 text-xs font-semibold italic px-2.5 py-1 bg-stone-100 rounded-lg">
+                  <span className="text-stone-500 dark:text-slate-400 text-xs font-semibold italic px-2.5 py-1 bg-stone-100 dark:bg-slate-800 rounded-lg">
                     Item Sold
                   </span>
                 ) : (

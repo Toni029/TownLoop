@@ -29,7 +29,14 @@ export const BottomNavigation = React.memo(function BottomNavigation({
     <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-[430px] sm:max-w-[450px] z-30">
       <LayoutGroup id="bottom-dock-nav">
         <nav
-          className="liquid-dock relative grid grid-cols-4 w-full items-center"
+          className="liquid-dock relative grid grid-cols-4 w-full items-center bg-white/[0.42] dark:bg-slate-950/50 border border-white/40 dark:border-white/10 shadow-lg shadow-black/5 rounded-full"
+          style={{
+            WebkitBackdropFilter: 'blur(24px) saturate(190%) contrast(110%)',
+            backdropFilter: 'blur(24px) saturate(190%) contrast(110%)',
+            WebkitTransform: 'translateZ(0)',
+            transform: 'translateZ(0)',
+            willChange: 'transform, backdrop-filter',
+          }}
           aria-label="Bottom navigation dock"
         >
           {TABS.map((tab) => {
@@ -41,7 +48,9 @@ export const BottomNavigation = React.memo(function BottomNavigation({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="relative flex flex-col items-center justify-center py-2 sm:py-2.5 transition-all cursor-pointer text-black"
+                className={`relative flex flex-col items-center justify-center py-2 sm:py-2.5 transition-all cursor-pointer ${
+                  isActive ? 'is-active text-black dark:text-slate-100' : 'text-stone-700 dark:text-slate-400'
+                }`}
                 aria-label={`${tab.label} tab`}
               >
                 {/* Liquid Glass Bubble Indicator directly anchored and centered to each tab button */}
@@ -64,19 +73,20 @@ export const BottomNavigation = React.memo(function BottomNavigation({
 
                 <div
                   className={`relative z-10 flex flex-col items-center justify-center transition-transform duration-200 ${
-                    isActive ? 'scale-105 font-black' : 'font-extrabold hover:scale-102'
+                    isActive ? 'scale-105 font-black text-black dark:text-slate-100' : 'font-extrabold hover:scale-102 text-stone-700 dark:text-slate-400'
                   }`}
                 >
                   <Icon
-                    className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]"
-                    stroke="#000000"
-                    color="#000000"
+                    className={`w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5] ${
+                      isActive ? 'text-black dark:text-slate-100' : 'text-stone-700 dark:text-slate-400'
+                    }`}
                   />
                   <span
-                    className={`text-xs sm:text-[13px] font-black tracking-tight mt-1 text-black ${
+                    className={`text-xs sm:text-[13px] font-black tracking-tight mt-1 ${
                       isWorkOrders ? 'whitespace-nowrap px-0.5' : ''
+                    } ${
+                      isActive ? 'text-black dark:text-slate-100' : 'text-stone-700 dark:text-slate-400'
                     }`}
-                    style={{ color: '#000000' }}
                   >
                     {tab.label}
                   </span>

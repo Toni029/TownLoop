@@ -89,7 +89,7 @@ export function TaskCalendarModal({
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 shadow-2xl space-y-4 border-t sm:border border-stone-200 will-change-transform"
+        className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 shadow-2xl space-y-4 border-t sm:border border-stone-200 dark:border-slate-800 will-change-transform"
       >
         {/* iOS pull/grab indicator bar */}
         <div
@@ -98,11 +98,11 @@ export function TaskCalendarModal({
           style={{ touchAction: 'none' }}
           className="w-full py-1.5 flex items-center justify-center cursor-grab active:cursor-grabbing sm:hidden shrink-0 group select-none -mt-2 mb-1"
         >
-          <div className="w-12 h-1.5 bg-stone-300 group-hover:bg-stone-400 rounded-full" />
+          <div className="w-12 h-1.5 bg-stone-300 dark:bg-slate-700 group-hover:bg-stone-400 rounded-full" />
         </div>
 
         {/* Header with Month Navigation */}
-        <div className="flex justify-between items-center border-b border-neutral-100 pb-3">
+        <div className="flex justify-between items-center border-b border-neutral-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -111,13 +111,13 @@ export function TaskCalendarModal({
                   (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
                 );
               }}
-              className="w-8 h-8 rounded-full hover:bg-neutral-100 text-slate-700 flex items-center justify-center transition cursor-pointer border border-neutral-200"
+              className="w-8 h-8 rounded-full hover:bg-neutral-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center transition cursor-pointer border border-neutral-200 dark:border-slate-700"
               title="Previous month"
               aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <h3 className="text-base font-bold text-slate-800">
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
               {monthNames[calendarViewDate.getMonth()]}{' '}
               {calendarViewDate.getFullYear()}
             </h3>
@@ -128,7 +128,7 @@ export function TaskCalendarModal({
                   (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
                 );
               }}
-              className="w-8 h-8 rounded-full hover:bg-neutral-100 text-slate-700 flex items-center justify-center transition cursor-pointer border border-neutral-200"
+              className="w-8 h-8 rounded-full hover:bg-neutral-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center transition cursor-pointer border border-neutral-200 dark:border-slate-700"
               title="Next month"
               aria-label="Next month"
             >
@@ -137,7 +137,7 @@ export function TaskCalendarModal({
           </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-500 hover:text-neutral-800 flex items-center justify-center font-bold cursor-pointer"
+            className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-slate-800 text-neutral-500 dark:text-slate-400 hover:text-neutral-800 dark:hover:text-slate-200 flex items-center justify-center font-bold cursor-pointer"
             title="Close calendar"
             aria-label="Close calendar"
           >
@@ -146,7 +146,7 @@ export function TaskCalendarModal({
         </div>
 
         {/* Day of Week Labels */}
-        <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-500 mb-1">
+        <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">
           <span>Su</span>
           <span>Mo</span>
           <span>Tu</span>
@@ -206,8 +206,8 @@ export function TaskCalendarModal({
                         isSelectedDay
                           ? 'bg-emerald-700 text-white shadow-md ring-2 ring-emerald-600/30'
                           : isRealToday
-                            ? 'border-2 border-emerald-600 text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100'
-                            : 'hover:bg-emerald-50 text-slate-800'
+                            ? 'border-2 border-emerald-600 text-emerald-800 dark:text-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                            : 'hover:bg-emerald-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
                       }`}
                       title={`${cellDateStr}${hasTasks ? ` (${dayTasks.length} tasks)` : ''}`}
                     >
@@ -228,7 +228,7 @@ export function TaskCalendarModal({
         </div>
 
         {/* Footer Controls: Jump to Today & Info */}
-        <div className="pt-2 border-t border-neutral-100 flex items-center justify-between text-xs">
+        <div className="pt-2 border-t border-neutral-100 dark:border-slate-800 flex items-center justify-between text-xs">
           <button
             type="button"
             onClick={() => {
@@ -237,12 +237,12 @@ export function TaskCalendarModal({
               setCalendarViewDate(new Date());
               setIsCalendarModalOpen(false);
             }}
-            className="text-emerald-800 hover:text-emerald-950 font-extrabold hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-emerald-800 dark:text-emerald-400 hover:text-emerald-950 dark:hover:text-emerald-300 font-extrabold hover:underline flex items-center gap-1 cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Jump to Today</span>
           </button>
-          <p className="text-[11px] text-slate-500 font-medium">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
             Tap any day to view or schedule
           </p>
         </div>

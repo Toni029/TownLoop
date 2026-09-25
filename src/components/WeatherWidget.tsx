@@ -868,12 +868,12 @@ export const WeatherWidget: React.FC = () => {
       <div className="space-y-2">
         {/* Top Header Row with Location */}
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-1.5 text-stone-700 min-w-0">
-            <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-            <span className="text-xs font-bold text-stone-900 tracking-tight truncate">
+          <div className="flex items-center gap-1.5 text-stone-700 dark:text-slate-300 min-w-0">
+            <MapPin className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <span className="text-xs font-bold text-stone-900 dark:text-slate-100 tracking-tight truncate">
               Cecil Pines
             </span>
-            <span className="text-[11px] text-stone-400 font-medium hidden sm:inline">
+            <span className="text-[11px] text-stone-400 dark:text-slate-400 font-medium hidden sm:inline">
               • Jacksonville, FL
             </span>
           </div>
@@ -934,12 +934,12 @@ export const WeatherWidget: React.FC = () => {
     <div className="space-y-2">
       {/* Top Header Row with Location and Dynamic Status Tag */}
       <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-1.5 text-stone-700 min-w-0">
-          <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-          <span className="text-xs font-bold text-stone-900 tracking-tight truncate">
+        <div className="flex items-center gap-1.5 text-stone-700 dark:text-slate-300 min-w-0">
+          <MapPin className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+          <span className="text-xs font-bold text-stone-900 dark:text-slate-100 tracking-tight truncate">
             Cecil Pines
           </span>
-          <span className="text-[11px] text-stone-400 font-medium hidden sm:inline">
+          <span className="text-[11px] text-stone-400 dark:text-slate-400 font-medium hidden sm:inline">
             • Jacksonville, FL
           </span>
         </div>

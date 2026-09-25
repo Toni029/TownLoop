@@ -68,15 +68,15 @@ export function HomeScreen({
 
       {/* Daily Checklist Tile */}
       <ErrorBoundary viewName="Daily Checklist">
-        <div className="bg-gradient-to-br from-[#f2f7f4] to-[#e8f1ec] border border-emerald-200/60 rounded-[30px] p-5 shadow-sm">
+        <div className="bg-gradient-to-br from-[#f2f7f4] to-[#e8f1ec] dark:from-slate-900/90 dark:via-slate-900/80 dark:to-slate-950/90 border border-emerald-200/60 dark:border-slate-800 rounded-[30px] p-5 shadow-sm">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
               <div>
-                <h2 className="text-base font-bold text-slate-800">
+                <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
                   Daily Checklist
                 </h2>
-                <p className="text-[11px] font-semibold text-emerald-800">
+                <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
                   {taskFilter === 'today' &&
                     `Today • ${formatFriendlyDate(todayStr)}`}
                   {taskFilter === 'tomorrow' &&
@@ -88,7 +88,7 @@ export function HomeScreen({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-full">
+              <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100/80 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800/80 px-2.5 py-1 rounded-full">
                 {doneCount}/{filteredTasks.length} Done
               </span>
               <button
@@ -99,7 +99,7 @@ export function HomeScreen({
                   setIsCalendarModalOpen(true);
                 }}
                 title="Choose Date on Calendar"
-                className="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-emerald-800 border border-emerald-200 flex items-center justify-center transition shadow-xs cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/90 hover:bg-white dark:bg-slate-800 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-slate-700 flex items-center justify-center transition shadow-xs cursor-pointer"
               >
                 <Calendar className="w-4 h-4" />
               </button>
@@ -128,7 +128,7 @@ export function HomeScreen({
               className={`px-3 py-1 rounded-full transition cursor-pointer ${
                 taskFilter === 'today'
                   ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'bg-white/80 text-slate-700 hover:bg-white border border-emerald-100'
+                  : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-emerald-100 dark:border-slate-700'
               }`}
             >
               Today
@@ -138,7 +138,7 @@ export function HomeScreen({
               className={`px-3 py-1 rounded-full transition cursor-pointer ${
                 taskFilter === 'tomorrow'
                   ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'bg-white/80 text-slate-700 hover:bg-white border border-emerald-100'
+                  : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-emerald-100 dark:border-slate-700'
               }`}
             >
               Tomorrow
@@ -166,7 +166,7 @@ export function HomeScreen({
                 setCalendarViewDate(new Date(y, (m || 1) - 1, d || 1));
                 setIsCalendarModalOpen(true);
               }}
-              className="px-2.5 py-1 rounded-full transition cursor-pointer bg-white/80 text-emerald-800 hover:bg-white border border-emerald-200 flex items-center gap-1"
+              className="px-2.5 py-1 rounded-full transition cursor-pointer bg-white/80 dark:bg-slate-800/80 text-emerald-800 dark:text-emerald-300 hover:bg-white dark:hover:bg-slate-700 border border-emerald-200 dark:border-slate-700 flex items-center gap-1"
               title="Pick another day from calendar"
             >
               <Calendar className="w-3 h-3" />
@@ -177,7 +177,7 @@ export function HomeScreen({
               className={`px-3 py-1 rounded-full transition cursor-pointer ${
                 taskFilter === 'all'
                   ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'bg-white/80 text-slate-700 hover:bg-white border border-emerald-100'
+                  : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-emerald-100 dark:border-slate-700'
               }`}
             >
               All Tasks
@@ -186,7 +186,7 @@ export function HomeScreen({
 
           <div className="space-y-2 text-sm">
             {filteredTasks.length === 0 ? (
-              <div className="text-xs text-slate-400 py-3 text-center">
+              <div className="text-xs text-slate-400 dark:text-slate-500 py-3 text-center">
                 No tasks scheduled for this day.
               </div>
             ) : (

@@ -54,7 +54,7 @@ export function DiscussionFeed({
         return (
           <div
             key={post.id}
-            className="bg-white border border-stone-200/80 rounded-[24px] p-4 space-y-3 shadow-xs hover:shadow-md hover:border-stone-300 transition group"
+            className="bg-white dark:bg-slate-900/80 border border-stone-200/80 dark:border-slate-800 rounded-[24px] p-4 space-y-3 shadow-xs hover:shadow-md hover:border-stone-300 dark:hover:border-slate-700 transition group"
           >
             {/* Post Header */}
             <div className="flex items-center justify-between">
@@ -62,7 +62,7 @@ export function DiscussionFeed({
                 onClick={() => setSelectedDetailPost(post)}
                 className="flex items-center space-x-2.5 cursor-pointer"
               >
-                <div className="w-9 h-9 rounded-full overflow-hidden bg-stone-100 border border-emerald-600/30 flex items-center justify-center text-xs font-bold text-emerald-800">
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-stone-100 dark:bg-slate-800 border border-emerald-600/30 dark:border-emerald-600/40 flex items-center justify-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
                   {post.authorAvatar ? (
                     <img
                       src={post.authorAvatar}
@@ -75,23 +75,23 @@ export function DiscussionFeed({
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-stone-900 hover:text-emerald-700 transition">
+                  <p className="text-xs font-bold text-stone-900 dark:text-slate-100 hover:text-emerald-700 dark:hover:text-emerald-400 transition">
                     {post.author}
                   </p>
-                  <p className="text-[10px] text-stone-400">{post.timeAgo}</p>
+                  <p className="text-[10px] text-stone-400 dark:text-slate-500">{post.timeAgo}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] bg-stone-100 text-stone-700 font-semibold px-2 py-0.5 rounded-full border border-stone-200">
+                <span className="text-[10px] bg-stone-100 dark:bg-slate-800 text-stone-700 dark:text-slate-300 font-semibold px-2 py-0.5 rounded-full border border-stone-200 dark:border-slate-700">
                   {post.tag}
                 </span>
 
                 {/* Trash can icon to delete post (Admin, VIP, or Author) */}
                 {canDelete && (
                   confirmDeleteId === post.id ? (
-                    <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 rounded-lg px-2 py-0.5">
-                      <span className="text-[10px] font-bold text-rose-700">Delete?</span>
+                    <div className="flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 rounded-lg px-2 py-0.5">
+                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300">Delete?</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -107,7 +107,7 @@ export function DiscussionFeed({
                           e.stopPropagation();
                           setConfirmDeleteId(null);
                         }}
-                        className="text-[10px] text-stone-500 hover:text-stone-800 px-1"
+                        className="text-[10px] text-stone-500 dark:text-slate-400 hover:text-stone-800 dark:hover:text-slate-200 px-1"
                       >
                         Cancel
                       </button>
@@ -119,7 +119,7 @@ export function DiscussionFeed({
                         setConfirmDeleteId(post.id);
                       }}
                       title="Delete post (Admin/VIP/Author)"
-                      className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                      className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -133,10 +133,10 @@ export function DiscussionFeed({
             onClick={() => setSelectedDetailPost(post)}
             className="cursor-pointer space-y-1.5"
           >
-            <h4 className="font-bold text-stone-900 text-sm group-hover:text-emerald-800 transition">
+            <h4 className="font-bold text-stone-900 dark:text-slate-100 text-sm group-hover:text-emerald-800 dark:group-hover:text-emerald-400 transition">
               {post.title}
             </h4>
-            <p className="text-xs text-stone-600 leading-relaxed line-clamp-3">
+            <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed line-clamp-3">
               {post.content}
             </p>
           </div>
@@ -192,13 +192,13 @@ export function DiscussionFeed({
           )}
 
           {/* Action Bar */}
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
+          <div className="pt-2 border-t border-stone-100 dark:border-slate-800 flex items-center justify-between text-xs text-stone-500 dark:text-slate-400">
             <button
               onClick={() => toggleLike(post.id)}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition font-medium ${
                 post.liked
-                  ? 'text-rose-600 font-bold bg-rose-50'
-                  : 'hover:text-rose-600 hover:bg-stone-50'
+                  ? 'text-rose-600 dark:text-rose-400 font-bold bg-rose-50 dark:bg-rose-950/60'
+                  : 'hover:text-rose-600 hover:bg-stone-50 dark:hover:bg-slate-800 dark:hover:text-rose-400'
               }`}
             >
               <span>{post.liked ? '❤️' : '🤍'}</span>
@@ -211,7 +211,7 @@ export function DiscussionFeed({
                   openCommentsPostId === post.id ? null : post.id
                 )
               }
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-stone-100 text-stone-600 font-medium transition"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 text-stone-600 dark:text-slate-400 font-medium transition cursor-pointer"
             >
               <MessageSquare className="w-3.5 h-3.5 stroke-current" />
               <span>
@@ -223,9 +223,9 @@ export function DiscussionFeed({
 
           {/* Improved Inline Comments Section */}
           {openCommentsPostId === post.id && (
-            <div className="mt-2 pt-3 border-t border-dashed border-stone-200 space-y-2.5">
+            <div className="mt-2 pt-3 border-t border-dashed border-stone-200 dark:border-slate-800 space-y-2.5">
               {post.comments.length === 0 ? (
-                <p className="text-[11px] text-stone-400 italic text-center py-2">
+                <p className="text-[11px] text-stone-400 dark:text-slate-500 italic text-center py-2">
                   No comments yet. Start the conversation!
                 </p>
               ) : (
@@ -233,11 +233,11 @@ export function DiscussionFeed({
                   {post.comments.map((c) => (
                     <div
                       key={c.id}
-                      className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/60 text-xs space-y-1"
+                      className="bg-stone-50 dark:bg-slate-800/70 p-2.5 rounded-xl border border-stone-200/60 dark:border-slate-700/80 text-xs space-y-1"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full overflow-hidden bg-emerald-100 text-emerald-900 font-bold text-[9px] flex items-center justify-center shrink-0">
+                          <div className="w-5 h-5 rounded-full overflow-hidden bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 font-bold text-[9px] flex items-center justify-center shrink-0">
                             {c.authorAvatar ? (
                               <img
                                 src={c.authorAvatar}
@@ -249,20 +249,20 @@ export function DiscussionFeed({
                               c.author.slice(0, 1)
                             )}
                           </div>
-                          <span className="font-bold text-stone-800">
+                          <span className="font-bold text-stone-800 dark:text-slate-200">
                             {c.author}
                           </span>
                           {c.unit && (
-                            <span className="text-[10px] text-stone-400 font-normal">
+                            <span className="text-[10px] text-stone-400 dark:text-slate-500 font-normal">
                               ({c.unit})
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-stone-400">
+                        <span className="text-[10px] text-stone-400 dark:text-slate-500">
                           {c.timeAgo}
                         </span>
                       </div>
-                      <p className="text-stone-700 pl-6 leading-relaxed">
+                      <p className="text-stone-700 dark:text-slate-300 pl-6 leading-relaxed">
                         {c.text}
                       </p>
                     </div>
@@ -283,12 +283,12 @@ export function DiscussionFeed({
                     if (e.key === 'Enter') handleAddComment(post.id);
                   }}
                   placeholder="Write a comment to Martha and neighbors..."
-                  className="flex-1 px-3.5 py-2 rounded-xl border border-stone-300 text-xs bg-white focus:outline-emerald-600"
+                  className="flex-1 px-3.5 py-2 rounded-xl border border-stone-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 focus:outline-emerald-600"
                 />
                 <button
                   onClick={() => handleAddComment(post.id)}
                   disabled={!(commentInputText[post.id] || '').trim()}
-                  className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-2xs"
+                  className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
                 >
                   Reply
                 </button>

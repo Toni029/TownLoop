@@ -201,7 +201,7 @@ export function MonthlyActivityReminder({
   }, [categoryFilter]);
 
   return (
-    <div className="bg-gradient-to-br from-[#f0f6fc] to-[#e1edf8] dark:from-slate-900 dark:via-slate-850 dark:to-slate-900 border border-[#bcd6ee] dark:border-slate-800 rounded-[30px] p-5 shadow-sm transition-all">
+    <div className="bg-gradient-to-br from-[#f0f6fc] to-[#e1edf8] dark:from-slate-900/90 dark:via-slate-900/80 dark:to-slate-950/90 border border-[#bcd6ee] dark:border-slate-800 rounded-[30px] p-5 shadow-sm transition-all">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
         <div>
@@ -248,12 +248,12 @@ export function MonthlyActivityReminder({
       {viewMode === 'calendar' ? (
         <>
           {/* Month Navigation Toolbar */}
-          <div className="bg-white/95 dark:bg-slate-800/90 rounded-2xl p-2.5 mb-3.5 border border-[#cfe1f2] dark:border-slate-700 flex items-center justify-between shadow-2xs">
+          <div className="bg-white/95 dark:bg-slate-900/80 rounded-2xl p-2.5 mb-3.5 border border-[#cfe1f2] dark:border-slate-800 flex items-center justify-between shadow-2xs">
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={handlePrevMonth}
-                className="w-8 h-8 rounded-xl hover:bg-[#e3eef8] dark:hover:bg-slate-700 text-[#026aa7] dark:text-slate-200 flex items-center justify-center transition cursor-pointer"
+                className="w-8 h-8 rounded-xl hover:bg-[#e3eef8] dark:hover:bg-slate-800 text-[#026aa7] dark:text-slate-200 flex items-center justify-center transition cursor-pointer"
                 title="Previous Month"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -261,7 +261,7 @@ export function MonthlyActivityReminder({
               <button
                 type="button"
                 onClick={handleNextMonth}
-                className="w-8 h-8 rounded-xl hover:bg-[#e3eef8] dark:hover:bg-slate-700 text-[#026aa7] dark:text-slate-200 flex items-center justify-center transition cursor-pointer"
+                className="w-8 h-8 rounded-xl hover:bg-[#e3eef8] dark:hover:bg-slate-800 text-[#026aa7] dark:text-slate-200 flex items-center justify-center transition cursor-pointer"
                 title="Next Month"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -280,7 +280,7 @@ export function MonthlyActivityReminder({
               className={`text-xs font-bold px-2.5 py-1 rounded-xl transition border cursor-pointer ${
                 isCurrentMonth && selectedDay === todayDate.getDate()
                   ? 'bg-[#026aa7] text-white border-[#026aa7] shadow-xs'
-                  : 'bg-[#e3eef8] dark:bg-slate-700 text-[#026aa7] dark:text-blue-200 border-[#bcd6ee] dark:border-slate-600 hover:bg-[#d0e4f5]'
+                  : 'bg-[#e3eef8] dark:bg-slate-800 text-[#026aa7] dark:text-blue-200 border-[#bcd6ee] dark:border-slate-700 hover:bg-[#d0e4f5]'
               }`}
             >
               Today
@@ -288,7 +288,7 @@ export function MonthlyActivityReminder({
           </div>
 
           {/* Calendar Grid */}
-          <div className="bg-white/95 dark:bg-slate-800/90 rounded-2xl p-3 border border-[#cfe1f2] dark:border-slate-700 mb-3.5 shadow-2xs">
+          <div className="bg-white/95 dark:bg-slate-900/80 rounded-2xl p-3 border border-[#cfe1f2] dark:border-slate-800 mb-3.5 shadow-2xs">
             {/* Weekday headers */}
             <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d, i) => (
@@ -332,8 +332,8 @@ export function MonthlyActivityReminder({
                         : isToday
                           ? 'bg-[#e3eef8] dark:bg-blue-950/60 text-[#026aa7] dark:text-blue-200 border border-[#bcd6ee] dark:border-blue-700'
                           : hasEvents
-                            ? 'hover:bg-[#f0f6fc] dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold'
-                            : 'hover:bg-stone-50 dark:hover:bg-slate-700 text-stone-500 dark:text-slate-400'
+                            ? 'hover:bg-[#f0f6fc] dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold'
+                            : 'hover:bg-stone-50 dark:hover:bg-slate-800 text-stone-500 dark:text-slate-400'
                     }`}
                   >
                     <span>{day}</span>
@@ -381,8 +381,8 @@ export function MonthlyActivityReminder({
           </div>
 
           {/* Selected Day Activity List */}
-          <div className="bg-white/95 dark:bg-slate-800/95 rounded-2xl p-3.5 border border-[#cfe1f2] dark:border-slate-700 shadow-2xs">
-            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-stone-100 dark:border-slate-700">
+          <div className="bg-white/95 dark:bg-slate-900/80 rounded-2xl p-3.5 border border-[#cfe1f2] dark:border-slate-800 shadow-2xs">
+            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-stone-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-[#026aa7]"></div>
                 <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
@@ -416,7 +416,7 @@ export function MonthlyActivityReminder({
                   return (
                     <div
                       key={event.id}
-                      className="bg-[#f4f9fd] dark:bg-slate-750/70 rounded-2xl p-3.5 sm:p-4 border border-[#cfe1f2] dark:border-slate-700 flex flex-col gap-2.5 hover:border-[#bcd6ee] transition shadow-2xs"
+                      className="bg-[#f4f9fd] dark:bg-slate-800/70 rounded-2xl p-3.5 sm:p-4 border border-[#cfe1f2] dark:border-slate-700/80 flex flex-col gap-2.5 hover:border-[#bcd6ee] dark:hover:border-slate-600 transition shadow-2xs"
                     >
                       {/* Top Header: Category Icon & Title */}
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -532,7 +532,7 @@ export function MonthlyActivityReminder({
             {filteredRecurringList.map((item) => (
               <div
                 key={item.id}
-                className="bg-white/95 dark:bg-slate-800/95 p-3.5 sm:p-4 rounded-2xl border border-[#cfe1f2] dark:border-slate-700 flex flex-col gap-2.5 shadow-2xs hover:border-[#bcd6ee] transition"
+                className="bg-white/95 dark:bg-slate-900/80 p-3.5 sm:p-4 rounded-2xl border border-[#cfe1f2] dark:border-slate-800 flex flex-col gap-2.5 shadow-2xs hover:border-[#bcd6ee] dark:hover:border-slate-700 transition"
               >
                 {/* Top Header: Category Icon & Title */}
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -558,7 +558,7 @@ export function MonthlyActivityReminder({
                     </span>
 
                     {/* Time Chip */}
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-[#e3eef8] dark:bg-slate-700 text-[#026aa7] dark:text-blue-200 border border-[#bcd6ee] dark:border-slate-600">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-[#e3eef8] dark:bg-slate-800 text-[#026aa7] dark:text-blue-200 border border-[#bcd6ee] dark:border-slate-700">
                       <Clock className="w-3.5 h-3.5 shrink-0 text-[#026aa7] dark:text-blue-400" />
                       <span>{item.time}</span>
                     </span>
@@ -572,7 +572,7 @@ export function MonthlyActivityReminder({
                 </div>
 
                 {/* Description Box */}
-                <div className="bg-[#f8fbfd] dark:bg-slate-900/60 rounded-xl p-2.5 sm:p-3 border border-[#e1edf8] dark:border-slate-750">
+                <div className="bg-[#f8fbfd] dark:bg-slate-800/60 rounded-xl p-2.5 sm:p-3 border border-[#e1edf8] dark:border-slate-700/80">
                   <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-normal">
                     {item.description}
                   </p>

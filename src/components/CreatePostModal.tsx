@@ -282,10 +282,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               }
             }}
             onClick={(e) => e.stopPropagation()}
-            className={`bg-white shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col will-change-transform ${
+            className={`bg-white dark:bg-slate-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col will-change-transform ${
               isFullScreen
                 ? 'fixed inset-0 w-full h-full max-w-none max-h-none rounded-none z-[106] p-4 sm:p-6 border-0'
-                : 'w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 border-t sm:border border-stone-200 max-h-[92vh] sm:max-h-[90vh]'
+                : 'w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 border-t sm:border border-stone-200 dark:border-slate-800 max-h-[92vh] sm:max-h-[90vh]'
             }`}
           >
             {/* Interactive iOS pull/grab indicator bar: drag down to close, drag up for full screen */}
@@ -306,7 +306,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 className={`h-1.5 rounded-full transition-all duration-200 ${
                   isFullScreen
                     ? 'w-16 bg-emerald-600'
-                    : 'w-12 bg-stone-300 hover:bg-stone-400 group-hover:w-16'
+                    : 'w-12 bg-stone-300 dark:bg-slate-700 hover:bg-stone-400 dark:hover:bg-slate-600 group-hover:w-16'
                 }`}
               />
             </div>
@@ -320,13 +320,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 }
               }}
               style={{ touchAction: 'none' }}
-              className="flex justify-between items-center border-b border-stone-200 pb-3 shrink-0 cursor-grab active:cursor-grabbing select-none"
+              className="flex justify-between items-center border-b border-stone-200 dark:border-slate-800 pb-3 shrink-0 cursor-grab active:cursor-grabbing select-none"
             >
               <div>
-                <h3 className="text-base font-bold text-stone-900 serif-title">
+                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100 serif-title">
                   {type === 'market' ? 'Post Item for Sale / Free' : 'Create Community Post'}
                 </h3>
-                <p className="text-[11px] text-stone-500">
+                <p className="text-[11px] text-stone-500 dark:text-slate-400">
                   Share items, announcements, pictures & videos with TownLoop neighbors.
                 </p>
               </div>
@@ -334,7 +334,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsFullScreen((prev) => !prev)}
-                  className="w-8 h-8 rounded-full bg-stone-100 text-stone-500 hover:text-stone-900 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-700 flex items-center justify-center transition cursor-pointer"
                   title={isFullScreen ? 'Exit full screen' : 'Expand to full screen'}
                 >
                   {isFullScreen ? (
@@ -346,7 +346,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 <button
                   id="close-create-post-modal"
                   onClick={handleClose}
-                  className="w-8 h-8 rounded-full bg-stone-100 text-stone-500 hover:text-stone-900 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-700 flex items-center justify-center transition cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -356,15 +356,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             <form onSubmit={handleSubmit} className="space-y-3.5 text-xs overflow-y-auto flex-1 pr-1 pt-1">
           {/* Post Type Selector */}
           <div>
-            <label className="font-semibold text-stone-700 block mb-1">Post Category</label>
-            <div className="grid grid-cols-2 gap-2 bg-stone-100 p-1 rounded-2xl">
+            <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">Post Category</label>
+            <div className="grid grid-cols-2 gap-2 bg-stone-100 dark:bg-slate-800/80 p-1 rounded-2xl">
               <button
                 type="button"
                 onClick={() => setType('market')}
                 className={`py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
                   type === 'market'
-                    ? 'bg-white text-emerald-800 shadow-xs'
-                    : 'text-stone-600 hover:text-stone-900'
+                    ? 'bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 shadow-xs'
+                    : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
                 }`}
               >
                 <Tag className="w-3.5 h-3.5" />
@@ -375,8 +375,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 onClick={() => setType('chat')}
                 className={`py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
                   type === 'chat'
-                    ? 'bg-white text-emerald-800 shadow-xs'
-                    : 'text-stone-600 hover:text-stone-900'
+                    ? 'bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 shadow-xs'
+                    : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
                 }`}
               >
                 <span>Discussion Feed</span>
@@ -386,7 +386,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
           {/* Title / Subject */}
           <div>
-            <label className="font-semibold text-stone-700 block mb-1">
+            <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">
               {type === 'market' ? 'Item Name' : 'Subject / Title'}
             </label>
             <input
@@ -398,14 +398,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   ? 'e.g. Vintage Rocking Chair, Wooden Chess Set...'
                   : 'e.g. Garden Club meeting this Friday'
               }
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-emerald-600 bg-stone-50/50"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 text-sm focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500"
             />
           </div>
 
           {/* Price (Market only) */}
           {type === 'market' && (
             <div>
-              <label className="font-semibold text-stone-700 block mb-1">
+              <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">
                 Price (Type FREE or $ amount)
               </label>
               <input
@@ -417,14 +417,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   }
                 }}
                 placeholder="e.g. FREE, $15, 25, $25 OBO"
-                className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-xs focus:outline-emerald-600 bg-stone-50/50"
+                className="w-full px-3.5 py-2 rounded-xl border border-stone-300 dark:border-slate-700 text-xs focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500"
               />
             </div>
           )}
 
           {/* Description */}
           <div>
-            <label className="font-semibold text-stone-700 block mb-1">
+            <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">
               Details & Pickup Information
             </label>
             <textarea
@@ -437,15 +437,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   ? 'Describe condition, pickup instructions (e.g., Apt 208 porch), or item specifications...'
                   : 'Share details with your neighbors...'
               }
-              className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-xs focus:outline-emerald-600 bg-stone-50/50"
+              className="w-full px-3.5 py-2 rounded-xl border border-stone-300 dark:border-slate-700 text-xs focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500"
             />
           </div>
 
           {/* Media Upload Area (Pictures and Videos) */}
           <div>
-            <label className="font-semibold text-stone-700 flex items-center justify-between mb-1">
+            <label className="font-semibold text-stone-700 dark:text-slate-300 flex items-center justify-between mb-1">
               <span className="flex items-center gap-1">
-                <Image className="w-3.5 h-3.5 text-emerald-700" />
+                <Image className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                 <span>Photos & Videos</span>
               </span>
             </label>
@@ -463,10 +463,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               }}
               className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition ${
                 isDragging
-                  ? 'border-emerald-600 bg-emerald-50'
+                  ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40'
                   : isUploading
-                    ? 'border-emerald-400 bg-emerald-50/40 cursor-wait'
-                    : 'border-stone-300 hover:border-emerald-600 bg-[#faf8f5]'
+                    ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 cursor-wait'
+                    : 'border-stone-300 dark:border-slate-700 hover:border-emerald-600 dark:hover:border-emerald-500 bg-[#faf8f5] dark:bg-slate-800/50'
               }`}
             >
               <input
@@ -479,7 +479,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 className="hidden"
               />
               <div className="flex flex-col items-center justify-center space-y-1.5">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-2xs">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center justify-center shadow-2xs">
                   {isUploading ? (
                     <Loader2 className="w-5 h-5 stroke-current animate-spin" />
                   ) : (
@@ -487,7 +487,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   )}
                 </div>
                 {isUploading && (
-                  <p className="text-xs font-semibold text-stone-800">
+                  <p className="text-xs font-semibold text-stone-800 dark:text-slate-200">
                     Uploading media...
                   </p>
                 )}
@@ -496,18 +496,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
             {/* Visual Upload State & Progress Percentage Tracker adjacent to the input button */}
             {isUploading && (
-              <div className="mt-2.5 p-3 rounded-2xl bg-emerald-50/90 border border-emerald-300/80 space-y-1.5 shadow-2xs animate-in fade-in">
+              <div className="mt-2.5 p-3 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-300/80 dark:border-emerald-800 space-y-1.5 shadow-2xs animate-in fade-in">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-emerald-950 flex items-center gap-1.5 truncate max-w-[240px]">
-                    <CloudUpload className="w-3.5 h-3.5 text-emerald-700 animate-pulse shrink-0" />
+                  <span className="font-bold text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5 truncate max-w-[240px]">
+                    <CloudUpload className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 animate-pulse shrink-0" />
                     <span className="truncate">{uploadingFileName}</span>
                   </span>
-                  <span className="font-mono font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  <span className="font-mono font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full">
                     {uploadProgress}%
                   </span>
                 </div>
                 {/* Progress bar */}
-                <div className="w-full bg-emerald-200/80 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-emerald-200/80 dark:bg-emerald-900/80 h-2 rounded-full overflow-hidden">
                   <div
                     className="bg-emerald-600 h-full transition-all duration-150 rounded-full"
                     style={{ width: `${Math.max(uploadProgress, 5)}%` }}
@@ -517,8 +517,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             )}
 
             {uploadError && (
-              <div className="mt-2 flex items-center gap-1.5 p-2 rounded-xl bg-rose-50 border border-rose-200 text-[11px] text-rose-700">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+              <div className="mt-2 flex items-center gap-1.5 p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-[11px] text-rose-700 dark:text-rose-300">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
                 <span>{uploadError}</span>
               </div>
             )}
@@ -526,9 +526,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             {/* Uploaded media previews */}
             {mediaList.length > 0 && (
               <div className="mt-2.5 space-y-1.5">
-                <div className="flex items-center justify-between text-[10px] text-stone-500">
-                  <span className="font-semibold text-emerald-800 flex items-center gap-1">
-                    <Check className="w-3 h-3 text-emerald-600" />
+                <div className="flex items-center justify-between text-[10px] text-stone-500 dark:text-slate-400">
+                  <span className="font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                     <span>Attached ({mediaList.length})</span>
                   </span>
                 </div>
@@ -573,8 +573,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
           <div className="pt-2 flex items-center gap-2.5">
             {isUploading && (
-              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold shrink-0 animate-pulse">
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0 animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="font-mono">{uploadProgress}%</span>
               </div>
             )}
@@ -584,7 +584,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               disabled={isUploading || isSubmitting}
               className={`flex-1 font-bold py-2.5 rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-2 ${
                 isUploading || isSubmitting
-                  ? 'bg-stone-300 text-stone-500 cursor-not-allowed'
+                  ? 'bg-stone-300 dark:bg-slate-800 text-stone-500 dark:text-slate-500 cursor-not-allowed'
                   : 'bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer active:scale-98'
               }`}
             >

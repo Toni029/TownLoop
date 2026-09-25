@@ -80,7 +80,7 @@ export function AddTaskModal({
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 shadow-2xl space-y-4 border-t sm:border border-stone-200 will-change-transform"
+        className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 shadow-2xl space-y-4 border-t sm:border border-stone-200 dark:border-slate-800 will-change-transform"
       >
         {/* iOS pull/grab indicator bar */}
         <div
@@ -89,21 +89,21 @@ export function AddTaskModal({
           style={{ touchAction: 'none' }}
           className="w-full py-1.5 flex items-center justify-center cursor-grab active:cursor-grabbing sm:hidden shrink-0 group select-none -mt-2 mb-1"
         >
-          <div className="w-12 h-1.5 bg-stone-300 group-hover:bg-stone-400 rounded-full" />
+          <div className="w-12 h-1.5 bg-stone-300 dark:bg-slate-700 group-hover:bg-stone-400 rounded-full" />
         </div>
 
-        <div className="flex justify-between items-center border-b border-neutral-100 pb-3">
-          <h3 className="text-base font-bold text-slate-800">Add New Task</h3>
+        <div className="flex justify-between items-center border-b border-neutral-100 dark:border-slate-800 pb-3">
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Add New Task</h3>
           <button
             onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-500 hover:text-neutral-800 flex items-center justify-center font-bold cursor-pointer"
+            className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-slate-800 text-neutral-500 dark:text-slate-400 hover:text-neutral-800 dark:hover:text-slate-200 flex items-center justify-center font-bold cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
         <form onSubmit={handleAddTask} className="space-y-3 text-xs">
           <div>
-            <label className="font-semibold text-slate-600 block mb-1">
+            <label className="font-semibold text-slate-600 dark:text-slate-300 block mb-1">
               Task Description
             </label>
             <input
@@ -111,11 +111,11 @@ export function AddTaskModal({
               value={newTaskText}
               onChange={(e) => setNewTaskText(e.target.value)}
               placeholder="e.g., Water porch plants"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-emerald-600"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100 placeholder:text-neutral-400 dark:placeholder:text-slate-500 text-sm focus:outline-emerald-600"
             />
           </div>
           <div>
-            <label className="font-semibold text-slate-600 block mb-1">
+            <label className="font-semibold text-slate-600 dark:text-slate-300 block mb-1">
               Scheduled Date
             </label>
             <input
@@ -123,7 +123,7 @@ export function AddTaskModal({
               required
               value={newTaskDate}
               onChange={(e) => setNewTaskDate(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-neutral-200 text-xs focus:outline-emerald-600"
+              className="w-full px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-slate-700 bg-white dark:bg-slate-800/70 text-slate-900 dark:text-slate-100 text-xs focus:outline-emerald-600"
             />
           </div>
           <button

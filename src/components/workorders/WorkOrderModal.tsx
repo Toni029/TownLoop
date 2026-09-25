@@ -217,10 +217,10 @@ export function WorkOrderModal({
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white dark:bg-stone-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col will-change-transform ${
+        className={`bg-white dark:bg-slate-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col will-change-transform ${
           isFullScreen
             ? 'fixed inset-0 w-full h-full max-w-none max-h-none rounded-none z-50 p-4 sm:p-6 border-0'
-            : 'w-full max-w-lg rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 border-t sm:border border-stone-200 dark:border-stone-800 max-h-[92vh] sm:max-h-[90vh]'
+            : 'w-full max-w-lg rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 border-t sm:border border-stone-200 dark:border-slate-800 max-h-[92vh] sm:max-h-[90vh]'
         }`}
       >
         {/* Interactive iOS pull/grab bar: drag down to close, drag up for full screen */}
@@ -241,7 +241,7 @@ export function WorkOrderModal({
             className={`h-1.5 rounded-full transition-all duration-200 ${
               isFullScreen
                 ? 'w-16 bg-emerald-600'
-                : 'w-12 bg-stone-300 dark:bg-stone-600 hover:bg-stone-400 dark:hover:bg-stone-500 group-hover:w-16'
+                : 'w-12 bg-stone-300 dark:bg-slate-700 hover:bg-stone-400 dark:hover:bg-slate-600 group-hover:w-16'
             }`}
           />
         </div>
@@ -255,14 +255,14 @@ export function WorkOrderModal({
             }
           }}
           style={{ touchAction: 'none' }}
-          className="flex justify-between items-center border-b border-stone-100 dark:border-stone-800 pb-3 shrink-0 cursor-grab active:cursor-grabbing select-none"
+          className="flex justify-between items-center border-b border-stone-100 dark:border-slate-800 pb-3 shrink-0 cursor-grab active:cursor-grabbing select-none"
         >
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-slate-100 flex items-center gap-2">
               <span>🛠️</span>
               <span>New Work Order Request</span>
             </h3>
-            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+            <p className="text-xs text-stone-500 dark:text-slate-400 mt-0.5">
               Submit an issue to the maintenance crew
             </p>
           </div>
@@ -270,7 +270,7 @@ export function WorkOrderModal({
             <button
               type="button"
               onClick={() => setIsFullScreen((prev) => !prev)}
-              className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 flex items-center justify-center font-bold transition cursor-pointer"
+              className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-500 hover:text-stone-800 dark:hover:text-slate-200 flex items-center justify-center font-bold transition cursor-pointer"
               title={isFullScreen ? 'Exit full screen' : 'Expand to full screen'}
             >
               {isFullScreen ? (
@@ -281,7 +281,7 @@ export function WorkOrderModal({
             </button>
             <button
               onClick={handleClose}
-              className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 flex items-center justify-center font-bold transition cursor-pointer"
+              className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-500 hover:text-stone-800 dark:hover:text-slate-200 flex items-center justify-center font-bold transition cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -295,14 +295,14 @@ export function WorkOrderModal({
           >
             {/* 1. Category Selection (at least 7 categories with emojis) */}
             <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1 text-xs uppercase tracking-wider">
+              <label className="font-bold text-stone-700 dark:text-slate-300 block mb-1 text-xs uppercase tracking-wider">
                 Category
               </label>
               <div className="relative">
                 <select
                   value={newWoCategory}
                   onChange={(e) => setNewWoCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/90 text-stone-800 dark:text-stone-100 text-sm font-medium focus:outline-emerald-600 appearance-none pr-8 cursor-pointer"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800/90 text-stone-800 dark:text-slate-100 text-sm font-medium focus:outline-emerald-600 appearance-none pr-8 cursor-pointer"
                 >
                   {WORK_ORDER_CATEGORIES.map((cat) => (
                     <option key={cat.id} value={cat.name}>
@@ -314,14 +314,14 @@ export function WorkOrderModal({
                   ▼
                 </div>
               </div>
-              <p className="text-[11px] text-stone-400 mt-1">
+              <p className="text-[11px] text-stone-400 dark:text-slate-500 mt-1">
                 {WORK_ORDER_CATEGORIES.find((c) => c.name === newWoCategory)?.description}
               </p>
             </div>
 
             {/* 2. What needs fixing? (Title) */}
             <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1 text-xs uppercase tracking-wider">
+              <label className="font-bold text-stone-700 dark:text-slate-300 block mb-1 text-xs uppercase tracking-wider">
                 What Needs Fixing? <span className="text-rose-500">*</span>
               </label>
               <input
@@ -329,13 +329,13 @@ export function WorkOrderModal({
                 value={newWoTitle}
                 onChange={(e) => setNewWoTitle(e.target.value)}
                 placeholder="e.g. Master bathroom sink dripping constantly"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-sm focus:outline-emerald-600 placeholder:text-stone-400"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-stone-900 dark:text-slate-100 text-sm focus:outline-emerald-600 placeholder:text-stone-400 dark:placeholder:text-slate-500"
               />
             </div>
 
             {/* 3. Detailed Description */}
             <div>
-              <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1 text-xs uppercase tracking-wider">
+              <label className="font-bold text-stone-700 dark:text-slate-300 block mb-1 text-xs uppercase tracking-wider">
                 Description of Issue
               </label>
               <textarea
@@ -343,25 +343,25 @@ export function WorkOrderModal({
                 value={newWoDescription}
                 onChange={(e) => setNewWoDescription(e.target.value)}
                 placeholder="Provide details about the issue (exact room, how long it has been happening, accessibility instructions)..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-sm focus:outline-emerald-600 placeholder:text-stone-400 resize-none"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-stone-900 dark:text-slate-100 text-sm focus:outline-emerald-600 placeholder:text-stone-400 dark:placeholder:text-slate-500 resize-none"
               />
             </div>
 
             {/* 4. PICTURES UPLOAD BOX AT THE BOTTOM */}
-            <div className="pt-2 border-t border-stone-100 dark:border-stone-800">
+            <div className="pt-2 border-t border-stone-100 dark:border-slate-800">
               <div className="flex items-center justify-between mb-1.5">
-                <label className="font-bold text-stone-700 dark:text-stone-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <label className="font-bold text-stone-700 dark:text-slate-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
                   <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Attach Pictures</span>
                 </label>
-                <span className="text-[11px] font-semibold text-stone-500 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded-full border border-stone-200 dark:border-stone-700">
+                <span className="text-[11px] font-semibold text-stone-500 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-stone-200 dark:border-slate-700">
                   Photos Only • No Videos
                 </span>
               </div>
 
               {/* Error Banner if user tries video */}
               {errorMessage && (
-                <div className="p-2.5 mb-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/80 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                <div className="p-2.5 mb-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>{errorMessage}</span>
                 </div>
@@ -375,7 +375,7 @@ export function WorkOrderModal({
                 className={`group relative border-2 border-dashed rounded-2xl p-4 transition text-center ${
                   isUploading
                     ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 cursor-wait'
-                    : 'border-stone-300 dark:border-stone-700 hover:border-emerald-500 dark:hover:border-emerald-500 bg-stone-50/60 dark:bg-stone-800/50 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20 cursor-pointer'
+                    : 'border-stone-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 bg-stone-50/60 dark:bg-slate-800/50 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20 cursor-pointer'
                 }`}
               >
                 <input
@@ -396,7 +396,7 @@ export function WorkOrderModal({
                     )}
                   </div>
                   {isUploading && (
-                    <p className="text-xs font-semibold text-stone-700 dark:text-stone-200">
+                    <p className="text-xs font-semibold text-stone-700 dark:text-slate-200">
                       Uploading photo...
                     </p>
                   )}
@@ -427,14 +427,14 @@ export function WorkOrderModal({
               {/* Uploaded Thumbnails Grid */}
               {newWoPhotos.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-stone-400 dark:text-slate-500 mb-1.5">
                     Attached Photos ({newWoPhotos.length})
                   </p>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {newWoPhotos.map((photoUrl, idx) => (
                       <div
                         key={idx}
-                        className="group relative aspect-square rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 shadow-xs"
+                        className="group relative aspect-square rounded-xl overflow-hidden border border-stone-200 dark:border-slate-700 bg-stone-100 dark:bg-slate-800 shadow-xs"
                       >
                         <img
                           src={photoUrl}
@@ -472,7 +472,7 @@ export function WorkOrderModal({
                 disabled={isUploading || isSubmitting}
                 className={`flex-1 font-bold py-3 rounded-2xl text-sm transition shadow-sm flex items-center justify-center gap-2 ${
                   isUploading || isSubmitting
-                    ? 'bg-stone-300 dark:bg-stone-700 text-stone-500 cursor-not-allowed'
+                    ? 'bg-stone-300 dark:bg-slate-800 text-stone-500 dark:text-slate-500 cursor-not-allowed'
                     : 'bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white cursor-pointer active:scale-98'
                 }`}
               >
