@@ -3,7 +3,7 @@
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  */
 
-const CACHE_NAME = 'townloop-cache-v1';
+const CACHE_NAME = 'townloop-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
@@ -13,23 +13,64 @@ const PRECACHE_ASSETS = [
   '/apple-touch-icon.png'
 ];
 
-// Domains that MUST NEVER be intercepted or cached by the service worker
-const BYPASS_DOMAINS = [
-  'firestore.googleapis.com',
-  'identitytoolkit.googleapis.com',
-  'securetoken.googleapis.com',
-  'firebaseinstallations.googleapis.com',
-  'firebase.googleapis.com',
-  'firebaseio.com',
-  'firebasestorage.app',
-  'storage.googleapis.com',
-  'accounts.google.com',
-  'apis.google.com',
-  'generativelanguage.googleapis.com',
-  'translation.googleapis.com',
-  'maps.googleapis.com',
-  'api.open-meteo.com'
-];
+/**
+ * Checks if a request URL must bypass service worker interception and go straight to network.
+ * Strictly excludes all Firebase APIs, Firestore realtime listeners, Google APIs, and backend endpoints.
+ */
+function shouldBypassServiceWorker(url, req) {
+  const hostname = url.hostname.toLowerCase();
+  const pathname = url.pathname;
+
+  // 1. Explicit domain bypass: Firebase, Firestore, Google APIs, Storage, Auth, Maps, Weather
+  if (
+    hostname.endsWith('googleapis.com') ||
+    hostname.endsWith('firebaseio.com') ||
+    hostname.endsWith('firebasestorage.app') ||
+    hostname.endsWith('firebaseapp.com') ||
+    hostname.endsWith('google.com') ||
+    hostname.endsWith('gstatic.com') ||
+    hostname.endsWith('open-meteo.com') ||
+    hostname === 'firestore.googleapis.com' ||
+    hostname === 'identitytoolkit.googleapis.com' ||
+    hostname === 'securetoken.googleapis.com' ||
+    hostname === 'firebaseinstallations.googleapis.com' ||
+    hostname === 'storage.googleapis.com'
+  ) {
+    return true;
+  }
+
+  // 2. Realtime database, WebChannel, long-polling, Firestore streaming channels & WebSockets
+  if (
+    pathname.includes('/google.firestore.') ||
+    pathname.includes('/channel') ||
+    pathname.includes('/ws') ||
+    pathname.includes('/hub') ||
+    req.headers.get('upgrade') === 'websocket'
+  ) {
+    return true;
+  }
+
+  // 3. Backend API proxy routes and internal server endpoints
+  if (pathname.startsWith('/api/') || pathname.startsWith('/__/')) {
+    return true;
+  }
+
+  // 4. Development source code, hot updates, modules, and bundler assets
+  if (
+    pathname.startsWith('/src/') ||
+    pathname.includes('/@vite/') ||
+    pathname.includes('/@fs/') ||
+    pathname.includes('/@id/') ||
+    pathname.includes('vite-hmr') ||
+    url.search.includes('t=') ||
+    pathname.endsWith('.ts') ||
+    pathname.endsWith('.tsx')
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 // Install: precache app shell
 self.addEventListener('install', (event) => {
@@ -60,7 +101,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
-  // 1. Only handle GET requests (Firebase Auth/Firestore writes/uploads use POST/PUT/DELETE)
+  // 1. Only handle GET requests (Firebase Auth / Firestore writes / uploads use POST/PUT/DELETE/PATCH)
   if (req.method !== 'GET') {
     return;
   }
@@ -77,34 +118,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Strictly bypass all Firebase, Google APIs, Open-Meteo, and auth endpoints
-  const isBypassDomain = BYPASS_DOMAINS.some(
-    (domain) => url.hostname === domain || url.hostname.endsWith('.' + domain)
-  );
-  if (isBypassDomain) {
+  // 3. Strictly bypass all Firebase, Google APIs, Firestore streaming, and backend endpoints
+  if (shouldBypassServiceWorker(url, req)) {
     return;
   }
 
-  // 4. Bypass backend API routes (/api/*) and internal server endpoints
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/__/')) {
-    return;
-  }
-
-  // 5. Bypass development source code, hot updates, and TS/TSX so live edits take effect immediately
-  if (
-    url.pathname.startsWith('/src/') ||
-    url.pathname.includes('/@vite/') ||
-    url.pathname.includes('/@fs/') ||
-    url.pathname.includes('/@id/') ||
-    url.pathname.includes('vite-hmr') ||
-    url.search.includes('t=') ||
-    url.pathname.endsWith('.ts') ||
-    url.pathname.endsWith('.tsx')
-  ) {
-    return;
-  }
-
-  // 6. Navigation requests (HTML pages): Network-First, fallback to cached index.html
+  // 4. Navigation requests (HTML pages): Network-First, fallback to cached index.html
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -122,7 +141,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 7. Same-origin or static assets: Stale-While-Revalidate
+  // 5. Static precached assets: Stale-While-Revalidate
   event.respondWith(
     caches.match(req).then((cachedResponse) => {
       const fetchPromise = fetch(req)
@@ -138,7 +157,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // If offline and not in cache, fallback
           return cachedResponse;
         });
 
@@ -146,3 +164,4 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+

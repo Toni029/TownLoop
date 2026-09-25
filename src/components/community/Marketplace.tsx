@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { CommunityState } from '../../hooks/useCommunityState';
 import { canDeleteAnyPost } from '../../utils/permissions';
+import { UserAvatar } from '../UserAvatar';
 
 type MarketplaceProps = Pick<
   CommunityState,
@@ -83,18 +84,12 @@ export function Marketplace({
             <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5 min-w-0">
                 {/* Author Avatar */}
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 shrink-0 flex items-center justify-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  {item.authorAvatar ? (
-                    <img
-                      src={item.authorAvatar}
-                      alt={item.author}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    item.author.slice(0, 2).toUpperCase()
-                  )}
-                </div>
+                <UserAvatar
+                  src={item.authorAvatar}
+                  name={item.author}
+                  size="sm"
+                  className="w-8 h-8 border border-stone-200 dark:border-slate-700"
+                />
                 {/* Author Name and Timestamp */}
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-bold text-stone-900 dark:text-slate-100 truncate">

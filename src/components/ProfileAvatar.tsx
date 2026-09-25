@@ -1799,13 +1799,13 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/80 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/80 flex items-center justify-center shrink-0 overflow-hidden">
                     {userIsVip && activeOfficeChat?.residentAvatar ? (
-                      <img
+                      <UserAvatar
                         src={activeOfficeChat.residentAvatar}
-                        alt={activeOfficeChat.residentName}
-                        className="w-full h-full rounded-xl object-cover"
-                        referrerPolicy="no-referrer"
+                        name={activeOfficeChat.residentName}
+                        size="sm"
+                        className="w-full h-full rounded-xl"
                       />
                     ) : (
                       <Building2 className="w-5 h-5 text-blue-800 dark:text-blue-300" />
@@ -1984,18 +1984,12 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    {selectedMessage.senderAvatar ? (
-                      <img
-                        src={selectedMessage.senderAvatar}
-                        alt={selectedMessage.from}
-                        className="w-11 h-11 rounded-full object-cover border-2 border-emerald-500/40"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm bg-emerald-100 text-emerald-800">
-                        <Users className="w-5 h-5" />
-                      </div>
-                    )}
+                    <UserAvatar
+                      src={selectedMessage.senderAvatar}
+                      name={selectedMessage.from}
+                      size="md"
+                      className="w-11 h-11 border-2 border-emerald-500/40"
+                    />
                     <div>
                       <h4 className="text-sm sm:text-base font-bold">{selectedMessage.from}</h4>
                       <p className="text-xs text-stone-500 dark:text-slate-400">
@@ -2199,12 +2193,12 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 }`}
               >
                 <div className="relative inline-block mx-auto">
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-3 border-emerald-600/50 shadow-md">
-                    <img
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-3 border-emerald-600/50 shadow-md flex items-center justify-center">
+                    <UserAvatar
                       src={selectedResident.photo}
-                      alt={selectedResident.name}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
+                      name={selectedResident.name}
+                      size="xl"
+                      className="w-full h-full text-2xl"
                     />
                   </div>
                   {selectedResident.status === 'online' && (

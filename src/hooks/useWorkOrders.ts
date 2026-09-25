@@ -18,6 +18,7 @@ const INITIAL_WORK_ORDERS: WorkOrderItem[] = [];
 export interface WorkOrdersState {
   workOrders: WorkOrderItem[];
   setWorkOrders: React.Dispatch<React.SetStateAction<WorkOrderItem[]>>;
+  isLoading?: boolean;
   isWorkOrderModalOpen: boolean;
   setIsWorkOrderModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   newWoTitle: string;
@@ -59,6 +60,7 @@ export function useWorkOrders(
     return [];
   });
 
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isWorkOrderModalOpen, setIsWorkOrderModalOpen] = useState(false);
   const [newWoTitle, setNewWoTitle] = useState('');
   const [newWoDescription, setNewWoDescription] = useState('');
@@ -74,12 +76,16 @@ export function useWorkOrders(
     }
   }, [workOrders]);
 
-  // Firestore live subscription
+  // Firestore live subscription with strict error callbacks and lifecycle cleanup
   useEffect(() => {
-    if (!isFirebaseConfigured() || !db) return;
+    if (!isFirebaseConfigured() || !db) {
+      setIsLoading(false);
+      return;
+    }
+    let unsubscribe = () => {};
     try {
       const q = query(collection(db, 'work_orders'), orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(
+      unsubscribe = onSnapshot(
         q,
         (snapshot) => {
           const remoteOrders: WorkOrderItem[] = snapshot.docs.map((doc) => {
@@ -108,15 +114,20 @@ export function useWorkOrders(
             };
           });
           setWorkOrders(remoteOrders);
+          setIsLoading(false);
         },
         (error) => {
           console.warn('Firestore work orders listener error:', error);
+          setIsLoading(false);
         }
       );
-      return () => unsubscribe();
     } catch (err) {
       console.warn('Failed to attach Firestore work orders listener:', err);
+      setIsLoading(false);
     }
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const handleWorkOrderSubmit = useCallback(

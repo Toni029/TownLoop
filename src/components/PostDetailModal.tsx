@@ -28,6 +28,7 @@ import {
   Maximize2
 } from 'lucide-react';
 import { PostItem, MarketItem, CommentItem } from '../types';
+import { UserAvatar } from './UserAvatar';
 import { MediaFullscreenModal } from './MediaFullscreenModal';
 
 interface PostDetailModalProps {
@@ -176,20 +177,12 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
             {/* Modal Header */}
         <div className="px-5 py-3.5 bg-stone-50/90 dark:bg-slate-800/80 border-b border-stone-200 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative w-9 h-9 rounded-full overflow-hidden border border-emerald-600/30 bg-stone-200 shrink-0 shadow-xs">
-              {authorAvatar ? (
-                <img
-                  src={authorAvatar}
-                  alt={author}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-800 font-bold text-xs">
-                  {author.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-            </div>
+            <UserAvatar
+              src={authorAvatar}
+              name={author}
+              size="md"
+              className="w-9 h-9 border border-emerald-600/30"
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-slate-100 truncate">{author}</h3>
@@ -489,18 +482,12 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full overflow-hidden bg-emerald-700/10 text-emerald-800 font-bold text-[10px] flex items-center justify-center border border-emerald-600/20">
-                          {c.authorAvatar ? (
-                            <img
-                              src={c.authorAvatar}
-                              alt={c.author}
-                              className="w-full h-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            c.author.slice(0, 2).toUpperCase()
-                          )}
-                        </div>
+                        <UserAvatar
+                          src={c.authorAvatar}
+                          name={c.author}
+                          size="xs"
+                          className="w-6 h-6 border border-emerald-600/20 text-[10px]"
+                        />
                         <span className="text-xs font-bold text-stone-800 dark:text-slate-200">{c.author}</span>
                         {c.unit && (
                           <span className="text-[10px] text-stone-400 dark:text-slate-500 font-medium">({c.unit})</span>

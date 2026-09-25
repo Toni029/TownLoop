@@ -74,6 +74,7 @@ export function subscribeToMaintenanceChats(
       },
       (error) => {
         console.warn('Unable to subscribe to crew maintenance chats:', error);
+        onUpdate([]);
       }
     );
     return unsubscribe;
@@ -100,6 +101,7 @@ export function subscribeToMaintenanceChats(
       },
       (error) => {
         console.warn('Unable to subscribe to resident maintenance chat:', error);
+        onUpdate([]);
       }
     );
     return unsubscribe;

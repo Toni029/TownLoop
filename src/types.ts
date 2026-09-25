@@ -51,6 +51,8 @@ export interface CommentItem {
   id: number | string;
   author: string;
   authorAvatar?: string;
+  authorId?: string | number;
+  authorEmail?: string;
   unit?: string;
   text: string;
   timeAgo: string;

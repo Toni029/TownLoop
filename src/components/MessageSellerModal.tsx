@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { X, Send, User, MapPin, Tag, CheckCircle2 } from 'lucide-react';
 import { MarketItem, UserProfile } from '../types';
+import { UserAvatar } from './UserAvatar';
 
 interface MessageSellerModalProps {
   isOpen: boolean;
@@ -158,18 +159,12 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
         <div className="bg-stone-50 dark:bg-slate-800/70 border border-stone-200/80 dark:border-slate-700/80 rounded-2xl p-3.5 space-y-2.5">
           {/* Seller details */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full overflow-hidden bg-stone-200 dark:bg-slate-700 border border-stone-300 dark:border-slate-600 shrink-0 flex items-center justify-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
-              {item.authorAvatar ? (
-                <img
-                  src={item.authorAvatar}
-                  alt={item.author}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <User className="w-4 h-4 text-stone-600 dark:text-slate-300" />
-              )}
-            </div>
+            <UserAvatar
+              src={item.authorAvatar}
+              name={item.author}
+              size="sm"
+              className="w-9 h-9 border border-stone-300 dark:border-slate-600"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-slate-100 truncate">

@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { MessageSquare, Maximize2, Trash2 } from 'lucide-react';
 import type { CommunityState } from '../../hooks/useCommunityState';
 import { canDeleteAnyPost } from '../../utils/permissions';
+import { UserAvatar } from '../UserAvatar';
 
 type DiscussionFeedProps = Pick<
   CommunityState,
@@ -62,18 +63,12 @@ export function DiscussionFeed({
                 onClick={() => setSelectedDetailPost(post)}
                 className="flex items-center space-x-2.5 cursor-pointer"
               >
-                <div className="w-9 h-9 rounded-full overflow-hidden bg-stone-100 dark:bg-slate-800 border border-emerald-600/30 dark:border-emerald-600/40 flex items-center justify-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  {post.authorAvatar ? (
-                    <img
-                      src={post.authorAvatar}
-                      alt={post.author}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    post.author.slice(0, 2).toUpperCase()
-                  )}
-                </div>
+                <UserAvatar
+                  src={post.authorAvatar}
+                  name={post.author}
+                  size="sm"
+                  className="w-9 h-9 border border-emerald-600/30 dark:border-emerald-600/40"
+                />
                 <div>
                   <p className="text-xs font-bold text-stone-900 dark:text-slate-100 hover:text-emerald-700 dark:hover:text-emerald-400 transition">
                     {post.author}
@@ -237,18 +232,12 @@ export function DiscussionFeed({
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full overflow-hidden bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 font-bold text-[9px] flex items-center justify-center shrink-0">
-                            {c.authorAvatar ? (
-                              <img
-                                src={c.authorAvatar}
-                                alt={c.author}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              c.author.slice(0, 1)
-                            )}
-                          </div>
+                          <UserAvatar
+                            src={c.authorAvatar}
+                            name={c.author}
+                            size="xs"
+                            className="w-5 h-5 text-[9px]"
+                          />
                           <span className="font-bold text-stone-800 dark:text-slate-200">
                             {c.author}
                           </span>

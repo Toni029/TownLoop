@@ -54,6 +54,7 @@ export function subscribeToOfficeChats(
       },
       (error) => {
         console.warn('Unable to subscribe to VIP office chats:', error);
+        onUpdate([]);
       }
     );
     return unsubscribe;
@@ -80,6 +81,7 @@ export function subscribeToOfficeChats(
       },
       (error) => {
         console.warn('Unable to subscribe to resident office chat:', error);
+        onUpdate([]);
       }
     );
     return unsubscribe;

@@ -42,9 +42,26 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
+  const cleanSrc = typeof src === 'string' ? src.trim() : '';
+  const isUsableSrc = Boolean(
+    cleanSrc &&
+    cleanSrc !== 'undefined' &&
+    cleanSrc !== 'null' &&
+    !imageError &&
+    (
+      cleanSrc.startsWith('http://') ||
+      cleanSrc.startsWith('https://') ||
+      cleanSrc.startsWith('//') ||
+      cleanSrc.startsWith('data:') ||
+      cleanSrc.startsWith('blob:') ||
+      cleanSrc.startsWith('/') ||
+      cleanSrc.startsWith('./')
+    )
+  );
+
   React.useEffect(() => {
     setImageError(false);
-  }, [src]);
+  }, [src, name]);
 
   const getInitials = (fullName: string) => {
     const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -54,25 +71,25 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   };
 
   const initials = getInitials(name);
-  const showImage = Boolean(src && !imageError);
 
   return (
     <div
       className={`relative rounded-full shrink-0 flex items-center justify-center font-bold select-none overflow-hidden ${
         sizeClasses[size]
       } ${
-        showImage
+        isUsableSrc
           ? 'bg-stone-100 dark:bg-slate-800'
           : 'bg-gradient-to-br from-stone-100 to-stone-200 dark:from-slate-800 dark:to-slate-700 text-stone-700 dark:text-stone-200 border border-stone-200 dark:border-slate-700 shadow-2xs'
       } ${className}`}
     >
-      {showImage ? (
+      {isUsableSrc ? (
         <img
-          src={src!}
+          src={cleanSrc}
           alt={alt || name}
           onError={() => setImageError(true)}
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
+          loading="eager"
         />
       ) : initials && initials.length > 0 && initials !== 'R' ? (
         <span className="leading-none tracking-tight font-extrabold">{initials}</span>

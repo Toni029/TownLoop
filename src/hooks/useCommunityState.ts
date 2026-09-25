@@ -151,17 +151,25 @@ export function useCommunityState(
       authorEmail?: string,
       authorName?: string
     ): string => {
-      if (rawAvatar && rawAvatar.trim() && !rawAvatar.includes('placeholder')) {
+      if (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim() && rawAvatar !== 'undefined' && rawAvatar !== 'null') {
         return rawAvatar.trim();
       }
 
       // Check current user match
       if (currentUser) {
-        const myAvatar = currentUser.avatarUrl || currentUser.avatar_url;
-        if (myAvatar && myAvatar.trim()) {
-          const idMatch = authorId && String(authorId) === String(currentUser.id);
-          const emailMatch = authorEmail && currentUser.email && authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
-          const nameMatch = authorName && currentUser.name && authorName.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
+        const myAvatar = currentUser.avatarUrl || currentUser.avatar_url || (currentUser as any).avatar;
+        if (myAvatar && typeof myAvatar === 'string' && myAvatar.trim()) {
+          const idMatch = Boolean(authorId && String(authorId) === String(currentUser.id));
+          const emailMatch = Boolean(
+            authorEmail &&
+              currentUser.email &&
+              authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+          );
+          const nameMatch = Boolean(
+            authorName &&
+              currentUser.name &&
+              authorName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()
+          );
           if (idMatch || emailMatch || nameMatch) {
             return myAvatar.trim();
           }
@@ -169,17 +177,21 @@ export function useCommunityState(
       }
 
       // Check community directory match
-      if (directoryUsers.length > 0) {
+      if (directoryUsers && directoryUsers.length > 0) {
+        const cleanAuthorName = (authorName || '').toLowerCase().trim();
+        const cleanAuthorEmail = (authorEmail || '').toLowerCase().trim();
+        const cleanAuthorId = authorId ? String(authorId).trim() : '';
+
         const found = directoryUsers.find((u) => {
-          if (authorId && String(u.id) === String(authorId)) return true;
-          if (authorEmail && u.email && authorEmail.toLowerCase().trim() === u.email.toLowerCase().trim()) return true;
-          if (authorName && u.name && authorName.toLowerCase().trim() === u.name.toLowerCase().trim()) return true;
+          if (cleanAuthorId && (String(u.id) === cleanAuthorId || String(u.uid) === cleanAuthorId)) return true;
+          if (cleanAuthorEmail && u.email && cleanAuthorEmail === String(u.email).toLowerCase().trim()) return true;
+          if (cleanAuthorName && u.name && cleanAuthorName === String(u.name).toLowerCase().trim()) return true;
           return false;
         });
 
         if (found) {
-          const dirAvatar = found.avatar || found.avatarUrl || found.avatar_url;
-          if (dirAvatar && dirAvatar.trim()) {
+          const dirAvatar = found.avatarUrl || found.avatar_url || found.avatar || found.photoUrl || found.photoURL || found.photo;
+          if (dirAvatar && typeof dirAvatar === 'string' && dirAvatar.trim()) {
             return dirAvatar.trim();
           }
         }
@@ -309,19 +321,29 @@ export function useCommunityState(
     setPosts((prev) =>
       prev.map((p) => {
         const resolved = resolveAvatar(p.authorAvatar, p.authorId, p.authorEmail, p.author);
-        if (resolved && resolved !== p.authorAvatar) {
-          return { ...p, authorAvatar: resolved };
-        }
-        return p;
+        const updatedComments = (p.comments || []).map((c) => ({
+          ...c,
+          authorAvatar: resolveAvatar(c.authorAvatar, c.authorId, c.authorEmail, c.author),
+        }));
+        return {
+          ...p,
+          authorAvatar: resolved || p.authorAvatar,
+          comments: updatedComments,
+        };
       })
     );
     setMarketItems((prev) =>
       prev.map((m) => {
         const resolved = resolveAvatar(m.authorAvatar, m.authorId, m.authorEmail, m.author);
-        if (resolved && resolved !== m.authorAvatar) {
-          return { ...m, authorAvatar: resolved };
-        }
-        return m;
+        const updatedComments = (m.comments || []).map((c) => ({
+          ...c,
+          authorAvatar: resolveAvatar(c.authorAvatar, c.authorId, c.authorEmail, c.author),
+        }));
+        return {
+          ...m,
+          authorAvatar: resolved || m.authorAvatar,
+          comments: updatedComments,
+        };
       })
     );
   }, [directoryUsers, currentUser, resolveAvatar]);
@@ -344,9 +366,18 @@ export function useCommunityState(
       const text = (commentInputText[String(postId)] || '').trim();
       if (!text) return;
 
+      const myAvatar =
+        currentUser?.avatarUrl ||
+        currentUser?.avatar_url ||
+        (currentUser as any)?.avatar ||
+        '';
+
       const newComment: CommentItem = {
         id: `c-${Date.now()}`,
         author: currentUser?.name || 'Resident',
+        authorAvatar: myAvatar,
+        authorId: currentUser?.id,
+        authorEmail: currentUser?.email,
         unit: currentUser?.address || currentUser?.apartmentNumber || 'Unit 208',
         text,
         timeAgo: 'Just now',
@@ -370,9 +401,18 @@ export function useCommunityState(
     (targetId: number | string, text: string) => {
       if (!text.trim()) return;
 
+      const myAvatar =
+        currentUser?.avatarUrl ||
+        currentUser?.avatar_url ||
+        (currentUser as any)?.avatar ||
+        '';
+
       const newComment: CommentItem = {
         id: `c-${Date.now()}`,
         author: currentUser?.name || 'Resident',
+        authorAvatar: myAvatar,
+        authorId: currentUser?.id,
+        authorEmail: currentUser?.email,
         unit: currentUser?.address || currentUser?.apartmentNumber || 'Unit 208',
         text: text.trim(),
         timeAgo: 'Just now',
@@ -480,12 +520,18 @@ export function useCommunityState(
       const unit = currentUser?.address || currentUser?.apartmentNumber || 'Unit 208';
       const authorId = currentUser?.id || 'resident';
       const authorEmail = currentUser?.email || '';
+      const authorAvatar =
+        currentUser?.avatarUrl ||
+        currentUser?.avatar_url ||
+        (currentUser as any)?.avatar ||
+        '';
 
       if (payload.type === 'chat') {
         const tempId = `post-${Date.now()}`;
         const newPost: PostItem = {
           id: tempId,
           author,
+          authorAvatar,
           authorId,
           authorEmail,
           unit,
@@ -510,6 +556,7 @@ export function useCommunityState(
             mediaUrl: newPost.mediaUrl || '',
             userId: String(authorId),
             author,
+            authorAvatar,
             authorEmail,
             unit,
           });
@@ -530,6 +577,7 @@ export function useCommunityState(
           price: payload.price || 'FREE',
           description: payload.description,
           author,
+          authorAvatar,
           authorId,
           authorEmail,
           unit,
@@ -553,6 +601,7 @@ export function useCommunityState(
             mediaUrl: newMarketItem.mediaUrl || '',
             userId: String(authorId),
             author,
+            authorAvatar,
             authorEmail,
             unit,
           });
