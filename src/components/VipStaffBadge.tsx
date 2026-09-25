@@ -9,31 +9,44 @@ import React from 'react';
 interface VipStaffBadgeProps {
   className?: string;
   size?: 'normal' | 'large';
-  role?: 'admin' | 'staff' | 'vip' | string;
+  role?: 'admin' | 'staff' | 'vip' | 'crew' | string;
   title?: string;
 }
 
 export const VipStaffBadge: React.FC<VipStaffBadgeProps> = ({
   className = '',
   size = 'normal',
-  title = 'VIP Badge',
+  role,
+  title,
 }) => {
+  const isCrewBadge = role === 'crew';
+  const defaultTitle = isCrewBadge ? 'Crew Badge' : 'VIP Badge';
+  const badgeTitle = title || defaultTitle;
+
   const dimensionClass =
     size === 'large'
-      ? 'w-7.5 h-7.5 sm:w-8.5 sm:h-8.5'
-      : 'w-5.5 h-5.5 sm:w-6 sm:h-6';
+      ? 'w-6 h-6 sm:w-6.5 sm:h-6.5'
+      : 'w-4.5 h-4.5 sm:w-5 sm:h-5';
 
   return (
     <div
       className={`relative shrink-0 flex items-center justify-center select-none pointer-events-none drop-shadow-md ${dimensionClass} ${className}`}
-      title={title}
-      aria-label={title}
+      title={badgeTitle}
+      aria-label={badgeTitle}
     >
-      <img
-        src="/vip-badge.svg"
-        alt="VIP Badge"
-        className="w-5 h-5 object-contain inline-block"
-      />
+      {isCrewBadge ? (
+        <img
+          src="/crew-badge.svg"
+          alt="Crew Badge"
+          className="w-full h-full object-contain inline-block"
+        />
+      ) : (
+        <img
+          src="/vip-badge.svg"
+          alt="VIP Badge"
+          className="w-full h-full object-contain inline-block"
+        />
+      )}
     </div>
   );
 };

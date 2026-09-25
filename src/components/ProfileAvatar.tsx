@@ -461,6 +461,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     const role = getUserRole(currentUser);
                     const badge = getRoleBadgeInfo(role);
                     const hasSpecialRole = isAdmin(currentUser) || isVip(currentUser) || isStaff(currentUser);
+                    const hasCrewRole = isCrew(currentUser) || role === 'crew';
                     return (
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span
@@ -471,6 +472,13 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                               src="/vip-badge.svg"
                               alt="VIP Badge"
                               className="w-3.5 h-3.5 object-contain inline-block"
+                            />
+                          )}
+                          {hasCrewRole && (
+                            <img
+                              src="/crew-badge.svg"
+                              alt="Crew Badge"
+                              className="w-5 h-5 object-contain inline-block"
                             />
                           )}
                           <span>{badge.label}</span>
@@ -1600,10 +1608,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           </div>
         </button>
 
-        {/* VIP, Staff & Admin Role Staff Badge: Displayed at bottom-left corner of the profile picture only */}
+        {/* VIP, Staff & Admin Role Staff Badge: Displayed at bottom-left outline of the profile picture */}
         {(isAdmin(currentUser) || isStaff(currentUser) || isStrictVip(currentUser)) && (
           <div
-            className="absolute -bottom-1 -left-1 sm:-bottom-1.5 sm:-left-1.5 z-10 pointer-events-none"
+            className="absolute bottom-0 left-0 -translate-x-0.5 translate-y-0.5 z-10 pointer-events-none drop-shadow-md"
             title={isAdmin(currentUser) ? "Admin Staff Badge" : isStaff(currentUser) ? "Staff Badge" : "VIP Staff Badge"}
           >
             <VipStaffBadge
@@ -1614,13 +1622,19 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           </div>
         )}
 
-        {/* Crew Role Shield Badge: Displayed at bottom-left corner of the profile picture only */}
-        {isCrew(currentUser) && (
+        {/* Crew Role Badge: Displayed at bottom-left outline of the profile picture */}
+        {(isCrew(currentUser) || getUserRole(currentUser) === 'crew') && (
           <div
-            className="absolute bottom-0 left-0 -translate-x-0.5 translate-y-0.5 z-10 pointer-events-none"
-            title="Maintenance Crew Badge"
+            className="absolute bottom-0 left-0 -translate-x-0.5 translate-y-0.5 z-10 pointer-events-none drop-shadow-md"
+            title="Crew Badge"
           >
-            <CrewShieldBadge size={size} />
+            <img 
+              src="/crew-badge.svg" 
+              alt="Crew Badge" 
+              className={`${
+                isLarge ? 'w-6 h-6 sm:w-6.5 sm:h-6.5' : 'w-4.5 h-4.5 sm:w-5 sm:h-5'
+              } object-contain inline-block`} 
+            />
           </div>
         )}
 

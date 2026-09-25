@@ -84,6 +84,13 @@ export function PortalHeader({
                   className="w-3.5 h-3.5 object-contain inline-block"
                 />
               )}
+              {role === 'crew' && (
+                <img
+                  src="/crew-badge.svg"
+                  alt="Crew Badge"
+                  className="w-3.5 h-3.5 object-contain inline-block"
+                />
+              )}
               <span>{badgeInfo.label}</span>
             </span>
           )}
