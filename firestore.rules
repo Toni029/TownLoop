@@ -83,8 +83,13 @@ service cloud.firestore {
     }
 
     match /newsletters/{newsletterId} {
-      allow read: if isApproved();
+      allow read: if isSignedIn();
       allow write: if isManager();
+
+      match /chunks/{chunkId} {
+        allow read: if isSignedIn();
+        allow write: if isManager();
+      }
     }
 
     match /community_events/{eventId} {

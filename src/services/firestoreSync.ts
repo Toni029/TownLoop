@@ -390,6 +390,7 @@ export async function saveRsvpEventsToFirestore(
           location: ev.location,
           category: ev.category,
           attendeesCount: ev.attendeesCount || 0,
+          attendees: ev.attendees || [],
           description: ev.description,
           spotsLeft: ev.spotsLeft ?? null,
           capacity: ev.capacity ?? null,
@@ -519,6 +520,121 @@ export async function getNewsletterConfigFromFirestore(): Promise<NewsletterConf
   } catch (err) {
     console.warn('Unable to fetch newsletter config from Firestore:', err);
     return null;
+  }
+}
+
+/**
+ * Permanently stores raw PDF binary data in Cloud Firestore by chunking it into subcollection documents.
+ * Chunks are sized at ~650 KB to stay well below Firestore's 1 MB per document quota.
+ */
+export async function saveNewsletterPdfChunksToFirestore(
+  newsletterId: string,
+  pdfDataUrl: string,
+  onProgress?: (pct: number) => void
+): Promise<boolean> {
+  if (!isFirebaseConfigured() || !db || !pdfDataUrl) return false;
+  try {
+    const CHUNK_SIZE = 650 * 1024;
+    const totalLength = pdfDataUrl.length;
+    const totalChunks = Math.max(1, Math.ceil(totalLength / CHUNK_SIZE));
+
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkStr = pdfDataUrl.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      const chunkData = {
+        index: i,
+        data: chunkStr,
+        totalChunks,
+        chunkSize: chunkStr.length,
+        totalSize: totalLength,
+        updatedAt: serverTimestamp(),
+      };
+
+      const docRef = doc(db, 'newsletters', newsletterId, 'chunks', String(i));
+      const currentDocRef = doc(db, 'newsletters', 'current', 'chunks', String(i));
+
+      await setDoc(docRef, chunkData);
+      await setDoc(currentDocRef, chunkData);
+
+      onProgress?.(Math.round(((i + 1) / totalChunks) * 100));
+    }
+
+    // Flag document as containing a persistent Cloud Firestore binary blob
+    const meta = {
+      hasFirestoreBlob: true,
+      totalChunks,
+      totalSize: totalLength,
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(doc(db, 'newsletters', newsletterId), meta, { merge: true });
+    await setDoc(doc(db, 'newsletters', 'current'), meta, { merge: true });
+
+    return true;
+  } catch (err) {
+    console.warn('Failed to save newsletter PDF chunks into Firestore storage:', err);
+    return false;
+  }
+}
+
+/**
+ * Reassembles and downloads full PDF Data URL directly from Cloud Firestore subcollection chunks
+ */
+export async function getNewsletterPdfFromFirestore(
+  newsletterId: string = 'current'
+): Promise<string | null> {
+  if (!isFirebaseConfigured() || !db) return null;
+  try {
+    const chunksColl = collection(db, 'newsletters', newsletterId, 'chunks');
+    const snap = await getDocs(chunksColl);
+
+    if (snap.empty && newsletterId !== 'current') {
+      return getNewsletterPdfFromFirestore('current');
+    }
+
+    if (snap.empty) return null;
+
+    const chunkItems: { index: number; data: string }[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (typeof data.data === 'string' && typeof data.index === 'number') {
+        chunkItems.push({ index: data.index, data: data.data });
+      }
+    });
+
+    if (chunkItems.length === 0) return null;
+
+    chunkItems.sort((a, b) => a.index - b.index);
+    const assembledDataUrl = chunkItems.map((c) => c.data).join('');
+
+    return assembledDataUrl;
+  } catch (err) {
+    console.warn('Failed to retrieve newsletter PDF chunks from Firestore:', err);
+    return null;
+  }
+}
+
+/**
+ * Deletes newsletter PDF subcollection chunks from Cloud Firestore
+ */
+export async function deleteNewsletterPdfChunksFromFirestore(
+  newsletterId: string = 'current'
+): Promise<void> {
+  if (!isFirebaseConfigured() || !db) return;
+  try {
+    const chunksColl = collection(db, 'newsletters', newsletterId, 'chunks');
+    const snap = await getDocs(chunksColl);
+    const batch = writeBatch(db);
+    snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+
+    if (newsletterId !== 'current') {
+      const currentChunksColl = collection(db, 'newsletters', 'current', 'chunks');
+      const currentSnap = await getDocs(currentChunksColl);
+      const currentBatch = writeBatch(db);
+      currentSnap.forEach((d) => currentBatch.delete(d.ref));
+      await currentBatch.commit();
+    }
+  } catch (err) {
+    console.warn('Failed to delete newsletter PDF chunks from Firestore:', err);
   }
 }
 

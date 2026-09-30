@@ -180,3 +180,58 @@ export function convertDataUrlToBlobUrl(sourceUrl: string): string {
   return sourceUrl;
 }
 
+/**
+ * Persists complete newsletter configuration into IndexedDB to bypass localStorage 5MB size limits
+ */
+export async function saveNewsletterConfigToStorage(config: any): Promise<void> {
+  try {
+    const db = await openPdfDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(config, 'current_newsletter_config');
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn('Failed to save newsletter config to IndexedDB:', err);
+  }
+}
+
+/**
+ * Retrieves cached newsletter configuration from IndexedDB
+ */
+export async function getNewsletterConfigFromStorage(): Promise<any | null> {
+  try {
+    const db = await openPdfDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get('current_newsletter_config');
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn('Failed to get newsletter config from IndexedDB:', err);
+    return null;
+  }
+}
+
+/**
+ * Removes cached newsletter configuration from IndexedDB
+ */
+export async function deleteNewsletterConfigFromStorage(): Promise<void> {
+  try {
+    const db = await openPdfDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.delete('current_newsletter_config');
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn('Failed to delete newsletter config from IndexedDB:', err);
+  }
+}
+

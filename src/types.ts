@@ -105,6 +105,17 @@ export interface MarketItem {
   comments?: CommentItem[];
 }
 
+export interface RsvpAttendee {
+  id: string;
+  userId?: string;
+  name: string;
+  unit?: string;
+  email?: string;
+  avatar?: string;
+  role?: string;
+  rsvpdAt: number | string;
+}
+
 export interface CommunityRsvpEvent {
   id: number | string;
   title: string;
@@ -122,6 +133,7 @@ export interface CommunityRsvpEvent {
   createdAt?: number;
   isAiExtracted?: boolean;
   deadline?: string;
+  attendees?: RsvpAttendee[];
 }
 
 export interface PinnedHighlight {
@@ -190,6 +202,7 @@ export interface UserProfile {
   name: string;
   email: string;
   role?: UserRole;
+  unit?: string;
   address?: string;
   apartment_number?: string;
   apartmentNumber?: string;
@@ -199,6 +212,7 @@ export interface UserProfile {
   emergencyContact?: string;
   dietary_preference?: string;
   dietaryPreference?: string;
+  avatar?: string;
   avatar_url?: string;
   avatarUrl?: string;
   approved?: boolean;

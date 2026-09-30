@@ -13,7 +13,8 @@ import {
   Upload,
   AlertCircle,
 } from 'lucide-react';
-import { getPdfFromStorage, convertDataUrlToBlobUrl } from '../utils/pdfStorage';
+import { getPdfFromStorage, savePdfToStorage, convertDataUrlToBlobUrl } from '../utils/pdfStorage';
+import { downloadNewsletterPdfFromFirestore } from '../services/storage';
 import type { NewsletterConfig } from '../types';
 
 interface NewsletterGalleryViewProps {
@@ -54,23 +55,38 @@ export const NewsletterGalleryView: React.FC<NewsletterGalleryViewProps> = ({
       return;
     }
 
-    // Resolve from IndexedDB if stored as local reference
+    // Resolve from IndexedDB if stored as local reference, or fallback to permanent Cloud Firestore storage
     getPdfFromStorage('current_newsletter_pdf')
-      .then((saved) => {
-        if (active) {
-          if (saved) {
-            setResolvedUrl(saved);
-          } else if (initial) {
-            setResolvedUrl(initial);
-          }
+      .then(async (saved) => {
+        if (!active) return;
+        if (saved) {
+          setResolvedUrl(saved);
           setIsLoading(false);
+          return;
         }
-      })
-      .catch(() => {
-        if (active) {
+
+        const firestorePdf = await downloadNewsletterPdfFromFirestore('current').catch(() => null);
+        if (active && firestorePdf) {
+          setResolvedUrl(firestorePdf);
+          savePdfToStorage('current_newsletter_pdf', firestorePdf).catch(() => {});
+          setIsLoading(false);
+          return;
+        }
+
+        if (active && initial) {
           setResolvedUrl(initial);
-          setIsLoading(false);
         }
+        if (active) setIsLoading(false);
+      })
+      .catch(async () => {
+        if (!active) return;
+        const firestorePdf = await downloadNewsletterPdfFromFirestore('current').catch(() => null);
+        if (active && firestorePdf) {
+          setResolvedUrl(firestorePdf);
+        } else if (active) {
+          setResolvedUrl(initial);
+        }
+        if (active) setIsLoading(false);
       });
 
     return () => {

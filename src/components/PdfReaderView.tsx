@@ -12,7 +12,8 @@ import {
   FileText,
   AlertCircle,
 } from 'lucide-react';
-import { getPdfFromStorage, convertDataUrlToBlobUrl } from '../utils/pdfStorage';
+import { getPdfFromStorage, savePdfToStorage, convertDataUrlToBlobUrl } from '../utils/pdfStorage';
+import { downloadNewsletterPdfFromFirestore } from '../services/storage';
 
 interface PdfReaderViewProps {
   fileUrl: string;
@@ -45,21 +46,37 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
     }
 
     getPdfFromStorage('current_newsletter_pdf')
-      .then((saved) => {
-        if (active) {
-          if (saved) {
-            setResolvedUrl(saved);
-          } else if (initial) {
-            setResolvedUrl(initial);
-          }
+      .then(async (saved) => {
+        if (!active) return;
+        if (saved) {
+          setResolvedUrl(saved);
           setIsLoading(false);
+          return;
         }
-      })
-      .catch(() => {
-        if (active) {
+
+        // Retrieve from permanent Cloud Firestore chunked storage
+        const firestorePdf = await downloadNewsletterPdfFromFirestore('current').catch(() => null);
+        if (active && firestorePdf) {
+          setResolvedUrl(firestorePdf);
+          savePdfToStorage('current_newsletter_pdf', firestorePdf).catch(() => {});
+          setIsLoading(false);
+          return;
+        }
+
+        if (active && initial) {
           setResolvedUrl(initial);
-          setIsLoading(false);
         }
+        if (active) setIsLoading(false);
+      })
+      .catch(async () => {
+        if (!active) return;
+        const firestorePdf = await downloadNewsletterPdfFromFirestore('current').catch(() => null);
+        if (active && firestorePdf) {
+          setResolvedUrl(firestorePdf);
+        } else if (active) {
+          setResolvedUrl(initial);
+        }
+        if (active) setIsLoading(false);
       });
 
     return () => {

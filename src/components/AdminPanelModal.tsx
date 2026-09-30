@@ -15,8 +15,19 @@ import {
   RefreshCw,
   Trash2,
   AlertTriangle,
+  CalendarCheck,
+  Calendar,
+  MapPin,
+  Clock,
+  Search,
+  Check,
+  UserX,
+  Ticket,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { UserProfile, UserRole } from '../types';
+import { UserProfile, UserRole, CommunityRsvpEvent, RsvpAttendee } from '../types';
+import { sortEventsEarlyFirst } from '../utils/eventSort';
 import {
   canAccessAdminPanel,
   getUserRole,
@@ -37,6 +48,9 @@ interface AdminPanelModalProps {
   currentUser: UserProfile | null;
   showToast: (msg: string) => void;
   communityId?: string | null;
+  rsvpEvents?: CommunityRsvpEvent[];
+  onDeleteRsvpAttendee?: (eventId: number | string, attendeeId: string, attendeeName?: string) => void;
+  onDeleteRsvpEvent?: (eventId: number | string, eventTitle?: string) => void;
 }
 
 interface ManagedUser {
@@ -56,13 +70,34 @@ export function AdminPanelModal({
   currentUser,
   showToast,
   communityId,
+  rsvpEvents = [],
+  onDeleteRsvpAttendee,
+  onDeleteRsvpEvent,
 }: AdminPanelModalProps) {
   const isUpcoming = communityId === 'upcoming_community' || communityId === 'demo_community';
   const [usersList, setUsersList] = useState<ManagedUser[]>([]);
   const [isApprovingId, setIsApprovingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'residents' | 'database'>('residents');
+  const [activeTab, setActiveTab] = useState<'residents' | 'rsvp' | 'database'>('residents');
   const [isPurging, setIsPurging] = useState(false);
   const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
+  const [rsvpSearch, setRsvpSearch] = useState('');
+  const [confirmAttendeeId, setConfirmAttendeeId] = useState<string | null>(null);
+  const [confirmEventId, setConfirmEventId] = useState<number | string | null>(null);
+  const [expandedEventIds, setExpandedEventIds] = useState<Record<string, boolean>>({});
+
+  const isEventExpanded = (eventId: string | number) => {
+    if (expandedEventIds[String(eventId)] !== undefined) {
+      return expandedEventIds[String(eventId)];
+    }
+    return false; // Collapsed by default as requested
+  };
+
+  const toggleEventExpanded = (eventId: string | number) => {
+    setExpandedEventIds((prev) => ({
+      ...prev,
+      [String(eventId)]: !isEventExpanded(eventId),
+    }));
+  };
 
   // Active user's role state variables
   const activeUserRole = getUserRole(currentUser);
@@ -70,6 +105,54 @@ export function AdminPanelModal({
     activeUserRole === 'admin' ||
     activeUserRole === 'vip' ||
     isMasterAdminEmail(currentUser?.email);
+
+  const totalRsvpCount = useMemo(() => {
+    return rsvpEvents.reduce(
+      (acc, ev) => acc + (ev.attendees ? ev.attendees.length : (ev.attendeesCount || 0)),
+      0
+    );
+  }, [rsvpEvents]);
+
+  const filteredRsvpEvents = useMemo(() => {
+    const sorted = sortEventsEarlyFirst(rsvpEvents);
+    const q = rsvpSearch.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter((ev) => {
+      const matchTitle = ev.title.toLowerCase().includes(q);
+      const matchCategory = ev.category.toLowerCase().includes(q);
+      const matchLocation = ev.location.toLowerCase().includes(q);
+      const matchAttendee = (ev.attendees || []).some(
+        (a) =>
+          a.name.toLowerCase().includes(q) ||
+          (a.unit && a.unit.toLowerCase().includes(q)) ||
+          (a.email && a.email.toLowerCase().includes(q))
+      );
+      return matchTitle || matchCategory || matchLocation || matchAttendee;
+    });
+  }, [rsvpEvents, rsvpSearch]);
+
+  const formatRsvpdTime = (val?: number | string) => {
+    if (!val) return 'Recently';
+    const num = typeof val === 'number' ? val : Date.parse(val);
+    if (isNaN(num)) return String(val);
+    return new Date(num).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  const handleDeleteAttendee = (
+    eventId: number | string,
+    attendeeId: string,
+    attendeeName: string,
+    eventTitle: string
+  ) => {
+    onDeleteRsvpAttendee?.(eventId, attendeeId, attendeeName);
+    showToast(`✓ Removed ${attendeeName} from "${eventTitle}" RSVP list.`);
+    setConfirmAttendeeId(null);
+  };
 
   // Load real-time Firestore community directory
   useEffect(() => {
@@ -248,10 +331,27 @@ export function AdminPanelModal({
             }`}
           >
             <Users className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Residents & Applicants</span>
+            <span className="truncate">Directory</span>
             {pendingCount > 0 && (
               <span className="text-[10px] bg-amber-500 text-white font-extrabold px-1.5 py-0.2 rounded-full shrink-0">
                 {pendingCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('rsvp')}
+            className={`flex-1 pb-2.5 pt-1 px-1.5 sm:px-3 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 cursor-pointer text-center min-w-0 ${
+              activeTab === 'rsvp'
+                ? 'border-emerald-600 text-emerald-900 dark:text-emerald-400'
+                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
+            }`}
+          >
+            <CalendarCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span className="truncate">RSVP Upcoming</span>
+            {totalRsvpCount > 0 && (
+              <span className="text-[10px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.2 rounded-full shrink-0">
+                {totalRsvpCount}
               </span>
             )}
           </button>
@@ -378,6 +478,283 @@ export function AdminPanelModal({
                 )}
               </div>
             </>
+          ) : activeTab === 'rsvp' ? (
+            /* RSVP Upcoming Events & Attendees View */
+            <div className="space-y-3 sm:space-y-4">
+              {/* Header & Search */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2 border-b border-stone-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                    <CalendarCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100">
+                      RSVP Upcoming Events
+                    </h3>
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400">
+                      Roster of residents signed up for community events
+                    </p>
+                  </div>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative min-w-[200px] sm:w-60">
+                  <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={rsvpSearch}
+                    onChange={(e) => setRsvpSearch(e.target.value)}
+                    placeholder="Search event or neighbor..."
+                    className="w-full pl-8 pr-7 py-1.5 bg-white dark:bg-slate-800 text-xs text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 placeholder:text-stone-400"
+                  />
+                  {rsvpSearch && (
+                    <button
+                      onClick={() => setRsvpSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Event Roster Cards */}
+              {filteredRsvpEvents.length === 0 ? (
+                <div className="text-center py-10 space-y-2 bg-white dark:bg-slate-800/50 rounded-2xl border border-stone-200 dark:border-slate-800 p-6">
+                  <CalendarCheck className="w-8 h-8 text-stone-400 mx-auto" />
+                  <p className="font-bold text-stone-800 dark:text-stone-200 text-sm">
+                    No matching RSVP events found
+                  </p>
+                  <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                    {rsvpSearch
+                      ? 'Try another search query or check spelling.'
+                      : 'There are currently no upcoming RSVP events listed in the community.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 sm:space-y-3.5">
+                  {filteredRsvpEvents.map((ev) => {
+                    const attendeesList = ev.attendees || [];
+                    const count = attendeesList.length;
+                    const isExpanded = isEventExpanded(ev.id);
+
+                    return (
+                      <div
+                        key={ev.id}
+                        className="relative bg-white dark:bg-slate-800/90 rounded-2xl border border-stone-200/90 dark:border-slate-700/80 shadow-2xs overflow-hidden"
+                      >
+                        {/* Event Delete Trashcan moved to top right of the event */}
+                        {onDeleteRsvpEvent && (
+                          confirmEventId === ev.id ? (
+                            <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 bg-white/95 dark:bg-slate-900/95 p-1 rounded-xl shadow-md border border-stone-200 dark:border-slate-700">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onDeleteRsvpEvent(ev.id, ev.title);
+                                  showToast(`✓ Deleted event "${ev.title}".`);
+                                  setConfirmEventId(null);
+                                }}
+                                className="px-2 py-1 text-[10px] font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition cursor-pointer"
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmEventId(null)}
+                                className="px-2 py-1 text-[10px] font-semibold bg-stone-200 text-stone-800 dark:bg-slate-700 dark:text-stone-200 rounded-lg hover:bg-stone-300 transition cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmEventId(ev.id)}
+                              className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-transparent hover:border-rose-200 dark:hover:border-rose-800 transition flex items-center justify-center cursor-pointer"
+                              title="Delete entire event"
+                              aria-label="Delete event"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )
+                        )}
+
+                        {/* Event Header Banner */}
+                        <div className="p-3.5 sm:p-4 pr-10 sm:pr-12 bg-gradient-to-r from-stone-50 to-stone-100/70 dark:from-slate-800 dark:to-slate-850 border-b border-stone-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-3.5 min-w-0 w-full sm:w-auto">
+                            {/* Calendar Date Badge - BIGGER as requested */}
+                            <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-600/30 dark:border-emerald-500/30 flex flex-col items-center justify-center shadow-xs shrink-0 text-center">
+                              <span className="text-[10px] sm:text-[11px] font-black uppercase text-emerald-700 dark:text-emerald-400 tracking-wider leading-none">
+                                {ev.month}
+                              </span>
+                              <span className="text-2xl sm:text-3xl font-black text-stone-900 dark:text-white leading-tight mt-0.5">
+                                {ev.day}
+                              </span>
+                            </div>
+
+                            {/* Title (centered on mobile, bigger) */}
+                            <div className="min-w-0 flex flex-col items-center sm:items-start text-center sm:text-left">
+                              <h4 className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 leading-snug">
+                                {ev.title}
+                              </h4>
+                            </div>
+                          </div>
+
+                          {/* Center and make bigger the "0 Attending" */}
+                          <div className="flex flex-col items-center justify-center text-center shrink-0 w-full sm:w-auto gap-0.5">
+                            <span
+                              className={`text-base sm:text-lg font-black px-4 sm:px-5 py-2 rounded-2xl border text-center shadow-xs inline-flex items-center justify-center tracking-tight ${
+                                count > 0
+                                  ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700'
+                                  : 'bg-stone-100 dark:bg-slate-700 text-stone-600 dark:text-slate-300 border-stone-200 dark:border-slate-600'
+                              }`}
+                            >
+                              {count} {count === 1 ? 'Attending' : 'Attending'}
+                            </span>
+
+                            {ev.spotsLeft !== undefined && (
+                              <span className="text-xs text-stone-500 dark:text-slate-400 font-bold text-center mt-0.5">
+                                ({ev.spotsLeft} spots left)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Attendee Roster with Expand/Collapse button */}
+                        <div className="p-3 sm:p-3.5 space-y-2">
+                          <div
+                            onClick={() => toggleEventExpanded(ev.id)}
+                            className="flex items-center justify-between cursor-pointer select-none py-1 group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-slate-300 group-hover:text-stone-900 dark:group-hover:text-white transition">
+                                Attendees Signed Up ({count})
+                              </span>
+                            </div>
+
+                            {/* Collapse/Expand button matching Daily Medications and Work Orders */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleEventExpanded(ev.id);
+                              }}
+                              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center transition-all duration-300 shrink-0 shadow-xs border cursor-pointer ${
+                                isExpanded
+                                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/25 rotate-180 scale-105'
+                                  : 'bg-stone-100/90 dark:bg-slate-800 text-stone-700 dark:text-stone-200 border-stone-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 hover:border-emerald-300'
+                              }`}
+                              title={isExpanded ? 'Collapse' : 'Expand'}
+                              aria-label={isExpanded ? 'Collapse attendees' : 'Expand attendees'}
+                            >
+                              <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5] transition-transform duration-300" />
+                            </button>
+                          </div>
+
+                          {isExpanded && (
+                            attendeesList.length === 0 ? (
+                              <div className="p-3 bg-stone-50/70 dark:bg-slate-900/40 rounded-xl border border-dashed border-stone-200 dark:border-slate-800 text-center">
+                                <p className="text-xs text-stone-500 dark:text-slate-400 italic">
+                                  No neighbors have RSVP'd for this event yet.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                {attendeesList.map((attendee) => {
+                                  const isConfirming =
+                                    confirmAttendeeId === `${ev.id}_${attendee.id}`;
+
+                                  return (
+                                    <div
+                                      key={attendee.id}
+                                      className="flex items-center justify-between p-2.5 bg-stone-50/90 dark:bg-slate-900/60 rounded-xl border border-stone-200/90 dark:border-slate-700/80 hover:border-stone-300 dark:hover:border-slate-600 transition"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        {/* Small Trashcan Icon to the LEFT of each RSVP as requested */}
+                                        {isConfirming ? (
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleDeleteAttendee(
+                                                  ev.id,
+                                                  attendee.id,
+                                                  attendee.name,
+                                                  ev.title
+                                                )
+                                              }
+                                              className="px-2 py-0.5 text-[10px] font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-md transition cursor-pointer"
+                                              title="Confirm deletion"
+                                            >
+                                              Delete
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setConfirmAttendeeId(null)}
+                                              className="px-1.5 py-0.5 text-[10px] font-semibold bg-stone-200 hover:bg-stone-300 text-stone-800 dark:bg-slate-700 dark:text-stone-200 rounded-md transition cursor-pointer"
+                                              title="Cancel"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setConfirmAttendeeId(`${ev.id}_${attendee.id}`)
+                                            }
+                                            className="w-7 h-7 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-transparent hover:border-rose-200 dark:hover:border-rose-800 transition flex items-center justify-center cursor-pointer shrink-0"
+                                            title={`Delete RSVP for ${attendee.name}`}
+                                            aria-label={`Delete RSVP for ${attendee.name}`}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5 text-stone-400 hover:text-rose-600" />
+                                          </button>
+                                        )}
+
+                                        {/* Avatar Circle */}
+                                        <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-[11px] shrink-0">
+                                          {attendee.name.charAt(0).toUpperCase()}
+                                        </div>
+
+                                        {/* Attendee Details */}
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                                              {attendee.name}
+                                            </p>
+                                            {attendee.unit && (
+                                              <span className="font-semibold text-[10px] text-stone-600 dark:text-slate-300 bg-stone-200/60 dark:bg-slate-700/60 px-1 py-0.2 rounded truncate max-w-[120px]">
+                                                {attendee.unit}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {attendee.email && (
+                                            <p className="text-[10px] text-stone-400 dark:text-slate-400 truncate max-w-[150px]">
+                                              {attendee.email}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Timestamp on right */}
+                                      <div className="text-right shrink-0 pl-1.5">
+                                        <span className="text-[10px] text-stone-400 dark:text-slate-500 font-medium">
+                                          {formatRsvpdTime(attendee.rsvpdAt)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ) : (
             /* Database Maintenance View */
             <div className="space-y-3 sm:space-y-4">

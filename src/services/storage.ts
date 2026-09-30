@@ -6,6 +6,11 @@ import {
 import { auth, storage, isFirebaseConfigured } from '../firebase';
 import { UserProfile } from '../types';
 import { savePdfToStorage } from '../utils/pdfStorage';
+import {
+  saveNewsletterPdfChunksToFirestore,
+  getNewsletterPdfFromFirestore,
+  deleteNewsletterPdfChunksFromFirestore,
+} from './firestoreSync';
 
 export type StorageFolder = 'marketplace' | 'feed' | 'work_orders';
 
@@ -196,10 +201,66 @@ export async function uploadNewsletterPdfToStorage({
   currentUser?: UserProfile | null;
   onProgress?: (progress: { percent: number; message: string }) => void;
 }): Promise<string> {
+  onProgress?.({ percent: 20, message: 'Processing PDF document...' });
+
+  // 1. Read file as Data URL
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read PDF document.'));
+    reader.readAsDataURL(pdfFile);
+  });
+
+  // 2. Cache in browser IndexedDB immediately (instant offline availability)
+  try {
+    await savePdfToStorage('current_newsletter_pdf', dataUrl);
+    await savePdfToStorage(`newsletter_pdf_${newsletterId}`, dataUrl);
+  } catch (idbErr) {
+    console.warn('IndexedDB newsletter storage notice:', idbErr);
+  }
+
+  // 3. Permanently store PDF in Cloud Firestore chunked storage
+  try {
+    onProgress?.({ percent: 35, message: 'Saving PDF to permanent Cloud Firestore storage...' });
+    await saveNewsletterPdfChunksToFirestore(newsletterId, dataUrl, (pct) => {
+      onProgress?.({
+        percent: 35 + Math.round(pct * 0.25),
+        message: `Saving to Firestore storage (${pct}%)...`,
+      });
+    });
+  } catch (firestoreErr) {
+    console.warn('Cloud Firestore chunked PDF storage notice:', firestoreErr);
+  }
+
+  // 4. Upload to server filesystem endpoint for lightning-fast streaming and service worker caching
+  let finalServerUrl = '';
+  try {
+    onProgress?.({ percent: 65, message: 'Persisting PDF to server storage...' });
+    const serverResp = await fetch('/api/newsletter/upload-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileDataUrl: dataUrl,
+        fileName: pdfFile.name || 'document.pdf',
+        newsletterId,
+      }),
+    });
+
+    if (serverResp.ok) {
+      const serverResult = await serverResp.json();
+      if (serverResult.pdfUrl) {
+        finalServerUrl = serverResult.pdfUrl;
+      }
+    }
+  } catch (serverErr) {
+    console.warn('Server filesystem upload notice, falling back:', serverErr);
+  }
+
+  // 5. Firebase Cloud Storage if configured
   if (isFirebaseConfigured() && storage) {
     try {
       await ensureFirebaseAuthSession(currentUser);
-      onProgress?.({ percent: 15, message: 'Uploading PDF to cloud storage...' });
+      onProgress?.({ percent: 75, message: 'Syncing PDF to Firebase Cloud Storage...' });
 
       const storagePath = `newsletters/${newsletterId}/document.pdf`;
       const fileRef = ref(storage, storagePath);
@@ -218,8 +279,8 @@ export async function uploadNewsletterPdfToStorage({
         uploadTask.on(
           'state_changed',
           (snapshot) => {
-            const pct = Math.round((snapshot.bytesTransferred / Math.max(1, snapshot.totalBytes)) * 70) + 15;
-            onProgress?.({ percent: pct, message: `Uploading PDF document (${pct}%)...` });
+            const pct = Math.round((snapshot.bytesTransferred / Math.max(1, snapshot.totalBytes)) * 20) + 75;
+            onProgress?.({ percent: pct, message: `Uploading to cloud storage (${pct}%)...` });
           },
           (error) => reject(error),
           () => resolve()
@@ -227,31 +288,39 @@ export async function uploadNewsletterPdfToStorage({
       });
 
       const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-      onProgress?.({ percent: 90, message: 'PDF stored in cloud!' });
+      onProgress?.({ percent: 100, message: 'PDF stored permanently in cloud!' });
       return downloadUrl;
     } catch (err) {
-      console.warn('Firebase Storage direct PDF upload failed, caching locally in browser storage:', err);
+      console.warn('Firebase Storage upload notice, using persistent Firestore/server URL:', err);
     }
   }
 
-  // Fallback: Read file as Data URL and persist to IndexedDB
-  return new Promise<string>((resolve, reject) => {
-    onProgress?.({ percent: 45, message: 'Processing document locally...' });
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      try {
-        await savePdfToStorage('current_newsletter_pdf', dataUrl);
-        await savePdfToStorage(`newsletter_pdf_${newsletterId}`, dataUrl);
-      } catch (idbErr) {
-        console.warn('IndexedDB newsletter storage notice:', idbErr);
-      }
-      onProgress?.({ percent: 90, message: 'Document prepared successfully!' });
-      resolve(dataUrl);
-    };
-    reader.onerror = () => reject(new Error('Failed to read PDF document.'));
-    reader.readAsDataURL(pdfFile);
-  });
+  if (finalServerUrl) {
+    onProgress?.({ percent: 100, message: 'Document persisted permanently!' });
+    return finalServerUrl;
+  }
+
+  // 6. Safe Firestore reference or Data URL
+  onProgress?.({ percent: 100, message: 'Document prepared successfully!' });
+  return dataUrl;
+}
+
+/**
+ * Downloads and reassembles the newsletter PDF directly from permanent Cloud Firestore storage
+ */
+export async function downloadNewsletterPdfFromFirestore(
+  newsletterId: string = 'current'
+): Promise<string | null> {
+  return getNewsletterPdfFromFirestore(newsletterId);
+}
+
+/**
+ * Cleans up newsletter PDF chunks stored in Cloud Firestore
+ */
+export async function removeNewsletterPdfFromFirestore(
+  newsletterId: string = 'current'
+): Promise<void> {
+  return deleteNewsletterPdfChunksFromFirestore(newsletterId);
 }
 
 /**

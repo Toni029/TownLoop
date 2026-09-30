@@ -23,7 +23,7 @@ import type {
   ExtractedPinnedHighlightInput,
   UserProfile,
 } from '../types';
-import { savePdfToStorage } from '../utils/pdfStorage';
+import { savePdfToStorage, saveNewsletterConfigToStorage } from '../utils/pdfStorage';
 import { uploadNewsletterPdfToStorage } from '../services/storage';
 import { saveNewsletterConfigToFirestore } from '../services/firestoreSync';
 
@@ -251,6 +251,10 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
 
       await saveNewsletterConfigToFirestore(newConfig).catch((err) => {
         console.warn('Firestore newsletter save notice:', err);
+      });
+
+      await saveNewsletterConfigToStorage(newConfig).catch((err) => {
+        console.warn('IndexedDB newsletter config save notice:', err);
       });
 
       // Apply extracted events and highlights immediately

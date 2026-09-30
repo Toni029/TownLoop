@@ -573,7 +573,7 @@ export function NewsScreen({
 
                       <button
                         type="button"
-                        onClick={() => handleToggleRsvp(event.id)}
+                        onClick={() => handleToggleRsvp(event.id, currentUser)}
                         className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs transition cursor-pointer min-h-[38px] ${
                           event.userRsvp
                             ? 'bg-emerald-100 dark:bg-emerald-950 hover:bg-emerald-200 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 shadow-2xs'

@@ -7,6 +7,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { translateWorkOrderContent } from './server/translation.ts';
 import { extractNewsletterContent } from './server/newsletterExtractor.ts';
@@ -15,6 +16,15 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+const UPLOADS_DIR = path.join(process.cwd(), 'data', 'uploads');
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Could not initialize uploads directory:', e);
+}
 
 const asText = (value: unknown, limit: number) =>
   typeof value === 'string' ? value.slice(0, limit) : '';
@@ -72,6 +82,122 @@ app.post('/api/newsletter/extract-content', limitAiRequests, async (req: Request
   } catch (error: any) {
     console.error('Newsletter extraction route error:', error);
     res.status(500).json({ error: 'Newsletter extraction failed.' });
+  }
+});
+
+// Newsletter PDF upload & permanent filesystem persistence endpoint
+app.post('/api/newsletter/upload-pdf', async (req: Request, res: Response) => {
+  try {
+    const { fileDataUrl, fileName, newsletterId, config } = req.body;
+    if (!fileDataUrl || typeof fileDataUrl !== 'string') {
+      res.status(400).json({ error: 'Missing PDF file data' });
+      return;
+    }
+
+    const base64Data = fileDataUrl.includes(',')
+      ? fileDataUrl.split(',')[1]
+      : fileDataUrl;
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    const sanitizedId = (newsletterId || 'current').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const editionFileName = `newsletter_${sanitizedId}.pdf`;
+    const editionPath = path.join(UPLOADS_DIR, editionFileName);
+    const currentPdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
+
+    // Write file to persistent storage
+    fs.writeFileSync(editionPath, buffer);
+    fs.writeFileSync(currentPdfPath, buffer);
+
+    const timestamp = Date.now();
+    const pdfUrl = `/api/newsletter/pdf/current_newsletter.pdf?v=${timestamp}`;
+
+    // Write accompanying metadata/config if available
+    const effectiveConfig = config
+      ? { ...config, pdfUrl, fileUrl: pdfUrl, uploadedAt: timestamp }
+      : {
+          id: sanitizedId,
+          fileName: fileName || 'document.pdf',
+          pdfUrl,
+          fileUrl: pdfUrl,
+          fileSize: buffer.length,
+          uploadedAt: timestamp,
+        };
+
+    const configPath = path.join(UPLOADS_DIR, 'current_newsletter.json');
+    fs.writeFileSync(configPath, JSON.stringify(effectiveConfig, null, 2));
+
+    console.log(`[Newsletter] Persisted PDF (${buffer.length} bytes) to disk at ${currentPdfPath}`);
+
+    res.json({
+      success: true,
+      pdfUrl,
+      fileUrl: pdfUrl,
+      size: buffer.length,
+      fileName: fileName || 'document.pdf',
+      config: effectiveConfig,
+    });
+  } catch (err: any) {
+    console.error('Failed to save uploaded newsletter PDF to disk:', err);
+    res.status(500).json({ error: 'Failed to persist PDF file.' });
+  }
+});
+
+// Stream saved newsletter PDF directly with inline browser support
+app.get('/api/newsletter/pdf/:filename', (req: Request, res: Response) => {
+  try {
+    const rawFilename = req.params.filename || 'current_newsletter.pdf';
+    const filename = path.basename(rawFilename);
+    const filePath = path.join(UPLOADS_DIR, filename);
+
+    if (!fs.existsSync(filePath)) {
+      res.status(404).send('PDF document not found');
+      return;
+    }
+
+    const stat = fs.statSync(filePath);
+    res.writeHead(200, {
+      'Content-Type': 'application/pdf',
+      'Content-Length': stat.size,
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Cache-Control': 'public, max-age=3600',
+      'Accept-Ranges': 'bytes',
+    });
+
+    const readStream = fs.createReadStream(filePath);
+    readStream.pipe(res);
+  } catch (err: any) {
+    console.error('Error serving newsletter PDF:', err);
+    res.status(500).send('Error reading PDF document');
+  }
+});
+
+// Get current saved newsletter edition from disk
+app.get('/api/newsletter/current', (req: Request, res: Response) => {
+  try {
+    const configPath = path.join(UPLOADS_DIR, 'current_newsletter.json');
+    const pdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
+
+    if (fs.existsSync(configPath) && fs.existsSync(pdfPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      res.json({ exists: true, config });
+      return;
+    }
+    res.json({ exists: false });
+  } catch (err: any) {
+    res.json({ exists: false, error: err?.message });
+  }
+});
+
+// Remove current newsletter PDF from disk
+app.delete('/api/newsletter/current', (req: Request, res: Response) => {
+  try {
+    const configPath = path.join(UPLOADS_DIR, 'current_newsletter.json');
+    const pdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
+    if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to remove newsletter document' });
   }
 });
 

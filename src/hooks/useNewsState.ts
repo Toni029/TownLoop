@@ -5,6 +5,8 @@ import {
   PinnedHighlight,
   NewsletterConfig,
   NewsletterAiExtractionResult,
+  UserProfile,
+  RsvpAttendee,
 } from '../types';
 import {
   DEFAULT_NEWSLETTER_CONFIG,
@@ -19,7 +21,15 @@ import {
   deleteRsvpEventFromFirestore,
   deletePinnedHighlightFromFirestore,
 } from '../services/firestoreSync';
-import { clearAllNewsletterPdfStorage, removePdfFromStorage, getPdfFromStorage } from '../utils/pdfStorage';
+import { removeNewsletterPdfFromFirestore } from '../services/storage';
+import {
+  clearAllNewsletterPdfStorage,
+  removePdfFromStorage,
+  getPdfFromStorage,
+  saveNewsletterConfigToStorage,
+  getNewsletterConfigFromStorage,
+  deleteNewsletterConfigFromStorage,
+} from '../utils/pdfStorage';
 
 const STORAGE_EVENTS_KEY = 'portal_rsvp_events_list';
 const STORAGE_HIGHLIGHTS_KEY = 'portal_pinned_highlights_list';
@@ -41,10 +51,11 @@ export interface NewsState {
   setNewsSubView: React.Dispatch<React.SetStateAction<'all' | 'events' | 'gazette' | 'highlights'>>;
   rsvpEvents: CommunityRsvpEvent[];
   setRsvpEvents: React.Dispatch<React.SetStateAction<CommunityRsvpEvent[]>>;
-  handleToggleRsvp: (eventId: number | string) => void;
+  handleToggleRsvp: (eventId: number | string, user?: UserProfile | null) => void;
   handleAddRsvpEvent: (event: Omit<CommunityRsvpEvent, 'id' | 'attendeesCount' | 'userRsvp'>) => void;
   handleUpdateRsvpEvent: (event: CommunityRsvpEvent) => void;
   handleDeleteRsvpEvent: (eventId: number | string, eventTitle?: string) => void;
+  handleDeleteRsvpAttendee: (eventId: number | string, attendeeId: string, attendeeName?: string) => void;
   isAddEventModalOpen: boolean;
   setIsAddEventModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   editingRsvpEvent: CommunityRsvpEvent | null;
@@ -62,7 +73,7 @@ export interface NewsState {
   handleReanalyzeNewsletter: () => Promise<void>;
 }
 
-export function useNewsState(): NewsState {
+export function useNewsState(currentUser?: UserProfile | null): NewsState {
   const [rsvpToast, setRsvpToast] = useState<string | null>(null);
 
   const [newsletterConfig, setNewsletterConfig] = useState<NewsletterConfig | null>(() => {
@@ -134,24 +145,86 @@ export function useNewsState(): NewsState {
   useEffect(() => {
     try {
       if (newsletterConfig) {
-        localStorage.setItem(STORAGE_NEWSLETTER_KEY, JSON.stringify(newsletterConfig));
+        // Keep localStorage safe from multi-megabyte data URLs to prevent QuotaExceededError
+        const storageSafeConfig: NewsletterConfig = {
+          ...newsletterConfig,
+          pdfUrl: newsletterConfig.pdfUrl?.startsWith('data:')
+            ? 'indexeddb:current_newsletter_pdf'
+            : newsletterConfig.pdfUrl,
+          fileUrl: newsletterConfig.fileUrl?.startsWith('data:')
+            ? 'indexeddb:current_newsletter_pdf'
+            : newsletterConfig.fileUrl,
+        };
+        localStorage.setItem(STORAGE_NEWSLETTER_KEY, JSON.stringify(storageSafeConfig));
       }
     } catch (e) {
-      console.warn('Failed to persist newsletter config:', e);
+      console.warn('Failed to persist newsletter config to localStorage:', e);
     }
   }, [newsletterConfig]);
 
-  // Load from Firestore if available
+  // Robust multi-tier loader: Server Filesystem -> Firestore -> IndexedDB
   useEffect(() => {
-    getNewsletterConfigFromFirestore().then((cfg) => {
-      if (cfg) setNewsletterConfig(cfg);
-    });
+    let isMounted = true;
+
+    async function loadPersistedNewsletter() {
+      // 1. Check Server Filesystem (authoritative persistent storage)
+      try {
+        const serverResp = await fetch('/api/newsletter/current');
+        if (serverResp.ok) {
+          const serverData = await serverResp.json();
+          if (serverData.exists && serverData.config && isMounted) {
+            setNewsletterConfig(serverData.config);
+            return;
+          }
+        }
+      } catch (e) {
+        // Offline or server booting
+      }
+
+      // 2. Check Firestore
+      try {
+        const firestoreCfg = await getNewsletterConfigFromFirestore();
+        if (firestoreCfg && isMounted) {
+          setNewsletterConfig((prev) => {
+            if (!prev || !prev.isCustomUpload || (firestoreCfg.uploadedAt || 0) >= (prev.uploadedAt || 0)) {
+              return firestoreCfg;
+            }
+            return prev;
+          });
+          return;
+        }
+      } catch (e) {
+        console.warn('Firestore newsletter fetch notice:', e);
+      }
+
+      // 3. Check IndexedDB
+      try {
+        const idbCfg = await getNewsletterConfigFromStorage();
+        if (idbCfg && isMounted) {
+          setNewsletterConfig((prev) => {
+            if (!prev || !prev.isCustomUpload || (idbCfg.uploadedAt || 0) >= (prev.uploadedAt || 0)) {
+              return idbCfg;
+            }
+            return prev;
+          });
+        }
+      } catch (e) {
+        console.warn('IndexedDB newsletter fetch notice:', e);
+      }
+    }
+
+    loadPersistedNewsletter();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSaveNewsletterConfig = useCallback(async (config: NewsletterConfig) => {
     setNewsletterConfig(config);
     setIsUploadNewsletterModalOpen(false);
-    await saveNewsletterConfigToFirestore(config);
+    await saveNewsletterConfigToFirestore(config).catch(() => {});
+    await saveNewsletterConfigToStorage(config).catch(() => {});
   }, []);
 
   const handleRemoveNewsletter = useCallback(async () => {
@@ -186,15 +259,33 @@ export function useNewsState(): NewsState {
     try {
       await clearAllNewsletterPdfStorage();
       await removePdfFromStorage('current_newsletter_pdf');
+      await deleteNewsletterConfigFromStorage();
     } catch (e) {
       console.warn('Failed to clean IndexedDB on newsletter remove:', e);
     }
 
-    // 3. Clean Firestore
+    // 3. Clean Server Storage
+    try {
+      await fetch('/api/newsletter/current', { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Failed to clean server storage on newsletter remove:', e);
+    }
+
+    // 4. Clean Firestore document & chunked storage
     try {
       await saveNewsletterConfigToFirestore(cleanConfig);
+      await removeNewsletterPdfFromFirestore('current');
     } catch (e) {
       console.warn('Failed to sync newsletter remove to Firestore:', e);
+    }
+
+    // 5. Invalidate Service Worker dedicated PDF cache
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_PDF_CACHE' });
+      }
+    } catch (e) {
+      console.warn('Service worker cache message error:', e);
     }
 
     setRsvpToast('Newsletter PDF has been removed.');
@@ -218,49 +309,146 @@ export function useNewsState(): NewsState {
     try {
       await clearAllNewsletterPdfStorage();
       await removePdfFromStorage('current_newsletter_pdf');
+      await deleteNewsletterConfigFromStorage();
+      await fetch('/api/newsletter/current', { method: 'DELETE' });
     } catch (e) {
-      console.warn('Failed to clean IndexedDB on restore:', e);
+      console.warn('Failed to clean IndexedDB and server on restore:', e);
     }
 
     try {
       await saveNewsletterConfigToFirestore(restored);
+      await removeNewsletterPdfFromFirestore('current');
     } catch (e) {
       console.warn('Failed to sync restored newsletter to Firestore:', e);
+    }
+
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_PDF_CACHE' });
+      }
+    } catch (e) {
+      console.warn('Service worker cache message error:', e);
     }
 
     setRsvpToast('Restored default September 2026 edition.');
   }, []);
 
-  const handleToggleRsvp = useCallback((eventId: number | string) => {
-    setRsvpEvents((prev) =>
-      prev.map((ev) => {
-        if (String(ev.id) === String(eventId)) {
-          const nextRsvp = !ev.userRsvp;
-          const nextCount = nextRsvp ? ev.attendeesCount + 1 : Math.max(0, ev.attendeesCount - 1);
-          const nextSpots =
-            ev.spotsLeft !== undefined
-              ? nextRsvp
-                ? Math.max(0, ev.spotsLeft - 1)
-                : ev.spotsLeft + 1
-              : undefined;
+  const handleToggleRsvp = useCallback(
+    (eventId: number | string, user?: UserProfile | null) => {
+      const effectiveUser = user || currentUser;
+      setRsvpEvents((prev) => {
+        const updated = prev.map((ev) => {
+          if (String(ev.id) === String(eventId)) {
+            const nextRsvp = !ev.userRsvp;
+            let attendees = [...(ev.attendees || [])];
 
-          setRsvpToast(
-            nextRsvp
-              ? `RSVP Confirmed for "${ev.title}"! Added to your schedule.`
-              : `RSVP Cancelled for "${ev.title}".`
-          );
+            if (nextRsvp) {
+              const newAttendee: RsvpAttendee = {
+                id: String(effectiveUser?.id || `res-${Date.now()}`),
+                userId: effectiveUser?.id ? String(effectiveUser.id) : undefined,
+                name: effectiveUser?.name || 'Resident',
+                unit: effectiveUser?.unit || effectiveUser?.address || 'Cecil Pines Community',
+                email: effectiveUser?.email,
+                avatar: effectiveUser?.avatar,
+                role: effectiveUser?.role,
+                rsvpdAt: Date.now(),
+              };
+              if (
+                !attendees.some(
+                  (a) =>
+                    a.id === newAttendee.id ||
+                    (effectiveUser?.id && a.userId === String(effectiveUser.id))
+                )
+              ) {
+                attendees.unshift(newAttendee);
+              }
+            } else {
+              attendees = attendees.filter(
+                (a) =>
+                  a.id !== String(effectiveUser?.id) &&
+                  a.userId !== String(effectiveUser?.id) &&
+                  a.name !== effectiveUser?.name
+              );
+            }
 
-          return {
-            ...ev,
-            userRsvp: nextRsvp,
-            attendeesCount: nextCount,
-            spotsLeft: nextSpots,
-          };
-        }
-        return ev;
-      })
-    );
-  }, []);
+            const nextCount = attendees.length;
+            const nextSpots =
+              ev.spotsLeft !== undefined
+                ? nextRsvp
+                  ? Math.max(0, ev.spotsLeft - 1)
+                  : ev.spotsLeft + 1
+                : undefined;
+
+            setRsvpToast(
+              nextRsvp
+                ? `RSVP Confirmed for "${ev.title}"! Added to your schedule.`
+                : `RSVP Cancelled for "${ev.title}".`
+            );
+
+            return {
+              ...ev,
+              userRsvp: nextRsvp,
+              attendees,
+              attendeesCount: nextCount,
+              spotsLeft: nextSpots,
+            };
+          }
+          return ev;
+        });
+
+        saveRsvpEventsToFirestore(updated).catch(() => {});
+        return updated;
+      });
+    },
+    [currentUser]
+  );
+
+  const handleDeleteRsvpAttendee = useCallback(
+    (eventId: number | string, attendeeId: string, attendeeName?: string) => {
+      let eventTitle = '';
+      setRsvpEvents((prev) => {
+        const updated = prev.map((ev) => {
+          if (String(ev.id) === String(eventId)) {
+            eventTitle = ev.title;
+            const attendees = (ev.attendees || []).filter(
+              (a) =>
+                String(a.id) !== String(attendeeId) &&
+                String(a.userId) !== String(attendeeId)
+            );
+            const nextCount = attendees.length;
+            const nextSpots =
+              ev.spotsLeft !== undefined ? ev.spotsLeft + 1 : undefined;
+
+            const wasCurrentUser =
+              currentUser?.id &&
+              (String(attendeeId) === String(currentUser.id) ||
+                (ev.attendees || []).some(
+                  (a) =>
+                    String(a.id) === String(attendeeId) &&
+                    String(a.userId) === String(currentUser.id)
+                ));
+
+            return {
+              ...ev,
+              attendees,
+              attendeesCount: nextCount,
+              spotsLeft: nextSpots,
+              userRsvp: wasCurrentUser ? false : ev.userRsvp,
+            };
+          }
+          return ev;
+        });
+
+        saveRsvpEventsToFirestore(updated).catch(() => {});
+        return updated;
+      });
+
+      setRsvpToast(
+        `✓ Removed ${attendeeName || 'attendee'} from "${eventTitle || 'event'}" RSVP list.`
+      );
+    },
+    [currentUser?.id]
+  );
 
   const handleAddRsvpEvent = useCallback(
     (eventData: Omit<CommunityRsvpEvent, 'id' | 'attendeesCount' | 'userRsvp'>) => {
@@ -501,6 +689,7 @@ export function useNewsState(): NewsState {
     handleAddRsvpEvent,
     handleUpdateRsvpEvent,
     handleDeleteRsvpEvent,
+    handleDeleteRsvpAttendee,
     isAddEventModalOpen,
     setIsAddEventModalOpen,
     editingRsvpEvent,

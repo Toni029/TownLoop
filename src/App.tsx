@@ -81,7 +81,7 @@ export default function App() {
   const home = useHomeState(dates.todayStr, dates.tomorrowStr);
   const notifications = useAppToast();
   const workOrders = useWorkOrders(session.currentUser, notifications.showAppToast);
-  const news = useNewsState();
+  const news = useNewsState(session.currentUser);
   const community = useCommunityState(
     session.currentUser,
     notifications.showAppToast
@@ -397,6 +397,9 @@ export default function App() {
           currentUser={currentUser}
           showToast={showAppToast}
           communityId={selectedCommunity}
+          rsvpEvents={news.rsvpEvents}
+          onDeleteRsvpAttendee={news.handleDeleteRsvpAttendee}
+          onDeleteRsvpEvent={news.handleDeleteRsvpEvent}
         />
       </div>
     </div>
