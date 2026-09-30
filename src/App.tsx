@@ -160,6 +160,9 @@ export default function App() {
   useEffect(() => {
     if (currentUser && currentUser.approved !== false && !isLoggedOut) {
       setActiveTab('home');
+      try {
+        localStorage.setItem('cecil_pines_medications_expanded_v1', 'false');
+      } catch {}
       scrollPositionsRef.current = {
         home: 0,
         news: 0,
@@ -244,6 +247,9 @@ export default function App() {
               setCurrentUser(user);
               setIsLoggedOut(false);
               setActiveTab('home');
+              try {
+                localStorage.setItem('cecil_pines_medications_expanded_v1', 'false');
+              } catch {}
               if (user.approved === false) {
                 showAppToast('Account pending administrator approval.');
               } else {
@@ -308,6 +314,7 @@ export default function App() {
                   <HomeScreen
                     {...home}
                     {...dates}
+                    userId={session.currentUser?.id}
                     onShowToast={showAppToast}
                   />
                 </ErrorBoundary>
@@ -389,6 +396,7 @@ export default function App() {
           onClose={() => setIsAdminModalOpen(false)}
           currentUser={currentUser}
           showToast={showAppToast}
+          communityId={selectedCommunity}
         />
       </div>
     </div>

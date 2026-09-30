@@ -29,12 +29,14 @@ import {
 } from '../services/auth';
 import { purgeFirestoreMockData } from '../services/firestoreSync';
 import { UserAvatar } from './UserAvatar';
+import { CecilPinesBadge, UpcomingCommunityBadge } from './CecilPinesLogo';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: UserProfile | null;
   showToast: (msg: string) => void;
+  communityId?: string | null;
 }
 
 interface ManagedUser {
@@ -53,7 +55,9 @@ export function AdminPanelModal({
   onClose,
   currentUser,
   showToast,
+  communityId,
 }: AdminPanelModalProps) {
+  const isUpcoming = communityId === 'upcoming_community' || communityId === 'demo_community';
   const [usersList, setUsersList] = useState<ManagedUser[]>([]);
   const [isApprovingId, setIsApprovingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'residents' | 'database'>('residents');
@@ -203,19 +207,22 @@ export function AdminPanelModal({
           >
             {/* Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-900 via-amber-800 to-stone-900 text-white flex items-center justify-between gap-3 shadow-md shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shadow-xs shrink-0 overflow-hidden p-1.5">
-                  <img src="/favicon.svg" alt="Townloop Logo" className="w-7 h-7 object-contain" />
-                </div>
+              <div className="flex items-center gap-3 min-w-0">
+                {isUpcoming ? (
+                  <UpcomingCommunityBadge
+                    className="w-10 h-10 rounded-2xl p-1 shadow-xs shrink-0"
+                    iconClassName="w-6 h-6"
+                  />
+                ) : (
+                  <CecilPinesBadge
+                    className="w-10 h-10 rounded-2xl p-1 shadow-xs shrink-0"
+                    pineClassName="w-7 h-7"
+                  />
+                )}
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                    <h2 className="font-bold text-base sm:text-lg leading-snug">
-                      TownLoop Admin
-                    </h2>
-                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full shadow-2xs shrink-0">
-                      {activeUserRole === 'vip' ? 'VIP Portal' : 'Admin Portal'}
-                    </span>
-                  </div>
+                  <h2 className="font-bold text-base sm:text-lg leading-snug">
+                    Admin Portal
+                  </h2>
                   <p className="text-[11px] sm:text-xs text-amber-200/80 truncate">
                     Resident approvals & system directory
                   </p>

@@ -32,6 +32,7 @@ type HomeScreenProps = Pick<
 > &
   Pick<PortalDatesState, 'todayStr' | 'tomorrowStr'> & {
     onShowToast?: (message: string) => void;
+    userId?: string | number;
   };
 
 export function HomeScreen({
@@ -53,6 +54,7 @@ export function HomeScreen({
   addDirectTask,
   removeDirectTask,
   onShowToast,
+  userId,
 }: HomeScreenProps) {
   return (
     <section className="space-y-4 animate-in fade-in duration-200">
@@ -63,7 +65,7 @@ export function HomeScreen({
 
       {/* Daily Medications Reminder */}
       <ErrorBoundary viewName="Daily Medications">
-        <DailyMedications todayStr={todayStr} onShowToast={onShowToast} />
+        <DailyMedications todayStr={todayStr} onShowToast={onShowToast} userId={userId} />
       </ErrorBoundary>
 
       {/* Daily Checklist Tile */}

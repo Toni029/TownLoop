@@ -92,6 +92,7 @@ export const OrangePillBottleIcon: React.FC<{ className?: string }> = ({
 interface DailyMedicationsProps {
   todayStr: string; // e.g. YYYY-MM-DD
   onShowToast?: (message: string) => void;
+  userId?: string | number;
 }
 
 const STORAGE_KEY = 'cecil_pines_medications_v1';
@@ -188,6 +189,7 @@ const TIME_SLOT_ORDER: MedicationTimeSlot[] = ['morning', 'noon', 'evening', 'be
 export const DailyMedications: React.FC<DailyMedicationsProps> = ({
   todayStr,
   onShowToast,
+  userId,
 }) => {
   const [medications, setMedications] = useState<MedicationItem[]>(() => {
     try {
@@ -204,7 +206,7 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
     return SEED_MEDICATIONS;
   });
 
-  // Collapse/Expand state patterned after WorkOrdersScreen
+  // Collapse/Expand state patterned after WorkOrdersScreen: defaults to collapsed (false) when logging in
   const [isExpanded, setIsExpanded] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_EXPANDED_KEY);
@@ -214,8 +216,18 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
     } catch {
       // ignore
     }
-    return true; // default open
+    return false; // default collapsed as requested
   });
+
+  // Reset to collapsed state whenever user logs in or switches account
+  useEffect(() => {
+    if (userId) {
+      setIsExpanded(false);
+      try {
+        localStorage.setItem(STORAGE_EXPANDED_KEY, 'false');
+      } catch {}
+    }
+  }, [userId]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingMedication, setEditingMedication] = useState<MedicationItem | null>(null);
