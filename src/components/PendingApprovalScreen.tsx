@@ -20,7 +20,7 @@ import {
   Lock
 } from 'lucide-react';
 import { UserProfile } from '../types';
-import { CecilPinesPines, CecilPinesBadge } from './CecilPinesLogo';
+import { CecilPinesPines, CecilPinesBadge, UpcomingCommunityBadge } from './CecilPinesLogo';
 import { checkUserApprovalStatus } from '../services/auth';
 
 interface PendingApprovalScreenProps {
@@ -30,6 +30,7 @@ interface PendingApprovalScreenProps {
   isDarkMode?: boolean;
   onToggleTheme?: (dark: boolean) => void;
   onSwitchCommunity?: () => void;
+  communityId?: string | null;
 }
 
 export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
@@ -38,8 +39,10 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
   onLogout,
   isDarkMode = false,
   onToggleTheme,
-  onSwitchCommunity
+  onSwitchCommunity,
+  communityId,
 }) => {
+  const isUpcoming = communityId === 'upcoming_community' || communityId === 'demo_community';
   const [isChecking, setIsChecking] = useState(false);
   const [currentApprovalStatus, setCurrentApprovalStatus] = useState<boolean>(Boolean(user.approved));
   const [statusMessage, setStatusMessage] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null);
@@ -123,18 +126,46 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
       </div>
 
       {/* Brand Emblem */}
-      <CecilPinesBadge
-        className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-2 mb-3 shadow-md"
-        pineClassName="w-12 h-12 sm:w-14 sm:h-14"
-      />
+      {isUpcoming ? (
+        <UpcomingCommunityBadge className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-2 mb-3 shadow-md" />
+      ) : (
+        <CecilPinesBadge
+          className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-2 mb-3 shadow-md"
+          pineClassName="w-12 h-12 sm:w-14 sm:h-14"
+        />
+      )}
 
       <div className="flex flex-col items-center mb-4">
-        <h1 className="text-2xl sm:text-3xl font-black serif-title tracking-tight text-[#006238] dark:text-[#006238] leading-none">
-          Cecil Pines
+        <h1
+          className={`text-2xl sm:text-3xl font-black serif-title tracking-tight leading-none ${
+            isUpcoming
+              ? isDarkMode
+                ? 'text-slate-100'
+                : 'text-stone-800'
+              : 'text-[#006238] dark:text-[#006238]'
+          }`}
+        >
+          {isUpcoming ? 'Upcoming Community' : 'Cecil Pines'}
         </h1>
-        <div className="w-36 sm:w-44 h-0.5 bg-gradient-to-r from-transparent via-amber-500 to-transparent my-1 rounded-full" />
-        <span className="text-[13px] font-semibold tracking-wider text-[#006238] dark:text-[#006238] border-[#00623d] uppercase">
-          Adult Living Community
+        <div
+          className={`w-36 sm:w-44 h-0.5 my-1 rounded-full ${
+            isUpcoming
+              ? isDarkMode
+                ? 'bg-gradient-to-r from-transparent via-slate-600 to-transparent'
+                : 'bg-gradient-to-r from-transparent via-stone-400 to-transparent'
+              : 'bg-gradient-to-r from-transparent via-amber-500 to-transparent'
+          }`}
+        />
+        <span
+          className={`text-[13px] font-semibold tracking-wider uppercase ${
+            isUpcoming
+              ? isDarkMode
+                ? 'text-slate-400'
+                : 'text-stone-600'
+              : 'text-[#006238] dark:text-[#006238] border-[#00623d]'
+          }`}
+        >
+          Active Adult Living Community
         </span>
       </div>
 

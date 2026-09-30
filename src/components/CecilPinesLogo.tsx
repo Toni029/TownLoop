@@ -154,5 +154,64 @@ export const CecilPinesBadge: React.FC<CecilPinesBadgeProps> = ({
   );
 };
 
+export interface UpcomingCommunityBadgeProps {
+  className?: string;
+  iconClassName?: string;
+}
+
+/**
+ * Grayed out placeholder emblem badge for Upcoming Community,
+ * matching the geometry and layout of CecilPinesBadge with
+ * a muted, dashed/greyed-out placeholder aesthetic.
+ */
+export const UpcomingCommunityBadge: React.FC<UpcomingCommunityBadgeProps> = ({
+  className = 'w-20 h-20 sm:w-22 sm:h-22 rounded-3xl p-3',
+  iconClassName = 'w-12 h-12 sm:w-14 sm:h-14',
+}) => {
+  return (
+    <div
+      className={`bg-gradient-to-br from-stone-200 via-stone-300 to-stone-400 dark:from-slate-800 dark:via-slate-800/90 dark:to-slate-900 flex items-center justify-center shadow-md border-2 border-dashed border-stone-400/80 dark:border-slate-600/80 text-stone-500 dark:text-slate-400 shrink-0 ${className}`}
+      aria-label="Upcoming Community Placeholder Emblem"
+    >
+      <svg
+        viewBox="0 0 100 100"
+        className={iconClassName}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Placeholder Shield & Building Silhouette in muted grey */}
+        <path
+          d="M 50 14 L 80 26 C 80 58 50 82 50 86 C 50 82 20 58 20 26 Z"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinejoin="round"
+          strokeDasharray="4 3"
+          className="opacity-60"
+        />
+        {/* Subtle community rooftop / arches */}
+        <path
+          d="M 36 58 L 50 44 L 64 58"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="opacity-75"
+        />
+        <path
+          d="M 42 58 L 42 68 M 58 58 L 58 68 M 42 68 L 58 68"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="opacity-75"
+        />
+        {/* Center subtle indicator dot */}
+        <circle cx="50" cy="35" r="3" fill="currentColor" className="opacity-50" />
+      </svg>
+    </div>
+  );
+};
+
+
 
 

@@ -25,21 +25,25 @@ import {
 } from 'lucide-react';
 import { loginUser, loginWithGoogle, signupUser, sendPasswordReset } from '../services/auth';
 import { UserProfile } from '../types';
-import { CecilPinesPines, CecilPinesBadge } from './CecilPinesLogo';
+import { CecilPinesPines, CecilPinesBadge, UpcomingCommunityBadge } from './CecilPinesLogo';
 
 interface AuthScreenProps {
   onAuthSuccess: (user: UserProfile) => void;
   isDarkMode?: boolean;
   onToggleTheme?: (dark: boolean) => void;
   onSwitchCommunity?: () => void;
+  communityId?: string | null;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   onAuthSuccess,
   isDarkMode = false,
   onToggleTheme,
-  onSwitchCommunity
+  onSwitchCommunity,
+  communityId,
 }) => {
+  const isUpcoming = communityId === 'upcoming_community' || communityId === 'demo_community';
+
   // Tab switcher mode: 'signin' | 'register'
   const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
 
@@ -132,9 +136,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       const enteredAddress = regAddress.trim();
       if (typeof window !== 'undefined' && enteredAddress) {
         try {
-          sessionStorage.setItem('cecil_pines_registered_address', enteredAddress);
-          sessionStorage.setItem(`cecil_pines_registered_address_${regEmail.trim().toLowerCase()}`, enteredAddress);
-          localStorage.setItem('cecil_pines_registered_address', enteredAddress);
+          const prefix = isUpcoming ? 'upcoming_community' : 'cecil_pines';
+          sessionStorage.setItem(`${prefix}_registered_address`, enteredAddress);
+          sessionStorage.setItem(`${prefix}_registered_address_${regEmail.trim().toLowerCase()}`, enteredAddress);
+          localStorage.setItem(`${prefix}_registered_address`, enteredAddress);
         } catch {}
       }
 
@@ -179,12 +184,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col items-center justify-start pt-4 sm:pt-6 pb-12 sm:pb-16 px-4 sm:px-8 text-center animate-in fade-in duration-300 relative">
+    <div className="flex-1 w-full flex flex-col items-center justify-start pt-4 sm:pt-6 pb-12 sm:pb-16 px-4 sm:px-8 text-center animate-in fade-in duration-150 relative">
       {/* Ambient background glow for light mode */}
       {!isDarkMode && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
-          <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-96 h-80 bg-gradient-to-b from-amber-200/25 via-emerald-100/30 to-transparent rounded-full blur-2xl" />
-          <div className="absolute top-1/3 -right-16 w-72 h-72 bg-amber-100/30 rounded-full blur-3xl" />
+          <div
+            className={`absolute -top-12 left-1/2 -translate-x-1/2 w-96 h-80 rounded-full blur-2xl ${
+              isUpcoming
+                ? 'bg-gradient-to-b from-stone-300/30 via-stone-200/20 to-transparent'
+                : 'bg-gradient-to-b from-amber-200/25 via-emerald-100/30 to-transparent'
+            }`}
+          />
+          <div
+            className={`absolute top-1/3 -right-16 w-72 h-72 rounded-full blur-3xl ${
+              isUpcoming ? 'bg-stone-200/25' : 'bg-amber-100/30'
+            }`}
+          />
         </div>
       )}
 
@@ -193,7 +208,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {onSwitchCommunity ? (
           <button
             type="button"
-            onClick={onSwitchCommunity}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.scrollTo(0, 0);
+              }
+              onSwitchCommunity();
+            }}
             title="Switch Community"
             aria-label="Switch Community"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-stone-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-stone-700 dark:text-slate-200 border border-stone-200 dark:border-slate-700 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 shrink-0"
@@ -218,32 +238,66 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         )}
       </div>
 
-      {/* Brand Emblem: Green Badge with Cecil Pines 3 Golden Pines */}
+      {/* Brand Emblem: Green Badge with Cecil Pines 3 Golden Pines OR Greyed out empty logo for Upcoming Community */}
       <div className="relative mb-2.5">
-        {!isDarkMode && (
+        {!isDarkMode && !isUpcoming && (
           <div className="absolute inset-0 bg-amber-400/20 rounded-3xl blur-md scale-110 -z-10" />
         )}
-        <CecilPinesBadge />
+        {isUpcoming ? (
+          <UpcomingCommunityBadge className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl p-3 shadow-md" />
+        ) : (
+          <CecilPinesBadge />
+        )}
       </div>
 
-      {/* Brand Typography matching official Cecil Pines logo - large and readable for seniors */}
+      {/* Brand Typography */}
       <div className="flex flex-col items-center mb-4">
-        <h1 className={`text-3xl sm:text-4xl font-black serif-title tracking-tight leading-none ${
-          isDarkMode ? 'text-emerald-400' : 'text-[#0d4722]'
-        }`}>
-          Cecil Pines
+        <h1
+          className={`text-3xl sm:text-4xl font-black serif-title tracking-tight leading-none ${
+            isUpcoming
+              ? isDarkMode
+                ? 'text-slate-100'
+                : 'text-stone-800'
+              : isDarkMode
+              ? 'text-emerald-400'
+              : 'text-[#0d4722]'
+          }`}
+        >
+          {isUpcoming ? 'Upcoming Community' : 'Cecil Pines'}
         </h1>
-        <div className="w-44 sm:w-56 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent my-1.5 rounded-full" />
-        <span className={`text-sm sm:text-base font-bold tracking-wider uppercase ${
-          isDarkMode ? 'text-emerald-300' : 'text-[#155a33]'
-        }`}>
-          Adult Living Community
+        <div
+          className={`w-44 sm:w-56 h-1 my-1.5 rounded-full ${
+            isUpcoming
+              ? isDarkMode
+                ? 'bg-gradient-to-r from-transparent via-slate-600 to-transparent'
+                : 'bg-gradient-to-r from-transparent via-stone-400 to-transparent'
+              : 'bg-gradient-to-r from-transparent via-amber-500 to-transparent'
+          }`}
+        />
+        <span
+          className={`text-sm sm:text-base font-bold tracking-wider uppercase ${
+            isUpcoming
+              ? isDarkMode
+                ? 'text-slate-400'
+                : 'text-stone-600'
+              : isDarkMode
+              ? 'text-emerald-300'
+              : 'text-[#155a33]'
+          }`}
+        >
+          Active Adult Living Community
         </span>
-        <span className={`inline-flex items-center text-xs sm:text-sm font-bold mt-2 px-3.5 py-1 rounded-full ${
-          isDarkMode 
-            ? 'bg-slate-800 text-emerald-300 border border-slate-700' 
-            : 'bg-[#edf5ee] text-[#124d2c] border border-[#bcdbc6] shadow-xs'
-        }`}>
+        <span
+          className={`inline-flex items-center text-xs sm:text-sm font-bold mt-2 px-3.5 py-1 rounded-full ${
+            isUpcoming
+              ? isDarkMode
+                ? 'bg-slate-800 text-slate-300 border border-slate-700'
+                : 'bg-stone-100 text-stone-700 border border-stone-300 shadow-xs'
+              : isDarkMode
+              ? 'bg-slate-800 text-emerald-300 border border-slate-700'
+              : 'bg-[#edf5ee] text-[#124d2c] border border-[#bcdbc6] shadow-xs'
+          }`}
+        >
           Resident Portal
         </span>
       </div>
@@ -635,7 +689,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         <p className={`text-xs sm:text-sm font-medium transition-colors ${
           isDarkMode ? 'text-slate-400' : 'text-[#635949]'
         }`}>
-          Cecil Pines Adult Living Community Concierge: (904) 555-0100
+          {isUpcoming
+            ? 'Upcoming Community Support Concierge: (904) 555-0100'
+            : 'Cecil Pines Adult Living Community Concierge: (904) 555-0100'}
         </p>
         <p className={`text-[11px] font-medium transition-colors ${
           isDarkMode ? 'text-slate-500' : 'text-stone-400'

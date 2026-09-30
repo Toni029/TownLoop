@@ -39,11 +39,19 @@ export default function App() {
     }
   });
 
+  const mainContainerRef = useRef<HTMLDivElement>(null);
+
   const handleSelectCommunity = (communityId: string) => {
     try {
       localStorage.setItem(COMMUNITY_STORAGE_KEY, communityId);
     } catch (e) {
       console.warn('Could not persist community selection:', e);
+    }
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+    if (mainContainerRef.current) {
+      mainContainerRef.current.scrollTop = 0;
     }
     setSelectedCommunity(communityId);
   };
@@ -53,6 +61,12 @@ export default function App() {
       localStorage.removeItem(COMMUNITY_STORAGE_KEY);
     } catch (e) {
       console.warn('Could not remove community selection:', e);
+    }
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+    if (mainContainerRef.current) {
+      mainContainerRef.current.scrollTop = 0;
     }
     setSelectedCommunity(null);
   };
@@ -189,6 +203,7 @@ export default function App() {
 
       {/* Main Container */}
       <div
+        ref={mainContainerRef}
         className={`w-full ${
           isFullWidthPreview
             ? 'max-w-3xl'
@@ -201,9 +216,9 @@ export default function App() {
             : 'bg-gradient-to-b from-[#f7f3ea] via-[#f1ebe0] to-[#e8decb] text-slate-900 border-[#d8cdbc]'
         } ${
           !selectedCommunity || isLoggedOut || !currentUser || currentUser?.approved === false
-            ? 'min-h-screen sm:min-h-0 sm:max-h-[92vh] sm:my-auto overflow-y-auto'
+            ? 'min-h-[100dvh] sm:min-h-0 sm:max-h-[92vh] sm:my-auto overflow-y-auto'
             : 'h-[100dvh] sm:h-auto sm:min-h-[860px] sm:max-h-[920px] overflow-hidden'
-        } sm:rounded-[44px] shadow-[0_24px_50px_-12px_rgba(110,85,60,0.12)] relative flex flex-col justify-start border transition-all duration-300`}
+        } sm:rounded-[44px] shadow-[0_24px_50px_-12px_rgba(110,85,60,0.12)] relative flex flex-col justify-start border transition-colors duration-150`}
       >
         {/* Community Selector / Auth / Main Screen State */}
         {!selectedCommunity ? (
@@ -221,6 +236,7 @@ export default function App() {
           </div>
         ) : isLoggedOut || !currentUser ? (
           <AuthScreen
+            communityId={selectedCommunity}
             isDarkMode={isDarkMode}
             onToggleTheme={(dark) => setIsDarkMode(dark)}
             onSwitchCommunity={handleSwitchCommunity}
@@ -237,6 +253,7 @@ export default function App() {
           />
         ) : currentUser.approved === false ? (
           <PendingApprovalScreen
+            communityId={selectedCommunity}
             user={currentUser}
             isDarkMode={isDarkMode}
             onToggleTheme={(dark) => setIsDarkMode(dark)}

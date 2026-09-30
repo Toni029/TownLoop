@@ -5,7 +5,6 @@
  * via any medium, is strictly prohibited.
  */
 import React from 'react';
-import { motion } from 'motion/react';
 import {
   Building2,
   Sparkles,
@@ -19,7 +18,7 @@ import {
   Calendar,
   ShieldCheck,
 } from 'lucide-react';
-import { CecilPinesPines, CecilPinesBadge } from './CecilPinesLogo';
+import { CecilPinesPines, CecilPinesBadge, UpcomingCommunityBadge } from './CecilPinesLogo';
 
 export interface CommunityOption {
   id: string;
@@ -47,16 +46,17 @@ const COMMUNITIES: CommunityOption[] = [
     ],
   },
   {
-    id: 'demo_community',
-    name: 'Demo Community',
-    tagline: 'Sample Living Community',
-    location: 'Preview & Sandbox Environment',
-    badge: 'Interactive Preview',
+    id: 'upcoming_community',
+    name: 'Upcoming Community',
+    tagline: 'Active Adult Living Community',
+    location: 'Jacksonville, Florida',
+    badge: 'Upcoming Community',
     isPrimary: false,
     features: [
-      'Interactive Sandbox Environment',
-      'Pre-loaded Sample Work Orders & Posts',
-      'Tour Community Features & Workflows',
+      'Full Resident Portal & Daily Check-Ins',
+      'Direct Maintenance Work Order Tracking',
+      'Neighborhood Social Feed & Marketplace',
+      'Daily Community Activities & Calendars',
     ],
   },
 ];
@@ -73,42 +73,37 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
   onToggleTheme,
 }) => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.28, ease: 'easeOut' }}
-      className="w-full flex-1 flex flex-col justify-between p-4 sm:p-7 select-none"
-    >
-      {/* Main Header / Prompt Section */}
-      <div className="mt-1 mb-5 text-center space-y-2.5">
-        <div className="inline-flex items-center justify-center gap-2">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
-            <img
-              src="/favicon.svg"
-              alt="Townloop Logo"
-              className="w-4 h-4 object-contain inline-block"
-            />
-            <span>TownLoop Living Portal</span>
-          </div>
-
-          {onToggleTheme && (
-            <button
-              type="button"
-              onClick={() => onToggleTheme(!isDarkMode)}
-              className="p-1.5 rounded-full border border-stone-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 text-stone-700 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs"
-              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {isDarkMode ? (
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-              ) : (
-                <Moon className="w-3.5 h-3.5 text-slate-700" />
-              )}
-            </button>
-          )}
+    <div className="w-full flex-1 flex flex-col justify-between p-4 sm:p-7 select-none animate-in fade-in duration-150">
+      {/* Top Bar: Portal Brand on Left, Theme Toggle on Right */}
+      <div className="flex items-center justify-between w-full mt-1 mb-5">
+        <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800/80 shadow-2xs">
+          <img
+            src="/favicon.svg"
+            alt="Townloop Logo"
+            className="w-4 h-4 object-contain inline-block"
+          />
+          <span>TownLoop Log in Portal</span>
         </div>
 
+        {onToggleTheme && (
+          <button
+            type="button"
+            onClick={() => onToggleTheme(!isDarkMode)}
+            className="p-1.5 rounded-full border border-stone-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 text-stone-700 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-700 transition cursor-pointer shadow-2xs"
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDarkMode ? (
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 text-slate-700" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Main Header / Prompt Section */}
+      <div className="text-center space-y-2 mb-6">
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-white leading-tight">
           Welcome to TownLoop
         </h1>
@@ -119,7 +114,7 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
       </div>
 
       {/* Community Selection Cards */}
-      <div className="space-y-4 my-auto">
+      <div className="space-y-4 my-2 sm:my-auto w-full">
         {COMMUNITIES.map((comm) => {
           const isPrimary = comm.isPrimary;
           return (
@@ -156,8 +151,11 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
                       />
                     </div>
                   ) : (
-                    <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 flex items-center justify-center shrink-0 text-stone-500 dark:text-slate-400 shadow-2xs group-hover:scale-105 transition-transform">
-                      <Building2 className="w-7 h-7" />
+                    <div className="relative shrink-0">
+                      <UpcomingCommunityBadge
+                        className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl p-2 sm:p-2.5 shadow-xs group-hover:scale-105 transition-transform"
+                        iconClassName="w-8 h-8 sm:w-9 sm:h-9"
+                      />
                     </div>
                   )}
 
@@ -228,7 +226,7 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
                       : 'bg-stone-200/90 dark:bg-slate-800 group-hover:bg-stone-300/80 dark:group-hover:bg-slate-700 text-stone-800 dark:text-slate-200 border border-stone-300/70 dark:border-slate-700'
                   }`}
                 >
-                  <span>{isPrimary ? 'Continue with Cecil Pines' : 'Preview Demo Community'}</span>
+                  <span>{isPrimary ? 'Continue with Cecil Pines' : 'Continue with Upcoming Community'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </div>
               </div>
@@ -247,6 +245,6 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
           Version 1.0.0 • © 2026 TownLoop • All rights reserved.
         </p>
       </div>
-    </motion.div>
+    </div>
   );
 };
