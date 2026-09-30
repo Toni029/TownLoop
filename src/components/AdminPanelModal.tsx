@@ -659,7 +659,7 @@ export function AdminPanelModal({
                                 </p>
                               </div>
                             ) : (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
                                 {attendeesList.map((attendee) => {
                                   const isConfirming =
                                     confirmAttendeeId === `${ev.id}_${attendee.id}`;
@@ -667,10 +667,10 @@ export function AdminPanelModal({
                                   return (
                                     <div
                                       key={attendee.id}
-                                      className="flex items-center justify-between p-2.5 bg-stone-50/90 dark:bg-slate-900/60 rounded-xl border border-stone-200/90 dark:border-slate-700/80 hover:border-stone-300 dark:hover:border-slate-600 transition"
+                                      className="flex items-center justify-between pl-1 sm:pl-1.5 pr-2.5 sm:pr-3 py-2 sm:py-2.5 bg-stone-50/90 dark:bg-slate-900/60 rounded-xl border border-stone-200/90 dark:border-slate-700/80 hover:border-stone-300 dark:hover:border-slate-600 transition gap-2"
                                     >
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        {/* Small Trashcan Icon to the LEFT of each RSVP as requested */}
+                                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                        {/* Small Trashcan Icon placed at the very left edge */}
                                         {isConfirming ? (
                                           <div className="flex items-center gap-1 shrink-0">
                                             <button
@@ -711,34 +711,18 @@ export function AdminPanelModal({
                                           </button>
                                         )}
 
-                                        {/* Avatar Circle */}
-                                        <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-[11px] shrink-0">
-                                          {attendee.name.charAt(0).toUpperCase()}
-                                        </div>
-
-                                        {/* Attendee Details */}
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
-                                              {attendee.name}
-                                            </p>
-                                            {attendee.unit && (
-                                              <span className="font-semibold text-[10px] text-stone-600 dark:text-slate-300 bg-stone-200/60 dark:bg-slate-700/60 px-1 py-0.2 rounded truncate max-w-[120px]">
-                                                {attendee.unit}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {attendee.email && (
-                                            <p className="text-[10px] text-stone-400 dark:text-slate-400 truncate max-w-[150px]">
-                                              {attendee.email}
-                                            </p>
-                                          )}
-                                        </div>
+                                        {/* Attendee Name (fitted cleanly) */}
+                                        <span
+                                          className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 min-w-0 truncate"
+                                          title={attendee.name}
+                                        >
+                                          {attendee.name}
+                                        </span>
                                       </div>
 
-                                      {/* Timestamp on right */}
+                                      {/* Date and Time they signed up (smaller) */}
                                       <div className="text-right shrink-0 pl-1.5">
-                                        <span className="text-[10px] text-stone-400 dark:text-slate-500 font-medium">
+                                        <span className="text-[10px] sm:text-[11px] text-stone-400 dark:text-slate-400 font-medium whitespace-nowrap">
                                           {formatRsvpdTime(attendee.rsvpdAt)}
                                         </span>
                                       </div>
