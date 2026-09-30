@@ -52,6 +52,14 @@ export function DiscussionFeed({
             ? [{ type: 'image' as const, url: post.mediaUrl, name: post.title }]
             : [];
 
+        const isMyPost = Boolean(
+          currentUser &&
+          ((post.authorId && String(post.authorId) === String(currentUser.id)) ||
+           (post.author && currentUser.name && post.author.toLowerCase() === currentUser.name.toLowerCase()) ||
+           (post.authorEmail && currentUser.email && post.authorEmail.toLowerCase() === currentUser.email.toLowerCase()))
+        );
+        const effectiveAuthorAvatar = (isMyPost && currentUser?.avatarUrl) ? currentUser.avatarUrl : post.authorAvatar;
+
         return (
           <div
             key={post.id}
@@ -64,7 +72,7 @@ export function DiscussionFeed({
                 className="flex items-center space-x-2.5 cursor-pointer"
               >
                 <UserAvatar
-                  src={post.authorAvatar}
+                  src={effectiveAuthorAvatar}
                   name={post.author}
                   size="sm"
                   className="w-9 h-9 border border-emerald-600/30 dark:border-emerald-600/40"
@@ -225,19 +233,28 @@ export function DiscussionFeed({
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {post.comments.map((c) => (
-                    <div
-                      key={c.id}
-                      className="bg-stone-50 dark:bg-slate-800/70 p-2.5 rounded-xl border border-stone-200/60 dark:border-slate-700/80 text-xs space-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <UserAvatar
-                            src={c.authorAvatar}
-                            name={c.author}
-                            size="xs"
-                            className="w-5 h-5 text-[9px]"
-                          />
+                  {post.comments.map((c) => {
+                    const isMyComment = Boolean(
+                      currentUser &&
+                      ((c.authorId && String(c.authorId) === String(currentUser.id)) ||
+                       (c.author && currentUser.name && c.author.toLowerCase() === currentUser.name.toLowerCase()) ||
+                       (c.authorEmail && currentUser.email && c.authorEmail.toLowerCase() === currentUser.email.toLowerCase()))
+                    );
+                    const effectiveCommentAvatar = (isMyComment && currentUser?.avatarUrl) ? currentUser.avatarUrl : c.authorAvatar;
+
+                    return (
+                      <div
+                        key={c.id}
+                        className="bg-stone-50 dark:bg-slate-800/70 p-2.5 rounded-xl border border-stone-200/60 dark:border-slate-700/80 text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <UserAvatar
+                              src={effectiveCommentAvatar}
+                              name={c.author}
+                              size="xs"
+                              className="w-5 h-5 text-[9px]"
+                            />
                           <span className="font-bold text-stone-800 dark:text-slate-200">
                             {c.author}
                           </span>
@@ -255,8 +272,9 @@ export function DiscussionFeed({
                         {c.text}
                       </p>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
+              </div>
               )}
 
               <div className="flex gap-1.5 pt-1">

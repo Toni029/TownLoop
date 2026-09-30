@@ -45,7 +45,8 @@ export function useWorkOrders(
 ): WorkOrdersState {
   const [workOrders, setWorkOrders] = useState<WorkOrderItem[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const userKey = currentUser?.id ? `portal_work_orders_${currentUser.id}` : null;
+      const saved = (userKey && localStorage.getItem(userKey)) || localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.some((it) => it.id === 'wo-101' || it.id === 'wo-102')) {
@@ -60,25 +61,47 @@ export function useWorkOrders(
     return [];
   });
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(workOrders.length === 0);
   const [isWorkOrderModalOpen, setIsWorkOrderModalOpen] = useState(false);
   const [newWoTitle, setNewWoTitle] = useState('');
   const [newWoDescription, setNewWoDescription] = useState('');
   const [newWoCategory, setNewWoCategory] = useState(WORK_ORDER_CATEGORIES[0].name);
   const [newWoPhotos, setNewWoPhotos] = useState<string[]>([]);
 
+  // Instant local cache restoration on login or user switch
+  useEffect(() => {
+    if (currentUser?.id) {
+      try {
+        const userKey = `portal_work_orders_${currentUser.id}`;
+        const saved = localStorage.getItem(userKey) || localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setWorkOrders(parsed);
+            setIsLoading(false);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to restore user work orders from cache:', e);
+      }
+    }
+  }, [currentUser?.id]);
+
   // Persist to local storage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(workOrders));
+      if (currentUser?.id) {
+        localStorage.setItem(`portal_work_orders_${currentUser.id}`, JSON.stringify(workOrders));
+      }
     } catch (e) {
       console.warn('Failed to persist work orders:', e);
     }
-  }, [workOrders]);
+  }, [workOrders, currentUser?.id]);
 
   // Firestore live subscription with strict error callbacks and lifecycle cleanup
   useEffect(() => {
-    if (!isFirebaseConfigured() || !db) {
+    if (!isFirebaseConfigured() || !db || !currentUser || currentUser.approved === false) {
       setIsLoading(false);
       return;
     }
@@ -115,6 +138,12 @@ export function useWorkOrders(
           });
           setWorkOrders(remoteOrders);
           setIsLoading(false);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteOrders));
+            if (currentUser?.id) {
+              localStorage.setItem(`portal_work_orders_${currentUser.id}`, JSON.stringify(remoteOrders));
+            }
+          } catch {}
         },
         (error) => {
           console.warn('Firestore work orders listener error:', error);
@@ -128,7 +157,7 @@ export function useWorkOrders(
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [currentUser?.id, currentUser?.approved, currentUser?.role]);
 
   const handleWorkOrderSubmit = useCallback(
     async (e: React.FormEvent) => {

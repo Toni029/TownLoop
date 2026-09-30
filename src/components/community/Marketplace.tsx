@@ -71,6 +71,14 @@ export function Marketplace({
               ? [{ type: 'image' as const, url: item.photoUrl, name: item.title }]
               : [];
 
+        const isMyItem = Boolean(
+          currentUser &&
+          ((item.authorId && String(item.authorId) === String(currentUser.id)) ||
+           (item.author && currentUser.name && item.author.toLowerCase() === currentUser.name.toLowerCase()) ||
+           (item.authorEmail && currentUser.email && item.authorEmail.toLowerCase() === currentUser.email.toLowerCase()))
+        );
+        const effectiveAuthorAvatar = (isMyItem && currentUser?.avatarUrl) ? currentUser.avatarUrl : item.authorAvatar;
+
         return (
           <div
             key={item.id}
@@ -85,7 +93,7 @@ export function Marketplace({
               <div className="flex items-center gap-2.5 min-w-0">
                 {/* Author Avatar */}
                 <UserAvatar
-                  src={item.authorAvatar}
+                  src={effectiveAuthorAvatar}
                   name={item.author}
                   size="sm"
                   className="w-8 h-8 border border-stone-200 dark:border-slate-700"

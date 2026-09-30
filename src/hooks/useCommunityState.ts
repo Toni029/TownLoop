@@ -128,21 +128,53 @@ export function useCommunityState(
 
   const [openCommentsPostId, setOpenCommentsPostId] = useState<number | string | null>(null);
   const [commentInputText, setCommentInputText] = useState<{ [postId: string]: string }>({});
-  const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
+  const [directoryUsers, setDirectoryUsers] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('portal_community_directory_users');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
 
-  // Subscribe to community directory to resolve live profile photos
+  // Instantly seed or update current user in directoryUsers
   useEffect(() => {
+    if (currentUser?.id) {
+      setDirectoryUsers((prev) => {
+        const cleanId = String(currentUser.id);
+        const avatar = currentUser.avatarUrl || currentUser.avatar_url || (currentUser as any).avatar || '';
+        const exists = prev.some((u) => String(u.id) === cleanId || String(u.uid) === cleanId);
+        if (!exists && (avatar || currentUser.name)) {
+          const updated = [{ id: cleanId, name: currentUser.name, email: currentUser.email, avatar }, ...prev];
+          try {
+            localStorage.setItem('portal_community_directory_users', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [currentUser?.id, currentUser?.avatarUrl, currentUser?.name]);
+
+  // Subscribe to community directory to resolve live profile photos upon login
+  useEffect(() => {
+    if (!currentUser) return;
     try {
       const unsub = subscribeToCommunityDirectory((users) => {
-        if (Array.isArray(users)) {
+        if (Array.isArray(users) && users.length > 0) {
           setDirectoryUsers(users);
+          try {
+            localStorage.setItem('portal_community_directory_users', JSON.stringify(users));
+          } catch {}
         }
       });
       return () => unsub();
     } catch (e) {
       console.warn('Failed to subscribe to community directory in useCommunityState:', e);
     }
-  }, []);
+  }, [currentUser?.id, currentUser?.approved]);
 
   const resolveAvatar = useCallback(
     (
@@ -151,11 +183,7 @@ export function useCommunityState(
       authorEmail?: string,
       authorName?: string
     ): string => {
-      if (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim() && rawAvatar !== 'undefined' && rawAvatar !== 'null') {
-        return rawAvatar.trim();
-      }
-
-      // Check current user match
+      // Check current user match first for instant real-time resolution
       if (currentUser) {
         const myAvatar = currentUser.avatarUrl || currentUser.avatar_url || (currentUser as any).avatar;
         if (myAvatar && typeof myAvatar === 'string' && myAvatar.trim()) {
@@ -174,6 +202,10 @@ export function useCommunityState(
             return myAvatar.trim();
           }
         }
+      }
+
+      if (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim() && rawAvatar !== 'undefined' && rawAvatar !== 'null') {
+        return rawAvatar.trim();
       }
 
       // Check community directory match
