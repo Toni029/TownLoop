@@ -5,7 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import { GoogleGenAI, Type } from '@google/genai';
-import { STANDARD_SEPTEMBER_2026_TEXT } from './standardNewsletterContent';
+import { STANDARD_SEPTEMBER_2026_TEXT } from './standardNewsletterContent.ts';
 
 let aiClient: GoogleGenAI | null = null;
 const withTimeout = <T>(operation: Promise<T>, timeoutMs = 12_000): Promise<T> =>

@@ -4,11 +4,12 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
-import { translateWorkOrderContent } from './server/translation';
-import { extractNewsletterContent } from './server/newsletterExtractor';
+import { translateWorkOrderContent } from './server/translation.ts';
+import { extractNewsletterContent } from './server/newsletterExtractor.ts';
 
 dotenv.config();
 
