@@ -29,14 +29,7 @@ export const BottomNavigation = React.memo(function BottomNavigation({
     <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-[430px] sm:max-w-[450px] z-30">
       <LayoutGroup id="bottom-dock-nav">
         <nav
-          className="liquid-dock relative grid grid-cols-4 w-full items-center bg-white/[0.42] dark:bg-slate-950/50 border border-white/40 dark:border-white/10 shadow-lg shadow-black/5 rounded-full"
-          style={{
-            WebkitBackdropFilter: 'blur(24px) saturate(190%) contrast(110%)',
-            backdropFilter: 'blur(24px) saturate(190%) contrast(110%)',
-            WebkitTransform: 'translateZ(0)',
-            transform: 'translateZ(0)',
-            willChange: 'transform, backdrop-filter',
-          }}
+          className="liquid-dock relative grid grid-cols-4 w-full items-center select-none"
           aria-label="Bottom navigation dock"
         >
           {TABS.map((tab) => {
@@ -49,7 +42,7 @@ export const BottomNavigation = React.memo(function BottomNavigation({
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative flex flex-col items-center justify-center py-2 sm:py-2.5 transition-all cursor-pointer ${
-                  isActive ? 'is-active text-black dark:text-slate-100' : 'text-stone-700 dark:text-slate-400'
+                  isActive ? 'is-active text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
                 aria-label={`${tab.label} tab`}
               >
@@ -58,10 +51,10 @@ export const BottomNavigation = React.memo(function BottomNavigation({
                   <motion.div
                     layoutId="liquid-glass-indicator"
                     layoutDependency={activeTab}
-                    className={`liquid-glass-oval absolute inset-y-0 pointer-events-none ${
+                    className={`liquid-glass-oval absolute -inset-y-1 sm:-inset-y-1.5 pointer-events-none ${
                       isWorkOrders
-                        ? '-inset-x-2 sm:-inset-x-2.5'
-                        : 'inset-x-1 sm:inset-x-1.5'
+                        ? '-inset-x-2.5 sm:-inset-x-3'
+                        : '-inset-x-1 sm:-inset-x-1.5'
                     }`}
                     transition={{
                       type: 'spring',
@@ -73,19 +66,19 @@ export const BottomNavigation = React.memo(function BottomNavigation({
 
                 <div
                   className={`relative z-10 flex flex-col items-center justify-center transition-transform duration-200 ${
-                    isActive ? 'scale-105 font-black text-black dark:text-slate-100' : 'font-extrabold hover:scale-102 text-stone-700 dark:text-slate-400'
+                    isActive ? 'scale-105 font-black text-slate-900 dark:text-white' : 'font-extrabold hover:scale-102 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   <Icon
-                    className={`w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5] ${
-                      isActive ? 'text-black dark:text-slate-100' : 'text-stone-700 dark:text-slate-400'
+                    className={`w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2] ${
+                      isActive ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'
                     }`}
                   />
                   <span
                     className={`text-xs sm:text-[13px] font-black tracking-tight mt-1 ${
                       isWorkOrders ? 'whitespace-nowrap px-0.5' : ''
                     } ${
-                      isActive ? 'text-black dark:text-slate-100' : 'text-stone-700 dark:text-slate-400'
+                      isActive ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     {tab.label}

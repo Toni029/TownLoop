@@ -1041,7 +1041,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="fixed inset-0 bg-stone-950/75 z-[100] flex items-center justify-center p-3 sm:p-5"
+          className="fixed inset-0 bg-stone-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-3 sm:p-5"
           onClick={e => {
             if (e.target === e.currentTarget) {
               setIsOpen(false);
@@ -1059,20 +1059,20 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               stiffness: 480,
               mass: 0.35,
             }}
-            className={`w-full max-w-[500px] sm:max-w-[540px] max-h-[92vh] sm:max-h-[90vh] rounded-[32px] sm:rounded-[36px] p-5 sm:p-6 shadow-2xl border relative flex flex-col will-change-transform ${
+            className={`liquid-glass-modal w-full max-w-[500px] sm:max-w-[540px] max-h-[92vh] sm:max-h-[90vh] rounded-[32px] sm:rounded-[36px] p-4 sm:p-5 pt-3.5 sm:pt-4 shadow-2xl relative flex flex-col will-change-transform ${
               internalDarkMode
-                ? 'bg-slate-900 border-slate-700 text-white'
-                : 'bg-white border-stone-200 text-stone-900'
+                ? 'text-white'
+                : 'text-stone-900'
             }`}
             onClick={e => e.stopPropagation()}
           >
-        {/* Close Button */}
+        {/* Close Button on the very top right */}
         <button
           onClick={() => setIsOpen(false)}
-          className={`absolute top-4 right-4 sm:top-5 sm:right-5 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition cursor-pointer z-10 ${
+          className={`liquid-glass-subpanel liquid-glass-subpanel-interactive !absolute top-3.5 right-3.5 sm:top-4 sm:right-4 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition cursor-pointer z-50 ${
             internalDarkMode
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-              : 'bg-stone-100 hover:bg-stone-200 text-stone-500'
+              ? 'text-slate-200 hover:text-white'
+              : 'text-stone-700 hover:text-stone-900'
           }`}
           aria-label="Close Resident Menu"
         >
@@ -1081,18 +1081,18 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
         {/* Toast Notification inside modal */}
         {toastMessage && (
-          <div className="absolute top-4 left-5 right-16 bg-emerald-600 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-full shadow-md text-center animate-in fade-in slide-in-from-top-2 duration-200 z-30">
+          <div className="absolute top-3.5 left-4 right-16 bg-emerald-600 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-full shadow-md text-center animate-in fade-in slide-in-from-top-2 duration-200 z-30">
             {toastMessage}
           </div>
         )}
 
         {/* Inner Scrollable Container */}
-        <div className="overflow-y-auto hide-scrollbar flex-1 pr-0.5 space-y-4">
+        <div className="overflow-y-auto hide-scrollbar flex-1 pr-0.5 space-y-3.5">
           {/* ================= VIEW 1: MAIN MENU ================= */}
           {activeView === 'menu' && (
-            <div className="space-y-4">
-              {/* Profile Header Card */}
-              <div className="flex items-center gap-3.5 pt-0.5">
+            <div className="space-y-3.5">
+              {/* Profile Header Card brought right up to top */}
+              <div className="flex items-center gap-3.5 pt-0 pr-11 sm:pr-12">
                 <div className="relative shrink-0">
                   <input
                     ref={fileInputRef}
@@ -1213,14 +1213,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     setSelectedMessage(null);
                     setActiveView('inbox');
                   }}
-                  className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80'
-                      : 'bg-[#faf8f5] hover:bg-[#f3efe8] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl transition cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-blue-100/80 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0 shadow-xs">
                       <Mail className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
@@ -1246,14 +1242,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     setSelectedResident(null);
                     setActiveView('friends');
                   }}
-                  className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80'
-                      : 'bg-[#faf8f5] hover:bg-[#f3efe8] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl transition cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100/80 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-xs">
                       <Users className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
@@ -1269,14 +1261,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 {/* 3. ACCOUNT */}
                 <button
                   onClick={() => setActiveView('account')}
-                  className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80'
-                      : 'bg-[#faf8f5] hover:bg-[#f3efe8] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl transition cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-100/80 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
                       <User className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
@@ -1290,13 +1278,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </button>
 
                 {/* 4. THEME (LIGHT AND DARK) */}
-                <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 border-slate-700/80'
-                      : 'bg-[#faf8f5] border-stone-200/70'
-                  }`}
-                >
+                <div className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl">
                   <div className="flex items-center justify-between mb-2.5">
                     <div className="flex items-center gap-2">
                       {internalDarkMode ? (
@@ -1312,12 +1294,12 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   </div>
 
                   {/* Segmented Light / Dark Switcher */}
-                  <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-stone-200/80 dark:bg-slate-900 border border-stone-300/60 dark:border-slate-700">
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-black/5 dark:bg-black/30 border border-white/20 dark:border-white/10">
                     <button
                       onClick={() => handleToggleTheme(false)}
                       className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer ${
                         !internalDarkMode
-                          ? 'bg-white text-stone-900 shadow-xs ring-1 ring-stone-300'
+                          ? 'liquid-glass-subpanel text-stone-900 shadow-xs font-extrabold'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -1329,7 +1311,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                       onClick={() => handleToggleTheme(true)}
                       className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer ${
                         internalDarkMode
-                          ? 'bg-slate-800 text-white shadow-xs ring-1 ring-slate-700'
+                          ? 'liquid-glass-subpanel text-white shadow-xs font-extrabold'
                           : 'text-stone-600 hover:text-stone-900'
                       }`}
                     >
@@ -1342,14 +1324,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 {/* 5. LOG OUT */}
                 <button
                   onClick={() => setActiveView('logoutConfirm')}
-                  className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left text-rose-600 dark:text-rose-400 ${
-                    internalDarkMode
-                      ? 'bg-rose-950/20 hover:bg-rose-950/40 border-rose-900/40'
-                      : 'bg-rose-50/60 hover:bg-rose-100/70 border-rose-200/60'
-                  }`}
+                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl transition cursor-pointer text-left text-rose-600 dark:text-rose-400 border-rose-300/40 dark:border-rose-800/40"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-100/80 dark:bg-rose-900/50 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0 shadow-xs">
                       <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
@@ -1400,13 +1378,13 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               </div>
 
               {/* 3 Categories Filter Tabs: Friends, Community Office, Maintenance Crew */}
-              <div className="grid grid-cols-4 gap-1.5 p-1.5 rounded-2xl bg-stone-100 border border-stone-200/90 text-xs sm:text-sm font-bold shadow-xs">
+              <div className="grid grid-cols-4 gap-1.5 p-1.5 rounded-2xl liquid-glass-subpanel text-xs sm:text-sm font-bold shadow-xs">
                 <button
                   onClick={() => setInboxFilter('all')}
                   className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
                     inboxFilter === 'all'
-                      ? 'bg-white text-stone-900 shadow-sm border border-stone-200/80'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                      ? 'liquid-glass-subpanel text-stone-900 dark:text-white shadow-xs font-extrabold'
+                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
                   }`}
                 >
                   All
@@ -1415,8 +1393,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   onClick={() => setInboxFilter('friend')}
                   className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
                     inboxFilter === 'friend'
-                      ? 'bg-emerald-700 text-white shadow-sm'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                      ? 'bg-emerald-700 text-white shadow-sm font-extrabold'
+                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
                   }`}
                 >
                   Friends
@@ -1425,8 +1403,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   onClick={() => setInboxFilter('office')}
                   className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
                     inboxFilter === 'office'
-                      ? 'bg-blue-700 text-white shadow-sm'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                      ? 'bg-blue-700 text-white shadow-sm font-extrabold'
+                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
                   }`}
                 >
                   Office
@@ -1435,8 +1413,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   onClick={() => setInboxFilter('maintenance')}
                   className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
                     inboxFilter === 'maintenance'
-                      ? 'bg-amber-600 text-white shadow-sm'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                      ? 'bg-amber-600 text-white shadow-sm font-extrabold'
+                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
                   }`}
                 >
                   Crew
@@ -1458,27 +1436,15 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
                     const cardTheme = isOffice
                       ? msg.unread
-                        ? internalDarkMode
-                          ? 'bg-blue-950/60 border-blue-500/80 border-l-[5px] border-l-blue-400 ring-1 ring-blue-500/40 shadow-xs'
-                          : 'bg-blue-50/90 border-blue-300 border-l-[5px] border-l-blue-600 ring-1 ring-blue-400/40 shadow-xs'
-                        : internalDarkMode
-                        ? 'bg-blue-950/30 border-blue-900/50 border-l-[5px] border-l-blue-500 hover:bg-blue-950/50 hover:border-blue-700'
-                        : 'bg-blue-50/55 border-blue-200/80 border-l-[5px] border-l-blue-500 hover:bg-blue-100/60 hover:border-blue-300'
+                        ? 'liquid-glass-subpanel border-l-[5px] border-l-blue-500 bg-blue-500/15 border-blue-400/40 shadow-xs'
+                        : 'liquid-glass-subpanel liquid-glass-subpanel-interactive border-l-[5px] border-l-blue-500/70'
                       : isCrew
                       ? msg.unread
-                        ? internalDarkMode
-                          ? 'bg-amber-950/60 border-amber-500/80 border-l-[5px] border-l-amber-400 ring-1 ring-amber-500/40 shadow-xs'
-                          : 'bg-amber-50/90 border-amber-300 border-l-[5px] border-l-amber-600 ring-1 ring-amber-400/40 shadow-xs'
-                        : internalDarkMode
-                        ? 'bg-amber-950/30 border-amber-900/50 border-l-[5px] border-l-amber-500 hover:bg-amber-950/50 hover:border-amber-700'
-                        : 'bg-amber-50/55 border-amber-200/80 border-l-[5px] border-l-amber-500 hover:bg-amber-100/60 hover:border-amber-300'
+                        ? 'liquid-glass-subpanel border-l-[5px] border-l-amber-500 bg-amber-500/15 border-amber-400/40 shadow-xs'
+                        : 'liquid-glass-subpanel liquid-glass-subpanel-interactive border-l-[5px] border-l-amber-500/70'
                       : msg.unread
-                      ? internalDarkMode
-                        ? 'bg-emerald-950/60 border-emerald-500/80 border-l-[5px] border-l-emerald-400 ring-1 ring-emerald-500/40 shadow-xs'
-                        : 'bg-emerald-50/90 border-emerald-300 border-l-[5px] border-l-emerald-600 ring-1 ring-emerald-400/40 shadow-xs'
-                      : internalDarkMode
-                      ? 'bg-emerald-950/30 border-emerald-900/50 border-l-[5px] border-l-emerald-500 hover:bg-emerald-950/50 hover:border-emerald-700'
-                      : 'bg-emerald-50/55 border-emerald-200/80 border-l-[5px] border-l-emerald-500 hover:bg-emerald-100/60 hover:border-emerald-300';
+                      ? 'liquid-glass-subpanel border-l-[5px] border-l-emerald-500 bg-emerald-500/15 border-emerald-400/40 shadow-xs'
+                      : 'liquid-glass-subpanel liquid-glass-subpanel-interactive border-l-[5px] border-l-emerald-500/70';
 
                     const dotColor = isOffice
                       ? 'bg-blue-600 dark:bg-blue-400'
@@ -1613,12 +1579,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
               {/* Chat Subject / Info Banner */}
               <div
-                className={`p-3 rounded-2xl border flex items-center justify-between shrink-0 ${
-                  internalDarkMode ? 'bg-amber-950/20 border-amber-900/50' : 'bg-amber-50/50 border-amber-200/80'
-                }`}
+                className="liquid-glass-subpanel p-3 rounded-2xl flex items-center justify-between shrink-0"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 flex items-center justify-center shrink-0 shadow-xs">
                     <img src="/crew-badge.svg" alt="Crew" className="w-5 h-5 object-contain inline-block" />
                   </div>
                   <div className="min-w-0">
@@ -1648,7 +1612,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               </div>
 
               {/* Conversation Messages Thread */}
-              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl bg-stone-50/70 dark:bg-slate-900/60 border border-stone-200/80 dark:border-slate-800 pr-2">
+              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2">
                 {activeMaintenanceChat && activeMaintenanceChat.messages && activeMaintenanceChat.messages.length > 0 ? (
                   activeMaintenanceChat.messages.map((m) => {
                     if (userIsCrew) {
@@ -1756,7 +1720,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                       ? `Reply as ${currentUser?.name || 'Crew'} (Maintenance Crew)...`
                       : 'Type a message to Maintenance Crew...'
                   }
-                  className="flex-1 py-2.5 px-3.5 rounded-xl border border-stone-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                  className="flex-1 py-2.5 px-3.5 rounded-xl liquid-glass-input text-xs sm:text-sm focus:outline-none"
                   disabled={isSendingReply}
                 />
                 <button
@@ -1794,12 +1758,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
               {/* Chat Subject / Info Banner */}
               <div
-                className={`p-3 rounded-2xl border flex items-center justify-between shrink-0 ${
-                  internalDarkMode ? 'bg-blue-950/20 border-blue-900/50' : 'bg-blue-50/50 border-blue-200/80'
-                }`}
+                className="liquid-glass-subpanel p-3 rounded-2xl flex items-center justify-between shrink-0"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/80 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/80 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
                     {userIsVip && activeOfficeChat?.residentAvatar ? (
                       <UserAvatar
                         src={activeOfficeChat.residentAvatar}
@@ -1851,7 +1813,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               </div>
 
               {/* Conversation Messages Thread */}
-              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl bg-stone-50/70 dark:bg-slate-900/60 border border-stone-200/80 dark:border-slate-800 pr-2">
+              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2">
                 {activeOfficeChat && activeOfficeChat.messages && activeOfficeChat.messages.length > 0 ? (
                   activeOfficeChat.messages.map((m) => {
                     if (userIsVip) {
@@ -1963,7 +1925,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {/* ================= VIEW 2D: SINGLE FRIEND MESSAGE VIEW ================= */}
           {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'friend' && (
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12">
                 <button
                   onClick={() => setSelectedMessage(null)}
                   className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
@@ -1978,9 +1940,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
               {/* Message Header */}
               <div
-                className={`p-4 sm:p-5 rounded-2xl border space-y-3 ${
-                  internalDarkMode ? 'bg-emerald-950/20 border-emerald-900/50' : 'bg-emerald-50/50 border-emerald-200/80'
-                }`}
+                className="liquid-glass-subpanel p-4 sm:p-5 rounded-2xl space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -2079,10 +2039,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   placeholder="Search resident name, apt, or wing..."
                   value={friendSearch}
                   onChange={e => setFriendSearch(e.target.value)}
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-xs sm:text-sm border outline-none transition ${
+                  className={`liquid-glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-xs sm:text-sm outline-none transition ${
                     internalDarkMode
-                      ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500'
-                      : 'bg-[#faf8f5] border-stone-200 text-stone-900 placeholder:text-stone-400'
+                      ? 'text-white placeholder:text-slate-400'
+                      : 'text-stone-900 placeholder:text-stone-500'
                   }`}
                 />
               </div>
@@ -2108,11 +2068,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                         setSelectedResident(resident);
                         setActiveView('friendDetail');
                       }}
-                      className={`p-3 sm:p-3.5 rounded-2xl border flex items-center justify-between transition cursor-pointer group ${
-                        internalDarkMode
-                          ? 'bg-slate-800/80 hover:bg-slate-800 border-slate-700/80'
-                          : 'bg-[#faf8f5] hover:bg-[#f3efe8] border-stone-200/70'
-                      }`}
+                      className="liquid-glass-subpanel liquid-glass-subpanel-interactive p-3 sm:p-3.5 rounded-2xl flex items-center justify-between transition cursor-pointer group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="relative shrink-0">
@@ -2188,9 +2144,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
               {/* Resident Profile Hero Card */}
               <div
-                className={`p-5 rounded-3xl border text-center space-y-2.5 relative overflow-hidden ${
-                  internalDarkMode ? 'bg-slate-800/90 border-slate-700' : 'bg-[#faf8f5] border-stone-200'
-                }`}
+                className="liquid-glass-subpanel p-5 rounded-3xl text-center space-y-2.5 relative overflow-hidden"
               >
                 <div className="relative inline-block mx-auto">
                   <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-3 border-emerald-600/50 shadow-md flex items-center justify-center">
@@ -2210,35 +2164,33 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </div>
 
                 <div>
-                  <h3 className="text-xl sm:text-2xl font-black serif-title text-[#000000] dark:text-white">
+                  <h3 className="text-xl sm:text-2xl font-black serif-title text-stone-900 dark:text-white">
                     {selectedResident.name}
                   </h3>
                   <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300 mt-0.5">
                     {selectedResident.apt} • {selectedResident.wing}
                   </p>
-                  <p className="text-[16px] font-bold text-[#000c87] underline mt-0.5">
+                  <p className="text-[14px] font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
                     TownLoop Resident since {selectedResident.residentSince}
                   </p>
                 </div>
               </div>
 
-              {/* Phone & Address Cards (Explicitly requested by user) */}
+              {/* Phone & Address Cards */}
               <div className="space-y-2.5">
                 {/* Phone Card with Direct Call & Copy */}
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between ${
-                    internalDarkMode ? 'bg-slate-800/70 border-slate-700' : 'bg-stone-50 border-stone-200'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-xs">
                       <Phone className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-xs uppercase font-bold text-[#9c9c9c] tracking-wider">
+                      <p className="text-xs uppercase font-bold text-stone-400 tracking-wider">
                         Phone Number
                       </p>
-                      <p className="text-sm sm:text-base font-black text-[#000000] dark:text-white">
+                      <p className="text-sm sm:text-base font-black text-stone-900 dark:text-white">
                         {selectedResident.phone}
                       </p>
                     </div>
@@ -2250,7 +2202,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                         navigator.clipboard?.writeText?.(selectedResident.phone);
                         showToast(`Copied ${selectedResident.phone}`);
                       }}
-                      className="p-2 rounded-xl bg-stone-200/80 dark:bg-slate-700 hover:bg-stone-300 text-stone-700 dark:text-slate-200 transition cursor-pointer"
+                      className="p-2 rounded-xl liquid-glass-subpanel hover:bg-white/40 text-stone-700 dark:text-slate-200 transition cursor-pointer"
                       title="Copy phone number"
                     >
                       <Copy className="w-4 h-4" />
@@ -2266,19 +2218,17 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
                 {/* Address Card with Copy */}
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-start justify-between gap-3 ${
-                    internalDarkMode ? 'bg-slate-800/70 border-slate-700' : 'bg-stone-50 border-stone-200'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-start justify-between gap-3"
                 >
                   <div className="flex items-start gap-3.5">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
                       <Home className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-xs uppercase font-bold text-[#9c9c9c] tracking-wider">
+                      <p className="text-xs uppercase font-bold text-stone-400 tracking-wider">
                         Address / Villa
                       </p>
-                      <p className="text-xs sm:text-sm font-semibold text-[#000000] dark:text-white leading-relaxed mt-0.5">
+                      <p className="text-xs sm:text-sm font-semibold text-stone-900 dark:text-white leading-relaxed mt-0.5">
                         {selectedResident.address}
                       </p>
                     </div>
@@ -2289,7 +2239,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                       navigator.clipboard?.writeText?.(selectedResident.address);
                       showToast('Address copied to clipboard');
                     }}
-                    className="p-2 rounded-xl bg-stone-200/80 dark:bg-slate-700 hover:bg-stone-300 text-stone-700 dark:text-slate-200 transition cursor-pointer shrink-0 mt-0.5"
+                    className="p-2 rounded-xl liquid-glass-subpanel hover:bg-white/40 text-stone-700 dark:text-slate-200 transition cursor-pointer shrink-0 mt-0.5"
                     title="Copy address"
                   >
                     <Copy className="w-4 h-4" />
@@ -2298,9 +2248,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
                 {/* Hobbies / Interests */}
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border ${
-                    internalDarkMode ? 'bg-slate-800/70 border-slate-700' : 'bg-stone-50 border-stone-200'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl"
                 >
                   <p className="text-xs uppercase font-bold text-stone-400 tracking-wider mb-2 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -2310,7 +2258,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     {selectedResident.interests.map(interest => (
                       <span
                         key={interest}
-                        className="px-3 py-1 rounded-full text-xs font-bold bg-white dark:bg-slate-700 border border-stone-200 dark:border-slate-600 text-stone-700 dark:text-slate-300"
+                        className="px-3 py-1 rounded-full text-xs font-bold liquid-glass-subpanel text-stone-700 dark:text-slate-300"
                       >
                         {interest}
                       </span>
@@ -2333,7 +2281,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {/* ================= VIEW 3C: COMPOSE MESSAGE ================= */}
           {activeView === 'compose' && (
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12">
                 <button
                   onClick={() => setActiveView('inbox')}
                   className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
@@ -2344,15 +2292,12 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 <span className="text-sm font-black uppercase tracking-wider text-stone-700 dark:text-slate-200">
                   New Message
                 </span>
-                <span className="w-8" />
               </div>
 
               <form onSubmit={handleSendComposedMessage} className="space-y-3">
                 {/* Recipient Card */}
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between ${
-                    internalDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-[#faf8f5] border-stone-200'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <div
@@ -2414,14 +2359,14 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                           setComposeSubject(`Hello ${target.name.split(' ')[0]}!`);
                         }
                       }}
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border outline-none font-medium cursor-pointer ${
+                      className={`liquid-glass-input w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm outline-none font-medium cursor-pointer ${
                         internalDarkMode
-                          ? 'bg-slate-800 border-slate-700 text-white'
-                          : 'bg-[#faf8f5] border-stone-200 text-stone-900'
+                          ? 'text-white'
+                          : 'text-stone-900'
                       }`}
                     >
                       {residents.map((r) => (
-                        <option key={r.id} value={r.name}>
+                        <option key={r.id} value={r.name} className="dark:bg-slate-900">
                           {r.name} ({r.apt})
                         </option>
                       ))}
@@ -2440,10 +2385,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     placeholder="Subject..."
                     value={composeSubject}
                     onChange={e => setComposeSubject(e.target.value)}
-                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border outline-none ${
+                    className={`liquid-glass-input w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm outline-none ${
                       internalDarkMode
-                        ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500'
-                        : 'bg-[#faf8f5] border-stone-200 text-stone-900 placeholder:text-stone-400'
+                        ? 'text-white placeholder:text-slate-500'
+                        : 'text-stone-900 placeholder:text-stone-400'
                     }`}
                   />
                 </div>
@@ -2459,10 +2404,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     placeholder={`Write your message to ${composeRecipient.name}...`}
                     value={composeBody}
                     onChange={e => setComposeBody(e.target.value)}
-                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border outline-none resize-none ${
+                    className={`liquid-glass-input w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm outline-none resize-none ${
                       internalDarkMode
-                        ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-500'
-                        : 'bg-[#faf8f5] border-stone-200 text-stone-900 placeholder:text-stone-400'
+                        ? 'text-white placeholder:text-slate-500'
+                        : 'text-stone-900 placeholder:text-stone-400'
                     }`}
                   />
                 </div>
@@ -2482,7 +2427,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {/* ================= VIEW 4: ACCOUNT ================= */}
           {activeView === 'account' && (
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12">
                 <button
                   onClick={() => setActiveView('menu')}
                   className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
@@ -2498,11 +2443,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
               <div className="space-y-2.5 text-xs sm:text-sm">
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 border-slate-700'
-                      : 'bg-[#faf8f5] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3 text-stone-600 dark:text-slate-300 font-medium">
                     <Home className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -2512,11 +2453,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </div>
 
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 border-slate-700'
-                      : 'bg-[#faf8f5] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3 text-stone-600 dark:text-slate-300 font-medium">
                     <Phone className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -2526,11 +2463,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </div>
 
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 border-slate-700'
-                      : 'bg-[#faf8f5] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3 text-stone-600 dark:text-slate-300 font-medium">
                     <Phone className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -2542,11 +2475,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </div>
 
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 border-slate-700'
-                      : 'bg-[#faf8f5] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3 text-stone-600 dark:text-slate-300 font-medium">
                     <Heart className="w-5 h-5 text-rose-500 shrink-0" />
@@ -2556,11 +2485,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </div>
 
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between ${
-                    internalDarkMode
-                      ? 'bg-slate-800/80 border-slate-700'
-                      : 'bg-[#faf8f5] border-stone-200/70'
-                  }`}
+                  className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3 text-stone-600 dark:text-slate-300 font-medium">
                     <Shield className="w-5 h-5 text-amber-500 shrink-0" />
@@ -2600,11 +2525,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               <div className="grid grid-cols-2 gap-2.5 pt-2">
                 <button
                   onClick={() => setActiveView('menu')}
-                  className={`py-3 rounded-2xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-                    internalDarkMode
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                      : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-                  }`}
+                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive py-3 rounded-2xl text-xs sm:text-sm font-bold transition cursor-pointer text-stone-700 dark:text-slate-300"
                 >
                   Cancel
                 </button>

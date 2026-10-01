@@ -25,6 +25,7 @@ import {
   Ticket,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
 } from 'lucide-react';
 import { UserProfile, UserRole, CommunityRsvpEvent, RsvpAttendee } from '../types';
 import { sortEventsEarlyFirst } from '../utils/eventSort';
@@ -271,7 +272,7 @@ export function AdminPanelModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/75"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/40 backdrop-blur-md"
           onClick={onClose}
         >
           <motion.div
@@ -285,25 +286,34 @@ export function AdminPanelModal({
               stiffness: 480,
               mass: 0.35,
             }}
-            className="bg-[#fcfaf6] dark:bg-slate-900 border-0 ring-1 ring-black/25 dark:ring-white/10 rounded-[32px] sm:rounded-[36px] w-full max-w-2xl max-h-[90vh] sm:max-h-[88vh] overflow-hidden flex flex-col shadow-2xl will-change-transform"
+            className="liquid-glass-modal rounded-[32px] sm:rounded-[36px] w-full max-w-2xl max-h-[90vh] sm:max-h-[88vh] overflow-hidden flex flex-col shadow-2xl will-change-transform text-stone-900 dark:text-white"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-900 via-amber-800 to-stone-900 text-white flex items-center justify-between gap-3 shadow-md shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-900/90 via-amber-800/90 to-stone-900/90 backdrop-blur-md text-white flex items-center justify-between gap-3 shadow-md shrink-0 border-b border-white/20">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <button
+                  onClick={onClose}
+                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive flex items-center gap-1 py-1.5 px-2.5 rounded-xl text-xs sm:text-sm font-bold text-white transition cursor-pointer shrink-0"
+                  aria-label="Back to community"
+                  title="Back"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Back</span>
+                </button>
                 {isUpcoming ? (
                   <UpcomingCommunityBadge
-                    className="w-10 h-10 rounded-2xl p-1 shadow-xs shrink-0"
-                    iconClassName="w-6 h-6"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl p-1 shadow-xs shrink-0"
+                    iconClassName="w-5 h-5 sm:w-6 sm:h-6"
                   />
                 ) : (
                   <CecilPinesBadge
-                    className="w-10 h-10 rounded-2xl p-1 shadow-xs shrink-0"
-                    pineClassName="w-7 h-7"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl p-1 shadow-xs shrink-0"
+                    pineClassName="w-6 h-6 sm:w-7 sm:h-7"
                   />
                 )}
                 <div className="min-w-0">
-                  <h2 className="font-bold text-base sm:text-lg leading-snug">
+                  <h2 className="font-bold text-base sm:text-lg leading-snug truncate">
                     Admin Portal
                   </h2>
                   <p className="text-[11px] sm:text-xs text-amber-200/80 truncate">
@@ -313,21 +323,22 @@ export function AdminPanelModal({
               </div>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer shrink-0"
-                aria-label="Close"
+                className="liquid-glass-subpanel liquid-glass-subpanel-interactive w-9 h-9 rounded-full text-white flex items-center justify-center transition cursor-pointer shrink-0"
+                aria-label="Close Admin Portal"
+                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
         {/* Tab Navigation - Fitted without horizontal scroll */}
-        <div className="flex w-full border-b border-stone-200 dark:border-slate-800 bg-stone-100/80 dark:bg-slate-900/60 px-2 sm:px-4 pt-1.5 gap-1 shrink-0">
+        <div className="flex w-full border-b border-white/30 dark:border-white/10 bg-white/40 dark:bg-black/20 px-2 sm:px-4 pt-1.5 gap-1 shrink-0 backdrop-blur-md">
           <button
             onClick={() => setActiveTab('residents')}
             className={`flex-1 pb-2.5 pt-1 px-1.5 sm:px-3 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 cursor-pointer text-center min-w-0 ${
               activeTab === 'residents'
-                ? 'border-amber-600 text-amber-900 dark:text-amber-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
+                ? 'border-amber-600 text-amber-900 dark:text-amber-400 font-extrabold'
+                : 'border-transparent text-stone-600 hover:text-stone-900 dark:text-slate-400 dark:hover:text-stone-200'
             }`}
           >
             <Users className="w-3.5 h-3.5 shrink-0" />
@@ -343,8 +354,8 @@ export function AdminPanelModal({
             onClick={() => setActiveTab('rsvp')}
             className={`flex-1 pb-2.5 pt-1 px-1.5 sm:px-3 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 cursor-pointer text-center min-w-0 ${
               activeTab === 'rsvp'
-                ? 'border-emerald-600 text-emerald-900 dark:text-emerald-400'
-                : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
+                ? 'border-emerald-600 text-emerald-900 dark:text-emerald-400 font-extrabold'
+                : 'border-transparent text-stone-600 hover:text-stone-900 dark:text-slate-400 dark:hover:text-stone-200'
             }`}
           >
             <CalendarCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -361,8 +372,8 @@ export function AdminPanelModal({
               onClick={() => setActiveTab('database')}
               className={`flex-1 pb-2.5 pt-1 px-1.5 sm:px-3 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 cursor-pointer text-center min-w-0 ${
                 activeTab === 'database'
-                  ? 'border-amber-600 text-amber-900 dark:text-amber-400'
-                  : 'border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
+                  ? 'border-amber-600 text-amber-900 dark:text-amber-400 font-extrabold'
+                  : 'border-transparent text-stone-600 hover:text-stone-900 dark:text-slate-400 dark:hover:text-stone-200'
               }`}
             >
               <Trash2 className="w-3.5 h-3.5 shrink-0" />
@@ -375,7 +386,7 @@ export function AdminPanelModal({
         <div className="p-3 sm:p-5 overflow-y-auto overflow-x-hidden flex-1 space-y-3 sm:space-y-4">
           {activeTab === 'residents' ? (
             <>
-              <div className="flex items-center justify-between gap-2 pb-2 border-b border-stone-200 dark:border-slate-800">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-stone-200/80 dark:border-slate-800">
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-600 dark:text-slate-400" />
                   <span className="font-bold text-[11px] sm:text-xs uppercase tracking-wider text-stone-700 dark:text-slate-300">
@@ -392,7 +403,7 @@ export function AdminPanelModal({
               {/* Residents & Pending Applicants List */}
               <div className="space-y-2.5">
                 {displayableResidents.length === 0 ? (
-                  <div className="text-center py-10 space-y-2 bg-white dark:bg-slate-800/50 rounded-2xl border border-stone-200 dark:border-slate-800 p-6">
+                  <div className="liquid-glass-subpanel text-center py-10 space-y-2 rounded-2xl p-6">
                     <Users className="w-8 h-8 text-stone-400 mx-auto" />
                     <p className="font-bold text-stone-800 dark:text-stone-200 text-sm">
                       No registered residents or applicants yet
@@ -415,7 +426,7 @@ export function AdminPanelModal({
                     return (
                       <div
                         key={usr.id}
-                        className="bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                        className="liquid-glass-subpanel rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
                       >
                         <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                           <UserAvatar
@@ -505,7 +516,7 @@ export function AdminPanelModal({
                     value={rsvpSearch}
                     onChange={(e) => setRsvpSearch(e.target.value)}
                     placeholder="Search event or neighbor..."
-                    className="w-full pl-8 pr-7 py-1.5 bg-white dark:bg-slate-800 text-xs text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 placeholder:text-stone-400"
+                    className="liquid-glass-input w-full pl-8 pr-7 py-1.5 text-xs text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden placeholder:text-stone-400"
                   />
                   {rsvpSearch && (
                     <button
@@ -520,7 +531,7 @@ export function AdminPanelModal({
 
               {/* Event Roster Cards */}
               {filteredRsvpEvents.length === 0 ? (
-                <div className="text-center py-10 space-y-2 bg-white dark:bg-slate-800/50 rounded-2xl border border-stone-200 dark:border-slate-800 p-6">
+                <div className="liquid-glass-subpanel text-center py-10 space-y-2 rounded-2xl p-6">
                   <CalendarCheck className="w-8 h-8 text-stone-400 mx-auto" />
                   <p className="font-bold text-stone-800 dark:text-stone-200 text-sm">
                     No matching RSVP events found
@@ -541,12 +552,12 @@ export function AdminPanelModal({
                     return (
                       <div
                         key={ev.id}
-                        className="relative bg-white dark:bg-slate-800/90 rounded-2xl border border-stone-200/90 dark:border-slate-700/80 shadow-2xs overflow-hidden"
+                        className="relative liquid-glass-subpanel rounded-2xl shadow-xs overflow-hidden"
                       >
                         {/* Event Delete Trashcan moved to top right of the event */}
                         {onDeleteRsvpEvent && (
                           confirmEventId === ev.id ? (
-                            <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 bg-white/95 dark:bg-slate-900/95 p-1 rounded-xl shadow-md border border-stone-200 dark:border-slate-700">
+                            <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 liquid-glass-subpanel p-1 rounded-xl shadow-md">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -580,10 +591,10 @@ export function AdminPanelModal({
                         )}
 
                         {/* Event Header Banner */}
-                        <div className="p-3.5 sm:p-4 pr-10 sm:pr-12 bg-gradient-to-r from-stone-50 to-stone-100/70 dark:from-slate-800 dark:to-slate-850 border-b border-stone-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                        <div className="p-3.5 sm:p-4 pr-10 sm:pr-12 bg-white/40 dark:bg-black/20 border-b border-white/20 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
                           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-3.5 min-w-0 w-full sm:w-auto">
                             {/* Calendar Date Badge - BIGGER as requested */}
-                            <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-600/30 dark:border-emerald-500/30 flex flex-col items-center justify-center shadow-xs shrink-0 text-center">
+                            <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl liquid-glass-subpanel flex flex-col items-center justify-center shadow-xs shrink-0 text-center">
                               <span className="text-[10px] sm:text-[11px] font-black uppercase text-emerald-700 dark:text-emerald-400 tracking-wider leading-none">
                                 {ev.month}
                               </span>
@@ -606,7 +617,7 @@ export function AdminPanelModal({
                               className={`text-base sm:text-lg font-black px-4 sm:px-5 py-2 rounded-2xl border text-center shadow-xs inline-flex items-center justify-center tracking-tight ${
                                 count > 0
                                   ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700'
-                                  : 'bg-stone-100 dark:bg-slate-700 text-stone-600 dark:text-slate-300 border-stone-200 dark:border-slate-600'
+                                  : 'liquid-glass-subpanel text-stone-700 dark:text-slate-300'
                               }`}
                             >
                               {count} {count === 1 ? 'Attending' : 'Attending'}
@@ -642,7 +653,7 @@ export function AdminPanelModal({
                               className={`w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center transition-all duration-300 shrink-0 shadow-xs border cursor-pointer ${
                                 isExpanded
                                   ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/25 rotate-180 scale-105'
-                                  : 'bg-stone-100/90 dark:bg-slate-800 text-stone-700 dark:text-stone-200 border-stone-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 hover:border-emerald-300'
+                                  : 'liquid-glass-subpanel text-stone-700 dark:text-stone-200 hover:text-emerald-700'
                               }`}
                               title={isExpanded ? 'Collapse' : 'Expand'}
                               aria-label={isExpanded ? 'Collapse attendees' : 'Expand attendees'}
@@ -653,7 +664,7 @@ export function AdminPanelModal({
 
                           {isExpanded && (
                             attendeesList.length === 0 ? (
-                              <div className="p-3 bg-stone-50/70 dark:bg-slate-900/40 rounded-xl border border-dashed border-stone-200 dark:border-slate-800 text-center">
+                              <div className="p-3 liquid-glass-subpanel rounded-xl text-center">
                                 <p className="text-xs text-stone-500 dark:text-slate-400 italic">
                                   No neighbors have RSVP'd for this event yet.
                                 </p>
@@ -667,7 +678,7 @@ export function AdminPanelModal({
                                   return (
                                     <div
                                       key={attendee.id}
-                                      className="flex items-center justify-between pl-1 sm:pl-1.5 pr-2.5 sm:pr-3 py-2 sm:py-2.5 bg-stone-50/90 dark:bg-slate-900/60 rounded-xl border border-stone-200/90 dark:border-slate-700/80 hover:border-stone-300 dark:hover:border-slate-600 transition gap-2"
+                                      className="flex items-center justify-between pl-1 sm:pl-1.5 pr-2.5 sm:pr-3 py-2 sm:py-2.5 liquid-glass-subpanel rounded-xl transition gap-2"
                                     >
                                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                         {/* Small Trashcan Icon placed at the very left edge */}
@@ -742,7 +753,7 @@ export function AdminPanelModal({
           ) : (
             /* Database Maintenance View */
             <div className="space-y-3 sm:space-y-4">
-              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl p-3.5 sm:p-4 space-y-2">
+              <div className="liquid-glass-subpanel rounded-2xl p-3.5 sm:p-4 space-y-2 border-amber-300/60 dark:border-amber-700/60">
                 <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs sm:text-sm">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>Production Initial State & Purge Utility</span>
@@ -752,7 +763,7 @@ export function AdminPanelModal({
                 </p>
               </div>
 
-              <div className="bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-2xs">
+              <div className="liquid-glass-subpanel rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-xs">
                 <div>
                   <h4 className="font-bold text-stone-900 dark:text-white text-sm">
                     Purge All Seed & Mock Data
