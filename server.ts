@@ -61,27 +61,96 @@ app.use(express.urlencoded({ extended: true, limit: '35mb' }));
 // Newsletter AI extraction endpoint for PDF / community bulletin documents
 app.post('/api/newsletter/extract-content', limitAiRequests, async (req: Request, res: Response) => {
   try {
-    const { fileDataUrl, fileName, fileType, editionTitle, monthEdition, textContent, isReanalysis, extraInstructions } = req.body;
-    if (typeof fileDataUrl === 'string' && fileDataUrl.length > 34_000_000) {
-      res.status(413).json({ error: 'Document is too large to analyze.' });
+    const {
+      newsletterId,
+      base64Data,
+      mimeType,
+      fileDataUrl,
+      fileName,
+      fileType,
+      editionTitle,
+      monthEdition,
+      textContent,
+      isReanalysis,
+      isNewUpload,
+      extraInstructions,
+    } = req.body;
+
+    console.log(
+      `[Newsletter Pipeline] Step 1: File received for extraction - Title: "${editionTitle || 'Unknown'}", Month: "${monthEdition || 'TBA'}", File: "${fileName || 'none'}", NewsletterID: "${newsletterId || 'auto'}", isNewUpload: ${Boolean(isNewUpload)}`
+    );
+
+    let cleanBase64 = typeof base64Data === 'string' ? base64Data.trim() : '';
+    let effectiveMime = typeof mimeType === 'string' ? mimeType.trim() : (fileType || 'application/pdf');
+
+    // If cleanBase64 was not passed directly, extract from fileDataUrl
+    if (!cleanBase64 && typeof fileDataUrl === 'string') {
+      const rawUrl = fileDataUrl.trim();
+      if (rawUrl.includes('base64,')) {
+        cleanBase64 = rawUrl.split('base64,')[1]?.trim() || '';
+        const detectedMime = rawUrl.substring(rawUrl.indexOf(':') + 1, rawUrl.indexOf(';'));
+        if (detectedMime) effectiveMime = detectedMime;
+      } else if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+        try {
+          console.log(`[Newsletter Pipeline] Step 1a: Fetching raw PDF from remote URL...`);
+          const fetchRes = await fetch(rawUrl, { signal: AbortSignal.timeout(15_000) });
+          if (fetchRes.ok) {
+            const arrayBuf = await fetchRes.arrayBuffer();
+            cleanBase64 = Buffer.from(arrayBuf).toString('base64');
+            effectiveMime = fetchRes.headers.get('content-type') || 'application/pdf';
+          }
+        } catch (fetchErr) {
+          console.warn('[Newsletter Pipeline] Failed to download remote document URL:', fetchErr);
+        }
+      }
+    }
+
+    // Check edition-specific file if saved earlier
+    if (!cleanBase64 && newsletterId) {
+      const sanitizedId = String(newsletterId).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const specificPath = path.join(UPLOADS_DIR, `newsletter_${sanitizedId}.pdf`);
+      if (fs.existsSync(specificPath)) {
+        try {
+          const buf = fs.readFileSync(specificPath);
+          cleanBase64 = buf.toString('base64');
+          effectiveMime = 'application/pdf';
+        } catch (e) {}
+      }
+    }
+
+    if (!cleanBase64 || cleanBase64.length < 50) {
+      console.error('[Newsletter Pipeline] Missing or invalid document base64 data.');
+      res.status(400).json({ error: 'Failed to extract content from uploaded newsletter. Please check file format.' });
       return;
     }
 
+    const payloadBytes = Math.round((cleanBase64.length * 0.75));
+    console.log(
+      `[Newsletter Pipeline] Step 1b: Document payload ready - Size: ~${Math.round(payloadBytes / 1024)} KB, MIME: ${effectiveMime}`
+    );
+
     const result = await extractNewsletterContent({
-      fileDataUrl: asText(fileDataUrl, 34_000_000),
+      newsletterId: asText(newsletterId, 100),
+      base64Data: cleanBase64,
+      mimeType: effectiveMime,
       fileName: asText(fileName, 255),
-      fileType: asText(fileType, 100),
+      fileType: effectiveMime,
       editionTitle: asText(editionTitle, 200),
       monthEdition: asText(monthEdition, 100),
       textContent: asText(textContent, 5_000_000),
       isReanalysis: Boolean(isReanalysis),
+      isNewUpload: Boolean(isNewUpload),
       extraInstructions: asText(extraInstructions, 10_000),
     });
 
+    console.log(
+      `[Newsletter Pipeline] Step 4: Extraction response ready - Month: "${result.monthEdition}", Events: ${result.events.length}, Highlights: ${result.highlights.length}`
+    );
+
     res.json(result);
   } catch (error: any) {
-    console.error('Newsletter extraction route error:', error);
-    res.status(500).json({ error: 'Newsletter extraction failed.' });
+    console.error('[Newsletter Pipeline] Extraction failed with error:', error?.message || error);
+    res.status(500).json({ error: 'Failed to extract content from uploaded newsletter. Please check file format.' });
   }
 });
 

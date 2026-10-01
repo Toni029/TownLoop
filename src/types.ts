@@ -134,6 +134,8 @@ export interface CommunityRsvpEvent {
   isAiExtracted?: boolean;
   deadline?: string;
   attendees?: RsvpAttendee[];
+  newsletterId?: string;
+  editionMonth?: string;
 }
 
 export interface PinnedHighlight {
@@ -147,6 +149,8 @@ export interface PinnedHighlight {
   summary?: string;
   createdAt?: number;
   isAiExtracted?: boolean;
+  newsletterId?: string;
+  editionMonth?: string;
 }
 
 export interface ExtractedRsvpEventInput {

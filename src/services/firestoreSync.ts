@@ -395,16 +395,76 @@ export async function saveRsvpEventsToFirestore(
           spotsLeft: ev.spotsLeft ?? null,
           capacity: ev.capacity ?? null,
           isAiExtracted: !!ev.isAiExtracted,
+          newsletterId: ev.newsletterId || null,
+          editionMonth: ev.editionMonth || null,
+          createdAt: ev.createdAt || Date.now(),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
     }
     await batch.commit();
+    console.log(`[Newsletter Pipeline] Firestore write completed: Saved ${events.length} RSVP events to community_events`);
     return true;
   } catch (err) {
-    console.warn('Unable to sync community RSVP events to Firestore:', err);
+    console.warn('[Firestore Sync] Unable to sync community RSVP events to Firestore:', err);
     return false;
+  }
+}
+
+/**
+ * Retrieve all community RSVP events from Firestore collection 'community_events'
+ * Prioritizes newest records (ordered by creation timestamp descending) and filters out obsolete prior AI extractions.
+ */
+export async function getCommunityEventsFromFirestore(activeNewsletterId?: string): Promise<CommunityRsvpEvent[]> {
+  if (!isFirebaseConfigured() || !db) return [];
+  try {
+    const coll = collection(db, 'community_events');
+    const snap = await getDocs(coll);
+    if (snap.empty) return [];
+    const events: CommunityRsvpEvent[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      const isAi = Boolean(data.isAiExtracted);
+      const evNewsletterId = data.newsletterId ? String(data.newsletterId) : '';
+
+      // If activeNewsletterId is provided, filter out stale AI-extracted events from old/prior editions
+      if (isAi && activeNewsletterId && evNewsletterId && evNewsletterId !== activeNewsletterId) {
+        return;
+      }
+
+      events.push({
+        id: d.id,
+        title: data.title || '',
+        month: data.month || 'TBA',
+        day: String(data.day || '1'),
+        time: data.time || '',
+        location: data.location || '',
+        category: data.category || 'Special Event',
+        attendeesCount: data.attendeesCount || (Array.isArray(data.attendees) ? data.attendees.length : 0),
+        attendees: data.attendees || [],
+        userRsvp: false,
+        deadline: data.deadline || '',
+        description: data.description || '',
+        capacity: data.capacity ?? undefined,
+        spotsLeft: data.spotsLeft ?? undefined,
+        isAiExtracted: isAi,
+        newsletterId: evNewsletterId || undefined,
+        editionMonth: data.editionMonth || undefined,
+        createdAt: data.createdAt || (data.updatedAt?.toMillis ? data.updatedAt.toMillis() : Date.now()),
+      });
+    });
+
+    // Sort newest created events first
+    events.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    console.log(
+      `[Newsletter Pipeline] Firestore query completed: Retrieved ${events.length} active community RSVP events (filtered for active newsletter: ${activeNewsletterId || 'all'})`
+    );
+    return events;
+  } catch (err) {
+    console.warn('[Firestore Sync] Error fetching community RSVP events:', err);
+    return [];
   }
 }
 
@@ -429,16 +489,130 @@ export async function savePinnedHighlightsToFirestore(
           date: h.date || null,
           tag: h.tag || null,
           isAiExtracted: !!h.isAiExtracted,
+          newsletterId: h.newsletterId || null,
+          editionMonth: h.editionMonth || null,
+          createdAt: h.createdAt || Date.now(),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
     }
     await batch.commit();
+    console.log(`[Newsletter Pipeline] Firestore write completed: Saved ${highlights.length} pinned highlights to community_highlights`);
     return true;
   } catch (err) {
-    console.warn('Unable to sync pinned highlights to Firestore:', err);
+    console.warn('[Firestore Sync] Unable to sync pinned highlights to Firestore:', err);
     return false;
+  }
+}
+
+/**
+ * Retrieve all pinned highlights from Firestore collection 'community_highlights'
+ * Prioritizes newest records (ordered by creation timestamp descending) and filters out obsolete prior AI extractions.
+ */
+export async function getCommunityHighlightsFromFirestore(activeNewsletterId?: string): Promise<PinnedHighlight[]> {
+  if (!isFirebaseConfigured() || !db) return [];
+  try {
+    const coll = collection(db, 'community_highlights');
+    const snap = await getDocs(coll);
+    if (snap.empty) return [];
+    const highlights: PinnedHighlight[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      const isAi = Boolean(data.isAiExtracted);
+      const hlNewsletterId = data.newsletterId ? String(data.newsletterId) : '';
+
+      // If activeNewsletterId is provided, filter out stale AI-extracted highlights from old/prior editions
+      if (isAi && activeNewsletterId && hlNewsletterId && hlNewsletterId !== activeNewsletterId) {
+        return;
+      }
+
+      highlights.push({
+        id: d.id,
+        title: data.title || '',
+        category: data.category || 'Community Notice',
+        authorLabel: data.authorLabel || 'Community Update',
+        description: data.description || '',
+        date: data.date || '',
+        tag: data.tag || '',
+        summary: data.description || '',
+        isAiExtracted: isAi,
+        newsletterId: hlNewsletterId || undefined,
+        editionMonth: data.editionMonth || undefined,
+        createdAt: data.createdAt || (data.updatedAt?.toMillis ? data.updatedAt.toMillis() : Date.now()),
+      });
+    });
+
+    // Sort newest created highlights first
+    highlights.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    console.log(
+      `[Newsletter Pipeline] Firestore query completed: Retrieved ${highlights.length} active pinned highlights (filtered for active newsletter: ${activeNewsletterId || 'all'})`
+    );
+    return highlights;
+  } catch (err) {
+    console.warn('[Firestore Sync] Error fetching pinned highlights:', err);
+    return [];
+  }
+}
+
+/**
+ * Deletes obsolete auto-extracted events when a new newsletter edition is published
+ */
+export async function deleteOldAiEventsFromFirestore(currentNewsletterId?: string): Promise<void> {
+  if (!isFirebaseConfigured() || !db) return;
+  try {
+    const coll = collection(db, 'community_events');
+    const snap = await getDocs(coll);
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    let count = 0;
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.isAiExtracted && currentNewsletterId && data.newsletterId && data.newsletterId !== currentNewsletterId) {
+        batch.delete(d.ref);
+        count++;
+      } else if (data.isAiExtracted && !data.newsletterId && currentNewsletterId) {
+        batch.delete(d.ref);
+        count++;
+      }
+    });
+    if (count > 0) {
+      await batch.commit();
+      console.log(`[Newsletter Pipeline] Cleaned up ${count} prior edition AI events from Firestore`);
+    }
+  } catch (err) {
+    console.warn('[Firestore Sync] Error cleaning up old AI events:', err);
+  }
+}
+
+/**
+ * Deletes obsolete auto-extracted highlights when a new newsletter edition is published
+ */
+export async function deleteOldAiHighlightsFromFirestore(currentNewsletterId?: string): Promise<void> {
+  if (!isFirebaseConfigured() || !db) return;
+  try {
+    const coll = collection(db, 'community_highlights');
+    const snap = await getDocs(coll);
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    let count = 0;
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.isAiExtracted && currentNewsletterId && data.newsletterId && data.newsletterId !== currentNewsletterId) {
+        batch.delete(d.ref);
+        count++;
+      } else if (data.isAiExtracted && !data.newsletterId && currentNewsletterId) {
+        batch.delete(d.ref);
+        count++;
+      }
+    });
+    if (count > 0) {
+      await batch.commit();
+      console.log(`[Newsletter Pipeline] Cleaned up ${count} prior edition AI highlights from Firestore`);
+    }
+  } catch (err) {
+    console.warn('[Firestore Sync] Error cleaning up old AI highlights:', err);
   }
 }
 
