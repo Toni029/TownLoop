@@ -5,7 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, useDragControls } from 'motion/react';
+import { motion, AnimatePresence, useDragControls, useReducedMotion } from 'motion/react';
 import {
   X,
   Upload,
@@ -62,6 +62,7 @@ export function WorkOrderModal({
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement | null>(null);
   const dragControls = useDragControls();
+  const reduceMotion = useReducedMotion();
   const pendingUploadsRef = useRef(0);
   const submittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -190,6 +191,7 @@ export function WorkOrderModal({
   return (
     <motion.div
       key="workorder-modal-backdrop"
+      layoutRoot
       initial={{ opacity: 0 }}
       animate={{ opacity: isClosing ? 0 : 1 }}
       exit={{ opacity: 0 }}
@@ -199,6 +201,8 @@ export function WorkOrderModal({
     >
       <motion.div
         key="workorder-modal-sheet"
+        layout={!reduceMotion}
+        layoutDependency={isFullScreen}
         drag={isClosing ? false : "y"}
         dragListener={false}
         dragControls={dragControls}
@@ -216,13 +220,13 @@ export function WorkOrderModal({
             setIsFullScreen(true);
           }
         }}
-        initial={{ y: '100%' }}
+        initial={{ y: reduceMotion ? 0 : '100%' }}
         animate={isClosing ? { y: '100%' } : { y: 0 }}
         exit={{ y: '100%' }}
         transition={
           isClosing
             ? { duration: 0.3, ease: [0.32, 0.72, 0, 1] }
-            : { duration: 0.44, ease: [0.22, 1, 0.36, 1] }
+            : { duration: reduceMotion ? 0 : 0.65 / 1.5, ease: [0.22, 1, 0.36, 1] }
         }
         onAnimationComplete={() => {
           if (isClosing) {
@@ -266,8 +270,13 @@ export function WorkOrderModal({
           />
         </div>
 
-        {/* Header */}
-        <div
+        {/* Header fades in as the sheet settles, matching the Social composer. */}
+        <motion.div
+          layout={reduceMotion ? false : "position"}
+          layoutDependency={isFullScreen}
+          initial={{ opacity: reduceMotion ? 1 : 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduceMotion ? 0 : 0.6 / 1.5, delay: reduceMotion ? 0 : 0.18 / 1.5, ease: 'easeOut', layout: { duration: reduceMotion ? 0 : 0.65 / 1.5, delay: 0, ease: [0.22, 1, 0.36, 1] } }}
           onPointerDown={(e) => {
             const target = e.target as HTMLElement;
             if (!target.closest('button') && !target.closest('input')) {
@@ -306,10 +315,15 @@ export function WorkOrderModal({
               <X className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </motion.div>
 
           {/* Form with scrollable body */}
-          <form
+          <motion.form
+            layout={reduceMotion ? false : "position"}
+          layoutDependency={isFullScreen}
+          initial={{ opacity: reduceMotion ? 1 : 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.85 / 1.5, delay: reduceMotion ? 0 : 0.28 / 1.5, ease: 'easeOut', layout: { duration: reduceMotion ? 0 : 0.65 / 1.5, delay: 0, ease: [0.22, 1, 0.36, 1] } }}
             onSubmit={handleFormSubmit}
             className="space-y-4 pt-3 overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y text-xs sm:text-sm flex-1 px-0.5"
           >
@@ -572,7 +586,7 @@ export function WorkOrderModal({
                 )}
               </button>
             </div>
-          </form>
+          </motion.form>
         </motion.div>
       </motion.div>
   );

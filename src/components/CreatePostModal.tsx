@@ -5,7 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, useDragControls } from 'motion/react';
+import { motion, AnimatePresence, useDragControls, useReducedMotion } from 'motion/react';
 import {
   X,
   Image,
@@ -67,6 +67,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const dragControls = useDragControls();
+  const reduceMotion = useReducedMotion();
 
   const submittingRef = useRef(false);
   const pendingUploadsRef = useRef(0);
@@ -238,6 +239,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       {isOpen && (
         <motion.div
           key="create-post-backdrop"
+          layoutRoot
           initial={{ opacity: 0 }}
           animate={{ opacity: isClosing ? 0 : 1 }}
           exit={{ opacity: 0 }}
@@ -247,6 +249,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         >
           <motion.div
             key="create-post-modal"
+            layout={!reduceMotion}
+            layoutDependency={isFullScreen}
             drag={isClosing ? false : "y"}
             dragListener={false}
             dragControls={dragControls}
@@ -264,13 +268,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 setIsFullScreen(true);
               }
             }}
-            initial={{ y: '100%' }}
+            initial={{ y: reduceMotion ? 0 : '100%' }}
             animate={isClosing ? { y: '100%' } : { y: 0 }}
             exit={{ y: '100%' }}
             transition={
               isClosing
                 ? { duration: 0.3, ease: [0.32, 0.72, 0, 1] }
-                : { duration: 0.44, ease: [0.22, 1, 0.36, 1] }
+                : { duration: reduceMotion ? 0 : 0.65 / 1.5, ease: [0.22, 1, 0.36, 1] }
             }
             onAnimationComplete={() => {
               if (isClosing) {
@@ -314,8 +318,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               />
             </div>
 
-            {/* Header */}
-            <div
+            {/* Header fades in as the sheet settles, without changing its layout. */}
+            <motion.div
+              layout={reduceMotion ? false : "position"}
+              layoutDependency={isFullScreen}
+              initial={{ opacity: reduceMotion ? 1 : 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: reduceMotion ? 0 : 0.6 / 1.5, delay: reduceMotion ? 0 : 0.18 / 1.5, ease: 'easeOut', layout: { duration: reduceMotion ? 0 : 0.65 / 1.5, delay: 0, ease: [0.22, 1, 0.36, 1] } }}
               onPointerDown={(e) => {
                 const target = e.target as HTMLElement;
                 if (!target.closest('button') && !target.closest('input')) {
@@ -356,9 +365,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   <X className="w-4 h-4" />
                 </button>
               </div>
-            </div>
+            </motion.div>
 
-            <form
+            <motion.form
+              layout={reduceMotion ? false : "position"}
+              layoutDependency={isFullScreen}
+              initial={{ opacity: reduceMotion ? 1 : 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: reduceMotion ? 0 : 0.85 / 1.5, delay: reduceMotion ? 0 : 0.28 / 1.5, ease: 'easeOut', layout: { duration: reduceMotion ? 0 : 0.65 / 1.5, delay: 0, ease: [0.22, 1, 0.36, 1] } }}
               onSubmit={handleSubmit}
               className="space-y-3.5 text-xs sm:text-sm overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y flex-1 pt-1.5 px-0.5"
             >
@@ -621,7 +635,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               )}
             </button>
           </div>
-        </form>
+        </motion.form>
       </motion.div>
     </motion.div>
   )}

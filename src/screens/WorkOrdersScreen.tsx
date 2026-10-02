@@ -371,7 +371,7 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
 
               return (
                 <motion.div
-                  layout
+                  layout="position"
                   key={wo.id}
                   id={`work-order-${wo.id}`}
                   data-original-title={wo.title}

@@ -3,7 +3,7 @@
   "appId": "1:883715389126:web:08d103c4cfa8e96627c9c7",
   "apiKey": "AIzaSyBgDavlmIKxMpPcZfxwKLpXI_0kWXvreYg",
   "authDomain": "cc-livingcommunity-app.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+  "firestoreDatabaseId": "(default)",
   "storageBucket": "cc-livingcommunity-app.firebasestorage.app",
   "messagingSenderId": "883715389126",
   "measurementId": "",
