@@ -1682,22 +1682,21 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
                 {/* 5. LOG OUT */}
                 <button
-                  type="button"
                   onClick={() => setActiveView('logoutConfirm')}
-                  className="w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-rose-600 hover:bg-rose-700 active:scale-98 text-white transition cursor-pointer text-left shadow-md border border-rose-500/40"
+                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl transition cursor-pointer text-left text-rose-600 dark:text-rose-400 border-rose-300/40 dark:border-rose-800/40"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-700/60 text-white flex items-center justify-center shrink-0 shadow-xs border border-rose-500/50">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-100/80 dark:bg-rose-900/50 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0 shadow-xs">
                       <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
-                      <p className="text-sm sm:text-base font-extrabold text-white leading-snug">Log Out</p>
-                      <p className="text-xs sm:text-[13px] text-rose-100/90 font-medium">
+                      <p className="text-sm sm:text-base font-bold leading-snug">Log Out</p>
+                      <p className="text-xs sm:text-[13px] text-rose-500/80 dark:text-rose-400/80">
                         Sign out of TownLoop portal
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-rose-200 shrink-0" />
+                  <ChevronRight className="w-5 h-5 text-rose-400 shrink-0" />
                 </button>
 
                 {/* About App / Version & Copyright Notice */}
