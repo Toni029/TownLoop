@@ -1367,8 +1367,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="fixed inset-0 bg-stone-950/40 backdrop-blur-md z-[100] flex items-center justify-center p-3 sm:p-5"
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed inset-0 bg-stone-950/45 backdrop-blur-xl z-[100] flex items-center justify-center p-3 sm:p-5"
           onClick={e => {
             if (e.target === e.currentTarget) {
               setIsOpen(false);
@@ -1377,22 +1377,35 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
         >
           <motion.div
             key="profile-avatar-window"
-            initial={{ opacity: 0, scale: 0.92, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 8 }}
+            initial={{ opacity: 0, scale: 0.84, y: -28, filter: 'blur(14px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{
+              opacity: 0,
+              scale: 0.88,
+              y: -18,
+              filter: 'blur(8px)',
+              transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] },
+            }}
             transition={{
               type: 'spring',
-              damping: 26,
-              stiffness: 480,
-              mass: 0.35,
+              damping: 25,
+              stiffness: 280,
+              mass: 0.75,
             }}
-            className={`liquid-glass-modal w-full max-w-[500px] sm:max-w-[540px] h-[520px] sm:h-[560px] rounded-[32px] sm:rounded-[36px] p-4 sm:p-5 pt-3.5 sm:pt-4 shadow-2xl relative flex flex-col will-change-transform overflow-hidden ${
+            className={`liquid-glass-modal w-full max-w-[500px] sm:max-w-[540px] h-[520px] sm:h-[560px] rounded-[32px] sm:rounded-[36px] p-4 sm:p-5 pt-3.5 sm:pt-4 shadow-2xl relative flex flex-col overflow-hidden antialiased [text-rendering:optimizeLegibility] ${
               internalDarkMode
                 ? 'text-white'
                 : 'text-stone-900'
             }`}
             onClick={e => e.stopPropagation()}
           >
+            {/* Liquid Glass Dynamic Specular Light Flare Sweep (iOS 26 Liquid Glass) */}
+            <motion.div
+              initial={{ x: '-100%', opacity: 0.8 }}
+              animate={{ x: '180%', opacity: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              className="absolute inset-0 -skew-x-12 pointer-events-none z-10 bg-gradient-to-r from-transparent via-white/25 dark:via-white/12 to-transparent w-full h-full"
+            />
         {/* Close Button on the very top right */}
         <button
           onClick={() => setIsOpen(false)}
@@ -2973,21 +2986,23 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
             setActiveView('menu');
             setIsOpen(true);
           }}
-          className="group relative block rounded-full hover:ring-2 hover:ring-emerald-600/50 focus:outline-none focus:ring-2 focus:ring-emerald-600/60 transition cursor-pointer"
+          className="group relative block rounded-full focus:outline-none transition-all duration-300 active:scale-90 active:rotate-[-2deg] ease-[cubic-bezier(0.34,1.56,0.64,1)] cursor-pointer"
           title="Open Resident Profile & Menu"
           aria-label="Open Resident Profile & Menu"
         >
           <div
             className={`relative ${
               isLarge ? 'w-16 h-16 sm:w-[70px] sm:h-[70px]' : 'w-11 h-11'
-            } rounded-full overflow-hidden border-2 border-emerald-600/40 shadow-sm bg-stone-100 transition-all duration-200`}
+            } rounded-full overflow-hidden border-2 border-emerald-600/40 shadow-sm bg-stone-100 group-hover:shadow-md group-hover:border-emerald-500/80 transition-all duration-300 group-hover:scale-105 active:scale-95`}
           >
             <UserAvatar
               src={profilePhotoUrl}
               name={effectiveName}
-              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+              className="w-full h-full object-cover transition duration-300"
             />
             <div className="absolute inset-0 bg-emerald-700/10 mix-blend-multiply" />
+            {/* Subtle liquid sheen on avatar hover / interaction */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
           </div>
         </button>
 

@@ -267,14 +267,14 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
         <motion.div
           ref={containerRef}
           key="media-fullscreen-lightbox"
-          initial={{ opacity: 0, scale: 0.94 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.96 }}
+          initial={{ opacity: 0, scale: 0.92, filter: 'blur(8px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.94, filter: 'blur(6px)', transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] } }}
           transition={{
             type: 'spring',
-            damping: 26,
-            stiffness: 480,
-            mass: 0.35,
+            damping: 25,
+            stiffness: 280,
+            mass: 0.75,
           }}
           id="media-fullscreen-viewer"
           className="fixed inset-0 z-[100] bg-black/95 select-none overflow-hidden flex flex-col justify-between"

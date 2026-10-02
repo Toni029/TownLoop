@@ -26,7 +26,7 @@ type DiscussionFeedProps = Pick<
   | 'handleAddComment'
 >;
 
-export function DiscussionFeed({
+export const DiscussionFeed = React.memo(function DiscussionFeed({
   currentUser,
   posts,
   isItemCreator,
@@ -307,4 +307,4 @@ export function DiscussionFeed({
     })}
   </div>
 );
-}
+});

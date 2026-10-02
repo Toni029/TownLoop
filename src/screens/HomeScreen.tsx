@@ -4,6 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
+import React from 'react';
 import { Calendar, CheckCircle2, Plus, X, Trash2 } from 'lucide-react';
 import { WeatherWidget } from '../components/WeatherWidget';
 import { MonthlyActivityReminder } from '../components/MonthlyActivityReminder';
@@ -35,7 +36,7 @@ type HomeScreenProps = Pick<
     userId?: string | number;
   };
 
-export function HomeScreen({
+export const HomeScreen = React.memo(function HomeScreen({
   tasks,
   taskFilter,
   formatFriendlyDate,
@@ -254,4 +255,4 @@ export function HomeScreen({
       </ErrorBoundary>
     </section>
   );
-}
+});

@@ -39,7 +39,7 @@ interface NewsScreenProps extends NewsState, Pick<PortalDatesState, 'currentMont
   onShowToast?: (message: string) => void;
 }
 
-export function NewsScreen({
+export const NewsScreen = React.memo(function NewsScreen({
   rsvpToast,
   setRsvpToast,
   currentMonthEdition,
@@ -718,4 +718,4 @@ export function NewsScreen({
       />
     </section>
   );
-}
+});

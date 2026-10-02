@@ -20,7 +20,7 @@ interface WorkOrderTicketProps {
  * - Clean concave corner cutouts and perforated punch cuts
  * - Work order number scaled to a proportional, legible font size
  */
-export function WorkOrderTicket({
+export const WorkOrderTicket = React.memo(function WorkOrderTicket({
   code,
   isDone = false,
   className = '',
@@ -151,4 +151,4 @@ export function WorkOrderTicket({
       </div>
     </div>
   );
-}
+});

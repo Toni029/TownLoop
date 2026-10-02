@@ -48,7 +48,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
     setIsClosing(true);
     setTimeout(() => {
       onClose();
-    }, 190);
+    }, 220);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -88,9 +88,9 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: isClosing ? 0 : 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.16, ease: 'easeOut' }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
           onClick={handleClose}
-          className="fixed inset-0 bg-stone-950/75 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 bg-stone-950/65 backdrop-blur-xl z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4"
         >
           <motion.div
             key="message-seller-modal"
@@ -110,8 +110,8 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
             exit={{ y: '100%' }}
             transition={
               isClosing
-                ? { duration: 0.18, ease: [0.32, 0.72, 0, 1] }
-                : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+                ? { duration: 0.22, ease: [0.32, 0.72, 0, 1] }
+                : { duration: 0.32, ease: [0.16, 1, 0.3, 1] }
             }
             onAnimationComplete={() => {
               if (isClosing) {
@@ -119,8 +119,15 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               }
             }}
             onClick={e => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 shadow-2xl border-t sm:border border-stone-200 dark:border-slate-800 space-y-4 max-h-[92vh] overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y antialiased [text-rendering:optimizeLegibility]"
+            className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 shadow-2xl border-t sm:border border-stone-200 dark:border-slate-800 space-y-4 max-h-[92vh] overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y antialiased [text-rendering:optimizeLegibility] gpu-layer relative"
           >
+            {/* Dynamic Specular Light Flare Sweep on open */}
+            <motion.div
+              initial={{ x: '-100%', opacity: 0.6 }}
+              animate={{ x: '180%', opacity: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              className="absolute inset-0 -skew-x-12 pointer-events-none z-10 bg-gradient-to-r from-transparent via-emerald-500/10 dark:via-white/10 to-transparent w-full h-full"
+            />
             {/* iOS pull/grab indicator bar */}
             <div
               onPointerDown={(e) => dragControls.start(e)}

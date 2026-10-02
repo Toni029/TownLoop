@@ -33,12 +33,24 @@
   background: transparent !important;
 }
 .hide-scrollbar,
-.native-scroll {
+.native-scroll,
+.scroll-container {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y;
   overscroll-behavior-y: contain;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+/* GPU Layer Compositing Promotion for 120 FPS / 120Hz display refresh */
+.gpu-layer,
+.liquid-glass-modal {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
 }
 
 /* Prevent browser automatic scroll anchoring jumps on dynamic DOM content change */
@@ -62,9 +74,10 @@ section[aria-label="Daily Medications"],
   );
   backdrop-filter: blur(24px) saturate(200%) contrast(105%) brightness(102%);
   -webkit-backdrop-filter: blur(24px) saturate(200%) contrast(105%) brightness(102%);
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  will-change: transform, backdrop-filter;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   border-radius: 9999px;
   border: 1px solid rgba(255, 255, 255, 0.40);
   box-shadow:
@@ -234,43 +247,41 @@ section[aria-label="Daily Medications"],
   position: relative;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.85) 0%,
-    rgba(255, 255, 255, 0.65) 35%,
-    rgba(255, 255, 255, 0.52) 65%,
-    rgba(255, 255, 255, 0.78) 100%
-  ), rgba(255, 255, 255, 0.60);
-  backdrop-filter: blur(32px) saturate(210%) contrast(106%) brightness(104%);
-  -webkit-backdrop-filter: blur(32px) saturate(210%) contrast(106%) brightness(104%);
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(255, 255, 255, 0.70) 35%,
+    rgba(255, 255, 255, 0.58) 65%,
+    rgba(255, 255, 255, 0.82) 100%
+  ), rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(36px) saturate(210%) contrast(108%) brightness(104%);
+  -webkit-backdrop-filter: blur(36px) saturate(210%) contrast(108%) brightness(104%);
+  border: 1.5px solid rgba(255, 255, 255, 0.90);
   box-shadow:
-    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.45),
-    inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.35),
-    inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.35),
-    0 25px 60px -15px rgba(0, 10, 30, 0.22),
-    0 10px 24px -5px rgba(0, 0, 0, 0.08);
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1.5px 2px 0 rgba(255, 255, 255, 0.50),
+    inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.40),
+    inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.40),
+    0 30px 80px -15px rgba(0, 10, 30, 0.25),
+    0 12px 28px -5px rgba(0, 0, 0, 0.10);
 }
 
 .dark .liquid-glass-modal {
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.20) 0%,
     rgba(255, 255, 255, 0.08) 35%,
     rgba(255, 255, 255, 0.04) 65%,
-    rgba(255, 255, 255, 0.16) 100%
-  ), rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(32px) saturate(210%) contrast(106%) brightness(104%);
-  -webkit-backdrop-filter: blur(32px) saturate(210%) contrast(106%) brightness(104%);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+    rgba(255, 255, 255, 0.15) 100%
+  ), rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(36px) saturate(210%) contrast(108%) brightness(105%);
+  -webkit-backdrop-filter: blur(36px) saturate(210%) contrast(108%) brightness(105%);
+  border: 1.5px solid rgba(255, 255, 255, 0.26);
   box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.50),
     inset 0 -1px 1.5px 0 rgba(255, 255, 255, 0.15),
-    inset 1px 0 1.5px 0 rgba(255, 255, 255, 0.15),
-    inset -1px 0 1.5px 0 rgba(255, 255, 255, 0.15),
-    0 30px 70px -15px rgba(0, 0, 0, 0.65),
-    0 12px 28px rgba(0, 0, 0, 0.40);
+    inset 1px 0 1.5px 0 rgba(255, 255, 255, 0.20),
+    inset -1px 0 1.5px 0 rgba(255, 255, 255, 0.20),
+    0 35px 85px -15px rgba(0, 0, 0, 0.75),
+    0 16px 36px rgba(0, 0, 0, 0.45);
 }
 
 /* Sub-panels, cards, and list rows inside the profile menu */

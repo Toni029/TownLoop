@@ -30,7 +30,7 @@ type MarketplaceProps = Pick<
   | 'handleOpenMessageSeller'
 >;
 
-export function Marketplace({
+export const Marketplace = React.memo(function Marketplace({
   currentUser,
   marketItems,
   isItemCreator,
@@ -312,4 +312,4 @@ export function Marketplace({
       }))}
     </div>
   );
-}
+});

@@ -5,6 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
   Pill,
@@ -123,13 +124,49 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div
-        className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="add-med-title"
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="add-medication-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/65 backdrop-blur-xl"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
+          <motion.div
+            key="add-medication-window"
+            initial={{ opacity: 0, scale: 0.84, y: -24, filter: 'blur(12px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{
+              opacity: 0,
+              scale: 0.88,
+              y: -16,
+              filter: 'blur(8px)',
+              transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] },
+            }}
+            transition={{
+              type: 'spring',
+              damping: 25,
+              stiffness: 280,
+              mass: 0.75,
+            }}
+            className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] gpu-layer antialiased [text-rendering:optimizeLegibility] relative"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-med-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Dynamic Specular Light Flare Sweep on open */}
+            <motion.div
+              initial={{ x: '-100%', opacity: 0.6 }}
+              animate={{ x: '180%', opacity: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              className="absolute inset-0 -skew-x-12 pointer-events-none z-10 bg-gradient-to-r from-transparent via-sky-500/10 dark:via-white/10 to-transparent w-full h-full"
+            />
         {/* Header */}
         <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-sky-50 via-emerald-50/40 to-white dark:from-slate-800/90 dark:to-slate-900">
           <div className="flex items-center gap-3">
@@ -377,7 +414,9 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

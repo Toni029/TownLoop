@@ -60,7 +60,7 @@ interface WorkOrdersScreenProps
   currentUser?: UserProfile | null;
 }
 
-export function WorkOrdersScreen({
+export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
   setIsWorkOrderModalOpen,
   workOrders,
   handleMarkAsDone,
@@ -1038,4 +1038,4 @@ export function WorkOrdersScreen({
       )}
     </section>
   );
-}
+});

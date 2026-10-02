@@ -4,6 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
+import React from 'react';
 import { Plus, MessageSquare, Tag } from 'lucide-react';
 import type { CommunityState } from '../hooks/useCommunityState';
 import { DiscussionFeed } from '../components/community/DiscussionFeed';
@@ -33,7 +34,7 @@ type CommunityScreenProps = Pick<
   | 'handleOpenMessageSeller'
 >;
 
-export function CommunityScreen({
+export const CommunityScreen = React.memo(function CommunityScreen({
   currentUser,
   setIsCreatePostModalOpen,
   socialView,
@@ -72,7 +73,7 @@ export function CommunityScreen({
           <button
             id="create-new-post-btn"
             onClick={() => setIsCreatePostModalOpen(true)}
-            className="bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs sm:text-sm px-3.5 sm:px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-sm hover:shadow transition cursor-pointer"
+            className="bg-emerald-700 hover:bg-emerald-800 active:scale-92 active:rotate-[-1deg] text-white font-bold text-xs sm:text-sm px-3.5 sm:px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-sm hover:shadow transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>{socialView === 'market' ? 'New listing' : 'New post'}</span>
@@ -139,4 +140,4 @@ export function CommunityScreen({
       )}
     </section>
   );
-}
+});

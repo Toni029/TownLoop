@@ -271,24 +271,37 @@ export function AdminPanelModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.15, ease: 'easeOut' }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/40 backdrop-blur-md"
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/45 backdrop-blur-xl"
           onClick={onClose}
         >
           <motion.div
             key="admin-panel-modal"
-            initial={{ opacity: 0, scale: 0.92, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 8 }}
+            initial={{ opacity: 0, scale: 0.84, y: -28, filter: 'blur(14px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{
+              opacity: 0,
+              scale: 0.88,
+              y: -18,
+              filter: 'blur(8px)',
+              transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] },
+            }}
             transition={{
               type: 'spring',
-              damping: 26,
-              stiffness: 480,
-              mass: 0.35,
+              damping: 25,
+              stiffness: 280,
+              mass: 0.75,
             }}
-            className="liquid-glass-modal rounded-[32px] sm:rounded-[36px] w-full max-w-2xl max-h-[90vh] sm:max-h-[88vh] overflow-hidden flex flex-col shadow-2xl will-change-transform text-stone-900 dark:text-white"
+            className="liquid-glass-modal rounded-[32px] sm:rounded-[36px] w-full max-w-2xl max-h-[90vh] sm:max-h-[88vh] overflow-hidden flex flex-col shadow-2xl gpu-layer antialiased [text-rendering:optimizeLegibility] text-stone-900 dark:text-white relative"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Dynamic Specular Light Flare Sweep on open */}
+            <motion.div
+              initial={{ x: '-100%', opacity: 0.6 }}
+              animate={{ x: '180%', opacity: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              className="absolute inset-0 -skew-x-12 pointer-events-none z-10 bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent w-full h-full"
+            />
             {/* Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-900/90 via-amber-800/90 to-stone-900/90 backdrop-blur-md text-white flex items-center justify-between gap-3 shadow-md shrink-0 border-b border-white/20">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">

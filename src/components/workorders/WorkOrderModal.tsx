@@ -77,7 +77,7 @@ export function WorkOrderModal({
     setIsClosing(true);
     setTimeout(() => {
       setIsWorkOrderModalOpen(false);
-    }, 190);
+    }, 220);
   };
 
   // Visual Upload State & Progress percentage tracker
@@ -175,8 +175,8 @@ export function WorkOrderModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: isClosing ? 0 : 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.16, ease: 'easeOut' }}
-      className="fixed inset-0 bg-stone-950/75 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto"
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      className="fixed inset-0 bg-stone-950/65 backdrop-blur-xl z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto"
       onClick={handleClose}
     >
       <motion.div
@@ -203,8 +203,8 @@ export function WorkOrderModal({
         exit={{ y: '100%' }}
         transition={
           isClosing
-            ? { duration: 0.18, ease: [0.32, 0.72, 0, 1] }
-            : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+            ? { duration: 0.22, ease: [0.32, 0.72, 0, 1] }
+            : { duration: 0.32, ease: [0.16, 1, 0.3, 1] }
         }
         onAnimationComplete={() => {
           if (isClosing) {
@@ -212,12 +212,19 @@ export function WorkOrderModal({
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white dark:bg-slate-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col antialiased [text-rendering:optimizeLegibility] ${
+        className={`bg-white dark:bg-slate-900 shadow-2xl gpu-layer flex flex-col antialiased [text-rendering:optimizeLegibility] overflow-hidden relative ${
           isFullScreen
             ? 'fixed inset-0 w-full h-full max-w-none max-h-none rounded-none z-50 p-4 sm:p-6 border-0'
             : 'w-full max-w-lg rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 border-t sm:border border-stone-200 dark:border-slate-800 max-h-[92vh] sm:max-h-[90vh]'
         }`}
       >
+        {/* Dynamic Specular Light Flare Sweep on open */}
+        <motion.div
+          initial={{ x: '-100%', opacity: 0.6 }}
+          animate={{ x: '180%', opacity: 0 }}
+          transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+          className="absolute inset-0 -skew-x-12 pointer-events-none z-10 bg-gradient-to-r from-transparent via-amber-500/10 dark:via-white/10 to-transparent w-full h-full"
+        />
         {/* Interactive iOS pull/grab bar: drag down to close, drag up for full screen */}
         <div
           onPointerDown={(e) => {

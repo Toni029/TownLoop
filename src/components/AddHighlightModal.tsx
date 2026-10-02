@@ -74,18 +74,37 @@ export const AddHighlightModal: React.FC<AddHighlightModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
           onClick={onClose}
-          className="fixed inset-0 bg-stone-950/80 backdrop-blur-sm z-[110] flex items-center justify-center p-3 sm:p-4"
+          className="fixed inset-0 bg-stone-950/65 backdrop-blur-xl z-[110] flex items-center justify-center p-3 sm:p-4"
         >
           <motion.div
             key="add-highlight-modal"
-            initial={{ scale: 0.95, opacity: 0, y: 10 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+            initial={{ opacity: 0, scale: 0.84, y: -24, filter: 'blur(12px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{
+              opacity: 0,
+              scale: 0.88,
+              y: -16,
+              filter: 'blur(8px)',
+              transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] },
+            }}
+            transition={{
+              type: 'spring',
+              damping: 25,
+              stiffness: 280,
+              mass: 0.75,
+            }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            className="w-full max-w-lg bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] gpu-layer antialiased [text-rendering:optimizeLegibility] relative"
           >
+            {/* Dynamic Specular Light Flare Sweep on open */}
+            <motion.div
+              initial={{ x: '-100%', opacity: 0.6 }}
+              animate={{ x: '180%', opacity: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              className="absolute inset-0 -skew-x-12 pointer-events-none z-10 bg-gradient-to-r from-transparent via-amber-500/10 dark:via-white/10 to-transparent w-full h-full"
+            />
             {/* Header */}
             <div className="bg-gradient-to-r from-amber-800 to-amber-700 text-white p-5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">

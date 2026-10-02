@@ -86,7 +86,7 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
     setIsClosing(true);
     setTimeout(() => {
       onClose();
-    }, 190);
+    }, 220);
   };
 
   // Allow closing via Escape key
@@ -261,9 +261,9 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: isClosing ? 0 : 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.16, ease: 'easeOut' }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
           onClick={handleClose}
-          className="fixed inset-0 bg-stone-950/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 bg-stone-950/65 backdrop-blur-xl z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
         >
           <motion.div
             key="newsletter-modal-sheet"
@@ -289,13 +289,8 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
             exit={{ y: '100%' }}
             transition={
               isClosing
-                ? { duration: 0.18, ease: [0.32, 0.72, 0, 1] }
-                : {
-                    type: 'spring',
-                    damping: 28,
-                    stiffness: 450,
-                    mass: 0.35,
-                  }
+                ? { duration: 0.22, ease: [0.32, 0.72, 0, 1] }
+                : { duration: 0.32, ease: [0.16, 1, 0.3, 1] }
             }
             onAnimationComplete={() => {
               if (isClosing) {
@@ -303,12 +298,19 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
               }
             }}
             onClick={(e) => e.stopPropagation()}
-            className={`bg-stone-900 flex flex-col shadow-2xl overflow-hidden will-change-transform transition-[max-width,border-radius] duration-200 ${
+            className={`bg-stone-900 flex flex-col shadow-2xl overflow-hidden gpu-layer antialiased [text-rendering:optimizeLegibility] relative ${
               isFullScreen
                 ? 'fixed inset-0 w-full h-full max-w-none max-h-none rounded-none z-[110] border-0 p-0'
                 : 'w-full max-w-3xl h-[94vh] sm:h-[90vh] rounded-t-[28px] sm:rounded-[32px] border-t sm:border border-stone-800'
             }`}
           >
+            {/* Dynamic Specular Light Flare Sweep on open */}
+            <motion.div
+              initial={{ x: '-100%', opacity: 0.6 }}
+              animate={{ x: '180%', opacity: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+              className="absolute inset-0 -skew-x-12 pointer-events-none z-10 bg-gradient-to-r from-transparent via-emerald-500/10 dark:via-white/10 to-transparent w-full h-full"
+            />
             {/* Top Bar with Navigation & Actions */}
             <div
               onPointerDown={(e) => {
