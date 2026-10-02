@@ -114,6 +114,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /marketplace_chats/{chatId} {
+      allow read, write: if true;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

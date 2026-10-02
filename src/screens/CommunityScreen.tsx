@@ -5,7 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import React from 'react';
-import { Plus, MessageSquare, Tag } from 'lucide-react';
+import { Plus, MessageSquare, Tag, Mail } from 'lucide-react';
 import type { CommunityState } from '../hooks/useCommunityState';
 import { DiscussionFeed } from '../components/community/DiscussionFeed';
 import { Marketplace } from '../components/community/Marketplace';
@@ -32,6 +32,8 @@ type CommunityScreenProps = Pick<
   | 'setSelectedDetailMarket'
   | 'handleToggleSoldItem'
   | 'handleOpenMessageSeller'
+  | 'marketplaceChats'
+  | 'setIsMarketplaceChatModalOpen'
 >;
 
 export const CommunityScreen = React.memo(function CommunityScreen({
@@ -54,8 +56,18 @@ export const CommunityScreen = React.memo(function CommunityScreen({
   setSelectedDetailMarket,
   handleToggleSoldItem,
   handleOpenMessageSeller,
+  marketplaceChats,
+  setIsMarketplaceChatModalOpen,
 }: CommunityScreenProps) {
   const allowCreatePost = canCreatePost(currentUser);
+
+  const unreadMarketplaceCount = (marketplaceChats || []).filter((c) => {
+    const isSeller =
+      currentUser &&
+      (String(currentUser.id).toLowerCase() === String(c.sellerId).toLowerCase() ||
+        currentUser.name.toLowerCase() === c.sellerName.toLowerCase());
+    return isSeller ? c.unreadForSeller : c.unreadForBuyer;
+  }).length;
 
   return (
     <section className="space-y-4 animate-in fade-in duration-200">
@@ -68,17 +80,39 @@ export const CommunityScreen = React.memo(function CommunityScreen({
             Neighbors, conversations & marketplace
           </p>
         </div>
-        {/* Every role (Admin, VIP, Crew, Resident) can post and create listings */}
-        {allowCreatePost && (
-          <button
-            id="create-new-post-btn"
-            onClick={() => setIsCreatePostModalOpen(true)}
-            className="bg-emerald-700 hover:bg-emerald-800 active:scale-92 active:rotate-[-1deg] text-white font-bold text-xs sm:text-sm px-3.5 sm:px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-sm hover:shadow transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>{socialView === 'market' ? 'New listing' : 'New post'}</span>
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* Marketplace Inbox Mail Button sitting next to + New listing */}
+          {socialView === 'market' && (
+            <button
+              type="button"
+              id="open-marketplace-chats-btn"
+              onClick={() => setIsMarketplaceChatModalOpen(true)}
+              className="relative bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 text-stone-800 dark:text-slate-100 border border-stone-300/80 dark:border-slate-700 p-2 sm:px-3.5 sm:py-2 rounded-2xl flex items-center gap-1.5 font-bold text-xs sm:text-sm transition cursor-pointer shadow-2xs active:scale-95"
+              title="Marketplace Chats & Inbox"
+            >
+              <Mail className="w-4 h-4 text-emerald-700 dark:text-emerald-400 stroke-[2.5]" />
+              <span className="hidden sm:inline">Marketplace Chats</span>
+              {unreadMarketplaceCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-extrabold text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                  {unreadMarketplaceCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Every role (Admin, VIP, Crew, Resident) can post and create listings */}
+          {allowCreatePost && (
+            <button
+              id="create-new-post-btn"
+              onClick={() => setIsCreatePostModalOpen(true)}
+              className="bg-emerald-700 hover:bg-emerald-800 active:scale-92 active:rotate-[-1deg] text-white font-bold text-xs sm:text-sm px-3.5 sm:px-4 py-2 rounded-2xl flex items-center gap-1.5 shadow-xs hover:shadow-md transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] cursor-pointer"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>{socialView === 'market' ? 'New listing' : 'New post'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Subtabs */}

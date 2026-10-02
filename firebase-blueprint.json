@@ -137,6 +137,25 @@
         }
       },
       "required": ["residentId", "residentName", "subject", "messages"]
+    },
+    "MarketplaceChat": {
+      "title": "Marketplace Buyer/Seller Chat Thread",
+      "description": "Direct chat between buyer and seller for a marketplace item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Chat ID" },
+        "itemId": { "type": "string", "description": "Marketplace item ID" },
+        "itemTitle": { "type": "string", "description": "Marketplace item title" },
+        "itemPrice": { "type": "string", "description": "Listing price" },
+        "sellerId": { "type": "string", "description": "Seller UID or name" },
+        "sellerName": { "type": "string", "description": "Seller display name" },
+        "buyerId": { "type": "string", "description": "Buyer UID or name" },
+        "buyerName": { "type": "string", "description": "Buyer display name" },
+        "lastMessage": { "type": "string", "description": "Most recent message snippet" },
+        "updatedAt": { "type": "number", "description": "Last update timestamp" },
+        "messages": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["itemId", "sellerId", "buyerId", "messages"]
     }
   },
   "firestore": {
@@ -171,6 +190,10 @@
     "/office_chats/{chatId}": {
       "schema": "OfficeChat",
       "description": "Community office chat threads between residents and VIP managers."
+    },
+    "/marketplace_chats/{chatId}": {
+      "schema": "MarketplaceChat",
+      "description": "Marketplace buyer-seller chat threads."
     }
   }
 }

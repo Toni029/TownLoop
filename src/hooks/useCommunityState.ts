@@ -17,11 +17,32 @@ import {
 import { subscribeToCommunityDirectory } from '../services/auth';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase';
+import {
+  MarketplaceChat,
+  subscribeMarketplaceChats,
+  sendMarketplaceInquiry,
+} from '../services/marketplaceChat';
 
 const STORAGE_POSTS_KEY = 'portal_discussion_posts';
 const STORAGE_MARKET_KEY = 'portal_marketplace_items';
+const STORAGE_LIKES_KEY = 'townloop_liked_posts_v1';
 
 const INITIAL_POSTS: PostItem[] = [];
+
+function getLikedPostsSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_LIKES_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLikedPostsSet(set: Set<string>) {
+  try {
+    localStorage.setItem(STORAGE_LIKES_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
 
 export interface CommunityState {
   currentUser?: UserProfile | null;
@@ -41,6 +62,12 @@ export interface CommunityState {
   setSelectedMessageSellerItem: React.Dispatch<React.SetStateAction<MarketItem | null>>;
   isMessageSellerModalOpen: boolean;
   setIsMessageSellerModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  marketplaceChats: MarketplaceChat[];
+  setMarketplaceChats: React.Dispatch<React.SetStateAction<MarketplaceChat[]>>;
+  isMarketplaceChatModalOpen: boolean;
+  setIsMarketplaceChatModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  activeMarketplaceChatId: string | null;
+  setActiveMarketplaceChatId: React.Dispatch<React.SetStateAction<string | null>>;
   fullscreenMedia: {
     media: MediaAttachment[];
     initialIndex?: number;
@@ -119,6 +146,9 @@ export function useCommunityState(
     null
   );
   const [isMessageSellerModalOpen, setIsMessageSellerModalOpen] = useState(false);
+  const [marketplaceChats, setMarketplaceChats] = useState<MarketplaceChat[]>([]);
+  const [isMarketplaceChatModalOpen, setIsMarketplaceChatModalOpen] = useState(false);
+  const [activeMarketplaceChatId, setActiveMarketplaceChatId] = useState<string | null>(null);
   const [fullscreenMedia, setFullscreenMedia] = useState<{
     media: MediaAttachment[];
     initialIndex?: number;
@@ -128,6 +158,14 @@ export function useCommunityState(
 
   const [openCommentsPostId, setOpenCommentsPostId] = useState<number | string | null>(null);
   const [commentInputText, setCommentInputText] = useState<{ [postId: string]: string }>({});
+
+  // Subscribe to Marketplace Chats
+  useEffect(() => {
+    const unsub = subscribeMarketplaceChats(currentUser, (chats) => {
+      setMarketplaceChats(chats);
+    });
+    return () => unsub();
+  }, [currentUser]);
   const [directoryUsers, setDirectoryUsers] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem('portal_community_directory_users');
@@ -281,7 +319,7 @@ export function useCommunityState(
               mediaUrl: d.mediaUrl,
               media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
               likes: d.likes || 0,
-              liked: false,
+              liked: getLikedPostsSet().has(String(doc.id)),
               comments: (d.comments || []).map((c: any) => ({
                 ...c,
                 authorAvatar: resolveAvatar(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
@@ -386,6 +424,13 @@ export function useCommunityState(
         if (String(p.id) === String(id)) {
           const nextLiked = !p.liked;
           const nextLikes = nextLiked ? p.likes + 1 : Math.max(0, p.likes - 1);
+          const set = getLikedPostsSet();
+          if (nextLiked) set.add(String(id));
+          else set.delete(String(id));
+          saveLikedPostsSet(set);
+
+          updateFirestoreDocument('discussion_feed', id, { likes: nextLikes });
+
           return { ...p, liked: nextLiked, likes: nextLikes };
         }
         return p;
@@ -416,11 +461,14 @@ export function useCommunityState(
       };
 
       setPosts((prev) =>
-        prev.map((p) =>
-          String(p.id) === String(postId)
-            ? { ...p, comments: [...(p.comments || []), newComment] }
-            : p
-        )
+        prev.map((p) => {
+          if (String(p.id) === String(postId)) {
+            const updatedComments = [...(p.comments || []), newComment];
+            updateFirestoreDocument('discussion_feed', postId, { comments: updatedComments });
+            return { ...p, comments: updatedComments };
+          }
+          return p;
+        })
       );
 
       setCommentInputText((prev) => ({ ...prev, [String(postId)]: '' }));
@@ -451,25 +499,29 @@ export function useCommunityState(
       };
 
       if (selectedDetailPost && String(selectedDetailPost.id) === String(targetId)) {
+        const updatedComments = [...(selectedDetailPost.comments || []), newComment];
         const updatedPost = {
           ...selectedDetailPost,
-          comments: [...(selectedDetailPost.comments || []), newComment],
+          comments: updatedComments,
         };
         setSelectedDetailPost(updatedPost);
         setPosts((prev) =>
           prev.map((p) => (String(p.id) === String(targetId) ? updatedPost : p))
         );
+        updateFirestoreDocument('discussion_feed', targetId, { comments: updatedComments });
       }
 
       if (selectedDetailMarket && String(selectedDetailMarket.id) === String(targetId)) {
+        const updatedComments = [...(selectedDetailMarket.comments || []), newComment];
         const updatedMarket = {
           ...selectedDetailMarket,
-          comments: [...(selectedDetailMarket.comments || []), newComment],
+          comments: updatedComments,
         };
         setSelectedDetailMarket(updatedMarket);
         setMarketItems((prev) =>
           prev.map((m) => (String(m.id) === String(targetId) ? updatedMarket : m))
         );
+        updateFirestoreDocument('marketplace_posts', targetId, { comments: updatedComments });
       }
 
       showToast?.('Comment posted!');
@@ -532,11 +584,43 @@ export function useCommunityState(
 
   const handleSendMessageToSeller = useCallback(
     async (itemOrRecipient: MarketItem | string, messageText?: string) => {
+      const effectiveBuyer = currentUser || {
+        id: 'resident',
+        name: 'Resident',
+        email: '',
+        role: 'resident',
+      };
+
+      if (typeof itemOrRecipient !== 'string' && messageText) {
+        try {
+          const chat = await sendMarketplaceInquiry({
+            item: itemOrRecipient,
+            buyer: effectiveBuyer,
+            messageText,
+          });
+
+          // Instantly update local marketplaceChats React state
+          setMarketplaceChats((prev) => {
+            const filtered = prev.filter((c) => c.id !== chat.id);
+            return [chat, ...filtered];
+          });
+
+          setIsMessageSellerModalOpen(false);
+          setSelectedMessageSellerItem(null);
+          setActiveMarketplaceChatId(chat.id);
+          setIsMarketplaceChatModalOpen(true);
+          showToast?.('Message sent to seller!');
+          return;
+        } catch (err) {
+          console.warn('Unable to send marketplace inquiry:', err);
+        }
+      }
+
       setIsMessageSellerModalOpen(false);
       setSelectedMessageSellerItem(null);
       showToast?.('Message sent to seller!');
     },
-    [showToast]
+    [currentUser, showToast]
   );
 
   const handleCreatePostSubmit = useCallback(
@@ -669,6 +753,12 @@ export function useCommunityState(
     setSelectedMessageSellerItem,
     isMessageSellerModalOpen,
     setIsMessageSellerModalOpen,
+    marketplaceChats,
+    setMarketplaceChats,
+    isMarketplaceChatModalOpen,
+    setIsMarketplaceChatModalOpen,
+    activeMarketplaceChatId,
+    setActiveMarketplaceChatId,
     fullscreenMedia,
     setFullscreenMedia,
     toggleLike,

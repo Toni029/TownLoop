@@ -302,11 +302,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         </span>
       </div>
 
-      {/* Auth Card Container - wide, clear, high contrast */}
-      <div className={`w-full max-w-md sm:max-w-xl rounded-[32px] p-5 sm:p-7 border-2 text-left transition-all duration-200 relative overflow-hidden shadow-xl ${
+      {/* Auth Card Container - matching reference image tile rounded corners & backdrop shadow */}
+      <div className={`w-full max-w-md sm:max-w-xl rounded-[38px] sm:rounded-[44px] p-6 sm:p-8 border-2 text-left transition-all duration-300 relative overflow-hidden ${
         isDarkMode
-          ? 'bg-slate-900/95 border-slate-700 shadow-2xl text-slate-100'
-          : 'bg-[#fffefc] border-[#dfd5c3] shadow-[0_20px_45px_-10px_rgba(70,50,25,0.15),0_2px_10px_rgba(0,0,0,0.04)] text-stone-900'
+          ? 'bg-slate-900/95 border-slate-700/80 shadow-[0_35px_80px_-15px_rgba(0,0,0,0.85),0_15px_35px_-8px_rgba(0,0,0,0.6)] text-slate-100'
+          : 'bg-[#fffefc] border-[#dfd5c3] shadow-[0_35px_80px_-15px_rgba(50,35,15,0.28),0_15px_30px_-8px_rgba(0,0,0,0.12)] text-stone-900'
       }`}>
         {/* Tab Switcher: Sign In vs Create Account */}
         <div className={`flex rounded-2xl p-1.5 mb-5 border transition-colors gap-1 ${

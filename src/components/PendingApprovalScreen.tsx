@@ -169,8 +169,8 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
         </span>
       </div>
 
-      {/* Main Pending Approval Card */}
-      <div className="w-full max-w-md sm:max-w-xl bg-white dark:bg-slate-800/95 rounded-[32px] p-6 sm:p-7 shadow-xl border-2 border-stone-200 dark:border-slate-700 text-left space-y-5">
+      {/* Main Pending Approval Card - matching reference image tile rounded corners & backdrop shadow */}
+      <div className="w-full max-w-md sm:max-w-xl bg-white dark:bg-slate-900/95 rounded-[38px] sm:rounded-[44px] p-6 sm:p-8 shadow-[0_35px_80px_-15px_rgba(50,35,15,0.28),0_15px_30px_-8px_rgba(0,0,0,0.12)] dark:shadow-[0_35px_80px_-15px_rgba(0,0,0,0.85),0_15px_35px_-8px_rgba(0,0,0,0.6)] border-2 border-stone-200 dark:border-slate-700/80 text-left space-y-5">
         {/* Status Header Badge */}
         <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border-2 border-amber-200 dark:border-amber-800/70">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/20 dark:bg-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0">

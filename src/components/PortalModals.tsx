@@ -12,6 +12,7 @@ import { WorkOrderModal } from './workorders/WorkOrderModal';
 import { CreatePostModal } from './CreatePostModal';
 import { PostDetailModal } from './PostDetailModal';
 import { MessageSellerModal } from './MessageSellerModal';
+import { MarketplaceChatModal } from './community/MarketplaceChatModal';
 import { NewsletterModal } from './NewsletterModal';
 import { MediaFullscreenModal } from './MediaFullscreenModal';
 import { canDeleteAnyPost, canManageNewsletter } from '../utils/permissions';
@@ -126,6 +127,26 @@ export function PortalModals({
         item={selectedMessageSellerItem}
         onSendMessage={handleSendMessageToSeller}
         currentUser={community.currentUser}
+      />
+
+      {/* Modal: Marketplace Chat Inbox */}
+      <MarketplaceChatModal
+        isOpen={community.isMarketplaceChatModalOpen}
+        onClose={() => community.setIsMarketplaceChatModalOpen(false)}
+        chats={community.marketplaceChats}
+        currentUser={community.currentUser}
+        activeChatId={community.activeMarketplaceChatId}
+        onSelectChat={(id) => community.setActiveMarketplaceChatId(id)}
+        onDeleteChat={(chatId) => {
+          community.setMarketplaceChats((prev) => prev.filter((c) => c.id !== chatId));
+        }}
+        onViewItem={(itemId) => {
+          community.setIsMarketplaceChatModalOpen(false);
+          const found = community.marketItems.find((it) => String(it.id) === String(itemId));
+          if (found) {
+            community.setSelectedDetailMarket(found);
+          }
+        }}
       />
 
       {/* Global Toast Notification with Native iOS Spring Physics */}

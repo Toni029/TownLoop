@@ -130,14 +130,14 @@ export const CommunitySelectorScreen: React.FC<CommunitySelectorScreenProps> = (
                   onSelectCommunity(comm.id);
                 }
               }}
-              className={`group w-full text-left rounded-3xl p-4 sm:p-5 border-2 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md focus:outline-none focus:ring-4 ${
+              className={`group w-full text-left rounded-[32px] sm:rounded-[36px] p-5 sm:p-6 border-2 transition-all duration-300 cursor-pointer focus:outline-none focus:ring-4 ${
                 isPrimary
                   ? isDarkMode
-                    ? 'bg-slate-900/95 hover:bg-slate-800/95 border-emerald-600/80 hover:border-emerald-500 focus:ring-emerald-500/30'
-                    : 'bg-white hover:bg-emerald-50/40 border-emerald-600 hover:border-emerald-700 focus:ring-emerald-500/30 ring-1 ring-emerald-600/20'
+                    ? 'bg-slate-900/95 hover:bg-slate-800/95 border-emerald-600/80 hover:border-emerald-500 focus:ring-emerald-500/30 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.6)]'
+                    : 'bg-white hover:bg-emerald-50/40 border-emerald-600 hover:border-emerald-700 focus:ring-emerald-500/30 ring-1 ring-emerald-600/20 shadow-[0_20px_50px_-10px_rgba(50,35,15,0.2)]'
                   : isDarkMode
-                  ? 'bg-slate-900/70 hover:bg-slate-800/80 border-slate-700 hover:border-slate-600 focus:ring-slate-500/30'
-                  : 'bg-white/85 hover:bg-stone-50 border-stone-300 hover:border-stone-400 focus:ring-stone-400/30'
+                  ? 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-700 hover:border-slate-600 focus:ring-slate-500/30 shadow-[0_15px_35px_-10px_rgba(0,0,0,0.5)]'
+                  : 'bg-white/90 hover:bg-stone-50 border-stone-300 hover:border-stone-400 focus:ring-stone-400/30 shadow-[0_15px_35px_-10px_rgba(50,35,15,0.12)]'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
