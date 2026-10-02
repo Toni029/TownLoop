@@ -299,3 +299,35 @@ export interface OfficeChat {
   messages: OfficeChatMessage[];
 }
 
+export interface ResidentChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole?: string;
+  senderAvatar?: string;
+  body: string;
+  createdAt: number;
+  time: string;
+}
+
+export interface ResidentChatParticipant {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string;
+  phone?: string;
+  apt?: string;
+}
+
+export interface ResidentChat {
+  id: string; // canonical pair id, e.g. "user1_vs_user2"
+  participantIds: string[];
+  participants: ResidentChatParticipant[];
+  subject: string;
+  lastMessage: string;
+  updatedAt: number;
+  unreadBy: string[]; // ids of participants who haven't read latest
+  messages: ResidentChatMessage[];
+}
+
+

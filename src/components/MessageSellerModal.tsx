@@ -111,12 +111,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
             transition={
               isClosing
                 ? { duration: 0.18, ease: [0.32, 0.72, 0, 1] }
-                : {
-                    type: 'spring',
-                    damping: 28,
-                    stiffness: 450,
-                    mass: 0.35,
-                  }
+                : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
             }
             onAnimationComplete={() => {
               if (isClosing) {
@@ -124,7 +119,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               }
             }}
             onClick={e => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 shadow-2xl border-t sm:border border-stone-200 dark:border-slate-800 space-y-4 max-h-[92vh] overflow-y-auto will-change-transform"
+            className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 shadow-2xl border-t sm:border border-stone-200 dark:border-slate-800 space-y-4 max-h-[92vh] overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y antialiased [text-rendering:optimizeLegibility]"
           >
             {/* iOS pull/grab indicator bar */}
             <div

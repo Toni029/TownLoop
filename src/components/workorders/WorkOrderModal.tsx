@@ -204,12 +204,7 @@ export function WorkOrderModal({
         transition={
           isClosing
             ? { duration: 0.18, ease: [0.32, 0.72, 0, 1] }
-            : {
-                type: 'spring',
-                damping: 28,
-                stiffness: 450,
-                mass: 0.35,
-              }
+            : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
         }
         onAnimationComplete={() => {
           if (isClosing) {
@@ -217,7 +212,7 @@ export function WorkOrderModal({
           }
         }}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white dark:bg-slate-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col will-change-transform ${
+        className={`bg-white dark:bg-slate-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col antialiased [text-rendering:optimizeLegibility] ${
           isFullScreen
             ? 'fixed inset-0 w-full h-full max-w-none max-h-none rounded-none z-50 p-4 sm:p-6 border-0'
             : 'w-full max-w-lg rounded-t-[32px] sm:rounded-[28px] p-5 sm:p-6 border-t sm:border border-stone-200 dark:border-slate-800 max-h-[92vh] sm:max-h-[90vh]'
@@ -291,7 +286,7 @@ export function WorkOrderModal({
           {/* Form with scrollable body */}
           <form
             onSubmit={handleFormSubmit}
-            className="space-y-4 pt-3 overflow-y-auto pr-1 text-xs sm:text-sm flex-1"
+            className="space-y-4 pt-3 overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y text-xs sm:text-sm flex-1 px-0.5"
           >
             {/* 1. Category Selection (at least 7 categories with emojis) */}
             <div>

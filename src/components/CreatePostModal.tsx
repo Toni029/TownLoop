@@ -14,6 +14,7 @@ import {
   Upload,
   Trash2,
   Tag,
+  MessageSquare,
   DollarSign,
   AlertCircle,
   Loader2,
@@ -65,6 +66,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isSettled, setIsSettled] = useState(false);
   const dragControls = useDragControls();
 
   const submittingRef = useRef(false);
@@ -74,6 +76,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setIsClosing(false);
+      setIsSettled(false);
       setType(defaultType);
       setUploadError(null);
       setIsUploading(pendingUploadsRef.current > 0);
@@ -269,20 +272,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             transition={
               isClosing
                 ? { duration: 0.18, ease: [0.32, 0.72, 0, 1] }
-                : {
-                    type: 'spring',
-                    damping: 28,
-                    stiffness: 450,
-                    mass: 0.35,
-                  }
+                : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
             }
             onAnimationComplete={() => {
               if (isClosing) {
                 onClose();
+              } else {
+                setIsSettled(true);
               }
             }}
+            style={isSettled && !isClosing ? { transform: 'none' } : undefined}
             onClick={(e) => e.stopPropagation()}
-            className={`bg-white dark:bg-slate-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col will-change-transform ${
+            className={`bg-white dark:bg-slate-900 shadow-2xl transition-[max-width,border-radius,padding] duration-200 flex flex-col antialiased [text-rendering:optimizeLegibility] [-webkit-font-smoothing:antialiased] [-moz-osx-font-smoothing:grayscale] ${
               isFullScreen
                 ? 'fixed inset-0 w-full h-full max-w-none max-h-none rounded-none z-[106] p-4 sm:p-6 border-0'
                 : 'w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 border-t sm:border border-stone-200 dark:border-slate-800 max-h-[92vh] sm:max-h-[90vh]'
@@ -323,18 +324,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               className="flex justify-between items-center border-b border-stone-200 dark:border-slate-800 pb-3 shrink-0 cursor-grab active:cursor-grabbing select-none"
             >
               <div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-slate-100 serif-title">
-                  {type === 'market' ? 'Post Item for Sale / Free' : 'Create Community Post'}
+                <h3 className="text-base sm:text-lg font-black text-stone-900 dark:text-white serif-title tracking-tight">
+                  {type === 'chat' ? 'Create Community Post' : 'Post Item for Sale / Free'}
                 </h3>
-                <p className="text-[11px] text-stone-500 dark:text-slate-400">
-                  Share items, announcements, pictures & videos with TownLoop neighbors.
+                <p className="text-xs font-medium text-stone-600 dark:text-slate-300 mt-0.5">
+                  {type === 'chat'
+                    ? 'Share announcements, stories, pictures & videos with TownLoop neighbors.'
+                    : 'Share items, furniture, tools & giveaways with TownLoop neighbors.'}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsFullScreen((prev) => !prev)}
-                  className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-700 flex items-center justify-center transition cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-slate-700 flex items-center justify-center transition cursor-pointer"
                   title={isFullScreen ? 'Exit full screen' : 'Expand to full screen'}
                 >
                   {isFullScreen ? (
@@ -346,66 +349,72 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 <button
                   id="close-create-post-modal"
                   onClick={handleClose}
-                  className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-500 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-700 flex items-center justify-center transition cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-stone-100 dark:bg-slate-800 text-stone-600 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-slate-700 flex items-center justify-center transition cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-3.5 text-xs overflow-y-auto flex-1 pr-1 pt-1">
-          {/* Post Type Selector */}
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-3.5 text-xs sm:text-sm overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y flex-1 pt-1.5 px-0.5"
+            >
+          {/* Post Type Selector - Discussion Feed on Left, Buy/Free/Sell on Right */}
           <div>
-            <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">Post Category</label>
-            <div className="grid grid-cols-2 gap-2 bg-stone-100 dark:bg-slate-800/80 p-1 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setType('market')}
-                className={`py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
-                  type === 'market'
-                    ? 'bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 shadow-xs'
-                    : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
-                }`}
-              >
-                <Tag className="w-3.5 h-3.5" />
-                <span>Buy / Free / Sell</span>
-              </button>
+            <label className="font-bold text-xs sm:text-sm text-stone-900 dark:text-slate-100 block mb-1.5">
+              Post Category
+            </label>
+            <div className="grid grid-cols-2 gap-2 bg-stone-100 dark:bg-slate-800/90 p-1.5 rounded-2xl border border-stone-200 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setType('chat')}
-                className={`py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   type === 'chat'
-                    ? 'bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 shadow-xs'
-                    : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-slate-200'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-stone-700 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
                 }`}
               >
+                <MessageSquare className="w-4 h-4 stroke-[2.5]" />
                 <span>Discussion Feed</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setType('market')}
+                className={`py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  type === 'market'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-stone-700 dark:text-slate-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
+                }`}
+              >
+                <Tag className="w-4 h-4 stroke-[2.5]" />
+                <span>Buy / Free / Sell</span>
               </button>
             </div>
           </div>
 
           {/* Title / Subject */}
           <div>
-            <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">
-              {type === 'market' ? 'Item Name' : 'Subject / Title'}
+            <label className="font-bold text-xs sm:text-sm text-stone-900 dark:text-slate-100 block mb-1.5">
+              {type === 'chat' ? 'Subject / Title' : 'Item Name'}
             </label>
             <input
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={
-                type === 'market'
-                  ? 'e.g. Vintage Rocking Chair, Wooden Chess Set...'
-                  : 'e.g. Garden Club meeting this Friday'
+                type === 'chat'
+                  ? 'e.g. Garden Club meeting this Friday'
+                  : 'e.g. Vintage Rocking Chair, Wooden Chess Set...'
               }
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 text-sm focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 bg-white dark:bg-slate-800 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500 shadow-2xs"
             />
           </div>
 
           {/* Price (Market only) */}
           {type === 'market' && (
             <div>
-              <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">
+              <label className="font-bold text-xs sm:text-sm text-stone-900 dark:text-slate-100 block mb-1.5">
                 Price (Type FREE or $ amount)
               </label>
               <input
@@ -417,15 +426,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   }
                 }}
                 placeholder="e.g. FREE, $15, 25, $25 OBO"
-                className="w-full px-3.5 py-2 rounded-xl border border-stone-300 dark:border-slate-700 text-xs focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 bg-white dark:bg-slate-800 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500 shadow-2xs"
               />
             </div>
           )}
 
           {/* Description */}
           <div>
-            <label className="font-semibold text-stone-700 dark:text-slate-300 block mb-1">
-              Details & Pickup Information
+            <label className="font-bold text-xs sm:text-sm text-stone-900 dark:text-slate-100 block mb-1.5">
+              {type === 'chat' ? 'Post Content & Discussion Details' : 'Details & Pickup Information'}
             </label>
             <textarea
               required
@@ -433,19 +442,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={
-                type === 'market'
-                  ? 'Describe condition, pickup instructions (e.g., Apt 208 porch), or item specifications...'
-                  : 'Share details with your neighbors...'
+                type === 'chat'
+                  ? 'Share details, updates, or stories with your neighbors...'
+                  : 'Describe condition, pickup instructions (e.g., Apt 208 porch), or item specifications...'
               }
-              className="w-full px-3.5 py-2 rounded-xl border border-stone-300 dark:border-slate-700 text-xs focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 bg-white dark:bg-slate-800 text-stone-900 dark:text-white placeholder:text-stone-400 dark:placeholder:text-slate-500 shadow-2xs leading-relaxed"
             />
           </div>
 
           {/* Media Upload Area (Pictures and Videos) */}
           <div>
-            <label className="font-semibold text-stone-700 dark:text-slate-300 flex items-center justify-between mb-1">
-              <span className="flex items-center gap-1">
-                <Image className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+            <label className="font-bold text-xs sm:text-sm text-stone-900 dark:text-slate-100 flex items-center justify-between mb-1.5">
+              <span className="flex items-center gap-1.5">
+                <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span>Photos & Videos</span>
               </span>
             </label>
@@ -466,7 +475,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40'
                   : isUploading
                     ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20 cursor-wait'
-                    : 'border-stone-300 dark:border-slate-700 hover:border-emerald-600 dark:hover:border-emerald-500 bg-[#faf8f5] dark:bg-slate-800/50'
+                    : 'border-stone-300 dark:border-slate-600 hover:border-emerald-600 dark:hover:border-emerald-500 bg-stone-50/90 dark:bg-slate-800/60'
               }`}
             >
               <input
@@ -486,11 +495,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     <Upload className="w-5 h-5 stroke-current" />
                   )}
                 </div>
-                {isUploading && (
-                  <p className="text-xs font-semibold text-stone-800 dark:text-slate-200">
-                    Uploading media...
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-stone-800 dark:text-slate-100">
+                    {isUploading ? 'Uploading media...' : 'Tap to upload photos or videos'}
                   </p>
-                )}
+                  <p className="text-[11px] text-stone-500 dark:text-slate-400 mt-0.5">
+                    Supports JPG, PNG, WebP, MP4, MOV up to 25MB
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -582,10 +594,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               id="publish-post-submit-btn"
               type="submit"
               disabled={isUploading || isSubmitting}
-              className={`flex-1 font-bold py-2.5 rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-2 ${
+              className={`flex-1 font-black py-3 px-4 rounded-xl text-sm sm:text-base transition shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
                 isUploading || isSubmitting
                   ? 'bg-stone-300 dark:bg-slate-800 text-stone-500 dark:text-slate-500 cursor-not-allowed'
-                  : 'bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer active:scale-98'
+                  : 'bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white active:scale-98'
               }`}
             >
               {isUploading ? (
@@ -600,7 +612,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 </>
               ) : (
                 <span>
-                  {type === 'market' ? 'Publish Item to Marketplace' : 'Publish Post to Feed'}
+                  {type === 'chat'
+                    ? 'Publish Post to Discussion Feed'
+                    : 'Publish Item to Marketplace'}
                 </span>
               )}
             </button>

@@ -103,13 +103,15 @@ service cloud.firestore {
     }
 
     match /maintenance_chats/{chatId} {
-      allow read: if isApproved();
-      allow write: if isApproved();
+      allow read, write: if true;
     }
 
     match /office_chats/{chatId} {
-      allow read: if isApproved();
-      allow write: if isApproved();
+      allow read, write: if true;
+    }
+
+    match /resident_chats/{chatId} {
+      allow read, write: if true;
     }
 
     match /{document=**} {

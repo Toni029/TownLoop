@@ -149,12 +149,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
             transition={
               isClosing
                 ? { duration: 0.18, ease: [0.32, 0.72, 0, 1] }
-                : {
-                    type: 'spring',
-                    damping: 28,
-                    stiffness: 450,
-                    mass: 0.35,
-                  }
+                : { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
             }
             onAnimationComplete={() => {
               if (isClosing) {
@@ -162,7 +157,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
               }
             }}
             onClick={e => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] shadow-2xl border-t sm:border border-stone-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] will-change-transform"
+            className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] shadow-2xl border-t sm:border border-stone-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] antialiased [text-rendering:optimizeLegibility]"
           >
             {/* iOS pull/grab indicator bar */}
             <div
@@ -272,7 +267,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y p-5 space-y-4">
           {/* Post Title & Price */}
           <div className="space-y-2">
             <div className="flex items-start justify-between gap-3">
@@ -358,7 +353,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
               {/* Thumbnails if multiple */}
               {media.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar native-scroll overscroll-contain touch-pan-x pb-1">
                   {media.map((m, idx) => (
                     <button
                       key={idx}

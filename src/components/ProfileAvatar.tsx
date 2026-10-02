@@ -58,7 +58,16 @@ import {
   deleteOfficeChat,
   isVipOrAdmin,
 } from '../services/officeChat';
-import { OfficeChat, OfficeChatMessage } from '../types';
+import {
+  subscribeToFriendChats,
+  sendFriendChatMessage,
+  markFriendChatRead,
+  deleteFriendChat,
+  getFriendChatDocId,
+  getCleanParticipantKey,
+  getAllParticipantIdentifiers,
+} from '../services/friendChat';
+import { OfficeChat, OfficeChatMessage, ResidentChat, ResidentChatMessage } from '../types';
 
 interface ProfileAvatarProps {
   apartmentNumber?: string;
@@ -89,6 +98,7 @@ export interface InboxMessage {
   senderApt?: string;
   maintenanceChatId?: string;
   officeChatId?: string;
+  friendChatId?: string;
 }
 
 export interface ResidentFriend {
@@ -346,13 +356,77 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     }
   }, [activeOfficeChat?.messages?.length]);
 
-  // Merge regular inbox messages with live maintenance chats and office chats
+  // Real-time Resident / Friend Chats from Firestore
+  const [friendChats, setFriendChats] = useState<ResidentChat[]>([]);
+  const [activeFriendChat, setActiveFriendChat] = useState<ResidentChat | null>(null);
+  const [friendReplyText, setFriendReplyText] = useState('');
+  const [isSendingFriendReply, setIsSendingFriendReply] = useState(false);
+  const friendChatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToFriendChats(currentUser, (chats) => {
+      setFriendChats(chats);
+      setActiveFriendChat((curr) => {
+        if (!curr) return null;
+        const updated = chats.find((c) => c.id === curr.id);
+        return updated || curr;
+      });
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [currentUser?.id, currentUser?.email, currentUser?.name]);
+
+  useEffect(() => {
+    if (activeFriendChat?.messages) {
+      friendChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeFriendChat?.messages?.length]);
+
+  // Merge regular inbox messages with live maintenance chats, office chats, and resident friend chats
   const allInboxMessages: InboxMessage[] = useMemo(() => {
     const list: InboxMessage[] = [];
 
-    // Local non-maintenance and non-office messages (e.g. Friends)
+    // ================= RESIDENT / FRIEND CHATS (PERSISTENT FIRESTORE) =================
+    const myIds = getAllParticipantIdentifiers(currentUser);
+    if (friendChats.length > 0) {
+      friendChats.forEach((chat) => {
+        const other = chat.participants?.find(p => {
+          const pIds = getAllParticipantIdentifiers(p);
+          return !pIds.some(id => myIds.includes(id));
+        }) || chat.participants?.[1] || chat.participants?.[0];
+        const otherName = other?.name || 'Resident';
+        const otherAvatar = other?.avatar || '';
+        const otherPhone = other?.phone || '';
+        const otherApt = other?.apt || '';
+        const lastMsg = chat.messages && chat.messages.length > 0
+          ? chat.messages[chat.messages.length - 1]
+          : null;
+        const isUnread = Boolean(
+          chat.unreadBy?.some(u => myIds.includes(u.toLowerCase()))
+        );
+
+        list.push({
+          id: `friend_${chat.id}`,
+          from: otherName,
+          senderCategory: 'friend',
+          role: 'Resident',
+          subject: chat.subject || 'Conversation',
+          body: lastMsg ? `${lastMsg.senderName}: "${lastMsg.body}"` : (chat.lastMessage || 'Conversation'),
+          time: chat.updatedAt ? formatMessageTime(chat.updatedAt) : 'Recent',
+          unread: isUnread,
+          senderAvatar: otherAvatar,
+          senderPhone: otherPhone,
+          senderApt: otherApt,
+          friendChatId: chat.id,
+        });
+      });
+    }
+
+    // Local non-maintenance and non-office fallback
     const localFriendMsgs = messages.filter(
-      m => m.senderCategory !== 'maintenance' && m.senderCategory !== 'office'
+      m => m.senderCategory !== 'maintenance' && m.senderCategory !== 'office' &&
+        !friendChats.some(fc => `friend_${fc.id}` === String(m.id) || fc.id === m.friendChatId)
     );
     list.push(...localFriendMsgs);
 
@@ -473,12 +547,14 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       const idStr = String(m.id);
       const maintId = m.maintenanceChatId ? String(m.maintenanceChatId) : '';
       const offId = m.officeChatId ? String(m.officeChatId) : '';
+      const frId = m.friendChatId ? String(m.friendChatId) : '';
       if (deletedChatIds.includes(idStr)) return false;
       if (maintId && deletedChatIds.includes(maintId)) return false;
       if (offId && deletedChatIds.includes(offId)) return false;
+      if (frId && deletedChatIds.includes(frId)) return false;
       return true;
     });
-  }, [messages, maintenanceChats, officeChats, userIsCrew, userIsVip, deletedChatIds]);
+  }, [messages, maintenanceChats, officeChats, friendChats, userIsCrew, userIsVip, currentUser, deletedChatIds]);
 
   const unreadCount = allInboxMessages.filter(m => m.unread).length;
 
@@ -517,10 +593,11 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     const idStr = String(msg.id);
     const maintId = msg.maintenanceChatId ? String(msg.maintenanceChatId) : '';
     const offId = msg.officeChatId ? String(msg.officeChatId) : '';
+    const frId = msg.friendChatId ? String(msg.friendChatId) : '';
 
     // 1. Immediately record in persistent deleted list so it doesn't re-appear
     setDeletedChatIds(prev => {
-      const next = Array.from(new Set([...prev, idStr, maintId, offId].filter(Boolean)));
+      const next = Array.from(new Set([...prev, idStr, maintId, offId, frId].filter(Boolean)));
       try {
         localStorage.setItem('townloop_deleted_chats_v1', JSON.stringify(next));
       } catch {
@@ -535,7 +612,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
         m =>
           String(m.id) !== idStr &&
           (!maintId || m.maintenanceChatId !== maintId) &&
-          (!offId || m.officeChatId !== offId)
+          (!offId || m.officeChatId !== offId) &&
+          (!frId || m.friendChatId !== frId)
       )
     );
 
@@ -546,6 +624,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     } else if (msg.senderCategory === 'office' && (offId || idStr.startsWith('office_'))) {
       const targetChatId = offId || idStr.replace(/^office_/, '');
       await deleteOfficeChat(targetChatId);
+    } else if (msg.senderCategory === 'friend' && (frId || idStr.startsWith('friend_'))) {
+      const targetChatId = frId || idStr.replace(/^friend_/, '');
+      await deleteFriendChat(targetChatId);
     }
 
     // 4. Reset selected view if currently open
@@ -553,11 +634,13 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       selectedMessage &&
       (String(selectedMessage.id) === idStr ||
         (maintId && selectedMessage.maintenanceChatId === maintId) ||
-        (offId && selectedMessage.officeChatId === offId))
+        (offId && selectedMessage.officeChatId === offId) ||
+        (frId && selectedMessage.friendChatId === frId))
     ) {
       setSelectedMessage(null);
       setActiveMaintenanceChat(null);
       setActiveOfficeChat(null);
+      setActiveFriendChat(null);
     }
 
     showToast('Conversation deleted');
@@ -684,9 +767,51 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           });
         }
       }
+    } else if (msg.senderCategory === 'friend') {
+      setActiveMaintenanceChat(null);
+      setActiveOfficeChat(null);
+      const foundChat = friendChats.find(
+        (c) => `friend_${c.id}` === String(msg.id) || c.id === msg.friendChatId
+      );
+      if (foundChat) {
+        setActiveFriendChat(foundChat);
+        markFriendChatRead(foundChat.id, currentUser);
+      } else {
+        const myKey = getCleanParticipantKey(currentUser);
+        const otherKey = msg.from.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_');
+        const fallbackChat: ResidentChat = {
+          id: msg.friendChatId || getFriendChatDocId(myKey, otherKey),
+          participantIds: [myKey, otherKey],
+          participants: [
+            { id: myKey, name: effectiveName, email: effectiveEmail, avatar: profilePhotoUrl },
+            { id: otherKey, name: msg.from, phone: msg.senderPhone, apt: msg.senderApt, avatar: msg.senderAvatar }
+          ],
+          subject: msg.subject || 'Conversation',
+          lastMessage: msg.body,
+          updatedAt: Date.now(),
+          unreadBy: [],
+          messages: [
+            {
+              id: `msg_${Date.now()}`,
+              senderId: otherKey,
+              senderName: msg.from,
+              senderRole: 'Resident',
+              senderAvatar: msg.senderAvatar,
+              body: msg.body.replace(/^You: "/, '').replace(/"$/, ''),
+              createdAt: Date.now(),
+              time: msg.time,
+            }
+          ]
+        };
+        setActiveFriendChat(fallbackChat);
+      }
+      if (typeof msg.id === 'number') {
+        markMessageAsRead(msg.id);
+      }
     } else {
       setActiveMaintenanceChat(null);
       setActiveOfficeChat(null);
+      setActiveFriendChat(null);
       if (typeof msg.id === 'number') {
         markMessageAsRead(msg.id);
       }
@@ -694,6 +819,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   };
 
   const handleStartComposeToFriend = (friend: ResidentFriend) => {
+    setSelectedMessage(null);
+    setActiveOfficeChat(null);
+    setActiveMaintenanceChat(null);
+    setActiveFriendChat(null);
     setComposeRecipient({
       name: friend.name,
       category: 'friend',
@@ -701,7 +830,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       apt: friend.apt,
       phone: friend.phone
     });
-    setComposeSubject(`Hello ${friend.name.split(' ')[0]}!`);
+    setComposeSubject('');
     setComposeBody('');
     setActiveView('compose');
   };
@@ -712,6 +841,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       return;
     }
     const friend = residents[0];
+    setSelectedMessage(null);
+    setActiveOfficeChat(null);
+    setActiveMaintenanceChat(null);
+    setActiveFriendChat(null);
     setComposeRecipient({
       name: friend.name,
       category: 'friend',
@@ -719,17 +852,16 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       apt: friend.apt,
       phone: friend.phone,
     });
-    setComposeSubject(`Hello ${friend.name.split(' ')[0]}!`);
+    setComposeSubject('');
     setComposeBody('');
     setActiveView('compose');
   };
 
   const handleStartComposeToOffice = () => {
-    const existingOffice = allInboxMessages.find(m => m.senderCategory === 'office');
-    if (existingOffice && !userIsVip) {
-      handleOpenMessage(existingOffice);
-      return;
-    }
+    setSelectedMessage(null);
+    setActiveOfficeChat(null);
+    setActiveMaintenanceChat(null);
+    setActiveFriendChat(null);
     setComposeRecipient({
       name: 'Community Office',
       category: 'office',
@@ -737,17 +869,16 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       apt: 'Clubhouse Office',
       phone: '(904) 555-0100'
     });
-    setComposeSubject('Resident Inquiry');
+    setComposeSubject('');
     setComposeBody('');
     setActiveView('compose');
   };
 
   const handleStartComposeToMaintenance = () => {
-    const existingMaint = allInboxMessages.find(m => m.senderCategory === 'maintenance');
-    if (existingMaint && !userIsCrew) {
-      handleOpenMessage(existingMaint);
-      return;
-    }
+    setSelectedMessage(null);
+    setActiveOfficeChat(null);
+    setActiveMaintenanceChat(null);
+    setActiveFriendChat(null);
     setComposeRecipient({
       name: 'Maintenance Crew',
       category: 'maintenance',
@@ -755,7 +886,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       apt: 'Maintenance Depot',
       phone: '(904) 555-0105'
     });
-    setComposeSubject('Maintenance Service Request');
+    setComposeSubject('');
     setComposeBody('');
     setActiveView('compose');
   };
@@ -886,26 +1017,149 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       return;
     }
 
-    // Regular non-maintenance, non-office message (Friend)
-    const newMessage: InboxMessage = {
-      id: Date.now(),
+    // Regular non-maintenance, non-office message (Friend) - PERSISTENT TO FIRESTORE
+    const messageBody = composeBody.trim();
+    const messageSubject = composeSubject.trim() || 'Conversation';
+
+    const updatedChat = await sendFriendChatMessage({
+      sender: currentUser || { id: 'resident', name: effectiveName, role: 'resident', avatar_url: profilePhotoUrl, phone: effectivePhone, address: effectiveAddress },
+      recipient: {
+        id: composeRecipient.name.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_'),
+        name: composeRecipient.name,
+        email: '',
+        avatar: '',
+        phone: composeRecipient.phone || '',
+        apt: composeRecipient.apt || '',
+      },
+      body: messageBody,
+      subject: messageSubject,
+    });
+
+    // Ensure the chat is removed from deletedChatIds
+    setDeletedChatIds(prev => {
+      const filtered = prev.filter(d => d !== updatedChat.id && d !== `friend_${updatedChat.id}`);
+      try {
+        localStorage.setItem('townloop_deleted_chats_v1', JSON.stringify(filtered));
+      } catch {}
+      return filtered;
+    });
+
+    // 1. Immediately update friendChats state so the Inbox displays it instantly
+    setFriendChats(prev => [updatedChat, ...prev.filter(c => c.id !== updatedChat.id)]);
+
+    // 2. Immediately add to messages list for guaranteed immediate rendering
+    const newFriendInboxMsg: InboxMessage = {
+      id: `friend_${updatedChat.id}`,
       from: composeRecipient.name,
-      senderCategory: composeRecipient.category,
-      role: composeRecipient.role || 'Resident',
-      subject: composeSubject.trim() || 'Conversation',
-      body: `You: "${composeBody.trim()}"`,
+      senderCategory: 'friend',
+      role: 'Resident',
+      subject: messageSubject,
+      body: `You: "${messageBody}"`,
       time: 'Just now',
       unread: false,
       senderPhone: composeRecipient.phone,
-      senderApt: composeRecipient.apt
+      senderApt: composeRecipient.apt,
+      friendChatId: updatedChat.id,
     };
+    setMessages(prev => [newFriendInboxMsg, ...prev.filter(m => m.friendChatId !== updatedChat.id && m.id !== `friend_${updatedChat.id}`)]);
 
-    setMessages(prev => [newMessage, ...prev]);
     showToast(`Message sent to ${composeRecipient.name}!`);
     setComposeBody('');
     setComposeSubject('');
     setActiveView('inbox');
     setInboxFilter('all');
+  };
+
+  const handleSendInlineFriendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!friendReplyText.trim() || isSendingFriendReply) return;
+
+    const replyContent = friendReplyText.trim();
+    setIsSendingFriendReply(true);
+    setFriendReplyText('');
+
+    const myKey = getCleanParticipantKey(currentUser);
+    const other = activeFriendChat?.participants?.find(p => p.id !== myKey) || {
+      id: selectedMessage ? selectedMessage.from.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_') : 'recipient',
+      name: selectedMessage ? selectedMessage.from : 'Resident',
+      phone: selectedMessage?.senderPhone,
+      apt: selectedMessage?.senderApt,
+      avatar: selectedMessage?.senderAvatar,
+    };
+
+    // Optimistically update activeFriendChat
+    const optMsg: ResidentChatMessage = {
+      id: `msg_opt_${Date.now()}`,
+      senderId: myKey,
+      senderName: effectiveName,
+      senderRole: 'Resident',
+      senderAvatar: profilePhotoUrl,
+      body: replyContent,
+      createdAt: Date.now(),
+      time: 'Just now',
+    };
+
+    if (activeFriendChat) {
+      setActiveFriendChat(curr => curr ? {
+        ...curr,
+        messages: [...(curr.messages || []), optMsg],
+        lastMessage: `You: ${replyContent}`,
+        updatedAt: Date.now(),
+      } : null);
+    }
+
+    try {
+      const updatedChat = await sendFriendChatMessage({
+      sender: currentUser || { id: 'resident', name: effectiveName, role: 'resident', avatar_url: profilePhotoUrl, phone: effectivePhone, address: effectiveAddress },
+      recipient: {
+        id: other.id,
+        name: other.name,
+        email: other.email,
+        avatar: other.avatar,
+        phone: other.phone,
+        apt: other.apt,
+      },
+      body: replyContent,
+      subject: activeFriendChat?.subject || selectedMessage?.subject || 'Conversation',
+    });
+
+    // Ensure the chat is removed from deletedChatIds
+    setDeletedChatIds(prev => {
+      const filtered = prev.filter(d => d !== updatedChat.id && d !== `friend_${updatedChat.id}`);
+      try {
+        localStorage.setItem('townloop_deleted_chats_v1', JSON.stringify(filtered));
+      } catch {}
+      return filtered;
+    });
+
+    // Update friendChats & activeFriendChat
+    setFriendChats(prev => [updatedChat, ...prev.filter(c => c.id !== updatedChat.id)]);
+    setActiveFriendChat(updatedChat);
+
+    // Update inbox message
+    const updatedInboxMsg: InboxMessage = {
+      id: `friend_${updatedChat.id}`,
+      from: selectedMessage?.from || other.name || 'Resident',
+      senderCategory: 'friend',
+      role: 'Resident',
+      subject: updatedChat.subject || 'Conversation',
+      body: `You: "${replyContent}"`,
+      time: 'Just now',
+      unread: false,
+      senderPhone: selectedMessage?.senderPhone || other.phone,
+      senderApt: selectedMessage?.senderApt || other.apt,
+      senderAvatar: selectedMessage?.senderAvatar || other.avatar,
+      friendChatId: updatedChat.id,
+    };
+    setMessages(prev => [updatedInboxMsg, ...prev.filter(m => m.friendChatId !== updatedChat.id && m.id !== `friend_${updatedChat.id}`)]);
+
+    showToast('Reply sent!');
+  } catch (err) {
+    console.error('Failed to send friend reply:', err);
+    showToast('Failed to send message.');
+  } finally {
+    setIsSendingFriendReply(false);
+  }
   };
 
   const handleSendInlineMaintenanceReply = async (e: React.FormEvent) => {
@@ -2041,20 +2295,25 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
             </div>
           )}
 
-          {/* ================= VIEW 2D: SINGLE FRIEND MESSAGE VIEW ================= */}
+          {/* ================= VIEW 2D: RESIDENT / FRIEND CHAT VIEW (INTERACTIVE & PERSISTENT) ================= */}
           {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'friend' && (
-            <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12 gap-2">
+            <div className="space-y-3 flex flex-col h-[520px] sm:h-[580px]">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12 shrink-0 gap-2">
                 <button
-                  onClick={() => setSelectedMessage(null)}
+                  onClick={() => {
+                    setSelectedMessage(null);
+                    setActiveFriendChat(null);
+                  }}
                   className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer shrink-0"
                 >
                   <ChevronLeft className="w-5 h-5" />
                   <span>All Messages</span>
                 </button>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-                    Friend
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-800">
+                    <Users className="w-3.5 h-3.5 inline-block" />
+                    <span>Resident Friend</span>
                   </span>
                   <button
                     type="button"
@@ -2068,77 +2327,105 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </div>
               </div>
 
-              {/* Message Header */}
-              <div
-                className="liquid-glass-subpanel p-4 sm:p-5 rounded-2xl space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+              {/* Chat Subject / Info Banner */}
+              <div className="liquid-glass-subpanel p-3 rounded-2xl flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
                     <UserAvatar
                       src={selectedMessage.senderAvatar}
                       name={selectedMessage.from}
-                      size="md"
-                      className="w-11 h-11 border-2 border-emerald-500/40"
+                      size="sm"
+                      className="w-full h-full object-cover"
                     />
-                    <div>
-                      <h4 className="text-sm sm:text-base font-bold">
-                        {selectedMessage.from.replace(/\s*\([^)]*\)/g, '').trim()}
-                      </h4>
-                      <p className="text-xs text-stone-500 dark:text-slate-400">
-                        {selectedMessage.senderCategory === 'friend' ? 'Resident' : (selectedMessage.role?.startsWith('Resident') ? 'Resident' : selectedMessage.role)}
-                      </p>
-                    </div>
                   </div>
-                  <span className="text-xs text-stone-400 font-medium">{selectedMessage.time}</span>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold truncate">
+                      {selectedMessage.from.replace(/\s*\([^)]*\)/g, '').trim()}
+                    </h4>
+                    <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate">
+                      {selectedMessage.senderPhone ? `Tel: ${selectedMessage.senderPhone}` : 'Community Resident'}
+                    </p>
+                  </div>
                 </div>
-
-                <div className="pt-1">
-                  <h3 className="text-base sm:text-lg font-black serif-title text-stone-900 dark:text-white">
-                    {selectedMessage.subject}
-                  </h3>
-                  <p className="text-sm sm:text-base text-stone-700 dark:text-slate-200 mt-2.5 leading-relaxed whitespace-pre-wrap">
-                    {selectedMessage.body}
-                  </p>
-                </div>
-
                 {selectedMessage.senderPhone && (
-                  <div className="pt-2.5 border-t border-stone-200/60 dark:border-slate-700/60 flex items-center justify-between text-xs sm:text-sm">
-                    <span className="text-stone-600 dark:text-slate-300 flex items-center gap-2 font-medium">
-                      <Phone className="w-4 h-4 text-emerald-600" />
-                      {selectedMessage.senderPhone}
-                    </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText?.(selectedMessage.senderPhone || '');
-                        showToast(`Copied ${selectedMessage.senderPhone}`);
-                      }}
-                      className="text-emerald-700 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
-                    >
-                      Copy phone
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText?.(selectedMessage.senderPhone || '');
+                      showToast(`Copied ${selectedMessage.senderPhone}`);
+                    }}
+                    className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline shrink-0"
+                  >
+                    Copy Phone
+                  </button>
                 )}
               </div>
 
-              {/* Reply Button */}
-              <button
-                onClick={() => {
-                  setComposeRecipient({
-                    name: selectedMessage.from,
-                    category: selectedMessage.senderCategory,
-                    role: selectedMessage.role,
-                    phone: selectedMessage.senderPhone,
-                    apt: selectedMessage.senderApt
-                  });
-                  setComposeSubject(`Re: ${selectedMessage.subject}`);
-                  setComposeBody('');
-                  setActiveView('compose');
-                }}
-                className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm sm:text-base transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
-              >
-                <Send className="w-4 h-4" />
-                <span>Reply to {selectedMessage.from}</span>
-              </button>
+              {/* Conversation Messages Thread */}
+              <div className="flex-1 overflow-y-auto hide-scrollbar native-scroll space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2 overscroll-contain touch-pan-y">
+                {activeFriendChat && activeFriendChat.messages && activeFriendChat.messages.length > 0 ? (
+                  activeFriendChat.messages.map((m) => {
+                    const myKey = getCleanParticipantKey(currentUser);
+                    const isFromMe = m.senderId === myKey || m.senderId === String(currentUser?.id) || m.senderId === currentUser?.email;
+
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex flex-col ${isFromMe ? 'items-end' : 'items-start'}`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1 px-1">
+                          <span className="text-[11px] font-bold text-stone-600 dark:text-slate-300">
+                            {isFromMe ? 'You' : m.senderName}
+                          </span>
+                          <span className="text-[10px] text-stone-400">{m.time}</span>
+                        </div>
+                        <div
+                          className={`p-3 rounded-2xl max-w-[85%] text-xs sm:text-sm leading-relaxed whitespace-pre-wrap shadow-2xs ${
+                            isFromMe
+                              ? 'bg-emerald-600 text-white rounded-br-xs'
+                              : 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 rounded-bl-xs'
+                          }`}
+                        >
+                          {m.body}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-col items-start">
+                      <div className="flex items-center gap-1.5 mb-1 px-1">
+                        <span className="text-[11px] font-bold text-stone-600 dark:text-slate-300">
+                          {selectedMessage.from}
+                        </span>
+                        <span className="text-[10px] text-stone-400">{selectedMessage.time}</span>
+                      </div>
+                      <div className="p-3 rounded-2xl max-w-[85%] text-xs sm:text-sm leading-relaxed whitespace-pre-wrap bg-emerald-50 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 rounded-bl-xs">
+                        {selectedMessage.body}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={friendChatEndRef} />
+              </div>
+
+              {/* Inline Reply Input */}
+              <form onSubmit={handleSendInlineFriendReply} className="flex gap-2 items-center pt-1 shrink-0">
+                <input
+                  type="text"
+                  value={friendReplyText}
+                  onChange={(e) => setFriendReplyText(e.target.value)}
+                  placeholder={`Reply to ${selectedMessage.from.split(' ')[0]}...`}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-stone-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 text-stone-900 dark:text-white text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                />
+                <button
+                  type="submit"
+                  disabled={!friendReplyText.trim() || isSendingFriendReply}
+                  className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">Send</span>
+                </button>
+              </form>
             </div>
           )}
 
