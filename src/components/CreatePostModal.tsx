@@ -90,7 +90,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setIsClosing(true);
     setTimeout(() => {
       onClose();
-    }, 220);
+    }, 300);
   };
 
   const formatPriceValue = (val: string): string => {
@@ -241,7 +241,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: isClosing ? 0 : 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           onClick={handleClose}
           className="fixed inset-0 bg-stone-950/65 backdrop-blur-xl z-[105] flex items-end sm:items-center justify-center p-0 sm:p-4"
         >
@@ -269,8 +269,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             exit={{ y: '100%' }}
             transition={
               isClosing
-                ? { duration: 0.22, ease: [0.32, 0.72, 0, 1] }
-                : { duration: 0.32, ease: [0.16, 1, 0.3, 1] }
+                ? { duration: 0.3, ease: [0.32, 0.72, 0, 1] }
+                : { duration: 0.44, ease: [0.22, 1, 0.36, 1] }
             }
             onAnimationComplete={() => {
               if (isClosing) {

@@ -34,6 +34,7 @@ import {
   Upload,
   Image as ImageIcon,
   Check,
+  ChevronDown,
   RefreshCw,
   Trash2
 } from 'lucide-react';
@@ -161,6 +162,21 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   });
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
+  const [isFriendDropdownOpen, setIsFriendDropdownOpen] = useState(false);
+  const friendDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        friendDropdownRef.current &&
+        !friendDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsFriendDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     setInternalDarkMode(isDarkMode);
@@ -840,17 +856,16 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       showToast('No neighbor residents available to message');
       return;
     }
-    const friend = residents[0];
     setSelectedMessage(null);
     setActiveOfficeChat(null);
     setActiveMaintenanceChat(null);
     setActiveFriendChat(null);
     setComposeRecipient({
-      name: friend.name,
+      name: '',
       category: 'friend',
-      role: `Resident (${friend.apt})`,
-      apt: friend.apt,
-      phone: friend.phone,
+      role: 'Neighbor Resident',
+      apt: '',
+      phone: '',
     });
     setComposeSubject('');
     setComposeBody('');
@@ -893,6 +908,10 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   const handleSendComposedMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (composeRecipient.category === 'friend' && !composeRecipient.name.trim()) {
+      showToast('Please select a neighbor / friend to send your message to');
+      return;
+    }
     if (!composeBody.trim()) {
       showToast('Please type a message before sending');
       return;
@@ -1663,21 +1682,22 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
                 {/* 5. LOG OUT */}
                 <button
+                  type="button"
                   onClick={() => setActiveView('logoutConfirm')}
-                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl transition cursor-pointer text-left text-rose-600 dark:text-rose-400 border-rose-300/40 dark:border-rose-800/40"
+                  className="w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-rose-600 hover:bg-rose-700 active:scale-98 text-white transition cursor-pointer text-left shadow-md border border-rose-500/40"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-100/80 dark:bg-rose-900/50 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0 shadow-xs">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-700/60 text-white flex items-center justify-center shrink-0 shadow-xs border border-rose-500/50">
                       <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
-                      <p className="text-sm sm:text-base font-bold leading-snug">Log Out</p>
-                      <p className="text-xs sm:text-[13px] text-rose-500/80 dark:text-rose-400/80">
+                      <p className="text-sm sm:text-base font-extrabold text-white leading-snug">Log Out</p>
+                      <p className="text-xs sm:text-[13px] text-rose-100/90 font-medium">
                         Sign out of TownLoop portal
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-rose-400 shrink-0" />
+                  <ChevronRight className="w-5 h-5 text-rose-200 shrink-0" />
                 </button>
 
                 {/* About App / Version & Copyright Notice */}
@@ -2713,29 +2733,124 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {/* ================= VIEW 3C: COMPOSE MESSAGE ================= */}
           {activeView === 'compose' && (
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12">
+              <div className="relative flex items-center justify-center pb-2.5 border-b border-stone-200 dark:border-slate-800">
                 <button
+                  type="button"
                   onClick={() => setActiveView('inbox')}
-                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                  className="absolute left-0 flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
                 >
                   <ChevronLeft className="w-5 h-5" />
                   Cancel
                 </button>
-                <span className="text-sm font-black uppercase tracking-wider text-stone-700 dark:text-slate-200">
+                <span className="text-sm font-black uppercase tracking-wider text-stone-700 dark:text-slate-200 text-center">
                   New Message
                 </span>
               </div>
 
-              <form onSubmit={handleSendComposedMessage} className="space-y-3">
-                {/* Recipient Card */}
+              <form onSubmit={handleSendComposedMessage} className="space-y-3 pt-1">
+                {/* 1. Choose Neighbor / Friend (TOP position for switching friend) */}
+                {composeRecipient.category === 'friend' && residents.length > 0 && (
+                  <div>
+                    <label className="block text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 mb-1">
+                      Choose Neighbor / Friend
+                    </label>
+                    <div className="relative" ref={friendDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setIsFriendDropdownOpen((prev) => !prev)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 hover:bg-stone-100 dark:bg-slate-800 dark:hover:bg-slate-750 text-stone-900 dark:text-slate-100 text-xs sm:text-sm font-semibold flex items-center justify-between gap-2 shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs flex items-center justify-center shrink-0">
+                            {composeRecipient.name ? composeRecipient.name.charAt(0) : '👤'}
+                          </span>
+                          <span
+                            className={`font-bold truncate ${
+                              composeRecipient.name
+                                ? 'text-stone-900 dark:text-slate-100'
+                                : 'text-stone-400 dark:text-slate-500 font-medium'
+                            }`}
+                          >
+                            {composeRecipient.name
+                              ? `${composeRecipient.name} ${composeRecipient.apt ? `(${composeRecipient.apt})` : ''}`
+                              : 'Select a Neighbor / Friend...'}
+                          </span>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-stone-500 dark:text-slate-400 shrink-0 transition-transform duration-200 ${
+                            isFriendDropdownOpen ? 'rotate-180 text-emerald-600 dark:text-emerald-400' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {/* Custom Modern Light Grey Friend Selector Dropdown Menu */}
+                      <AnimatePresence>
+                        {isFriendDropdownOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                            className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 backdrop-blur-2xl border border-stone-200 dark:border-slate-700/90 rounded-2xl shadow-xl overflow-hidden p-1.5 max-h-60 overflow-y-auto space-y-1 hide-scrollbar"
+                          >
+                            {residents.map((r) => {
+                              const isSelected = r.name === composeRecipient.name;
+                              return (
+                                <button
+                                  key={r.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setComposeRecipient({
+                                      name: r.name,
+                                      category: 'friend',
+                                      role: `Resident (${r.apt})`,
+                                      apt: r.apt,
+                                      phone: r.phone,
+                                    });
+                                    setComposeSubject(`Hello ${r.name.split(' ')[0]}!`);
+                                    setIsFriendDropdownOpen(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-300 dark:border-emerald-700 shadow-2xs'
+                                      : 'bg-stone-50/90 hover:bg-stone-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-stone-800 dark:text-slate-200 border border-stone-200/60 dark:border-slate-700/60'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 border border-stone-200/80 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                                      {r.name.charAt(0)}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-xs sm:text-sm font-bold truncate leading-tight text-stone-900 dark:text-slate-100">
+                                        {r.name}
+                                      </p>
+                                      <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate font-normal mt-0.5">
+                                        Apt {r.apt}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Recipient Summary Card (BOTTOM position below selector) */}
                 <div
                   className="liquid-glass-subpanel p-3.5 sm:p-4 rounded-2xl flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
                         composeRecipient.category === 'friend'
-                          ? 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
                           : composeRecipient.category === 'office'
                           ? 'bg-blue-100 text-blue-800'
                           : 'bg-amber-100 text-amber-800'
@@ -2747,16 +2862,24 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                         <img src="/crew-badge.svg" alt="Crew" className="w-4 h-4 object-contain inline-block" />
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs uppercase font-bold text-stone-400">Recipient</p>
-                      <p className="text-sm sm:text-base font-extrabold">{composeRecipient.name}</p>
+                      <p
+                        className={`text-sm sm:text-base truncate ${
+                          composeRecipient.name
+                            ? 'font-extrabold text-stone-900 dark:text-slate-100'
+                            : 'font-medium italic text-stone-400 dark:text-slate-500'
+                        }`}
+                      >
+                        {composeRecipient.name || 'No resident selected yet'}
+                      </p>
                     </div>
                   </div>
 
                   <span
-                    className={`text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
+                    className={`text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full shrink-0 ${
                       composeRecipient.category === 'friend'
-                        ? 'bg-emerald-100 text-emerald-800'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                         : composeRecipient.category === 'office'
                         ? 'bg-blue-100 text-blue-800'
                         : 'bg-amber-100 text-amber-800'
@@ -2769,42 +2892,6 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                       : 'Crew'}
                   </span>
                 </div>
-
-                {/* If Friend: allow switching recipient friend directly without having to visit another directory */}
-                {composeRecipient.category === 'friend' && residents.length > 0 && (
-                  <div>
-                    <label className="block text-xs sm:text-sm font-bold text-stone-600 dark:text-slate-300 mb-1">
-                      Choose Neighbor / Friend
-                    </label>
-                    <select
-                      value={composeRecipient.name}
-                      onChange={(e) => {
-                        const target = residents.find(r => r.name === e.target.value);
-                        if (target) {
-                          setComposeRecipient({
-                            name: target.name,
-                            category: 'friend',
-                            role: `Resident (${target.apt})`,
-                            apt: target.apt,
-                            phone: target.phone,
-                          });
-                          setComposeSubject(`Hello ${target.name.split(' ')[0]}!`);
-                        }
-                      }}
-                      className={`liquid-glass-input w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm outline-none font-medium cursor-pointer ${
-                        internalDarkMode
-                          ? 'text-white'
-                          : 'text-stone-900'
-                      }`}
-                    >
-                      {residents.map((r) => (
-                        <option key={r.id} value={r.name} className="dark:bg-slate-900">
-                          {r.name} ({r.apt})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
 
                 {/* Subject Input */}
                 <div>
@@ -2940,32 +3027,35 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
           {/* ================= VIEW 5: LOGOUT CONFIRMATION ================= */}
           {activeView === 'logoutConfirm' && (
-            <div className="space-y-4 text-center py-3">
-              <div className="w-14 h-14 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
-                <LogOut className="w-7 h-7" />
+            <div className="space-y-6 text-center py-6 px-2 flex flex-col items-center justify-center min-h-[280px] my-auto">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center shadow-md border border-rose-200/80 dark:border-rose-900/60 shrink-0">
+                <LogOut className="w-8 h-8 sm:w-10 sm:h-10 text-rose-600 dark:text-rose-400 stroke-[2.5]" />
               </div>
 
-              <div>
-                <h3 className="text-lg sm:text-xl font-black serif-title">
+              <div className="space-y-2 max-w-sm mx-auto text-center">
+                <h3 className="text-xl sm:text-2xl font-black serif-title text-stone-900 dark:text-slate-100 text-center leading-snug tracking-tight">
                   Log Out of Resident Portal?
                 </h3>
-                <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400 mt-1.5 max-w-xs mx-auto">
+                <p className="text-sm sm:text-base text-stone-600 dark:text-slate-300 font-medium leading-relaxed text-center">
                   You can easily sign back into your TownLoop account at any time.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <div className="w-full max-w-sm mx-auto flex flex-col sm:flex-row gap-3 pt-2 justify-center items-center">
                 <button
+                  type="button"
                   onClick={() => setActiveView('menu')}
-                  className="liquid-glass-subpanel liquid-glass-subpanel-interactive py-3 rounded-2xl text-xs sm:text-sm font-bold transition cursor-pointer text-stone-700 dark:text-slate-300"
+                  className="w-full sm:flex-1 py-3.5 px-5 rounded-2xl bg-stone-100 dark:bg-slate-800 hover:bg-stone-200 dark:hover:bg-slate-700 active:scale-98 text-stone-800 dark:text-slate-200 text-sm sm:text-base font-extrabold transition cursor-pointer border border-stone-200 dark:border-slate-700 flex items-center justify-center text-center shadow-2xs"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleLogout}
-                  className="py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold transition cursor-pointer shadow-xs"
+                  className="w-full sm:flex-1 py-3.5 px-5 rounded-2xl bg-rose-600 hover:bg-rose-700 active:scale-98 text-white text-sm sm:text-base font-extrabold transition cursor-pointer shadow-md flex items-center justify-center gap-2 text-center"
                 >
-                  Yes, Log Out
+                  <LogOut className="w-4 h-4 shrink-0" />
+                  <span>Yes, Log Out</span>
                 </button>
               </div>
             </div>

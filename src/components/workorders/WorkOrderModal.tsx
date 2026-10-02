@@ -5,7 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, useDragControls } from 'motion/react';
+import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import {
   X,
   Upload,
@@ -16,6 +16,8 @@ import {
   CloudUpload,
   Maximize2,
   Minimize2,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import type { WorkOrdersState } from '../../hooks/useWorkOrders';
 import { WORK_ORDER_CATEGORIES } from '../../data/workOrderCategories';
@@ -57,6 +59,8 @@ export function WorkOrderModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement | null>(null);
   const dragControls = useDragControls();
   const pendingUploadsRef = useRef(0);
   const submittingRef = useRef(false);
@@ -65,6 +69,7 @@ export function WorkOrderModal({
   useEffect(() => {
     setIsClosing(false);
     setIsFullScreen(false);
+    setIsCategoryOpen(false);
     setErrorMessage(null);
     setIsUploading(false);
     setIsSubmitting(false);
@@ -72,12 +77,25 @@ export function WorkOrderModal({
     setUploadingFileName('');
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCategoryOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleClose = () => {
     if (isClosing) return;
     setIsClosing(true);
     setTimeout(() => {
       setIsWorkOrderModalOpen(false);
-    }, 220);
+    }, 300);
   };
 
   // Visual Upload State & Progress percentage tracker
@@ -175,8 +193,8 @@ export function WorkOrderModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: isClosing ? 0 : 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed inset-0 bg-stone-950/65 backdrop-blur-xl z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto"
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="fixed inset-0 bg-stone-950/65 backdrop-blur-xl z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
       onClick={handleClose}
     >
       <motion.div
@@ -203,8 +221,8 @@ export function WorkOrderModal({
         exit={{ y: '100%' }}
         transition={
           isClosing
-            ? { duration: 0.22, ease: [0.32, 0.72, 0, 1] }
-            : { duration: 0.32, ease: [0.16, 1, 0.3, 1] }
+            ? { duration: 0.3, ease: [0.32, 0.72, 0, 1] }
+            : { duration: 0.44, ease: [0.22, 1, 0.36, 1] }
         }
         onAnimationComplete={() => {
           if (isClosing) {
@@ -295,28 +313,82 @@ export function WorkOrderModal({
             onSubmit={handleFormSubmit}
             className="space-y-4 pt-3 overflow-y-auto hide-scrollbar native-scroll overscroll-contain touch-pan-y text-xs sm:text-sm flex-1 px-0.5"
           >
-            {/* 1. Category Selection (at least 7 categories with emojis) */}
+            {/* 1. Category Selection */}
             <div>
               <label className="font-bold text-stone-700 dark:text-slate-300 block mb-1 text-xs uppercase tracking-wider">
                 Category
               </label>
-              <div className="relative">
-                <select
-                  value={newWoCategory}
-                  onChange={(e) => setNewWoCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 dark:bg-slate-800/90 text-stone-800 dark:text-slate-100 text-sm font-medium focus:outline-emerald-600 appearance-none pr-8 cursor-pointer"
+              <div className="relative" ref={categoryDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryOpen((prev) => !prev)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-slate-700 bg-stone-50 hover:bg-stone-100 dark:bg-slate-800 dark:hover:bg-slate-750 text-stone-900 dark:text-slate-100 text-sm font-semibold flex items-center justify-between gap-2 shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                 >
-                  {WORK_ORDER_CATEGORIES.map((cat) => (
-                    <option key={cat.id} value={cat.name}>
-                      {cat.emoji} {cat.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400 text-xs">
-                  ▼
-                </div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-base leading-none shrink-0">
+                      {WORK_ORDER_CATEGORIES.find((c) => c.name === newWoCategory)?.emoji || '🛠️'}
+                    </span>
+                    <span className="font-bold text-stone-900 dark:text-slate-100 truncate">
+                      {newWoCategory}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 text-stone-500 dark:text-slate-400 shrink-0 transition-transform duration-200 ${
+                      isCategoryOpen ? 'rotate-180 text-emerald-600 dark:text-emerald-400' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* Custom Modern Light Grey Category Dropdown Menu */}
+                <AnimatePresence>
+                  {isCategoryOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 backdrop-blur-2xl border border-stone-200 dark:border-slate-700/90 rounded-2xl shadow-xl overflow-hidden p-1.5 max-h-64 overflow-y-auto space-y-1 hide-scrollbar"
+                    >
+                      {WORK_ORDER_CATEGORIES.map((cat) => {
+                        const isSelected = cat.name === newWoCategory;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setNewWoCategory(cat.name);
+                              setIsCategoryOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border border-emerald-300 dark:border-emerald-700 shadow-2xs'
+                                : 'bg-stone-50/90 hover:bg-stone-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-stone-800 dark:text-slate-200 border border-stone-200/60 dark:border-slate-700/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-8 h-8 rounded-xl bg-white dark:bg-slate-900 border border-stone-200/80 dark:border-slate-700 flex items-center justify-center text-base shrink-0 shadow-2xs">
+                                {cat.emoji}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-xs sm:text-sm font-bold truncate leading-tight text-stone-900 dark:text-slate-100">
+                                  {cat.name}
+                                </p>
+                                <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate font-normal mt-0.5">
+                                  {cat.description}
+                                </p>
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-              <p className="text-[11px] text-stone-400 dark:text-slate-500 mt-1">
+              <p className="text-[11px] text-stone-400 dark:text-slate-500 mt-1.5 px-0.5">
                 {WORK_ORDER_CATEGORIES.find((c) => c.name === newWoCategory)?.description}
               </p>
             </div>
