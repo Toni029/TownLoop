@@ -34,7 +34,8 @@ import {
   Upload,
   Image as ImageIcon,
   Check,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { UserProfile, MaintenanceChat, MaintenanceChatMessage } from '../types';
 import { updateResidentProfile, subscribeToCommunityDirectory } from '../services/auth';
@@ -46,6 +47,7 @@ import {
   subscribeToMaintenanceChats,
   sendMaintenanceChatMessage,
   markMaintenanceChatRead,
+  deleteMaintenanceChat,
   formatMessageTime,
   getResidentChatDocId,
 } from '../services/maintenanceChat';
@@ -53,6 +55,7 @@ import {
   subscribeToOfficeChats,
   sendOfficeChatMessage,
   markOfficeChatRead,
+  deleteOfficeChat,
   isVipOrAdmin,
 } from '../services/officeChat';
 import { OfficeChat, OfficeChatMessage } from '../types';
@@ -268,6 +271,16 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   // Messages in Inbox: Real messages only, no fictitious or dummy data
   const [messages, setMessages] = useState<InboxMessage[]>([]);
 
+  // Persistent track of deleted/dismissed conversation IDs
+  const [deletedChatIds, setDeletedChatIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('townloop_deleted_chats_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   useEffect(() => {
     // Clean any previous dummy messages from localStorage
     try {
@@ -352,9 +365,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           const lastMsg = chat.messages[chat.messages.length - 1];
           list.push({
             id: `maint_${chat.id}`,
-            from: `${chat.residentName} (${chat.residentApt})`,
+            from: chat.residentName || 'Resident',
             senderCategory: 'maintenance',
-            role: `Resident • ${chat.residentApt}`,
+            role: 'Resident',
             subject: chat.subject || 'Maintenance Service Request',
             body: lastMsg ? `${lastMsg.senderName}: "${lastMsg.body}"` : (chat.lastMessage || 'Maintenance conversation'),
             time: chat.updatedAt ? formatMessageTime(chat.updatedAt) : 'Recent',
@@ -407,9 +420,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           const lastMsg = chat.messages[chat.messages.length - 1];
           list.push({
             id: `office_${chat.id}`,
-            from: `${chat.residentName} (${chat.residentApt})`,
+            from: chat.residentName || 'Resident',
             senderCategory: 'office',
-            role: `Resident • ${chat.residentApt}`,
+            role: 'Resident',
             subject: chat.subject || 'Office Inquiry',
             body: lastMsg
               ? (lastMsg.senderRole === 'vip' ? `You (Office): "${lastMsg.body}"` : `${chat.residentName}: "${lastMsg.body}"`)
@@ -455,8 +468,17 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       }
     }
 
-    return list;
-  }, [messages, maintenanceChats, officeChats, userIsCrew, userIsVip]);
+    // Filter out any conversation deleted by the resident
+    return list.filter((m) => {
+      const idStr = String(m.id);
+      const maintId = m.maintenanceChatId ? String(m.maintenanceChatId) : '';
+      const offId = m.officeChatId ? String(m.officeChatId) : '';
+      if (deletedChatIds.includes(idStr)) return false;
+      if (maintId && deletedChatIds.includes(maintId)) return false;
+      if (offId && deletedChatIds.includes(offId)) return false;
+      return true;
+    });
+  }, [messages, maintenanceChats, officeChats, userIsCrew, userIsVip, deletedChatIds]);
 
   const unreadCount = allInboxMessages.filter(m => m.unread).length;
 
@@ -488,6 +510,57 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   const markMessageAsRead = (id: number | string) => {
     setMessages(prev => prev.map(m => (m.id === id ? { ...m, unread: false } : m)));
+  };
+
+  const handleDeleteMessage = async (msg: InboxMessage, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const idStr = String(msg.id);
+    const maintId = msg.maintenanceChatId ? String(msg.maintenanceChatId) : '';
+    const offId = msg.officeChatId ? String(msg.officeChatId) : '';
+
+    // 1. Immediately record in persistent deleted list so it doesn't re-appear
+    setDeletedChatIds(prev => {
+      const next = Array.from(new Set([...prev, idStr, maintId, offId].filter(Boolean)));
+      try {
+        localStorage.setItem('townloop_deleted_chats_v1', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    // 2. Remove from local state
+    setMessages(prev =>
+      prev.filter(
+        m =>
+          String(m.id) !== idStr &&
+          (!maintId || m.maintenanceChatId !== maintId) &&
+          (!offId || m.officeChatId !== offId)
+      )
+    );
+
+    // 3. Delete from Firestore if it is a cloud conversation
+    if (msg.senderCategory === 'maintenance' && (maintId || idStr.startsWith('maint_'))) {
+      const targetChatId = maintId || idStr.replace(/^maint_/, '');
+      await deleteMaintenanceChat(targetChatId);
+    } else if (msg.senderCategory === 'office' && (offId || idStr.startsWith('office_'))) {
+      const targetChatId = offId || idStr.replace(/^office_/, '');
+      await deleteOfficeChat(targetChatId);
+    }
+
+    // 4. Reset selected view if currently open
+    if (
+      selectedMessage &&
+      (String(selectedMessage.id) === idStr ||
+        (maintId && selectedMessage.maintenanceChatId === maintId) ||
+        (offId && selectedMessage.officeChatId === offId))
+    ) {
+      setSelectedMessage(null);
+      setActiveMaintenanceChat(null);
+      setActiveOfficeChat(null);
+    }
+
+    showToast('Conversation deleted');
   };
 
   const handleOpenMessage = (msg: InboxMessage) => {
@@ -784,9 +857,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
       const newOfficeMsg: InboxMessage = {
         id: `office_${docId}`,
-        from: userIsVip && activeOfficeChat ? `${activeOfficeChat.residentName} (${activeOfficeChat.residentApt})` : 'Community Office',
+        from: userIsVip && activeOfficeChat ? (activeOfficeChat.residentName || 'Resident') : 'Community Office',
         senderCategory: 'office',
-        role: userIsVip && activeOfficeChat ? `Resident • ${activeOfficeChat.residentApt}` : 'Concierge & Front Office',
+        role: userIsVip && activeOfficeChat ? 'Resident' : 'Concierge & Front Office',
         subject: messageSubject,
         body: `You: "${messageBody}"`,
         time: 'Just now',
@@ -890,9 +963,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
       const updatedMaintMsg: InboxMessage = {
         id: `maint_${docId}`,
-        from: userIsCrew && activeMaintenanceChat ? `${activeMaintenanceChat.residentName} (${activeMaintenanceChat.residentApt})` : 'Maintenance Crew',
+        from: userIsCrew && activeMaintenanceChat ? (activeMaintenanceChat.residentName || 'Resident') : 'Maintenance Crew',
         senderCategory: 'maintenance',
-        role: userIsCrew && activeMaintenanceChat ? `Resident • ${activeMaintenanceChat.residentApt}` : 'Facilities & Repairs',
+        role: userIsCrew && activeMaintenanceChat ? 'Resident' : 'Facilities & Repairs',
         subject: activeMaintenanceChat?.subject || 'Maintenance Service Request',
         body: userIsCrew ? `${currentUser?.name || 'Crew'}: "${replyContent}"` : `You: "${replyContent}"`,
         time: 'Just now',
@@ -974,9 +1047,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
       const updatedOfficeMsg: InboxMessage = {
         id: `office_${docId}`,
-        from: userIsVip && activeOfficeChat ? `${activeOfficeChat.residentName} (${activeOfficeChat.residentApt})` : 'Community Office',
+        from: userIsVip && activeOfficeChat ? (activeOfficeChat.residentName || 'Resident') : 'Community Office',
         senderCategory: 'office',
-        role: userIsVip && activeOfficeChat ? `Resident • ${activeOfficeChat.residentApt}` : 'Concierge & Front Office',
+        role: userIsVip && activeOfficeChat ? 'Resident' : 'Concierge & Front Office',
         subject: activeOfficeChat?.subject || 'Office Inquiry',
         body: userIsVip ? `You (Office): "${replyContent}"` : `You: "${replyContent}"`,
         time: 'Just now',
@@ -1059,7 +1132,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               stiffness: 480,
               mass: 0.35,
             }}
-            className={`liquid-glass-modal w-full max-w-[500px] sm:max-w-[540px] max-h-[92vh] sm:max-h-[90vh] rounded-[32px] sm:rounded-[36px] p-4 sm:p-5 pt-3.5 sm:pt-4 shadow-2xl relative flex flex-col will-change-transform ${
+            className={`liquid-glass-modal w-full max-w-[500px] sm:max-w-[540px] h-[520px] sm:h-[560px] rounded-[32px] sm:rounded-[36px] p-4 sm:p-5 pt-3.5 sm:pt-4 shadow-2xl relative flex flex-col will-change-transform overflow-hidden ${
               internalDarkMode
                 ? 'text-white'
                 : 'text-stone-900'
@@ -1086,8 +1159,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           </div>
         )}
 
-        {/* Inner Scrollable Container */}
-        <div className="overflow-y-auto hide-scrollbar flex-1 pr-0.5 space-y-3.5">
+        {/* Inner Container */}
+        <div className={`flex-1 min-h-0 w-full flex flex-col ${activeView === 'inbox' && !selectedMessage ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden hide-scrollbar native-scroll overscroll-contain touch-pan-y space-y-3.5'}`}>
           {/* ================= VIEW 1: MAIN MENU ================= */}
           {activeView === 'menu' && (
             <div className="space-y-3.5">
@@ -1352,8 +1425,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
           {/* ================= VIEW 2: MAIL (INBOX) ================= */}
           {activeView === 'inbox' && !selectedMessage && (
-            <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12">
+            <div className="flex flex-col h-full w-full max-w-full overflow-hidden">
+              {/* TOP BAR: Stay Put */}
+              <div className="shrink-0 flex items-center justify-between pb-2 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12 gap-2">
                 <button
                   onClick={() => setActiveView('menu')}
                   className="flex items-center gap-1 text-sm font-bold text-emerald-800 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-300 transition cursor-pointer py-1 px-1.5 -ml-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-slate-800 shrink-0"
@@ -1361,7 +1435,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   <ChevronLeft className="w-5 h-5" />
                   <span>Back</span>
                 </button>
-                <div className="text-center">
+                <div className="text-center min-w-0">
                   <span className="text-sm sm:text-base font-black text-stone-950 dark:text-white tracking-tight">
                     Mail (Inbox)
                   </span>
@@ -1377,56 +1451,58 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 </button>
               </div>
 
-              {/* 3 Categories Filter Tabs: Friends, Community Office, Maintenance Crew */}
-              <div className="grid grid-cols-4 gap-1.5 p-1.5 rounded-2xl liquid-glass-subpanel text-xs sm:text-sm font-bold shadow-xs">
-                <button
-                  onClick={() => setInboxFilter('all')}
-                  className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
-                    inboxFilter === 'all'
-                      ? 'liquid-glass-subpanel text-stone-900 dark:text-white shadow-xs font-extrabold'
-                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setInboxFilter('friend')}
-                  className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
-                    inboxFilter === 'friend'
-                      ? 'bg-emerald-700 text-white shadow-sm font-extrabold'
-                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
-                  }`}
-                >
-                  Friends
-                </button>
-                <button
-                  onClick={() => setInboxFilter('office')}
-                  className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
-                    inboxFilter === 'office'
-                      ? 'bg-blue-700 text-white shadow-sm font-extrabold'
-                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
-                  }`}
-                >
-                  Office
-                </button>
-                <button
-                  onClick={() => setInboxFilter('maintenance')}
-                  className={`py-2 px-1 rounded-xl transition text-center cursor-pointer ${
-                    inboxFilter === 'maintenance'
-                      ? 'bg-amber-600 text-white shadow-sm font-extrabold'
-                      : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
-                  }`}
-                >
-                  Crew
-                </button>
+              {/* CATEGORIES (ALL, FRIENDS, OFFICE, CREW): Stay Put */}
+              <div className="shrink-0 py-2.5">
+                <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl liquid-glass-subpanel text-xs font-bold shadow-xs w-full max-w-full">
+                  <button
+                    onClick={() => setInboxFilter('all')}
+                    className={`py-1.5 px-1 rounded-xl transition text-center cursor-pointer truncate text-[11px] sm:text-xs ${
+                      inboxFilter === 'all'
+                        ? 'liquid-glass-subpanel text-stone-900 dark:text-white shadow-xs font-extrabold'
+                        : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setInboxFilter('friend')}
+                    className={`py-1.5 px-1 rounded-xl transition text-center cursor-pointer truncate text-[11px] sm:text-xs ${
+                      inboxFilter === 'friend'
+                        ? 'bg-emerald-600 text-white shadow-sm font-extrabold'
+                        : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Friends
+                  </button>
+                  <button
+                    onClick={() => setInboxFilter('office')}
+                    className={`py-1.5 px-1 rounded-xl transition text-center cursor-pointer truncate text-[11px] sm:text-xs ${
+                      inboxFilter === 'office'
+                        ? 'bg-blue-600 text-white shadow-sm font-extrabold'
+                        : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Office
+                  </button>
+                  <button
+                    onClick={() => setInboxFilter('maintenance')}
+                    className={`py-1.5 px-1 rounded-xl transition text-center cursor-pointer truncate text-[11px] sm:text-xs ${
+                      inboxFilter === 'maintenance'
+                        ? 'bg-amber-600 text-white shadow-sm font-extrabold'
+                        : 'text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Crew
+                  </button>
+                </div>
               </div>
 
-              {/* Messages List - Longer height so more items show */}
-              <div className="space-y-2.5 max-h-[380px] sm:max-h-[440px] overflow-y-auto pr-1">
+              {/* IN THE MIDDLE: ALL THE CHATS SCROLL */}
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden hide-scrollbar native-scroll overscroll-contain touch-pan-y space-y-2.5 pr-0.5 pb-2">
                 {filteredMessages.length === 0 ? (
                   <div className="text-center py-12 text-stone-400 dark:text-slate-500 space-y-2">
                     <Mail className="w-10 h-10 mx-auto opacity-40" />
-                    <p className="text-sm">No messages in this folder.</p>
+                    <p className="text-sm font-medium">No messages in this folder.</p>
                   </div>
                 ) : (
                   filteredMessages.map(msg => {
@@ -1434,17 +1510,40 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     const isCrew = msg.senderCategory === 'maintenance';
                     const isFriend = msg.senderCategory === 'friend';
 
+                    const senderDisplayName = msg.from.replace(/\s*\([^)]*\)/g, '').trim();
+                    const displayRole = isFriend
+                      ? 'Resident'
+                      : isOffice
+                      ? (userIsVip ? 'Resident' : 'Community Office')
+                      : (userIsCrew ? 'Resident' : 'Maintenance Crew');
+
+                    // Color coded themes:
+                    // Friends: Emerald
+                    // Office: Blue
+                    // Crew: Amber
                     const cardTheme = isOffice
                       ? msg.unread
-                        ? 'liquid-glass-subpanel border-l-[5px] border-l-blue-500 bg-blue-500/15 border-blue-400/40 shadow-xs'
-                        : 'liquid-glass-subpanel liquid-glass-subpanel-interactive border-l-[5px] border-l-blue-500/70'
+                        ? 'bg-blue-50/90 dark:bg-blue-950/40 border-l-[5px] border-l-blue-600 border-blue-200 dark:border-blue-800 shadow-2xs'
+                        : 'bg-blue-50/35 hover:bg-blue-50/70 dark:bg-blue-950/20 dark:hover:bg-blue-950/35 border-l-[5px] border-l-blue-500/80 border-blue-200/60 dark:border-blue-900/40'
                       : isCrew
                       ? msg.unread
-                        ? 'liquid-glass-subpanel border-l-[5px] border-l-amber-500 bg-amber-500/15 border-amber-400/40 shadow-xs'
-                        : 'liquid-glass-subpanel liquid-glass-subpanel-interactive border-l-[5px] border-l-amber-500/70'
+                        ? 'bg-amber-50/90 dark:bg-amber-950/40 border-l-[5px] border-l-amber-600 border-amber-200 dark:border-amber-800 shadow-2xs'
+                        : 'bg-amber-50/35 hover:bg-amber-50/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/35 border-l-[5px] border-l-amber-500/80 border-amber-200/60 dark:border-amber-900/40'
                       : msg.unread
-                      ? 'liquid-glass-subpanel border-l-[5px] border-l-emerald-500 bg-emerald-500/15 border-emerald-400/40 shadow-xs'
-                      : 'liquid-glass-subpanel liquid-glass-subpanel-interactive border-l-[5px] border-l-emerald-500/70';
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-l-[5px] border-l-emerald-600 border-emerald-200 dark:border-emerald-800 shadow-2xs'
+                      : 'bg-emerald-50/35 hover:bg-emerald-50/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/35 border-l-[5px] border-l-emerald-500/80 border-emerald-200/60 dark:border-emerald-900/40';
+
+                    const badgeTheme = isOffice
+                      ? 'bg-blue-100 text-blue-800 border-blue-200/80 dark:bg-blue-900/60 dark:text-blue-300 dark:border-blue-800'
+                      : isCrew
+                      ? 'bg-amber-100 text-amber-800 border-amber-200/80 dark:bg-amber-900/60 dark:text-amber-300 dark:border-amber-800'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-200/80 dark:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800';
+
+                    const iconTheme = isOffice
+                      ? 'bg-blue-100/90 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-800'
+                      : isCrew
+                      ? 'bg-amber-100/90 text-amber-800 border-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-800'
+                      : 'bg-emerald-100/90 text-emerald-800 border-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-800';
 
                     const dotColor = isOffice
                       ? 'bg-blue-600 dark:bg-blue-400'
@@ -1456,20 +1555,13 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                       <div
                         key={msg.id}
                         onClick={() => handleOpenMessage(msg)}
-                        className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer text-left group ${cardTheme}`}
+                        className={`w-full max-w-full p-3 sm:p-3.5 rounded-2xl border transition cursor-pointer text-left group overflow-hidden ${cardTheme}`}
                       >
-                        <div className="flex items-start justify-between gap-2.5">
-                          <div className="flex items-center gap-2.5">
+                        {/* Top row: Category Icon + Sender info + Timestamp + Trash Button */}
+                        <div className="flex items-center justify-between gap-2 w-full min-w-0">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             {/* Sender Category Tag / Icon */}
-                            <div
-                              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
-                                isFriend
-                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200/70 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800/60'
-                                  : isOffice
-                                  ? 'bg-blue-100 text-blue-800 border-blue-200/70 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800/60'
-                                  : 'bg-amber-100 text-amber-800 border-amber-200/70 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/60'
-                              }`}
-                            >
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-2xs ${iconTheme}`}>
                               {isFriend && <Users className="w-4 h-4" />}
                               {isOffice && <Building2 className="w-4 h-4" />}
                               {isCrew && (
@@ -1477,45 +1569,50 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                               )}
                             </div>
 
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-bold leading-tight truncate">{msg.from}</p>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <p className="text-xs sm:text-sm font-black leading-tight text-stone-900 dark:text-white truncate">
+                                  {senderDisplayName}
+                                </p>
                                 <span
-                                  className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${
-                                    isFriend
-                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200/80 dark:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800/60'
-                                      : isOffice
-                                      ? 'bg-blue-100 text-blue-800 border-blue-200/80 dark:bg-blue-900/60 dark:text-blue-300 dark:border-blue-800/60'
-                                      : 'bg-amber-100 text-amber-800 border-amber-200/80 dark:bg-amber-900/60 dark:text-amber-300 dark:border-amber-800/60'
-                                  }`}
+                                  className={`text-[9px] sm:text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border shrink-0 ${badgeTheme}`}
                                 >
-                                  {isFriend
-                                    ? 'Friend'
-                                    : isOffice
-                                    ? 'Office'
-                                    : 'Crew'}
+                                  {isFriend ? 'Friend' : isOffice ? 'Office' : 'Crew'}
                                 </span>
                               </div>
-                              <p className="text-xs text-stone-500 dark:text-slate-400 truncate mt-0.5">
-                                {msg.role}
+                              <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate leading-none mt-0.5">
+                                {displayRole}
                               </p>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-xs text-stone-400 dark:text-slate-500 font-medium">
+                          {/* Right side: Timestamp + Unread dot + Trashcan action */}
+                          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+                            {msg.unread && (
+                              <span className={`w-2 h-2 rounded-full ${dotColor} shrink-0 ring-2 ring-white dark:ring-stone-900`} />
+                            )}
+                            <span className="text-[11px] sm:text-xs text-stone-400 dark:text-slate-400 font-medium shrink-0 whitespace-nowrap">
                               {msg.time}
                             </span>
-                            {msg.unread && (
-                              <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
-                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteMessage(msg, e)}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-100/70 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 transition cursor-pointer shrink-0 ml-0.5"
+                              title="Delete conversation"
+                              aria-label="Delete conversation"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
 
-                        <h4 className="text-sm font-bold mt-2.5 text-stone-900 dark:text-white leading-snug line-clamp-1 group-hover:underline">
+                        {/* Subject */}
+                        <h4 className="text-xs sm:text-sm font-bold mt-2 text-stone-900 dark:text-white leading-snug truncate group-hover:underline">
                           {msg.subject}
                         </h4>
-                        <p className="text-xs sm:text-sm text-stone-600 dark:text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+
+                        {/* Body snippet */}
+                        <p className="text-[11px] sm:text-xs text-stone-600 dark:text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">
                           {msg.body}
                         </p>
                       </div>
@@ -1524,33 +1621,33 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 )}
               </div>
 
-              {/* Compose New Message Shortcuts */}
-              <div className="pt-1 flex gap-2">
+              {/* BOTTOM BUTTONS: Stay Put */}
+              <div className="shrink-0 pt-2 pb-0.5 border-t border-stone-200/60 dark:border-slate-800/60 flex gap-1.5 sm:gap-2 w-full max-w-full">
                 <button
                   type="button"
                   onClick={handleStartComposeToOffice}
-                  className="flex-1 py-2.5 px-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800 transition cursor-pointer flex items-center justify-center gap-1 truncate"
                 >
-                  <Building2 className="w-4 h-4" />
-                  <span>Msg Office</span>
+                  <Building2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Msg Office</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleStartComposeToMaintenance}
-                  className="flex-1 py-2.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-xs font-bold border border-amber-200 dark:border-amber-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-xs font-bold border border-amber-200 dark:border-amber-800 transition cursor-pointer flex items-center justify-center gap-1 truncate"
                 >
-                  <img src="/crew-badge.svg" alt="Crew" className="w-4 h-4 object-contain inline-block" />
-                  <span>Msg Crew</span>
+                  <img src="/crew-badge.svg" alt="Crew" className="w-3.5 h-3.5 object-contain inline-block shrink-0" />
+                  <span className="truncate">Msg Crew</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleStartComposeToFriendInitial}
-                  className="flex-1 py-2.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 transition cursor-pointer flex items-center justify-center gap-1 truncate"
                 >
-                  <Users className="w-4 h-4" />
-                  <span>Msg Friend</span>
+                  <Users className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Msg Friend</span>
                 </button>
               </div>
             </div>
@@ -1560,21 +1657,32 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'maintenance' && (
             <div className="space-y-3 flex flex-col h-[520px] sm:h-[580px]">
               {/* Header */}
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12 shrink-0 gap-2">
                 <button
                   onClick={() => {
                     setSelectedMessage(null);
                     setActiveMaintenanceChat(null);
                   }}
-                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer shrink-0"
                 >
                   <ChevronLeft className="w-5 h-5" />
-                  All Messages
+                  <span>All Messages</span>
                 </button>
-                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800">
-                  <img src="/crew-badge.svg" alt="Crew" className="w-3.5 h-3.5 object-contain inline-block" />
-                  <span>Maintenance Team</span>
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800">
+                    <img src="/crew-badge.svg" alt="Crew" className="w-3.5 h-3.5 object-contain inline-block" />
+                    <span>Maintenance Team</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteMessage(selectedMessage, e)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-300 transition cursor-pointer shrink-0"
+                    title="Delete conversation"
+                    aria-label="Delete conversation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Chat Subject / Info Banner */}
@@ -1588,7 +1696,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   <div className="min-w-0">
                     <h4 className="text-sm font-bold truncate">
                       {userIsCrew && activeMaintenanceChat
-                        ? `${activeMaintenanceChat.residentName} (${activeMaintenanceChat.residentApt})`
+                        ? (activeMaintenanceChat.residentName || 'Resident')
                         : 'Maintenance Crew'}
                     </h4>
                     <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate">
@@ -1612,7 +1720,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               </div>
 
               {/* Conversation Messages Thread */}
-              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2">
+              <div className="flex-1 overflow-y-auto hide-scrollbar native-scroll space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2 overscroll-contain touch-pan-y">
                 {activeMaintenanceChat && activeMaintenanceChat.messages && activeMaintenanceChat.messages.length > 0 ? (
                   activeMaintenanceChat.messages.map((m) => {
                     if (userIsCrew) {
@@ -1739,21 +1847,32 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'office' && (
             <div className="space-y-3 flex flex-col h-[520px] sm:h-[580px]">
               {/* Header */}
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12 shrink-0 gap-2">
                 <button
                   onClick={() => {
                     setSelectedMessage(null);
                     setActiveOfficeChat(null);
                   }}
-                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer shrink-0"
                 >
                   <ChevronLeft className="w-5 h-5" />
-                  All Messages
+                  <span>All Messages</span>
                 </button>
-                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-800">
-                  <Building2 className="w-3.5 h-3.5 inline-block" />
-                  <span>{userIsVip ? 'Resident Office Inquiry' : 'Community Office'}</span>
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-800">
+                    <Building2 className="w-3.5 h-3.5 inline-block" />
+                    <span>{userIsVip ? 'Resident Office Inquiry' : 'Community Office'}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteMessage(selectedMessage, e)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-300 transition cursor-pointer shrink-0"
+                    title="Delete conversation"
+                    aria-label="Delete conversation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Chat Subject / Info Banner */}
@@ -1776,7 +1895,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                   <div className="min-w-0">
                     <h4 className="text-sm font-bold truncate">
                       {userIsVip && activeOfficeChat
-                        ? `${activeOfficeChat.residentName} (${activeOfficeChat.residentApt})`
+                        ? (activeOfficeChat.residentName || 'Resident')
                         : 'Community Office'}
                     </h4>
                     <p className="text-[11px] text-stone-500 dark:text-slate-400 truncate">
@@ -1813,7 +1932,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               </div>
 
               {/* Conversation Messages Thread */}
-              <div className="flex-1 overflow-y-auto space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2">
+              <div className="flex-1 overflow-y-auto hide-scrollbar native-scroll space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2 overscroll-contain touch-pan-y">
                 {activeOfficeChat && activeOfficeChat.messages && activeOfficeChat.messages.length > 0 ? (
                   activeOfficeChat.messages.map((m) => {
                     if (userIsVip) {
@@ -1925,17 +2044,28 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {/* ================= VIEW 2D: SINGLE FRIEND MESSAGE VIEW ================= */}
           {activeView === 'inbox' && selectedMessage && selectedMessage.senderCategory === 'friend' && (
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200 dark:border-slate-800 pr-11 sm:pr-12 gap-2">
                 <button
                   onClick={() => setSelectedMessage(null)}
-                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                  className="flex items-center gap-1 text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer shrink-0"
                 >
                   <ChevronLeft className="w-5 h-5" />
-                  All Messages
+                  <span>All Messages</span>
                 </button>
-                <span className="text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-                  Friend
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+                    Friend
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteMessage(selectedMessage, e)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-300 transition cursor-pointer shrink-0"
+                    title="Delete conversation"
+                    aria-label="Delete conversation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Message Header */}
@@ -1951,9 +2081,11 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                       className="w-11 h-11 border-2 border-emerald-500/40"
                     />
                     <div>
-                      <h4 className="text-sm sm:text-base font-bold">{selectedMessage.from}</h4>
+                      <h4 className="text-sm sm:text-base font-bold">
+                        {selectedMessage.from.replace(/\s*\([^)]*\)/g, '').trim()}
+                      </h4>
                       <p className="text-xs text-stone-500 dark:text-slate-400">
-                        {selectedMessage.role}
+                        {selectedMessage.senderCategory === 'friend' ? 'Resident' : (selectedMessage.role?.startsWith('Resident') ? 'Resident' : selectedMessage.role)}
                       </p>
                     </div>
                   </div>
@@ -2052,8 +2184,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 Tap on any resident to view phone number, address & profile.
               </p>
 
-              {/* Residents List - Longer view so residents can browse smoothly */}
-              <div className="space-y-2.5 max-h-[380px] sm:max-h-[440px] overflow-y-auto pr-1">
+              {/* Residents List - Clean native app flow with NO browser scrollbars */}
+              <div className="space-y-2.5 w-full">
                 {filteredResidents.length === 0 ? (
                   <div className="text-center py-12 text-stone-400 dark:text-slate-500 space-y-2">
                     <Users className="w-10 h-10 mx-auto opacity-40" />

@@ -10,6 +10,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase';
@@ -207,5 +208,18 @@ export async function markMaintenanceChatRead(
     }
   } catch (err) {
     // If doc not created yet or permission error, silently fail
+  }
+}
+
+export async function deleteMaintenanceChat(chatId: string): Promise<boolean> {
+  if (!isFirebaseConfigured() || !db) return false;
+  const cleanId = String(chatId).replace(/^maint_/, '');
+  try {
+    const docRef = doc(db, 'maintenance_chats', cleanId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.warn('Unable to delete maintenance chat doc:', err);
+    return false;
   }
 }

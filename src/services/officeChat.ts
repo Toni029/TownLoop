@@ -10,6 +10,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase';
@@ -190,3 +191,17 @@ export async function markOfficeChatRead(
     // If doc not created yet or permission error, silently fail
   }
 }
+
+export async function deleteOfficeChat(chatId: string): Promise<boolean> {
+  if (!isFirebaseConfigured() || !db) return false;
+  const cleanId = String(chatId).replace(/^office_/, '');
+  try {
+    const docRef = doc(db, 'office_chats', cleanId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.warn('Unable to delete office chat doc:', err);
+    return false;
+  }
+}
+
