@@ -24,6 +24,7 @@ export interface MarketplaceChatMessage {
   text: string;
   timestamp: string;
   createdAt?: number;
+  isSystem?: boolean;
 }
 
 export interface MarketplaceChat {
@@ -46,6 +47,11 @@ export interface MarketplaceChat {
   updatedAt: number;
   unreadForSeller?: boolean;
   unreadForBuyer?: boolean;
+  deletedByBuyer?: boolean;
+  deletedBySeller?: boolean;
+  buyerLeft?: boolean;
+  sellerLeft?: boolean;
+  deletedBy?: string[];
   messages: MarketplaceChatMessage[];
 }
 
@@ -86,9 +92,83 @@ export function saveLocalMarketplaceChats(chats: MarketplaceChat[]) {
   }
 }
 
+const DELETED_CHATS_PREFIX = 'townloop_deleted_mkt_chats_';
+
+export function getLocalDeletedChatIds(userId?: string | null): Set<string> {
+  if (!userId) return new Set();
+  const clean = cleanId(userId);
+  try {
+    const raw = localStorage.getItem(`${DELETED_CHATS_PREFIX}${clean}`);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function addLocalDeletedChatId(chatId: string, userId?: string | null) {
+  if (!userId) return;
+  const clean = cleanId(userId);
+  try {
+    const existing = getLocalDeletedChatIds(userId);
+    existing.add(chatId);
+    localStorage.setItem(`${DELETED_CHATS_PREFIX}${clean}`, JSON.stringify(Array.from(existing)));
+  } catch (err) {
+    console.warn('Failed to save local deleted chat id:', err);
+  }
+}
+
 export function isUserInMarketplaceChat(user: UserProfile | null | undefined, chat: MarketplaceChat): boolean {
   if (!chat) return false;
-  // Always include all marketplace chats on this client so buyer/seller conversations never get hidden
+  if (!user) return true;
+
+  const userClean = cleanId(user.id || user.name);
+  const userNameLower = (user.name || '').toLowerCase().trim();
+
+  // Check if current user has personally deleted/left this chat locally
+  const localDeleted = getLocalDeletedChatIds(user.id ? String(user.id) : user.name);
+  if (localDeleted.has(chat.id)) {
+    return false;
+  }
+
+  const isSeller =
+    userClean === cleanId(chat.sellerId) ||
+    (userNameLower && userNameLower === (chat.sellerName || '').toLowerCase().trim());
+
+  const isBuyer =
+    userClean === cleanId(chat.buyerId) ||
+    (userNameLower && userNameLower === (chat.buyerName || '').toLowerCase().trim());
+
+  // If user is the seller, only hide if the SELLER deleted/left the chat
+  if (isSeller) {
+    if (
+      chat.deletedBySeller ||
+      chat.sellerLeft ||
+      (chat.deletedBy && (chat.deletedBy.includes('seller') || chat.deletedBy.includes(userClean) || chat.deletedBy.includes(cleanId(chat.sellerId))))
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  // If user is the buyer, only hide if the BUYER deleted/left the chat
+  if (isBuyer) {
+    if (
+      chat.deletedByBuyer ||
+      chat.buyerLeft ||
+      (chat.deletedBy && (chat.deletedBy.includes('buyer') || chat.deletedBy.includes(userClean) || chat.deletedBy.includes(cleanId(chat.buyerId))))
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  // If user is neither seller nor buyer (e.g. general viewer)
+  if (chat.deletedBy && (chat.deletedBy.includes(userClean) || (userNameLower && chat.deletedBy.includes(userNameLower)))) {
+    return false;
+  }
+
   return true;
 }
 
@@ -273,22 +353,142 @@ export async function markMarketplaceChatRead(chatId: string, isSeller: boolean)
 }
 
 /**
- * Deletes a marketplace chat session.
+ * Soft-leaves or permanently deletes a marketplace chat session.
+ * First user to tap trashcan leaves (hidden for them, kept for the other party).
+ * Second user to tap trashcan permanently deletes from Firestore.
  */
-export async function deleteMarketplaceChat(chatId: string): Promise<boolean> {
+export async function deleteMarketplaceChat(
+  chatId: string,
+  user?: UserProfile | null
+): Promise<boolean> {
   const localChats = loadLocalMarketplaceChats();
-  const filtered = localChats.filter((c) => c.id !== chatId);
-  saveLocalMarketplaceChats(filtered);
+  const targetChat = localChats.find((c) => c.id === chatId);
+
+  const userClean = user ? cleanId(user.id || user.name) : 'user';
+  const userNameLower = user ? (user.name || '').toLowerCase().trim() : '';
+
+  // Store in local deleted chat ID set so it immediately disappears for this user
+  if (user) {
+    addLocalDeletedChatId(chatId, user.id ? String(user.id) : user.name);
+  }
+
+  const isSeller =
+    Boolean(user) &&
+    Boolean(targetChat) &&
+    (userClean === cleanId(targetChat?.sellerId) ||
+      (userNameLower && userNameLower === (targetChat?.sellerName || '').toLowerCase().trim()));
+
+  const isBuyer =
+    Boolean(user) &&
+    Boolean(targetChat) &&
+    (userClean === cleanId(targetChat?.buyerId) ||
+      (userNameLower && userNameLower === (targetChat?.buyerName || '').toLowerCase().trim()));
+
+  const leavingUserName = user?.name || (isSeller ? targetChat?.sellerName : targetChat?.buyerName) || 'Resident';
+
+  const systemMsg: MarketplaceChatMessage = {
+    id: `sys_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    senderId: 'system',
+    senderName: 'System',
+    text: `${leavingUserName} left the conversation.`,
+    timestamp: formatMessageTime(),
+    createdAt: Date.now(),
+    isSystem: true,
+  };
+
+  const updatedDeletedBy = Array.from(
+    new Set([
+      ...(targetChat?.deletedBy || []),
+      userClean,
+      userNameLower,
+      isSeller ? 'seller' : 'buyer',
+    ])
+  );
+
+  // Update local chat object with system message and left flags
+  const updatedLocalChats = localChats.map((c) => {
+    if (c.id !== chatId) return c;
+    return {
+      ...c,
+      deletedByBuyer: isBuyer ? true : c.deletedByBuyer,
+      deletedBySeller: isSeller ? true : c.deletedBySeller,
+      buyerLeft: isBuyer ? true : c.buyerLeft,
+      sellerLeft: isSeller ? true : c.sellerLeft,
+      deletedBy: updatedDeletedBy,
+      lastMessage: `${leavingUserName} left the conversation.`,
+      lastMessageTime: formatMessageTime(),
+      updatedAt: Date.now(),
+      messages: [...(c.messages || []), systemMsg],
+    };
+  });
+
+  saveLocalMarketplaceChats(updatedLocalChats);
 
   if (isFirebaseConfigured() && db) {
     try {
-      await deleteDoc(doc(db, 'marketplace_chats', chatId));
+      const docRef = doc(db, 'marketplace_chats', chatId);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+        return true;
+      }
+
+      const remoteData = docSnap.data() as MarketplaceChat;
+      const remoteSellerLeft = Boolean(
+        remoteData.deletedBySeller ||
+        remoteData.sellerLeft ||
+        (remoteData.deletedBy && (remoteData.deletedBy.includes('seller') || remoteData.deletedBy.includes(cleanId(remoteData.sellerId))))
+      );
+      const remoteBuyerLeft = Boolean(
+        remoteData.deletedByBuyer ||
+        remoteData.buyerLeft ||
+        (remoteData.deletedBy && (remoteData.deletedBy.includes('buyer') || remoteData.deletedBy.includes(cleanId(remoteData.buyerId))))
+      );
+
+      const remoteDeletedByList = remoteData.deletedBy || [];
+
+      // Check if both parties will have left after this action
+      const willBothBeLeft =
+        (isSeller && remoteBuyerLeft) ||
+        (isBuyer && remoteSellerLeft) ||
+        (!isSeller && !isBuyer && remoteDeletedByList.length >= 1) ||
+        (remoteSellerLeft && remoteBuyerLeft);
+
+      if (willBothBeLeft) {
+        // Both parties left -> hard delete doc completely from Firestore
+        await deleteDoc(docRef);
+        // Clean out from local chats completely
+        saveLocalMarketplaceChats(localChats.filter((c) => c.id !== chatId));
+      } else {
+        // First party left -> set left flag and append system message for the other party
+        const newDeletedBy = Array.from(
+          new Set([
+            ...remoteDeletedByList,
+            userClean,
+            userNameLower,
+            isSeller ? 'seller' : 'buyer',
+          ])
+        );
+
+        await updateDoc(docRef, {
+          deletedByBuyer: isBuyer ? true : (remoteData.deletedByBuyer || false),
+          deletedBySeller: isSeller ? true : (remoteData.deletedBySeller || false),
+          buyerLeft: isBuyer ? true : (remoteData.buyerLeft || false),
+          sellerLeft: isSeller ? true : (remoteData.sellerLeft || false),
+          deletedBy: newDeletedBy,
+          lastMessage: `${leavingUserName} left the conversation.`,
+          lastMessageTime: formatMessageTime(),
+          updatedAt: Date.now(),
+          messages: [...(remoteData.messages || []), systemMsg],
+        });
+      }
       return true;
     } catch (err) {
-      console.warn('Unable to delete marketplace chat from Firestore:', err);
+      console.warn('Unable to delete/leave marketplace chat in Firestore:', err);
       return false;
     }
   }
+
   return true;
 }
 

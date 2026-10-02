@@ -357,10 +357,8 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
 
   // Action: Delete medication
   const handleDeleteMed = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to remove "${name}" from your daily reminders schedule?`)) {
-      setMedications((prev) => prev.filter((item) => item.id !== id));
-      onShowToast?.(`Removed ${name} from reminders.`);
-    }
+    setMedications((prev) => prev.filter((item) => item.id !== id));
+    onShowToast?.(`Removed ${name} from reminders.`);
   };
 
   // Action: Add or Edit medication

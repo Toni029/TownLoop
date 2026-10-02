@@ -5,6 +5,7 @@
  * via any medium, is strictly prohibited.
  */
 import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
   Truck,
@@ -293,33 +294,30 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
               : `Your maintenance requests (${visibleWorkOrders.length}) • Live tracking & photo verification`}
           </p>
         </div>
-
-        {/* New Work Order Request button: ONLY for residents, VIP and Admin roles */}
-        {allowCreate && (
-          <button
-            onClick={() => setIsWorkOrderModalOpen(true)}
-            className="bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-semibold text-xs px-3.5 py-2 rounded-2xl flex items-center gap-1.5 shadow-sm transition cursor-pointer self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Request</span>
-          </button>
-        )}
       </div>
 
-      {/* Live Worker Position Indicator Banner */}
-      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/30 border border-emerald-200/80 dark:border-emerald-800/60 rounded-2xl p-3.5 flex items-center gap-3 shadow-xs">
-        <div className="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
-          <Truck className="w-5 h-5 stroke-current" />
-        </div>
-        <div className="text-xs">
-          <p className="font-bold text-emerald-900 dark:text-emerald-200">
-            Maintenance Crew is currently on Job #1
-          </p>
-          <p className="text-emerald-700 dark:text-emerald-300">
-            Building 2 • Estimated response: 15–20 mins
-          </p>
-        </div>
-      </div>
+      {/* Big Prominent Full-Width "New Request" Button replacing the banner */}
+      {allowCreate && (
+        <button
+          type="button"
+          onClick={() => setIsWorkOrderModalOpen(true)}
+          className="w-full bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-800 hover:from-emerald-800 hover:to-teal-900 active:scale-[0.99] text-white rounded-2xl p-4 sm:p-4.5 flex items-center justify-between gap-3 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer group border border-emerald-600/40"
+        >
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+              <Plus className="w-6 h-6 stroke-[2.5] text-white" />
+            </div>
+            <div className="text-left min-w-0">
+              <p className="font-extrabold text-sm sm:text-base text-white tracking-tight leading-tight">
+                Submit New Maintenance Request
+              </p>
+              <p className="text-xs text-emerald-100/90 font-medium mt-0.5 truncate">
+                Plumbing, electrical, appliance repair & general maintenance
+              </p>
+            </div>
+          </div>
+        </button>
+      )}
 
       {/* Tickets List */}
       <div className="space-y-3">
@@ -372,7 +370,8 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
               const canDelete = canDeleteWorkOrder(wo, currentUser);
 
               return (
-                <div
+                <motion.div
+                  layout
                   key={wo.id}
                   id={`work-order-${wo.id}`}
                   data-original-title={wo.title}
@@ -381,8 +380,11 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                   data-translated-description={trans?.description || ''}
                   data-language={isSpanish ? 'es' : 'en'}
                   onClick={() => setExpandedId(isExpanded ? null : wo.id)}
-                  className={`rounded-2xl transition-all duration-200 relative overflow-hidden cursor-pointer select-none ${
-                    isExpanded ? 'p-3.5 sm:p-4 space-y-3.5 shadow-sm' : 'pl-0.5 sm:pl-1 pr-2 sm:pr-3 py-1.5 sm:py-2 shadow-xs'
+                  transition={{
+                    layout: { type: 'spring', damping: 28, stiffness: 320, mass: 0.5 },
+                  }}
+                  className={`rounded-2xl transition-colors duration-300 relative overflow-hidden cursor-pointer select-none ${
+                    isExpanded ? 'p-3.5 sm:p-4 space-y-3.5 shadow-md' : 'p-3 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs'
                   } ${
                     isDone
                       ? 'bg-stone-100/90 dark:bg-slate-900/90 border border-stone-300 dark:border-slate-800 text-stone-500 dark:text-slate-400 opacity-60 grayscale hover:opacity-85'
@@ -492,13 +494,32 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                   </div>
 
                   {/* ======================================================== */}
-                  {/* EXPANDED CONTENT: Revealed only when isExpanded is true  */}
+                  {/* EXPANDED CONTENT: Revealed smoothly when isExpanded is true */}
                   {/* ======================================================== */}
-                  {isExpanded && (
-                    <div
-                      className="space-y-3.5 pt-2 animate-in fade-in duration-150 cursor-default"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        key={`expanded-content-${wo.id}`}
+                        initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                        animate={{
+                          opacity: 1,
+                          height: 'auto',
+                          transition: {
+                            height: { type: 'spring', damping: 28, stiffness: 300, mass: 0.5 },
+                            opacity: { duration: 0.22, ease: 'easeOut', delay: 0.05 },
+                          },
+                        }}
+                        exit={{
+                          opacity: 0,
+                          height: 0,
+                          transition: {
+                            height: { duration: 0.22, ease: [0.32, 0.72, 0, 1] },
+                            opacity: { duration: 0.15, ease: 'easeIn' },
+                          },
+                        }}
+                        className="space-y-3.5 pt-2 cursor-default"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                       {/* Meaningful Unified Status Tag, Translation Badge & Trashcan Delete Row */}
                       <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-200 dark:border-slate-800">
                         {/* Left: Status Badge & Translation */}
@@ -1016,9 +1037,10 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                         )}
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
+            </motion.div>
             );
           });
         })()
