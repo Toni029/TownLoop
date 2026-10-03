@@ -13,7 +13,8 @@
     },
     "android": {
       "package": "com.toni029.townloop",
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       "expo-router",
@@ -21,7 +22,15 @@
       "expo-sharing",
       "@config-plugins/react-native-blob-util",
       "@config-plugins/react-native-pdf",
-      "expo-asset"
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TownLoop uses selected photos and videos for your maintenance requests and community posts.",
+          "cameraPermission": "TownLoop uses the camera to attach pictures to maintenance requests and community posts.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "web": {
       "bundler": "metro"
