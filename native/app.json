@@ -16,7 +16,8 @@
       "predictiveBackGestureEnabled": true
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font"
     ],
     "web": {
       "bundler": "metro"

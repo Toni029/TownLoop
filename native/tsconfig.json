@@ -4,7 +4,8 @@
     "strict": true,
     "customConditions": [
       "react-native"
-    ]
+    ],
+    "allowImportingTsExtensions": true
   },
   "exclude": [
     "tests",

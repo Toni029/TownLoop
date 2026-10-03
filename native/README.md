@@ -1,4 +1,4 @@
-# TownLoop native migration — first slice
+# TownLoop native migration
 
 The existing React/Vite application remains at the repository root. This isolated Expo SDK 57 / React Native client uses its own dependencies and lockfile. The web application's only configuration adjustment is excluding `native/` from its TypeScript check.
 
@@ -20,12 +20,13 @@ Scan the QR code with a compatible Expo Go client on Android or iOS. For a local
 - Live `users/{uid}` approval/role profile, guarded routes, recovery states, sign-out.
 - Existing Home / News / Work Orders / Social tab order and matching Lucide icons.
 - Live News: publication metadata, RSVP event dates/details, pinned highlights, loading/error/empty states, subscriptions disposed on navigation/session changes.
-- Shared web data types and event sorting. No demo resident data or production writes.
+- Home: live weather, medication management, Daily Checklist and the complete recurring-activity calendar. See [Home migration details](HOME_MIGRATION.md).
+- Shared web data types, recurrence rules and event sorting. No demo resident data or production writes.
 - Firebase Storage initialized for the next upload/PDF phase. Database is explicitly `(default)`; never use the AI Studio named database.
 
 ## Deliberately incomplete
 
-Home is an entry screen; Work Orders and Social are marked as unavailable in this preview. Native RSVP submission, newsletter/PDF reading, upload/extraction, registration, Google sign-in, Home activities, chat, notifications, and full visual parity remain to be migrated. The new web PDF canvas cannot be copied into React Native; the native PDF implementation must preserve full-screen reading and admin removal behavior.
+Work Orders and Social are marked as unavailable in this preview. Native RSVP submission, newsletter/PDF reading, upload/extraction, registration, Google sign-in, the full global profile/admin menu, chat, and notifications remain to be migrated. Home implementation and remaining physical-device acceptance checks are documented in [HOME_MIGRATION.md](HOME_MIGRATION.md). The new web PDF canvas cannot be copied into React Native; the native PDF implementation must preserve full-screen reading and admin removal behavior.
 
 No backend rules, user records, or credentials are changed by setup. A missing profile is reported, never silently overwritten with a new unapproved profile. An explicit `approved: false` remains blocked, matching deployed Firestore rules even if legacy role flags claim admin status.
 
