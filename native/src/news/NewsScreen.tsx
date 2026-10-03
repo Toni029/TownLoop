@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { View, Animated } from "react-native";
+import { useReducedMotion } from "../home/hooks";
+import { CheckCircle2 } from "lucide-react-native";
 import { canManageNewsletter } from "../../../src/utils/permissions";
 import { useNews } from "../lib/news";
 import { useSession } from "../lib/session";
@@ -46,6 +48,7 @@ export default function NewsScreen() {
   const [reader, setReader] = useState<NewsletterConfig | null>(null);
   const [upload, setUpload] = useState(false);
   const [message, setMessage] = useState("");
+  const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
   const [cleanup, setCleanup] = useState<string | null>(null);
   const lock = useRef(false);
@@ -62,7 +65,7 @@ export default function NewsScreen() {
     setBusy(true);
     try {
       await fn();
-      if (mounted.current && success) setMessage(success);
+      if (mounted.current && success) setToast(success);
     } catch (e) {
       if (mounted.current)
         setMessage(
@@ -150,7 +153,12 @@ export default function NewsScreen() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <NewsFeed {...news} manager={manager} busy={busy} onAction={act} />
+      <NewsFeed
+        {...news}
+        manager={manager}
+        busy={busy || news.loading}
+        onAction={act}
+      />
       {manager && editor?.type === "event" && (
         <EventEditor
           event={editor.event}
@@ -168,7 +176,7 @@ export default function NewsScreen() {
         <UploadEdition
           current={news.newsletter}
           onClose={() => setUpload(false)}
-          onPublished={() => setMessage("Newsletter published successfully.")}
+          onPublished={() => setToast("Newsletter published successfully.")}
         />
       )}
       {reader && editionKey(reader) === editionKey(news.newsletter) && (
@@ -184,6 +192,9 @@ export default function NewsScreen() {
               : undefined
           }
         />
+      )}
+      {!!toast && (
+        <NewsToast key={toast} message={toast} onDone={() => setToast("")} />
       )}
       {!!message && (
         <NewsDialog title="TownLoop" onClose={() => setMessage("")}>
@@ -204,5 +215,68 @@ export default function NewsScreen() {
         </NewsDialog>
       )}
     </View>
+  );
+}
+
+function NewsToast({
+  message,
+  onDone,
+}: {
+  message: string;
+  onDone: () => void;
+}) {
+  const [progress] = useState(() => new Animated.Value(0));
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    if (reduced) progress.setValue(1);
+    else
+      Animated.spring(progress, {
+        toValue: 1,
+        damping: 26,
+        stiffness: 480,
+        mass: 0.35,
+        useNativeDriver: true,
+      }).start();
+    const timer = setTimeout(onDone, 4000);
+    return () => {
+      clearTimeout(timer);
+      progress.stopAnimation();
+    };
+  }, [message, onDone, progress, reduced]);
+  return (
+    <Animated.View
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        bottom: 24,
+        alignSelf: "center",
+        maxWidth: "90%",
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        backgroundColor: "#1c1917f2",
+        borderWidth: 1,
+        borderColor: "#44403c",
+        borderRadius: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        opacity: progress,
+        transform: [
+          {
+            translateY: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [20, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      <CheckCircle2 size={16} color="#34d399" />
+      <Copy weight="semi" style={{ color: "#fff", flexShrink: 1 }}>
+        {message}
+      </Copy>
+    </Animated.View>
   );
 }

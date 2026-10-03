@@ -21,7 +21,12 @@ export async function approvedUser(manager = false): Promise<UserProfile> {
   const user = auth.currentUser;
   if (!user) throw new Error("Please sign in again.");
   const snapshot = await getDoc(doc(db, "users", user.uid));
-  const profile = { ...snapshot.data(), id: user.uid } as UserProfile;
+  const profile = {
+    ...snapshot.data(),
+    id: user.uid,
+    name: snapshot.data()?.name || user.displayName || "Resident",
+    email: snapshot.data()?.email || user.email || "",
+  } as UserProfile;
   if (!snapshot.exists() || profile.approved === false)
     throw new Error("Your account must be approved.");
   if (manager && !canManageNewsletter(profile))

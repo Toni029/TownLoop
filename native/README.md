@@ -1,6 +1,6 @@
 # TownLoop native migration
 
-The existing React/Vite application remains at the repository root. This isolated Expo SDK 57 / React Native client uses its own dependencies and lockfile. The web application's only configuration adjustment is excluding `native/` from its TypeScript check.
+The Expo app is the primary TownLoop product. The existing React/Vite application at the repository root is the visual and functional migration reference. This isolated Expo SDK 57 / React Native client uses its own dependencies and lockfile. The web application's only configuration adjustment is excluding `native/` from its TypeScript check.
 
 ## Run
 
@@ -11,7 +11,7 @@ npm ci
 npm start -- --port 8082
 ```
 
-Scan the QR code with a compatible Expo Go client on Android or iOS. For a local Android emulator use `npm run android -- --port 8082`. The web app stays on port 3000. `npm run web -- --port 8082` is a layout check, not proof of native device behavior.
+News uses a native PDF module and now requires a **development build**, not Expo Go. With the platform SDK installed, run `npx expo run:android` or `npx expo run:ios` (Mac), then `npx expo start --dev-client --port 8082`. `eas.json` also provides development/preview profiles; no cloud build has been started. The web reference stays on port 3000. `npm run web -- --port 8082` is a layout check; PDF picking/rendering/sharing require Android or iOS.
 
 ## Implemented
 
@@ -19,14 +19,14 @@ Scan the QR code with a compatible Expo Go client on Android or iOS. For a local
 - Persistent native authentication through AsyncStorage; no passwords are stored by application code.
 - Live `users/{uid}` approval/role profile, guarded routes, recovery states, sign-out.
 - Existing Home / News / Work Orders / Social tab order and matching Lucide icons.
-- Live News: publication metadata, RSVP event dates/details, pinned highlights, loading/error/empty states, subscriptions disposed on navigation/session changes.
+- Native News: publication cards, live events/notices, guarded RSVP/admin actions, publishing/removal and full-screen native PDF reader. See [News migration and acceptance details](NEWS_MIGRATION.md).
 - Home: live weather, medication management, Daily Checklist and the complete recurring-activity calendar. See [Home migration details](HOME_MIGRATION.md).
 - Shared web data types, recurrence rules and event sorting. No demo resident data or production writes.
-- Firebase Storage initialized for the next upload/PDF phase. Database is explicitly `(default)`; never use the AI Studio named database.
+- Existing Firestore PDF chunk storage and legacy Firebase Storage cleanup. Database is explicitly `(default)`; never use the AI Studio named database.
 
 ## Deliberately incomplete
 
-Work Orders and Social are marked as unavailable in this preview. Native RSVP submission, newsletter/PDF reading, upload/extraction, registration, Google sign-in, the full global profile/admin menu, chat, and notifications remain to be migrated. Home implementation and remaining physical-device acceptance checks are documented in [HOME_MIGRATION.md](HOME_MIGRATION.md). The new web PDF canvas cannot be copied into React Native; the native PDF implementation must preserve full-screen reading and admin removal behavior.
+Work Orders is paused and Social remains a placeholder. Gemini requests are explicitly deferred until the secure backend is deployed. Resident RSVP writes conflict with the checked-in manager-only Firebase rules and need a reviewed backend solution. News physical-device and signed-in production acceptance checks are listed in [NEWS_MIGRATION.md](NEWS_MIGRATION.md). Registration, Google sign-in, the full global profile/admin menu, chat and notifications remain outside this phase. Home acceptance checks remain in [HOME_MIGRATION.md](HOME_MIGRATION.md).
 
 No backend rules, user records, or credentials are changed by setup. A missing profile is reported, never silently overwritten with a new unapproved profile. An explicit `approved: false` remains blocked, matching deployed Firestore rules even if legacy role flags claim admin status.
 

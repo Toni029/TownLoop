@@ -99,7 +99,7 @@ export function Action({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      hitSlop={compact ? 5 : 2}
+      hitSlop={compact && tone === "rose" ? 9 : 6}
       style={({ pressed }) => ({
         minHeight: compact && tone === "rose" ? 30 : 36,
         paddingHorizontal: compact ? 12 : 14,
@@ -276,6 +276,19 @@ export function NewsDialog({
 }>) {
   const [progress] = useState(() => new Animated.Value(0));
   const reduced = useReducedMotion();
+  const [closing, setClosing] = useState(false);
+  const close = () => {
+    if (busy || closing) return;
+    setClosing(true);
+    Animated.timing(progress, {
+      toValue: 0,
+      duration: reduced ? 0 : 200,
+      easing: Easing.bezier(0.32, 0.72, 0, 1),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) onClose();
+    });
+  };
   useEffect(() => {
     const a = Animated.timing(progress, {
       toValue: 1,
@@ -291,7 +304,7 @@ export function NewsDialog({
       transparent
       animationType="none"
       onRequestClose={() => {
-        if (!busy) onClose();
+        if (!busy) close();
       }}
     >
       <KeyboardAvoidingView
@@ -309,7 +322,7 @@ export function NewsDialog({
           <Pressable
             accessibilityLabel="Close dialog"
             disabled={busy}
-            onPress={onClose}
+            onPress={close}
             style={StyleSheet.absoluteFill}
           />
           <Animated.View
@@ -409,7 +422,7 @@ export function NewsDialog({
                   accessibilityLabel="Close"
                   disabled={busy}
                   hitSlop={6}
-                  onPress={onClose}
+                  onPress={close}
                   style={{
                     width: 32,
                     height: 32,

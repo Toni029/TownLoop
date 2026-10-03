@@ -5,17 +5,15 @@ import { db } from "./firebase";
 import { friendlyError } from "./profile";
 import { useSession } from "./session";
 import {
+  readNewsEvent,
+  readNewsHighlight,
   belongsToEdition,
   eventForResident,
   newestFirst,
   watchNews,
   type NewsSnapshot,
 } from "../news/model";
-import type {
-  CommunityRsvpEvent,
-  NewsletterConfig,
-  PinnedHighlight,
-} from "../models";
+import type { NewsletterConfig } from "../models";
 const empty: NewsSnapshot = {
   events: [],
   highlights: [],
@@ -38,28 +36,14 @@ export function useNews() {
         events: (next, error) =>
           onSnapshot(
             collection(db, "community_events"),
-            (snap) =>
-              next(
-                snap.docs.map(
-                  (d) =>
-                    ({
-                      ...d.data(),
-                      id: d.id,
-                      spotsLeft: d.data().spotsLeft ?? undefined,
-                    }) as CommunityRsvpEvent,
-                ),
-              ),
+            (snap) => next(snap.docs.map((d) => readNewsEvent(d.id, d.data()))),
             error,
           ),
         highlights: (next, error) =>
           onSnapshot(
             collection(db, "community_highlights"),
             (snap) =>
-              next(
-                snap.docs.map(
-                  (d) => ({ ...d.data(), id: d.id }) as PinnedHighlight,
-                ),
-              ),
+              next(snap.docs.map((d) => readNewsHighlight(d.id, d.data()))),
             error,
           ),
         newsletter: (next, error) => {

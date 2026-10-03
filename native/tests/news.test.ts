@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  readNewsEvent,
+  readNewsHighlight,
   assemblePdf,
   belongsToEdition,
   editionKey,
@@ -155,4 +157,26 @@ test("live News subscriptions report partial errors and suppress callbacks after
   callbacks.newsletter.error(Error());
   assert.equal(states.length, count);
   assert.deepEqual(stopped, ["events", "highlights", "newsletter"]);
+});
+
+test("live document normalization matches reference defaults and Firestore timestamps", () => {
+  const event = readNewsEvent("real-document", {
+    day: 20,
+    attendees: [{ id: "resident" }],
+    spotsLeft: null,
+    updatedAt: { toMillis: () => 123 },
+  });
+  assert.equal(event.day, "20");
+  assert.equal(event.attendeesCount, 1);
+  assert.equal(event.spotsLeft, undefined);
+  assert.equal(event.createdAt, 123);
+  assert.equal(event.userRsvp, false);
+  const notice = readNewsHighlight("notice", {
+    title: "Notice",
+    description: "Details",
+    updatedAt: { toMillis: () => 456 },
+  });
+  assert.equal(notice.authorLabel, "Community Update");
+  assert.equal(notice.summary, "Details");
+  assert.equal(notice.createdAt, 456);
 });

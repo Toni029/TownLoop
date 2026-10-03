@@ -177,3 +177,62 @@ export function watchNews(
     stops.forEach((stop) => stop());
   };
 }
+
+const text = (value: unknown, fallback = "") =>
+  typeof value === "string" ? value : fallback;
+const created = (data: Record<string, unknown>) =>
+  typeof data.createdAt === "number"
+    ? data.createdAt
+    : typeof (data.updatedAt as { toMillis?: unknown })?.toMillis === "function"
+      ? (data.updatedAt as { toMillis: () => number }).toMillis()
+      : 0;
+export function readNewsEvent(
+  id: string,
+  data: Record<string, unknown>,
+): CommunityRsvpEvent {
+  const attendees = Array.isArray(data.attendees)
+    ? data.attendees.filter((a) => a && typeof a === "object")
+    : [];
+  return {
+    id,
+    title: text(data.title),
+    month: text(data.month, "TBA"),
+    day: String(data.day || "1"),
+    time: text(data.time),
+    location: text(data.location),
+    category: text(data.category, "Special Event"),
+    description: text(data.description),
+    attendees,
+    attendeesCount:
+      typeof data.attendeesCount === "number"
+        ? data.attendeesCount
+        : attendees.length,
+    userRsvp: false,
+    spotsLeft: typeof data.spotsLeft === "number" ? data.spotsLeft : undefined,
+    capacity: typeof data.capacity === "number" ? data.capacity : null,
+    deadline: text(data.deadline),
+    isAiExtracted: data.isAiExtracted === true,
+    newsletterId: text(data.newsletterId),
+    editionMonth: text(data.editionMonth),
+    createdAt: created(data),
+  };
+}
+export function readNewsHighlight(
+  id: string,
+  data: Record<string, unknown>,
+): PinnedHighlight {
+  return {
+    id,
+    title: text(data.title),
+    category: text(data.category, "Community Notice"),
+    authorLabel: text(data.authorLabel, "Community Update"),
+    description: text(data.description),
+    date: text(data.date),
+    tag: text(data.tag),
+    summary: text(data.summary, text(data.description)),
+    isAiExtracted: data.isAiExtracted === true,
+    newsletterId: text(data.newsletterId),
+    editionMonth: text(data.editionMonth),
+    createdAt: created(data),
+  };
+}
