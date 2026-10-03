@@ -1,33 +1,93 @@
-import { useEffect, useState } from 'react';
-import { collection, doc, limit, onSnapshot, query } from 'firebase/firestore';
-import { sortEventsEarlyFirst } from '../../../src/utils/eventSort';
-import { db } from './firebase';
-import { friendlyError } from './profile';
-import type { CommunityRsvpEvent, NewsletterConfig, PinnedHighlight } from '../models';
+import { useEffect, useState } from "react";
+import { collection, doc, onSnapshot } from "firebase/firestore";
+import { sortEventsEarlyFirst } from "../../../src/utils/eventSort";
+import { db } from "./firebase";
+import { friendlyError } from "./profile";
+import { useSession } from "./session";
+import {
+  belongsToEdition,
+  eventForResident,
+  newestFirst,
+  watchNews,
+  type NewsSnapshot,
+} from "../news/model";
+import type {
+  CommunityRsvpEvent,
+  NewsletterConfig,
+  PinnedHighlight,
+} from "../models";
+const empty: NewsSnapshot = {
+  events: [],
+  highlights: [],
+  newsletter: null,
+  loading: true,
+  error: "",
+};
 export function useNews() {
-    const [events, setEvents] = useState<CommunityRsvpEvent[]>([]), [highlights, setHighlights] = useState<PinnedHighlight[]>([]), [newsletter, setNewsletter] = useState<NewsletterConfig | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
-    useEffect(() => {
-        let active = true;
-        const pending = new Set(['events', 'highlights', 'newsletter']);
-        const complete = (key: string) => { pending.delete(key); if (active)
-            setLoading(pending.size > 0); };
-        const failed = (key: string) => (e: unknown) => { if (active) {
-            setError(friendlyError(e));
-            complete(key);
-        } };
-        const stops = [onSnapshot(query(collection(db, 'community_events'), limit(200)), snap => { if (active) {
-                setEvents(sortEventsEarlyFirst(snap.docs.map(d => ({ ...d.data(), id: d.id }) as CommunityRsvpEvent)));
-                complete('events');
-            } }, failed('events')),
-            onSnapshot(query(collection(db, 'community_highlights'), limit(100)), snap => { if (active) {
-                setHighlights(snap.docs.map(d => ({ ...d.data(), id: d.id }) as PinnedHighlight));
-                complete('highlights');
-            } }, failed('highlights')),
-            onSnapshot(doc(db, 'newsletters', 'current'), snap => { if (active) {
-                setNewsletter(snap.exists() ? snap.data() as NewsletterConfig : null);
-                complete('newsletter');
-            } }, failed('newsletter'))];
-        return () => { active = false; stops.forEach(stop => stop()); };
-    }, [attempt]);
-    return { events, highlights, newsletter, loading, error, retry: () => { setLoading(true); setError(''); setEvents([]); setHighlights([]); setNewsletter(null); setAttempt(value => value + 1); } };
+  const { user, profile } = useSession();
+  const [owned, setOwned] = useState<{ uid?: string; state: NewsSnapshot }>({
+    state: empty,
+  });
+  const [attempt, setAttempt] = useState(0);
+  const uid = user?.uid;
+  const approved = !!profile?.approved;
+  useEffect(() => {
+    if (!uid || !approved) return;
+    return watchNews(
+      {
+        events: (next, error) =>
+          onSnapshot(
+            collection(db, "community_events"),
+            (snap) =>
+              next(
+                snap.docs.map(
+                  (d) =>
+                    ({
+                      ...d.data(),
+                      id: d.id,
+                      spotsLeft: d.data().spotsLeft ?? undefined,
+                    }) as CommunityRsvpEvent,
+                ),
+              ),
+            error,
+          ),
+        highlights: (next, error) =>
+          onSnapshot(
+            collection(db, "community_highlights"),
+            (snap) =>
+              next(
+                snap.docs.map(
+                  (d) => ({ ...d.data(), id: d.id }) as PinnedHighlight,
+                ),
+              ),
+            error,
+          ),
+        newsletter: (next, error) =>
+          onSnapshot(
+            doc(db, "newsletters", "current"),
+            { includeMetadataChanges: true },
+            (snap) => {
+              if (!snap.metadata.fromCache)
+                next(snap.exists() ? (snap.data() as NewsletterConfig) : null);
+            },
+            error,
+          ),
+      },
+      (state) => setOwned({ uid, state }),
+      friendlyError,
+    );
+  }, [uid, approved, attempt]);
+  const visible = uid && approved && owned.uid === uid ? owned.state : empty;
+  return {
+    ...visible,
+    events: sortEventsEarlyFirst(
+      newestFirst(visible.events)
+        .filter((e) => belongsToEdition(e, visible.newsletter))
+        .map((e) => eventForResident(e, uid || "")),
+    ),
+    highlights: newestFirst(visible.highlights).filter((h) =>
+      belongsToEdition(h, visible.newsletter),
+    ),
+    retry: () => setAttempt((n) => n + 1),
+  };
 }

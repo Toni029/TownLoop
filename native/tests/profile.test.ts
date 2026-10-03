@@ -9,7 +9,7 @@ test('pending users remain pending even with a privileged role or legacy flag', 
 });
 test('approved resident and legacy display fields remain readable', () => {
   assert.deepEqual(readProfile({ approved: true, display_name: 'Alex', email: 'a@example.com', unit: '10', role: 'resident' }),
-    { approved: true, name: 'Alex', email: 'a@example.com', address: '10', role: 'resident' });
+    { approved: true, name: 'Alex', email: 'a@example.com', address: '10', role: 'resident', source: { approved: true, display_name: 'Alex', email: 'a@example.com', unit: '10', role: 'resident' } });
 });
 test('permission and network failures produce recoverable messages', () => {
   assert.match(friendlyError({ code: 'permission-denied' }), /community office/);
