@@ -1,3 +1,4 @@
+import { usePresentation } from "../shell/TownLoopShell";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -27,7 +28,15 @@ import type {
   MediaAttachment,
 } from "../../../src/types";
 import { canDeleteAnyPost } from "../../../src/utils/permissions";
-import { Action, Copy, Field, ErrorNotice, s, useNewsFonts } from "../news/ui";
+import {
+  Action,
+  Copy,
+  Field,
+  ErrorNotice,
+  s,
+  useNewsStyles,
+  useNewsFonts,
+} from "../news/ui";
 import { Collapsible } from "../components/Collapsible";
 import { ProductDialog } from "../components/ProductDialog";
 import { mediaFor, owns, type Post, type Listing } from "./model";
@@ -44,6 +53,7 @@ export type SocialAction = (
   },
 ) => Promise<boolean>;
 export function Avatar({ uri, name }: { uri?: string; name: string }) {
+  const dark = !!usePresentation()?.dark;
   return uri ? (
     <Image
       source={{ uri }}
@@ -58,13 +68,13 @@ export function Avatar({ uri, name }: { uri?: string; name: string }) {
     />
   ) : (
     <LinearGradient
-      colors={["#f5f5f4", "#e7e5e4"]}
+      colors={dark ? ["#1e293b", "#334155"] : ["#f5f5f4", "#e7e5e4"]}
       style={{
         width: 36,
         height: 36,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#e7e5e4",
+        borderColor: dark ? "#334155" : "#e7e5e4",
         alignItems: "center",
         justifyContent: "center",
       }}
@@ -92,13 +102,18 @@ function Pill({
   solid?: boolean;
   tone?: "stone" | "green" | "amber";
 }) {
+  const dark = !!usePresentation()?.dark;
   const color = solid
     ? "#fff"
     : tone === "green"
-      ? "#065f46"
+      ? dark
+        ? "#a7f3d0"
+        : "#065f46"
       : tone === "amber"
         ? "#92400e"
-        : "#57534e";
+        : dark
+          ? "#cbd5e1"
+          : "#57534e";
   return (
     <View
       style={{
@@ -110,8 +125,12 @@ function Pill({
         borderColor: solid
           ? "transparent"
           : tone === "green"
-            ? "#6ee7b7"
-            : "#d6d3d1",
+            ? dark
+              ? "#065f46"
+              : "#6ee7b7"
+            : dark
+              ? "#334155"
+              : "#d6d3d1",
         backgroundColor: solid
           ? tone === "green"
             ? "#059669"
@@ -119,10 +138,14 @@ function Pill({
               ? "#d97706"
               : "#a8a29e"
           : tone === "green"
-            ? "#d1fae5"
+            ? dark
+              ? "#022c22cc"
+              : "#d1fae5"
             : tone === "amber"
               ? "#fef3c7"
-              : "#f5f5f4",
+              : dark
+                ? "#1e293b"
+                : "#f5f5f4",
       }}
     >
       <Copy
@@ -190,6 +213,8 @@ export function Comments({
   onSubmit: (text: string, id: string) => Promise<boolean>;
   busy: boolean;
 }) {
+  const dark = !!usePresentation()?.dark;
+  const s = useNewsStyles();
   const [text, setText] = useState("");
   const [id, setId] = useState(newSocialId);
   const [submitting, setSubmitting] = useState(false);
@@ -216,7 +241,7 @@ export function Comments({
           <View
             style={{
               flex: 1,
-              backgroundColor: "#f5f5f4",
+              backgroundColor: dark ? "#1e293b" : "#f5f5f4",
               borderRadius: 16,
               padding: 12,
               gap: 4,
@@ -267,6 +292,7 @@ export function ListingActions({
   onAction: SocialAction;
   onMessage: (item: Listing) => void;
 }) {
+  const dark = !!usePresentation()?.dark;
   const sold = !!(item.sold || item.claimed);
   return (
     <View
@@ -275,7 +301,7 @@ export function ListingActions({
         {
           justifyContent: "space-between",
           borderTopWidth: 1,
-          borderColor: "#f5f5f4",
+          borderColor: dark ? "#1e293b" : "#f5f5f4",
           paddingTop: 8,
         },
       ]}
@@ -297,10 +323,11 @@ export function ListingActions({
               minHeight: 30,
               borderRadius: 24,
               borderWidth: 1,
-              borderColor: "#d6d3d1",
-              backgroundColor: "#f2f6fccf",
-              boxShadow:
-                "0px 0px 0px 1.5px rgba(255,255,255,0.95), 0px 0px 0px 3px rgba(175,192,212,0.65), 0px 0px 0px 4.5px rgba(255,255,255,0.85), 0px 5px 14px -2px rgba(15,23,42,0.16)",
+              borderColor: dark ? "#334155" : "#d6d3d1",
+              backgroundColor: dark ? "#1e293bcc" : "#f2f6fccf",
+              boxShadow: dark
+                ? "0px 0px 0px 1.5px rgba(255,255,255,0.15), 0px 0px 0px 3px rgba(51,65,85,0.4), 0px 5px 14px -2px rgba(0,0,0,0.4)"
+                : "0px 0px 0px 1.5px rgba(255,255,255,0.95), 0px 0px 0px 3px rgba(175,192,212,0.65), 0px 0px 0px 4.5px rgba(255,255,255,0.85), 0px 5px 14px -2px rgba(15,23,42,0.16)",
             },
           ]}
         >
@@ -341,6 +368,7 @@ function MediaPreview({
   listing?: boolean;
   sold?: boolean;
 }) {
+  const dark = !!usePresentation()?.dark;
   return (
     <Pressable
       accessibilityRole="button"
@@ -355,9 +383,13 @@ function MediaPreview({
         height: listing ? 80 : 190,
         borderRadius: listing ? 12 : 16,
         overflow: "hidden",
-        backgroundColor: media.length ? "#0c0a09" : "#ecfdf5",
+        backgroundColor: media.length
+          ? "#0c0a09"
+          : dark
+            ? "#064e3b55"
+            : "#ecfdf5",
         borderWidth: listing ? 1 : 0,
-        borderColor: "#e7e5e4",
+        borderColor: dark ? "#334155" : "#e7e5e4",
         justifyContent: "center",
         alignItems: "center",
       }}
@@ -371,7 +403,7 @@ function MediaPreview({
       ) : media.length ? (
         <Copy style={{ fontSize: 24, color: "#fff" }}>▶</Copy>
       ) : (
-        <Tag size={28} color="#047857" />
+        <Tag size={28} color={dark ? "#34d399" : "#047857"} />
       )}
       {media.length > 1 && (
         <View
@@ -458,6 +490,8 @@ export function SocialFeed({
   onAction: SocialAction;
   onMessage: (item: Listing) => void;
 }) {
+  const dark = !!usePresentation()?.dark;
+  const s = useNewsStyles();
   useNewsFonts();
   const [comments, setComments] = useState<string | null>(null);
   const { width } = useWindowDimensions();
@@ -505,9 +539,9 @@ export function SocialFeed({
                     padding: 8,
                     minHeight: 34,
                     borderRadius: 16,
-                    backgroundColor: "#f5f5f4",
+                    backgroundColor: dark ? "#1e293b" : "#f5f5f4",
                     borderWidth: 1,
-                    borderColor: "#d6d3d1",
+                    borderColor: dark ? "#334155" : "#d6d3d1",
                   },
                 ]}
               >
@@ -553,7 +587,7 @@ export function SocialFeed({
             {
               padding: 4,
               borderRadius: 16,
-              backgroundColor: "#e7e5e4cc",
+              backgroundColor: dark ? "#1e293bcc" : "#e7e5e4cc",
               flexWrap: "nowrap",
             },
           ]}
@@ -573,7 +607,8 @@ export function SocialFeed({
                   paddingVertical: 8,
                   paddingHorizontal: 4,
                   borderRadius: 12,
-                  backgroundColor: view === kind ? "#fff" : "transparent",
+                  backgroundColor:
+                    view === kind ? (dark ? "#0f172a" : "#fff") : "transparent",
                   flexWrap: "nowrap",
                 },
               ]}
@@ -586,7 +621,14 @@ export function SocialFeed({
               <Copy
                 weight="bold"
                 style={{
-                  color: view === kind ? "#022c22" : "#57534e",
+                  color:
+                    view === kind
+                      ? dark
+                        ? "#6ee7b7"
+                        : "#022c22"
+                      : dark
+                        ? "#94a3b8"
+                        : "#57534e",
                   flexShrink: 1,
                   textAlign: "center",
                   lineHeight: 16,
@@ -696,7 +738,7 @@ export function SocialFeed({
                     s.row,
                     {
                       borderTopWidth: 1,
-                      borderColor: "#f5f5f4",
+                      borderColor: dark ? "#1e293b" : "#f5f5f4",
                       paddingTop: 8,
                     },
                   ]}
@@ -786,7 +828,11 @@ export function SocialFeed({
                     borderRadius: 24,
                     padding: 16,
                     gap: 12,
-                    backgroundColor: item.sold ? "#f5f5f4" : "#fff",
+                    backgroundColor: dark
+                      ? "#0f172acc"
+                      : item.sold
+                        ? "#f5f5f4"
+                        : "#fff",
                     opacity: item.sold ? 0.8 : 1,
                   },
                 ]}

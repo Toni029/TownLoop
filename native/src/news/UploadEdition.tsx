@@ -1,8 +1,16 @@
+import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { FileText, Upload, Check } from "lucide-react-native";
 import type { NewsletterConfig } from "../models";
-import { Action, Copy, ErrorNotice, Field, NewsDialog, s } from "./ui";
+import {
+  Action,
+  Copy,
+  ErrorNotice,
+  Field,
+  NewsDialog,
+  useNewsStyles,
+} from "./ui";
 import { pickPdf, type PickedPdf } from "./files";
 import { editionKey, hasUploadedNewsletter } from "./model";
 import { approvedUser, newNewsId } from "./actions";
@@ -16,6 +24,8 @@ export function UploadEdition({
   onClose: () => void;
   onPublished: () => void;
 }) {
+  const s = useNewsStyles();
+  const dark = !!usePresentation()?.dark;
   const uploaded = hasUploadedNewsletter(current) ? current : null;
   const [title, setTitle] = useState(uploaded?.editionTitle || "");
   const [month, setMonth] = useState(uploaded?.monthEdition || "");
@@ -155,7 +165,10 @@ export function UploadEdition({
           <View
             style={[
               s.card,
-              { backgroundColor: "#fffbeb", borderColor: "#fde68a" },
+              {
+                backgroundColor: dark ? "#451a0366" : "#fffbeb",
+                borderColor: dark ? "#92400e" : "#fde68a",
+              },
             ]}
           >
             <Copy>

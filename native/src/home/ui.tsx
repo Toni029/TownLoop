@@ -96,9 +96,13 @@ export function Tile({
   const dark = useContext(Theme);
   return (
     <LinearGradient
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       colors={
         dark
-          ? ["#0f172a", "#020617"]
+          ? tone === "medication"
+            ? ["#0f172af2", "#0f172ae6", "#1e293be6"]
+            : ["#0f172a", "#020617"]
           : tone === "medication"
             ? ["#f8fbfd", "#f1f6fa", "#e8f2f9"]
             : tone === "green"

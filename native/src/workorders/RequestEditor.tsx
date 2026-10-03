@@ -1,8 +1,17 @@
+import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState } from "react";
 import { Image, View } from "react-native";
-import { Camera, Upload, Trash2 } from "lucide-react-native";
+import { Trash2 } from "lucide-react-native";
 import { WORK_ORDER_CATEGORIES } from "../../../src/data/workOrderCategories";
-import { Action, Copy, Field, Choices, ErrorNotice, s } from "../news/ui";
+import {
+  Action,
+  Copy,
+  Field,
+  Choices,
+  ErrorNotice,
+  UploadTarget,
+  useNewsStyles,
+} from "../news/ui";
 import { ProductDialog } from "../components/ProductDialog";
 import { pickAndUpload } from "../components/media";
 import { newOrderId, submitWorkOrder } from "./actions";
@@ -13,6 +22,8 @@ export function RequestEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const s = useNewsStyles();
+  const dark = !!usePresentation()?.dark;
   const [id] = useState(newOrderId);
   const [category, setCategory] = useState(WORK_ORDER_CATEGORIES[0].name);
   const [title, setTitle] = useState("");
@@ -64,16 +75,25 @@ export function RequestEditor({
       onClose={onClose}
     >
       <Choices
-        label="Category"
+        label="CATEGORY"
+        optionIcon={(v) =>
+          WORK_ORDER_CATEGORIES.find((c) => c.name === v)?.emoji
+        }
         values={WORK_ORDER_CATEGORIES.map((c) => c.name)}
         value={category}
         onChange={setCategory}
       />
-      <Copy style={{ color: "#a8a29e", fontSize: 11 }}>
+      <Copy style={{ color: "#a8a29e", fontSize: 11, marginTop: -6 }}>
         {WORK_ORDER_CATEGORIES.find((c) => c.name === category)?.description}
       </Copy>
       <Field
         label="What Needs Fixing? *"
+        style={{
+          minHeight: 42,
+          paddingVertical: 10,
+          lineHeight: 20,
+          backgroundColor: dark ? "#1e293b" : "#fff",
+        }}
         value={title}
         onChangeText={setTitle}
         editable={!busy}
@@ -81,6 +101,7 @@ export function RequestEditor({
       />
       <Field
         label="Description of Issue"
+        style={{ minHeight: 82, backgroundColor: dark ? "#1e293b" : "#fff" }}
         value={description}
         onChangeText={setDescription}
         editable={!busy}
@@ -101,30 +122,12 @@ export function RequestEditor({
           </Copy>
           <Copy style={{ color: "#78716c" }}>Photos Only • No Videos</Copy>
         </View>
-        <View
-          style={[
-            s.card,
-            {
-              borderStyle: "dashed",
-              borderWidth: 2,
-              backgroundColor: "#fafaf9",
-            },
-          ]}
-        >
-          <Action
-            label="Upload Photos"
-            icon={Upload}
-            disabled={busy}
-            onPress={() => void upload()}
-          />
-          <Action
-            label="Take Picture"
-            icon={Camera}
-            tone="light"
-            disabled={busy}
-            onPress={() => void upload(true)}
-          />
-        </View>
+        <UploadTarget
+          label="Upload Photos"
+          disabled={busy}
+          onUpload={() => void upload()}
+          onCamera={() => void upload(true)}
+        />
         {progress !== null && (
           <Copy accessibilityLiveRegion="polite">
             Uploading photo… {progress}%
@@ -154,6 +157,8 @@ export function RequestEditor({
       </View>
       {!!error && <ErrorNotice message={error} />}
       <Action
+        size="large"
+        radius={16}
         label={
           busy
             ? progress !== null

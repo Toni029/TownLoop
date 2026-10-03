@@ -1,8 +1,9 @@
+import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { ChevronLeft, Trash2, Send } from "lucide-react-native";
 import type { UserProfile } from "../../../src/types";
-import { Action, Copy, Field, ErrorNotice, s } from "../news/ui";
+import { Action, Copy, Field, ErrorNotice, useNewsStyles } from "../news/ui";
 import { ProductDialog } from "../components/ProductDialog";
 import { Avatar } from "./SocialFeed";
 import { newSocialId } from "./actions";
@@ -26,6 +27,7 @@ export function MessageSeller({
     messageId: string,
   ) => Promise<boolean>;
 }) {
+  const s = useNewsStyles();
   const [text, setText] = useState(
     `Hi ${item.author.split(" ")[0] || "Neighbor"}, I saw your listing for "${item.title}" and would love to arrange porch pickup! Is it still available?`,
   );
@@ -55,7 +57,7 @@ export function MessageSeller({
         </Copy>
       </View>
       <Copy>{item.price} • Porch pickup</Copy>
-      {!!(error) && <ErrorNotice message={error} />}
+      {!!error && <ErrorNotice message={error} />}
       <Field
         label="Your Message"
         value={text}
@@ -117,6 +119,8 @@ export function Inbox({
   onLeave: (id: string) => Promise<boolean>;
   onViewItem: (id: string) => void;
 }) {
+  const s = useNewsStyles();
+  const dark = !!usePresentation()?.dark;
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState(() => ({
     chatId: activeId,
@@ -185,7 +189,7 @@ export function Inbox({
           color="#047857"
         />
       )}
-      {!!(error) && <ErrorNotice message={error} retry={retry} />}
+      {!!error && <ErrorNotice message={error} retry={retry} />}
       {selected ? (
         <>
           <Action
@@ -201,7 +205,7 @@ export function Inbox({
             accessibilityRole="button"
             accessibilityLabel={`View listing ${selected.itemTitle}`}
             onPress={() => onViewItem(selected.itemId)}
-            style={[s.card, { backgroundColor: "#f5f5f4" }]}
+            style={[s.card, { backgroundColor: dark ? "#1e293b" : "#f5f5f4" }]}
           >
             <Copy weight="bold">
               {selected.itemTitle} • {selected.itemPrice}
@@ -239,10 +243,16 @@ export function Inbox({
                   borderRadius: 16,
                   padding: 12,
                   backgroundColor: m.isSystem
-                    ? "#f5f5f4"
+                    ? dark
+                      ? "#1e293b"
+                      : "#f5f5f4"
                     : String(m.senderId) === String(user?.id)
-                      ? "#d1fae5"
-                      : "#f5f5f4",
+                      ? dark
+                        ? "#064e3b"
+                        : "#d1fae5"
+                      : dark
+                        ? "#1e293b"
+                        : "#f5f5f4",
                   gap: 4,
                 }}
               >
@@ -348,7 +358,15 @@ export function Inbox({
                 key={c.id}
                 style={[
                   s.card,
-                  { backgroundColor: unread ? "#ecfdf5" : "#fff" },
+                  {
+                    backgroundColor: unread
+                      ? dark
+                        ? "#022c22"
+                        : "#ecfdf5"
+                      : dark
+                        ? "#0f172a"
+                        : "#fff",
+                  },
                 ]}
               >
                 <Pressable

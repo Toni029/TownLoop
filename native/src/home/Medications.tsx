@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { LayoutAnimation, Linking, View, Pressable } from "react-native";
 import Svg, { Rect, Path, Line } from "react-native-svg";
 import {
@@ -19,7 +19,17 @@ import {
   Pill,
   AlertTriangle,
 } from "lucide-react-native";
-import { Action, Box, Input, Row, Sheet, Tile, Txt, usePalette } from "./ui";
+import {
+  Action,
+  Box,
+  Input,
+  Row,
+  Sheet,
+  Tile,
+  Txt,
+  Theme,
+  usePalette,
+} from "./ui";
 import { slots, takeDose, undoDose, type MedicationItem } from "./model";
 import { useReducedMotion } from "./hooks";
 const slotIcons = { morning: Sun, noon: Clock, evening: Sunset, bedtime: Moon };
@@ -81,6 +91,7 @@ export function Medications({
   onChange: (fn: (m: MedicationItem[]) => MedicationItem[]) => Promise<boolean>;
   notify: (s: string) => void;
 }) {
+  const dark = useContext(Theme);
   const p = usePalette(),
     reduced = useReducedMotion();
   const [expanded, setExpanded] = useState(false),
@@ -146,8 +157,12 @@ export function Medications({
               height: 36,
               borderRadius: 16,
               borderWidth: 1,
-              borderColor: expanded ? "#0284c7" : "#cbd5e1",
-              backgroundColor: expanded ? "#0369a1" : p.paper,
+              borderColor: expanded ? "#0284c7" : dark ? "#334155" : "#cbd5e1",
+              backgroundColor: expanded
+                ? "#0369a1"
+                : dark
+                  ? "#1e293b"
+                  : p.paper,
               alignItems: "center",
               justifyContent: "center",
             }}
@@ -172,8 +187,8 @@ export function Medications({
             paddingVertical: 6,
             borderRadius: 99,
             borderWidth: 1,
-            borderColor: "#bae6fd",
-            backgroundColor: "#e0f2fee6",
+            borderColor: dark ? "#075985" : "#bae6fd",
+            backgroundColor: dark ? "#082f49" : "#e0f2fee6",
           }}
         >
           <Txt bold style={{ color: p.blue, fontSize: 12, lineHeight: 18 }}>

@@ -15,7 +15,9 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { Maximize2, Minimize2, X } from "lucide-react-native";
+import { usePresentation } from "../shell/TownLoopShell";
 import { Copy, s } from "../news/ui";
 import { useReducedMotion } from "../home/hooks";
 export function ProductDialog({
@@ -36,6 +38,11 @@ export function ProductDialog({
   sheet?: boolean;
   serif?: boolean;
 }>) {
+  const presentation = usePresentation();
+  const dark = !!presentation?.dark;
+  const [bodyHeight, setBodyHeight] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const ready = !sheet || !!(bodyHeight && headerHeight);
   const [full, setFull] = useState(initiallyFull);
   const { height, width } = useWindowDimensions();
   const bottomSheet = sheet && width < 640;
@@ -43,12 +50,21 @@ export function ProductDialog({
   const reduced = useReducedMotion();
   const target = full
     ? height - insets.top - insets.bottom
-    : Math.min(660, height * 0.72);
+    : sheet
+      ? Math.min(
+          height * 0.92 - insets.top - insets.bottom,
+          (bodyHeight || 470) +
+            (headerHeight || 100) +
+            (bottomSheet ? 28 : 0) +
+            insets.bottom,
+        )
+      : Math.min(660, height * 0.72);
   const [size] = useState(() => new Animated.Value(target));
   const [open] = useState(() => new Animated.Value(0));
   const [fade] = useState(() => new Animated.Value(0));
   const [closing, setClosing] = useState(false);
   useEffect(() => {
+    if (!ready) return;
     const motion = Animated.parallel([
       Animated.timing(open, {
         toValue: 1,
@@ -65,7 +81,7 @@ export function ProductDialog({
     ]);
     motion.start();
     return () => motion.stop();
-  }, [open, fade, reduced, sheet, serif]);
+  }, [open, fade, reduced, sheet, serif, ready]);
   useEffect(() => {
     const motion = Animated.timing(size, {
       toValue: target,
@@ -110,13 +126,39 @@ export function ProductDialog({
         <View
           style={{
             flex: 1,
-            backgroundColor: "#0c0a09a6",
+            backgroundColor: "transparent",
             justifyContent: bottomSheet ? "flex-end" : "center",
             padding: full || bottomSheet ? 0 : 12,
             paddingTop: insets.top,
             paddingBottom: bottomSheet && !full ? 0 : insets.bottom,
           }}
         >
+          {!!presentation?.blurTarget && (
+            <BlurView
+              blurTarget={presentation.blurTarget}
+              blurMethod="dimezisBlurViewSdk31Plus"
+              intensity={40}
+              tint={dark ? "dark" : "default"}
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+              }}
+            />
+          )}
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: "#0c0a09a6",
+            }}
+          />
           <Animated.View
             style={{
               height: size,
@@ -128,7 +170,7 @@ export function ProductDialog({
             <Animated.View
               style={{
                 flex: 1,
-                backgroundColor: "#fff",
+                backgroundColor: dark ? "#0f172a" : "#fff",
                 borderRadius: full ? 0 : bottomSheet ? 0 : 24,
                 borderTopLeftRadius: full ? 0 : bottomSheet ? 32 : 24,
                 borderTopRightRadius: full ? 0 : bottomSheet ? 32 : 24,
@@ -154,7 +196,7 @@ export function ProductDialog({
                 edges={["left", "right", "bottom"]}
                 style={{ flex: 1 }}
               >
-                {bottomSheet && !full && (
+                {bottomSheet && (
                   <View
                     {...pan.panHandlers}
                     style={{
@@ -165,15 +207,20 @@ export function ProductDialog({
                   >
                     <View
                       style={{
-                        width: 48,
+                        width: full ? 64 : 48,
                         height: 6,
                         borderRadius: 3,
-                        backgroundColor: "#d6d3d1",
+                        backgroundColor: full
+                          ? "#059669"
+                          : dark
+                            ? "#334155"
+                            : "#d6d3d1",
                       }}
                     />
                   </View>
                 )}
                 <View
+                  onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
                   {...pan.panHandlers}
                   style={[
                     s.row,
@@ -181,7 +228,7 @@ export function ProductDialog({
                       padding: 20,
                       paddingBottom: 12,
                       borderBottomWidth: 1,
-                      borderColor: "#e7e5e4",
+                      borderColor: dark ? "#1e293b" : "#e7e5e4",
                       flexWrap: "nowrap",
                       gap: 6,
                     },
@@ -225,7 +272,7 @@ export function ProductDialog({
                       alignItems: "center",
                       justifyContent: "center",
                       borderRadius: 16,
-                      backgroundColor: "#f5f5f4",
+                      backgroundColor: dark ? "#1e293b" : "#f5f5f4",
                     }}
                   >
                     {full ? (
@@ -246,7 +293,7 @@ export function ProductDialog({
                       alignItems: "center",
                       justifyContent: "center",
                       borderRadius: 16,
-                      backgroundColor: "#f5f5f4",
+                      backgroundColor: dark ? "#1e293b" : "#f5f5f4",
                     }}
                   >
                     <X size={16} color="#78716c" />
@@ -254,9 +301,18 @@ export function ProductDialog({
                 </View>
                 <ScrollView
                   keyboardShouldPersistTaps="handled"
-                  contentContainerStyle={{ padding: 20, paddingTop: 16 }}
+                  onContentSizeChange={(_, h) => setBodyHeight(h)}
+                  contentContainerStyle={{
+                    padding: 20,
+                    paddingTop: sheet ? 6 : 16,
+                  }}
                 >
-                  <Animated.View style={{ opacity: fade, gap: 16 }}>
+                  <Animated.View
+                    style={{
+                      opacity: fade,
+                      gap: sheet ? (serif ? 14 : 12) : 16,
+                    }}
+                  >
                     {children}
                   </Animated.View>
                 </ScrollView>

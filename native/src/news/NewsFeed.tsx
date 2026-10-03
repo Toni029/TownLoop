@@ -1,3 +1,4 @@
+import { usePresentation } from "../shell/TownLoopShell";
 import { hasUploadedNewsletter } from "./model";
 import { useReducedMotion } from "../home/hooks";
 import { useState, useEffect } from "react";
@@ -38,8 +39,8 @@ import {
   Copy,
   ErrorNotice,
   IconAction,
-  s,
   useNewsFonts,
+  useNewsStyles,
 } from "./ui";
 export type NewsAction =
   | {
@@ -76,6 +77,8 @@ export function NewsFeed({
   busy,
   onAction,
 }: FeedProps) {
+  const dark = !!usePresentation()?.dark;
+  const s = useNewsStyles();
   const [tab, setTab] = useState<"events" | "highlights">("events");
   const [confirm, setConfirm] = useState(false);
   const [fade] = useState(() => new Animated.Value(1));
@@ -137,7 +140,7 @@ export function NewsFeed({
             <View style={{ alignSelf: "flex-start" }}>
               <View
                 style={{
-                  backgroundColor: "#d1fae5",
+                  backgroundColor: dark ? "#022c22cc" : "#d1fae5",
                   borderWidth: 1,
                   borderColor: "#6ee7b7",
                   borderRadius: 20,
@@ -145,7 +148,10 @@ export function NewsFeed({
                   paddingVertical: 4,
                 }}
               >
-                <Copy weight="bold" style={{ fontSize: 11, color: "#065f46" }}>
+                <Copy
+                  weight="bold"
+                  style={{ fontSize: 11, color: dark ? "#a7f3d0" : "#065f46" }}
+                >
                   Admin / VIP Management Mode
                 </Copy>
               </View>
@@ -220,7 +226,7 @@ export function NewsFeed({
               fontFamily: "NewsSerifExtra",
               fontSize: 20,
               lineHeight: 25,
-              marginTop: 12,
+              marginTop: 8,
               color: removed ? "#fda4af" : "white",
             }}
           >
@@ -325,7 +331,11 @@ export function NewsFeed({
           />
         )}
         <LinearGradient
-          colors={["#ecfdf5", "#f2f7f4", "#f0fdfa"]}
+          colors={
+            dark
+              ? ["#022c2299", "#0f172a", "#042f2e80"]
+              : ["#ecfdf5", "#f2f7f4", "#f0fdfa"]
+          }
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={[
@@ -334,7 +344,7 @@ export function NewsFeed({
               padding: 8,
               borderRadius: 16,
               borderWidth: 1,
-              borderColor: "#a7f3d0",
+              borderColor: dark ? "#065f46b3" : "#a7f3d0",
               alignItems: "stretch",
               flexWrap: "nowrap",
             },
@@ -362,10 +372,17 @@ export function NewsFeed({
                 }}
               >
                 <View style={s.row}>
-                  <Icon size={16} color={selected ? "#fff" : "#064e3b"} />
+                  <Icon
+                    size={16}
+                    color={selected ? "#fff" : dark ? "#a7f3d0" : "#064e3b"}
+                  />
                   <View
                     style={{
-                      backgroundColor: selected ? "#065f46" : "#d1fae5",
+                      backgroundColor: selected
+                        ? "#065f46"
+                        : dark
+                          ? "#064e3b"
+                          : "#d1fae5",
                       borderRadius: 20,
                       paddingHorizontal: 6,
                       paddingVertical: 2,
@@ -376,7 +393,11 @@ export function NewsFeed({
                       style={{
                         fontSize: 10,
                         lineHeight: 15,
-                        color: selected ? "#d1fae5" : "#065f46",
+                        color: selected
+                          ? "#d1fae5"
+                          : dark
+                            ? "#a7f3d0"
+                            : "#065f46",
                       }}
                     >
                       {key === "events" ? events.length : highlights.length}
@@ -389,7 +410,7 @@ export function NewsFeed({
                     fontSize: 14,
                     lineHeight: 20,
                     textAlign: "center",
-                    color: selected ? "#fff" : "#064e3b",
+                    color: selected ? "#fff" : dark ? "#a7f3d0" : "#064e3b",
                   }}
                 >
                   {key === "events"
@@ -416,7 +437,9 @@ export function NewsFeed({
             </View>
             <View style={s.row}>
               {tab === "highlights" && (
-                <Badge tone="amber">Priority Notices</Badge>
+                <Badge tone="amber" pill>
+                  Priority Notices
+                </Badge>
               )}
               {manager && (
                 <Action
@@ -494,9 +517,9 @@ export function NewsFeed({
                         width: 52,
                         height: 56,
                         borderRadius: 12,
-                        backgroundColor: "#f5f5f4",
+                        backgroundColor: dark ? "#1e293b" : "#f5f5f4",
                         borderWidth: 1,
-                        borderColor: "#e7e5e4",
+                        borderColor: dark ? "#334155" : "#e7e5e4",
                         alignItems: "center",
                         justifyContent: "center",
                       }}
@@ -505,7 +528,7 @@ export function NewsFeed({
                         weight="extra"
                         style={{
                           fontSize: 10,
-                          color: "#065f46",
+                          color: dark ? "#34d399" : "#065f46",
                           letterSpacing: 1,
                         }}
                       >
@@ -572,7 +595,7 @@ export function NewsFeed({
                       s.row,
                       {
                         borderTopWidth: 1,
-                        borderColor: "#f5f5f4",
+                        borderColor: dark ? "#1e293b" : "#f5f5f4",
                         paddingTop: 10,
                         justifyContent: "space-between",
                       },
@@ -604,8 +627,15 @@ export function NewsFeed({
             : highlights.map((h) => (
                 <LinearGradient
                   key={h.id}
-                  colors={["#fffbeb", "#fffdf9", "#fffbeb80"]}
-                  style={[s.card, { borderColor: "#fde68a", gap: 6 }]}
+                  colors={
+                    dark
+                      ? ["#0f172a", "#0f172a", "#1e293be6"]
+                      : ["#fffbeb", "#fffdf9", "#fffbeb80"]
+                  }
+                  style={[
+                    s.card,
+                    { borderColor: dark ? "#1e293b" : "#fde68a", gap: 6 },
+                  ]}
                 >
                   {manager && (
                     <View
@@ -635,7 +665,9 @@ export function NewsFeed({
                       },
                     ]}
                   >
-                    <Badge tone="amber">{h.category}</Badge>
+                    <Badge tone="amber" uppercase>
+                      {h.category}
+                    </Badge>
                     <Copy style={{ fontSize: 10, color: "#78716c" }}>
                       {h.authorLabel}
                     </Copy>

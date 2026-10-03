@@ -1,6 +1,7 @@
+import { useContext } from "react";
 import { View, Pressable } from "react-native";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
-import { Action, Box, Row, Txt, usePalette } from "./ui";
+import { Action, Box, Row, Txt, Theme, usePalette } from "./ui";
 import { localDate, parseDate } from "./model";
 export function Calendar({
   month,
@@ -20,13 +21,20 @@ export function Calendar({
   color?: string;
 }) {
   const p = usePalette();
+  const dark = useContext(Theme);
   const y = month.getFullYear(),
     m = month.getMonth();
   const start = new Date(y, m, 1).getDay(),
     count = new Date(y, m + 1, 0).getDate();
   return (
     <View style={{ gap: 14 }}>
-      <Box style={{ padding: 10, gap: 0 }}>
+      <Box
+        style={{
+          padding: 10,
+          gap: 0,
+          borderColor: dark ? "#1e293b" : "#cfe1f2",
+        }}
+      >
         <Row
           style={{
             justifyContent: "space-between",
@@ -71,13 +79,37 @@ export function Calendar({
           />
         </Row>
       </Box>
-      <Box style={{ padding: 12, gap: 4 }}>
+      <Box
+        style={{
+          padding: 12,
+          gap: 6,
+          borderColor: dark ? "#1e293b" : "#cfe1f2",
+        }}
+      >
         <Row style={{ gap: 0 }}>
           {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-            <View key={d} style={{ width: "14.2857%", alignItems: "center" }}>
+            <View
+              key={d}
+              style={{
+                width: "14.2857%",
+                alignItems: "center",
+                paddingVertical: 4,
+              }}
+            >
               <Txt
                 bold
-                style={{ color: p.muted, fontSize: 11, lineHeight: 16.5 }}
+                style={{
+                  color:
+                    d === "Su" || d === "Sa"
+                      ? dark
+                        ? "#64748b"
+                        : "#a8a29e"
+                      : dark
+                        ? "#cbd5e1"
+                        : "#44403c",
+                  fontSize: 11,
+                  lineHeight: 16.5,
+                }}
               >
                 {d}
               </Txt>

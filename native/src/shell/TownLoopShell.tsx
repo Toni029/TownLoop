@@ -74,8 +74,12 @@ export function TownLoopShell({
 }>) {
   const scheme = useColorScheme();
   const [dark, setDark] = useState(scheme === "dark");
-  const [blurTarget,setBlurTarget] = useState<RefObject<View | null>>();
-  const attachBlurTarget=useCallback((target:RefObject<View|null>)=>{setBlurTarget(target);return ()=>setBlurTarget(current=>current===target?undefined:current);},[]);
+  const [blurTarget, setBlurTarget] = useState<RefObject<View | null>>();
+  const attachBlurTarget = useCallback((target: RefObject<View | null>) => {
+    setBlurTarget(target);
+    return () =>
+      setBlurTarget((current) => (current === target ? undefined : current));
+  }, []);
   const [fonts, fontError] = useFonts({
     NewsRegular: PlusJakartaSans_400Regular,
     NewsSemi: PlusJakartaSans_600SemiBold,
@@ -297,13 +301,13 @@ export function PortalHeader({
           })}
         >
           <LinearGradient
-            colors={["#f5f5f4", "#e7e5e4"]}
+            colors={dark ? ["#1e293b", "#334155"] : ["#f5f5f4", "#e7e5e4"]}
             style={{
               width: 64,
               height: 64,
               borderRadius: 32,
               borderWidth: 2,
-              borderColor: "#05966966",
+              borderColor: dark ? "#a7f3d0aa" : "#05966966",
               overflow: "hidden",
               alignItems: "center",
               justifyContent: "center",
@@ -317,7 +321,7 @@ export function PortalHeader({
                 style={{
                   fontFamily: "JakartaBold",
                   fontSize: 14,
-                  color: "#57534e",
+                  color: dark ? "#cbd5e1" : "#57534e",
                 }}
               >
                 {(name.trim().includes(" ")
@@ -550,26 +554,65 @@ export function FloatingDock({
             borderRadius: 99,
             overflow: "hidden",
             borderWidth: 1,
-            borderColor: dark ? "#ffffff2e" : "#ffffff66",
+            borderColor: dark ? "#ffffff33" : "#ffffff66",
+            boxShadow: dark
+              ? "inset 0px 1px 1px rgba(255,255,255,0.35), inset 0px -1px 1.5px rgba(255,255,255,0.1)"
+              : "inset 0px 1px 1px rgba(255,255,255,0.75), inset 0px -1px 1.5px rgba(255,255,255,0.25)",
           }}
         >
-          {!!p?.blurTarget && <BlurView
-            blurTarget={p?.blurTarget}
-            blurMethod="dimezisBlurViewSdk31Plus"
-            intensity={45}
-            tint={dark ? "dark" : "light"}
-            style={StyleSheet.absoluteFill}
-          />}
+          {!!p?.blurTarget && (
+            <BlurView
+              blurTarget={p?.blurTarget}
+              blurMethod="dimezisBlurViewSdk31Plus"
+              intensity={45}
+              tint={dark ? "dark" : "light"}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
           <LinearGradient
             pointerEvents="none"
             colors={
               dark
-                ? ["#ffffff24", "#ffffff0a", "#ffffff17"]
+                ? ["#ffffff1a", "#ffffff05", "#ffffff01", "#ffffff12"]
                 : ["#ffffff38", "#ffffff0f", "#ffffff05", "#ffffff1f"]
             }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
+          />
+          <LinearGradient
+            pointerEvents="none"
+            colors={
+              dark
+                ? ["#ffffff40", "#ffffff0d", "#ffffff00"]
+                : ["#ffffff73", "#ffffff14", "#ffffff00"]
+            }
+            style={{
+              position: "absolute",
+              top: 1,
+              left: "6%",
+              right: "6%",
+              height: "35%",
+              borderRadius: 99,
+            }}
+          />
+          <LinearGradient
+            pointerEvents="none"
+            colors={
+              dark
+                ? ["#ffffff59", "#ffffff1a", "#ffffff00"]
+                : ["#ffffff8c", "#ffffff2e", "#ffffff00"]
+            }
+            start={{ x: 1, y: 0 }}
+            end={{ x: 0.1, y: 0.9 }}
+            style={{
+              position: "absolute",
+              top: 1,
+              right: "6%",
+              width: "44%",
+              height: "68%",
+              borderRadius: 99,
+            }}
           />
           <View
             style={{
@@ -629,7 +672,13 @@ export function FloatingDock({
                   size={20}
                   strokeWidth={2.2}
                   color={
-                    dark ? "#fff" : active === name ? "#0f172a" : "#334155"
+                    dark
+                      ? active === name
+                        ? "#fff"
+                        : "#cbd5e1"
+                      : active === name
+                        ? "#0f172a"
+                        : "#334155"
                   }
                 />
                 <Text
@@ -640,7 +689,9 @@ export function FloatingDock({
                     lineHeight: 16,
                     letterSpacing: -0.3,
                     color: dark
-                      ? "#fff"
+                      ? active === name
+                        ? "#fff"
+                        : "#cbd5e1"
                       : active === name
                         ? "#0f172a"
                         : "#334155",

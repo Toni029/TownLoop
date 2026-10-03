@@ -1,3 +1,4 @@
+import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -29,7 +30,14 @@ import {
   isAdmin,
   isVip,
 } from "../../../src/utils/permissions";
-import { Action, Copy, Field, ErrorNotice, s, useNewsFonts } from "../news/ui";
+import {
+  Action,
+  Copy,
+  Field,
+  ErrorNotice,
+  useNewsStyles,
+  useNewsFonts,
+} from "../news/ui";
 import { Collapsible } from "../components/Collapsible";
 import { MediaViewer } from "../components/MediaViewer";
 import { pickAndUpload } from "../components/media";
@@ -61,6 +69,8 @@ export function WorkOrdersFeed({
     photo?: string,
   ) => Promise<boolean>;
 }) {
+  const dark = !!usePresentation()?.dark;
+  const s = useNewsStyles();
   useNewsFonts();
   const [expanded, setExpanded] = useState<string | null>(null);
   const visible = orders.filter((o) => canViewWorkOrder(o, user));
@@ -98,12 +108,20 @@ export function WorkOrdersFeed({
             <View
               style={{
                 backgroundColor: isCrew(user)
-                  ? "#dbeafe"
+                  ? dark
+                    ? "#172554cc"
+                    : "#dbeafe"
                   : isAdmin(user)
-                    ? "#fef3c7"
+                    ? dark
+                      ? "#451a03cc"
+                      : "#fef3c7"
                     : isVip(user)
-                      ? "#f3e8ff"
-                      : "#d1fae5",
+                      ? dark
+                        ? "#3b0764cc"
+                        : "#f3e8ff"
+                      : dark
+                        ? "#022c22cc"
+                        : "#d1fae5",
                 paddingHorizontal: 8,
                 paddingVertical: 2,
                 borderWidth: 1,
@@ -124,7 +142,21 @@ export function WorkOrdersFeed({
                   lineHeight: 15,
                   textTransform: "uppercase",
                   letterSpacing: 0.5,
-                  color: isCrew(user) ? "#1e3a8a" : "#065f46",
+                  color: isCrew(user)
+                    ? dark
+                      ? "#bfdbfe"
+                      : "#1e3a8a"
+                    : isAdmin(user)
+                      ? dark
+                        ? "#fde68a"
+                        : "#78350f"
+                      : isVip(user)
+                        ? dark
+                          ? "#e9d5ff"
+                          : "#581c87"
+                        : dark
+                          ? "#a7f3d0"
+                          : "#065f46",
                 }}
               >
                 {mode}
@@ -181,7 +213,11 @@ export function WorkOrdersFeed({
                 </Copy>
                 <Copy
                   numberOfLines={1}
-                  style={{ color: "#d1fae5", fontSize: 11, lineHeight: 16.5 }}
+                  style={{
+                    color: "#d1fae5",
+                    fontSize: 11,
+                    lineHeight: 16.5,
+                  }}
                 >
                   Plumbing, electrical, appliance repair & general maintenance
                 </Copy>
@@ -253,6 +289,8 @@ function OrderCard({
     photo?: string,
   ) => Promise<boolean>;
 }) {
+  const dark = !!usePresentation()?.dark;
+  const s = useNewsStyles();
   const q = queueState(order, all);
   const [spanish, setSpanish] = useState(false);
   const translated = spanish ? translateWorkOrderSync(order) : null;
@@ -303,14 +341,22 @@ function OrderCard({
       style={[
         s.card,
         {
-          padding: 12,
+          padding: expanded ? 14 : 12,
           borderWidth: q.inProgress ? 2 : 1,
-          borderColor: q.inProgress
-            ? "#10b981"
-            : q.done
-              ? "#d6d3d1"
-              : "#e7e5e4",
-          backgroundColor: q.done ? "#f5f5f4" : "#fff",
+          borderColor:
+            expanded || q.inProgress
+              ? "#10b981"
+              : q.done
+                ? dark
+                  ? "#1e293b"
+                  : "#d6d3d1"
+                : dark
+                  ? "#1e293b"
+                  : "#e7e5e4",
+          backgroundColor: dark ? "#0f172ae6" : q.done ? "#f5f5f4" : "#fff",
+          boxShadow: expanded
+            ? "0px 4px 6px rgba(0,0,0,0.1)"
+            : "0px 1px 2px rgba(0,0,0,0.04)",
           opacity: q.done ? 0.65 : 1,
           gap: 0,
         },
@@ -336,13 +382,31 @@ function OrderCard({
               style={{
                 fontSize: 10,
                 lineHeight: 15,
-                color: q.done ? "#78716c" : "#065f46",
-                backgroundColor: q.done ? "#e7e5e4" : "#ecfdf5",
+                color: dark
+                  ? q.done
+                    ? "#94a3b8"
+                    : "#6ee7b7"
+                  : q.done
+                    ? "#78716c"
+                    : "#065f46",
+                backgroundColor: dark
+                  ? q.done
+                    ? "#1e293b"
+                    : "#022c2280"
+                  : q.done
+                    ? "#e7e5e4"
+                    : "#ecfdf5",
                 borderRadius: 20,
                 paddingHorizontal: 8,
                 paddingVertical: 2,
                 borderWidth: 1,
-                borderColor: q.done ? "#d6d3d1" : "#a7f3d0",
+                borderColor: dark
+                  ? q.done
+                    ? "#334155"
+                    : "#065f46"
+                  : q.done
+                    ? "#d6d3d1"
+                    : "#a7f3d0",
                 alignSelf: "flex-start",
               }}
             >
@@ -354,6 +418,12 @@ function OrderCard({
               style={{
                 fontSize: 14,
                 lineHeight: 19.25,
+                color:
+                  expanded && !q.done
+                    ? dark
+                      ? "#34d399"
+                      : "#047857"
+                    : undefined,
                 textDecorationLine: q.done ? "line-through" : "none",
               }}
             >
@@ -361,30 +431,32 @@ function OrderCard({
             </Copy>
           </View>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            spanish ? "Show original English" : "Translate to Spanish"
-          }
-          onPress={() => setSpanish((v) => !v)}
-          hitSlop={10}
-          style={{
-            width: 28,
-            height: 28,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: "#e7e5e4",
-            backgroundColor: "#f5f5f4e6",
-          }}
-        >
-          {spanish ? (
-            <Copy weight="extra">ES</Copy>
-          ) : (
-            <Languages size={14} color="#78716c" />
-          )}
-        </Pressable>
+        {!expanded && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              spanish ? "Show original English" : "Translate to Spanish"
+            }
+            onPress={() => setSpanish((v) => !v)}
+            hitSlop={10}
+            style={{
+              width: 28,
+              height: 28,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: dark ? "#1e293b" : "#e7e5e4",
+              backgroundColor: dark ? "#1e293be6" : "#f5f5f4e6",
+            }}
+          >
+            {spanish ? (
+              <Copy weight="extra">ES</Copy>
+            ) : (
+              <Languages size={14} color="#78716c" />
+            )}
+          </Pressable>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -400,19 +472,31 @@ function OrderCard({
             justifyContent: "center",
             borderRadius: 16,
             borderWidth: 1,
-            borderColor: expanded ? "#10b981" : q.done ? "#d6d3d1" : "#e7e5e4",
+            borderColor: expanded
+              ? "#10b981"
+              : q.done
+                ? dark
+                  ? "#334155"
+                  : "#d6d3d1"
+                : dark
+                  ? "#1e293b"
+                  : "#e7e5e4",
             backgroundColor: expanded
               ? "#059669"
               : q.done
-                ? "#e7e5e4cc"
-                : "#f5f5f4e6",
+                ? dark
+                  ? "#1e293bcc"
+                  : "#e7e5e4cc"
+                : dark
+                  ? "#1e293be6"
+                  : "#f5f5f4e6",
             transform: [{ rotate: expanded ? "180deg" : "0deg" }],
           }}
         >
           <ChevronDown
             strokeWidth={2.5}
             size={20}
-            color={expanded ? "white" : "#44403c"}
+            color={expanded ? "white" : dark ? "#cbd5e1" : "#44403c"}
           />
         </Pressable>
       </View>
@@ -420,7 +504,11 @@ function OrderCard({
         <View
           style={[
             s.row,
-            { borderTopWidth: 1, borderColor: "#e7e5e4", paddingTop: 10 },
+            {
+              borderTopWidth: 1,
+              borderColor: dark ? "#1e293b" : "#e7e5e4",
+              paddingTop: 10,
+            },
           ]}
         >
           <View
@@ -428,16 +516,41 @@ function OrderCard({
               paddingHorizontal: 12,
               paddingVertical: 4,
               borderRadius: 20,
+              borderWidth: 1,
+              borderColor: q.done
+                ? dark
+                  ? "#334155"
+                  : "#d6d3d1"
+                : q.inProgress
+                  ? "#10b981"
+                  : dark
+                    ? "#92400e"
+                    : "#fcd34d",
               backgroundColor: q.done
-                ? "#e7e5e4"
+                ? dark
+                  ? "#1e293b"
+                  : "#e7e5e4"
                 : q.inProgress
                   ? "#047857"
-                  : "#fef3c7",
+                  : dark
+                    ? "#451a0399"
+                    : "#fef3c7",
             }}
           >
             <Copy
               weight="bold"
-              style={{ color: q.inProgress ? "#fff" : "#57534e" }}
+              style={{
+                color: q.inProgress
+                  ? "#fff"
+                  : q.done
+                    ? dark
+                      ? "#94a3b8"
+                      : "#57534e"
+                    : dark
+                      ? "#fcd34d"
+                      : "#92400e",
+                lineHeight: 16,
+              }}
             >
               {q.done
                 ? "✓ Completed (Done)"
@@ -446,6 +559,34 @@ function OrderCard({
                   : `Queued #${q.place}`}
             </Copy>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              spanish ? "Show original English" : "Translate to Spanish"
+            }
+            onPress={() => setSpanish((v) => !v)}
+            hitSlop={8}
+            style={[
+              s.row,
+              {
+                gap: 6,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 99,
+                borderWidth: 1,
+                borderColor: dark ? "#1e40af" : "#bfdbfe",
+                backgroundColor: dark ? "#17255499" : "#eff6ff",
+              },
+            ]}
+          >
+            <Languages size={14} color={dark ? "#93c5fd" : "#2563eb"} />
+            <Copy
+              weight="bold"
+              style={{ lineHeight: 16, color: dark ? "#93c5fd" : "#1d4ed8" }}
+            >
+              {spanish ? "English" : "Translate"}
+            </Copy>
+          </Pressable>
           {canDeleteWorkOrder(order, user) &&
             (confirm ? (
               <View style={s.row}>
@@ -468,14 +609,25 @@ function OrderCard({
                 accessibilityLabel="Delete work order"
                 disabled={disabled}
                 onPress={() => setConfirm(true)}
-                style={{ padding: 12, minHeight: 44 }}
+                hitSlop={8}
+                style={{
+                  padding: 8,
+                  width: 32,
+                  height: 32,
+                  marginLeft: "auto",
+                }}
               >
                 <Trash2 size={16} color="#a8a29e" />
               </Pressable>
             ))}
         </View>
         {!!order.description && (
-          <View style={[s.card, { backgroundColor: "#fafaf9", padding: 12 }]}>
+          <View
+            style={[
+              s.card,
+              { backgroundColor: dark ? "#1e293bb3" : "#fafaf9", padding: 12 },
+            ]}
+          >
             <Copy style={{ fontSize: 14, lineHeight: 22 }}>
               {translated?.description || order.description}
             </Copy>
@@ -498,7 +650,7 @@ function OrderCard({
             ))}
           </ScrollView>
         )}
-        <Copy weight="bold">
+        <Copy weight="bold" style={{ fontSize: 12, lineHeight: 18 }}>
           📍 {order.unit} •{" "}
           <Copy>
             Requested by{" "}
@@ -507,7 +659,7 @@ function OrderCard({
               : order.userName || "Resident"}
           </Copy>
         </Copy>
-        <Copy style={{ color: "#78716c" }}>
+        <Copy style={{ color: "#78716c", fontSize: 11, lineHeight: 16.5 }}>
           {order.statusNote} • {order.timeAgo}
           {order.completedAt
             ? ` • ${new Date(order.completedAt).toLocaleString()}`
@@ -518,7 +670,7 @@ function OrderCard({
             style={{
               gap: 10,
               borderTopWidth: 1,
-              borderColor: "#e7e5e4",
+              borderColor: dark ? "#1e293b" : "#e7e5e4",
               paddingTop: 12,
             }}
           >
@@ -526,7 +678,13 @@ function OrderCard({
               Crew Updates & Replies ({order.comments.length})
             </Copy>
             {order.comments.map((c) => (
-              <View key={c.id} style={[s.card, { backgroundColor: "#eff6ff" }]}>
+              <View
+                key={c.id}
+                style={[
+                  s.card,
+                  { backgroundColor: dark ? "#17255480" : "#eff6ff" },
+                ]}
+              >
                 <Copy weight="bold">
                   {c.author} • {c.role} <Copy>{c.timestamp}</Copy>
                 </Copy>

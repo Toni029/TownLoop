@@ -1,14 +1,16 @@
+import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState } from "react";
-import { Image, View } from "react-native";
-import {
-  Camera,
-  Upload,
-  Trash2,
-  MessageSquare,
-  Tag,
-} from "lucide-react-native";
+import { Image, View, Pressable } from "react-native";
+import { Trash2, MessageSquare, Tag } from "lucide-react-native";
 import type { MediaAttachment } from "../../../src/types";
-import { Action, Copy, Field, ErrorNotice, s } from "../news/ui";
+import {
+  Action,
+  Copy,
+  Field,
+  ErrorNotice,
+  UploadTarget,
+  useNewsStyles,
+} from "../news/ui";
 import { ProductDialog } from "../components/ProductDialog";
 import { pickAndUpload } from "../components/media";
 import { formatPrice } from "./model";
@@ -22,6 +24,8 @@ export function CreateEditor({
   onClose: () => void;
   onSaved: (kind: SocialKind) => void;
 }) {
+  const s = useNewsStyles();
+  const dark = !!usePresentation()?.dark;
   const [kind, setKind] = useState(initialKind);
   const [id] = useState(newSocialId);
   const [title, setTitle] = useState("");
@@ -84,29 +88,72 @@ export function CreateEditor({
       busy={busy}
       onClose={onClose}
     >
-      <Copy weight="bold">Post Category</Copy>
-      <View
-        style={[
-          s.row,
-          { padding: 6, borderRadius: 16, backgroundColor: "#f5f5f4" },
-        ]}
-      >
-        <Action
-          label="Discussion Feed"
-          icon={MessageSquare}
-          tone={kind === "post" ? "green" : "light"}
-          disabled={busy}
-          onPress={() => setKind("post")}
-        />
-        <Action
-          label="Buy / Free / Sell"
-          icon={Tag}
-          tone={kind === "listing" ? "green" : "light"}
-          disabled={busy}
-          onPress={() => setKind("listing")}
-        />
+      <View style={{ gap: 6 }}>
+        <Copy weight="bold">Post Category</Copy>
+        <View
+          style={[
+            s.row,
+            {
+              padding: 6,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: s.input.borderColor,
+              backgroundColor: s.input.backgroundColor,
+              gap: 8,
+              flexWrap: "nowrap",
+            },
+          ]}
+        >
+          {(["post", "listing"] as const).map((value) => {
+            const Icon = value === "post" ? MessageSquare : Tag;
+            const selected = kind === value;
+            return (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  value === "post" ? "Discussion Feed" : "Buy / Free / Sell"
+                }
+                accessibilityState={{ selected, disabled: busy }}
+                disabled={busy}
+                onPress={() => setKind(value)}
+                hitSlop={6}
+                style={{
+                  flex: 1,
+                  paddingHorizontal: 8,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  backgroundColor: selected ? "#047857" : "transparent",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <Icon size={16} color={selected ? "#fff" : s.input.color} />
+                <Copy
+                  weight="extra"
+                  style={{
+                    color: selected ? "#fff" : s.input.color,
+                    lineHeight: 16,
+                  }}
+                >
+                  {value === "post" ? "Discussion Feed" : "Buy / Free / Sell"}
+                </Copy>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
       <Field
+        labelCase="natural"
+        style={{
+          minHeight: 42,
+          paddingVertical: 10,
+          lineHeight: 20,
+          backgroundColor: dark ? "#1e293b" : "#fff",
+          borderRadius: 12,
+        }}
         label={kind === "post" ? "Subject / Title" : "Item Name"}
         value={title}
         onChangeText={setTitle}
@@ -119,6 +166,14 @@ export function CreateEditor({
       />
       {kind === "listing" && (
         <Field
+          labelCase="natural"
+          style={{
+            minHeight: 42,
+            paddingVertical: 10,
+            lineHeight: 20,
+            backgroundColor: dark ? "#1e293b" : "#fff",
+            borderRadius: 12,
+          }}
           label="Price (Type FREE or $ amount)"
           value={price}
           onChangeText={setPrice}
@@ -128,6 +183,7 @@ export function CreateEditor({
         />
       )}
       <Field
+        labelCase="natural"
         label={
           kind === "post"
             ? "Post Content & Discussion Details"
@@ -137,27 +193,25 @@ export function CreateEditor({
         onChangeText={setDescription}
         editable={!busy}
         multiline
+        style={{
+          minHeight: 90,
+          backgroundColor: dark ? "#1e293b" : "#fff",
+          borderRadius: 12,
+        }}
         placeholder={
           kind === "post"
             ? "Share details, updates, or stories with your neighbors…"
             : "Describe the item and arrange porch pickup…"
         }
       />
-      <View style={[s.card, { borderStyle: "dashed", borderWidth: 2 }]}>
+      <View style={{ gap: 6 }}>
         <Copy weight="bold">Photos & Videos</Copy>
-        <Action
+        <UploadTarget
           label="Tap to upload photos or videos"
-          icon={Upload}
-          tone="light"
+          note="Supports JPG, PNG, WebP, MP4, MOV up to 25MB"
           disabled={busy}
-          onPress={() => void upload()}
-        />
-        <Action
-          label="Take Picture"
-          icon={Camera}
-          tone="light"
-          disabled={busy}
-          onPress={() => void upload(true)}
+          onUpload={() => void upload()}
+          onCamera={() => void upload(true)}
         />
         {progress !== null && (
           <Copy accessibilityLiveRegion="polite">
@@ -165,44 +219,48 @@ export function CreateEditor({
           </Copy>
         )}
       </View>
-      <View style={s.row}>
-        {media.map((m, i) => (
-          <View key={`${m.url}-${i}`} style={{ gap: 6 }}>
-            {m.type === "image" ? (
-              <Image
-                source={{ uri: m.url }}
-                style={{ width: 96, height: 96, borderRadius: 12 }}
-                accessibilityLabel={m.name || "Attached photo"}
+      {!!media.length && (
+        <View style={s.row}>
+          {media.map((m, i) => (
+            <View key={`${m.url}-${i}`} style={{ gap: 6 }}>
+              {m.type === "image" ? (
+                <Image
+                  source={{ uri: m.url }}
+                  style={{ width: 96, height: 96, borderRadius: 12 }}
+                  accessibilityLabel={m.name || "Attached photo"}
+                />
+              ) : (
+                <View
+                  style={{
+                    width: 96,
+                    height: 96,
+                    borderRadius: 12,
+                    backgroundColor: "#0c0a09",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Copy style={{ color: "#fff" }}>▶ Video</Copy>
+                </View>
+              )}
+              <Action
+                label="Remove media"
+                icon={Trash2}
+                tone="rose"
+                compact
+                disabled={busy}
+                onPress={() =>
+                  setMedia((p) => p.filter((_, index) => index !== i))
+                }
               />
-            ) : (
-              <View
-                style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: 12,
-                  backgroundColor: "#0c0a09",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Copy style={{ color: "#fff" }}>▶ Video</Copy>
-              </View>
-            )}
-            <Action
-              label="Remove media"
-              icon={Trash2}
-              tone="rose"
-              compact
-              disabled={busy}
-              onPress={() =>
-                setMedia((p) => p.filter((_, index) => index !== i))
-              }
-            />
-          </View>
-        ))}
-      </View>
+            </View>
+          ))}
+        </View>
+      )}
       {!!error && <ErrorNotice message={error} />}
       <Action
+        size="large"
+        radius={16}
         label={
           busy
             ? "Publishing…"

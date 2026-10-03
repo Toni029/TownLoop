@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -33,7 +33,7 @@ import {
   Sparkles,
   ChevronRight,
 } from "lucide-react-native";
-import { Action, Box, Row, Txt } from "./ui";
+import { Action, Box, Row, Txt, Theme } from "./ui";
 import { useReducedMotion } from "./hooks";
 import {
   OPEN_METEO_API_URL,
@@ -67,6 +67,7 @@ const backgrounds: Record<
 const TTL = 45 * 60 * 1000;
 let cache: { at: number; data: WeatherData } | undefined;
 export function Weather() {
+  const dark = useContext(Theme);
   const [data, setData] = useState<WeatherData | undefined>(cache?.data),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(!cache),
@@ -143,7 +144,7 @@ export function Weather() {
             style={{
               fontSize: 12,
               lineHeight: 16,
-              color: "#1c1917",
+              color: dark ? "#f1f5f9" : "#1c1917",
               letterSpacing: -0.3,
             }}
           >
@@ -159,7 +160,14 @@ export function Weather() {
               borderRadius: 99,
               borderWidth: 1,
               borderColor: h.icon === "sun" ? "#fcd34d" : "#cbd5e1",
-              backgroundColor: h.icon === "sun" ? "#fef3c7" : "#e7e5e4",
+              backgroundColor:
+                h.icon === "sun"
+                  ? dark
+                    ? "#451a03b3"
+                    : "#fef3c7"
+                  : dark
+                    ? "#1e293b"
+                    : "#e7e5e4",
             }}
           >
             <View
@@ -175,7 +183,14 @@ export function Weather() {
               style={{
                 fontSize: 12,
                 lineHeight: 16,
-                color: h.icon === "sun" ? "#451a03" : "#1c1917",
+                color:
+                  h.icon === "sun"
+                    ? dark
+                      ? "#fde68a"
+                      : "#451a03"
+                    : dark
+                      ? "#f1f5f9"
+                      : "#1c1917",
               }}
             >
               {d.dayName.slice(0, 3)} •{" "}

@@ -15,7 +15,13 @@ import {
   type TextInputProps,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { X, ChevronDown, type LucideIcon } from "lucide-react-native";
+import {
+  X,
+  ChevronDown,
+  Upload,
+  Camera,
+  type LucideIcon,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFonts } from "expo-font";
 import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
@@ -24,6 +30,7 @@ import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/70
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
 import { PlayfairDisplay_800ExtraBold } from "@expo-google-fonts/playfair-display/800ExtraBold";
 import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
+import { usePresentation } from "../shell/TownLoopShell";
 import { useReducedMotion } from "../home/hooks";
 export const palette = {
   ink: "#1c1917",
@@ -32,6 +39,31 @@ export const palette = {
   line: "#e7e5e4",
   paper: "#fff",
   bg: "#faf8f4",
+};
+export function useNewsStyles() {
+  const dark = !!usePresentation()?.dark;
+  return dark
+    ? {
+        ...s,
+        card: { ...s.card, backgroundColor: "#0f172a", borderColor: "#1e293b" },
+        input: {
+          ...s.input,
+          backgroundColor: "#1e293b",
+          borderColor: "#334155",
+          color: "#f1f5f9",
+        },
+      }
+    : s;
+}
+const darkText: Record<string, string> = {
+  "#1c1917": "#fff",
+  "#0f172a": "#f1f5f9",
+  "#1e293b": "#f1f5f9",
+  "#44403c": "#cbd5e1",
+  "#57534e": "#cbd5e1",
+  "#64748b": "#94a3b8",
+  "#78716c": "#94a3b8",
+  "#a8a29e": "#64748b",
 };
 export function useNewsFonts() {
   return useFonts({
@@ -48,6 +80,8 @@ export function Copy({
   weight = "regular",
   ...props
 }: TextProps & { weight?: "regular" | "semi" | "bold" | "extra" | "serif" }) {
+  const dark = !!usePresentation()?.dark;
+  const color = StyleSheet.flatten(style)?.color;
   return (
     <Text
       {...props}
@@ -65,6 +99,10 @@ export function Copy({
           lineHeight: 18,
         },
         style,
+        dark && {
+          color:
+            typeof color === "string" ? darkText[color] || color : "#f1f5f9",
+        },
       ]}
     />
   );
@@ -89,10 +127,11 @@ export function Action({
     "green" | "emerald" | "glass" | "sky" | "amber" | "rose" | "light" | "dark";
   compact?: boolean;
   square?: boolean;
-  size?: "default" | "small" | "short";
+  size?: "default" | "small" | "short" | "large";
   radius?: number;
   maxWidth?: number;
 }) {
+  const dark = !!usePresentation()?.dark;
   const tones = {
     green: ["#047857", "#fff"],
     emerald: ["#059669", "#fff"],
@@ -100,7 +139,7 @@ export function Action({
     sky: ["#0284c7", "#fff"],
     amber: ["#b45309", "#fff"],
     rose: ["#4c0519", "#fecdd3"],
-    light: ["#d1fae5", "#064e3b"],
+    light: dark ? ["#022c22", "#d1fae5"] : ["#d1fae5", "#064e3b"],
     dark: ["#292524", "#e7e5e4"],
   };
   const [bg, fg] = tones[tone];
@@ -114,22 +153,26 @@ export function Action({
       hitSlop={compact && tone === "rose" ? 9 : 6}
       style={({ pressed }) => ({
         minHeight:
-          size === "small"
-            ? 32
-            : size === "short"
-              ? 28
-              : compact && tone === "rose"
-                ? 30
-                : 36,
+          size === "large"
+            ? 44
+            : size === "small"
+              ? 32
+              : size === "short"
+                ? 28
+                : compact && tone === "rose"
+                  ? 30
+                  : 36,
         paddingHorizontal: compact ? 12 : 14,
         paddingVertical:
-          size === "small"
-            ? 7
-            : size === "short"
-              ? 5
-              : compact && tone === "rose"
+          size === "large"
+            ? 11
+            : size === "small"
+              ? 7
+              : size === "short"
                 ? 5
-                : 8,
+                : compact && tone === "rose"
+                  ? 5
+                  : 8,
         borderRadius: radius ?? (compact || square ? 12 : 99),
         maxWidth,
         backgroundColor: bg,
@@ -149,7 +192,8 @@ export function Action({
         style={{
           color: fg,
           flexShrink: 1,
-          lineHeight: size === "default" ? 18 : 16,
+          fontSize: size === "large" ? 14 : 12,
+          lineHeight: size === "large" ? 20 : size === "default" ? 18 : 16,
         }}
       >
         {label}
@@ -193,10 +237,21 @@ export function IconAction({
 export function Badge({
   children,
   tone = "green",
-}: PropsWithChildren<{ tone?: "green" | "amber" | "sky" }>) {
+  pill = false,
+  uppercase = false,
+}: PropsWithChildren<{
+  tone?: "green" | "amber" | "sky";
+  pill?: boolean;
+  uppercase?: boolean;
+}>) {
+  const dark = !!usePresentation()?.dark;
   const c = {
-    green: ["#ecfdf5", "#065f46", "#a7f3d0"],
-    amber: ["#fffbeb", "#92400e", "#fde68a"],
+    green: dark
+      ? ["#022c22b3", "#a7f3d0", "#065f46"]
+      : ["#ecfdf5", "#065f46", "#a7f3d0"],
+    amber: dark
+      ? ["#451a03b3", "#fcd34d", "#92400e"]
+      : ["#fffbeb", "#92400e", "#fde68a"],
     sky: ["#082f49", "#7dd3fc", "#075985"],
   }[tone];
   return (
@@ -205,12 +260,21 @@ export function Badge({
         backgroundColor: c[0],
         borderColor: c[2],
         borderWidth: 1,
-        borderRadius: tone === "sky" ? 99 : 4,
+        borderRadius: tone === "sky" || pill ? 99 : 4,
         paddingHorizontal: 8,
         paddingVertical: 2,
       }}
     >
-      <Copy weight="semi" style={{ fontSize: 10, lineHeight: 14, color: c[1] }}>
+      <Copy
+        weight={uppercase ? "extra" : "semi"}
+        style={{
+          fontSize: 10,
+          lineHeight: 14,
+          color: c[1],
+          textTransform: uppercase ? "uppercase" : "none",
+          letterSpacing: uppercase ? 0.5 : 0,
+        }}
+      >
         {children}
       </Copy>
     </View>
@@ -219,13 +283,19 @@ export function Badge({
 export function Field({
   label,
   style,
+  labelCase = "upper",
   ...props
-}: TextInputProps & { label: string }) {
+}: TextInputProps & { label: string; labelCase?: "upper" | "natural" }) {
+  const styles = useNewsStyles();
   return (
     <View style={{ gap: 6 }}>
       <Copy
         weight="bold"
-        style={{ textTransform: "uppercase", color: "#57534e" }}
+        style={{
+          textTransform: labelCase === "upper" ? "uppercase" : "none",
+          lineHeight: labelCase === "natural" ? 16 : 18,
+          color: labelCase === "upper" ? "#57534e" : "#1c1917",
+        }}
       >
         {label}
       </Copy>
@@ -234,7 +304,7 @@ export function Field({
         accessibilityLabel={label}
         placeholderTextColor="#a8a29e"
         style={[
-          s.input,
+          styles.input,
           props.multiline && { minHeight: 90, textAlignVertical: "top" },
           style,
         ]}
@@ -247,12 +317,16 @@ export function Choices({
   values,
   value,
   onChange,
+  optionIcon,
 }: {
+  optionIcon?: (value: string) => string | undefined;
   label: string;
   values: string[];
   value: string;
   onChange: (value: string) => void;
 }) {
+  const styles = useNewsStyles();
+  const dark = !!usePresentation()?.dark;
   const [open, setOpen] = useState(false);
   return (
     <View style={{ gap: 6 }}>
@@ -262,13 +336,25 @@ export function Choices({
         accessibilityLabel={label}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
-        style={[s.input, s.row, { justifyContent: "space-between" }]}
+        style={[
+          styles.input,
+          s.row,
+          { justifyContent: "space-between" },
+          !!optionIcon && { minHeight: 42, paddingVertical: 10 },
+        ]}
       >
-        <Copy weight="semi">{value || "Choose"}</Copy>
+        <Copy
+          weight={optionIcon ? "bold" : "semi"}
+          style={optionIcon ? { fontSize: 14, lineHeight: 20 } : undefined}
+        >
+          {optionIcon?.(value)}
+          {optionIcon?.(value) ? "  " : ""}
+          {value || "Choose"}
+        </Copy>
         <ChevronDown size={16} color="#78716c" />
       </Pressable>
       {open && (
-        <View style={[s.card, { gap: 4 }]}>
+        <View style={[styles.card, { gap: 4 }]}>
           {values.map((v) => (
             <Pressable
               key={v}
@@ -280,11 +366,22 @@ export function Choices({
               }}
               style={{
                 padding: 12,
-                backgroundColor: v === value ? "#ecfdf5" : "#fff",
+                backgroundColor:
+                  v === value
+                    ? dark
+                      ? "#022c22"
+                      : "#ecfdf5"
+                    : dark
+                      ? "#0f172a"
+                      : "#fff",
                 borderRadius: 10,
               }}
             >
-              <Copy>{v}</Copy>
+              <Copy>
+                {optionIcon?.(v)}
+                {optionIcon?.(v) ? "  " : ""}
+                {v}
+              </Copy>
             </Pressable>
           ))}
         </View>
@@ -308,6 +405,7 @@ export function NewsDialog({
   tone?: "green" | "amber";
   icon?: LucideIcon;
 }>) {
+  const dark = !!usePresentation()?.dark;
   const [progress] = useState(() => new Animated.Value(0));
   const reduced = useReducedMotion();
   const [closing, setClosing] = useState(false);
@@ -366,7 +464,7 @@ export function NewsDialog({
               maxWidth: 512,
               alignSelf: "center",
               borderRadius: 24,
-              backgroundColor: "#fff",
+              backgroundColor: dark ? "#0f172a" : "#fff",
               overflow: "hidden",
               opacity: progress,
               transform: [
@@ -392,7 +490,9 @@ export function NewsDialog({
                     ? ["#92400e", "#b45309"]
                     : tone === "green"
                       ? ["#065f46", "#115e59"]
-                      : ["#fff", "#fff"]
+                      : dark
+                        ? ["#0f172a", "#0f172a"]
+                        : ["#fff", "#fff"]
                 }
                 style={[
                   s.row,
@@ -490,12 +590,14 @@ export function ErrorNotice({
   message: string;
   retry?: () => void;
 }) {
+  const styles = useNewsStyles();
+  const dark = !!usePresentation()?.dark;
   return (
     <View
       accessibilityRole="alert"
-      style={[s.card, { borderColor: "#fecaca", gap: 10 }]}
+      style={[styles.card, { borderColor: "#fecaca", gap: 10 }]}
     >
-      <Copy style={{ color: "#9f1239" }}>{message}</Copy>
+      <Copy style={{ color: dark ? "#fda4af" : "#9f1239" }}>{message}</Copy>
       {retry && <Action label="Try again" onPress={retry} />}
     </View>
   );
@@ -523,3 +625,86 @@ export const s = StyleSheet.create({
     backgroundColor: "#fafaf9",
   },
 });
+
+/** Native media entry keeps the reference drop-zone silhouette and the existing camera action. */
+export function UploadTarget({
+  label,
+  note,
+  disabled,
+  onUpload,
+  onCamera,
+}: {
+  label: string;
+  note?: string;
+  disabled: boolean;
+  onUpload: () => void;
+  onCamera: () => void;
+}) {
+  const dark = !!usePresentation()?.dark;
+  return (
+    <View style={{ position: "relative" }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onUpload}
+        style={({ pressed }) => ({
+          borderWidth: 2,
+          borderStyle: "dashed",
+          borderColor: dark ? "#334155" : "#d6d3d1",
+          backgroundColor: dark ? "#1e293b66" : "#fafaf980",
+          borderRadius: 16,
+          minHeight: note ? 114 : 76,
+          padding: 14,
+          gap: 6,
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
+        })}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: dark ? "#064e3b" : "#d1fae5",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Upload size={20} color={dark ? "#a7f3d0" : "#047857"} />
+        </View>
+        {!!note && (
+          <>
+            <Copy weight="bold">{label}</Copy>
+            <Copy style={{ fontSize: 10, lineHeight: 15, color: "#78716c" }}>
+              {note}
+            </Copy>
+          </>
+        )}
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Take Picture"
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onCamera}
+        hitSlop={10}
+        style={{
+          position: "absolute",
+          top: 10,
+          right: 10,
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: dark ? "#1e293b" : "#f5f5f4",
+        }}
+      >
+        <Camera size={16} color={dark ? "#cbd5e1" : "#78716c"} />
+      </Pressable>
+    </View>
+  );
+}

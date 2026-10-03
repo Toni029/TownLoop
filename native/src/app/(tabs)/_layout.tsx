@@ -10,6 +10,8 @@ export default function TabLayout() {
   const { profile } = useSession();
   const source = profile?.source;
   const photo = [
+    source?.avatar_url,
+    source?.avatar,
     source?.photoURL,
     source?.profilePhotoUrl,
     source?.avatarUrl,

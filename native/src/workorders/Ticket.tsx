@@ -1,7 +1,15 @@
 import { View, Text, Platform } from "react-native";
+import { usePresentation } from "../shell/TownLoopShell";
 import Svg, { Path, Line, Rect } from "react-native-svg";
 export function Ticket({ code, done }: { code: string; done: boolean }) {
-  const ink = done ? "#a8a29e" : "#0c0a09";
+  const dark = !!usePresentation()?.dark;
+  const ink = dark
+    ? done
+      ? "#57534e"
+      : "#f5f5f4"
+    : done
+      ? "#a8a29e"
+      : "#0c0a09";
   return (
     <View
       accessibilityLabel={`Work Order Ticket ${code}`}
@@ -10,7 +18,9 @@ export function Ticket({ code, done }: { code: string; done: boolean }) {
       <Svg viewBox="0 0 200 90" width="102" height="36">
         <Path
           d="M 20 4             L 176 4             A 16 16 0 0 0 196 20             L 196 24.1             A 2.5 2.5 0 0 0 196 29.1             L 196 33.3             A 2.5 2.5 0 0 0 196 38.3             L 196 42.5             A 2.5 2.5 0 0 0 196 47.5             L 196 51.7             A 2.5 2.5 0 0 0 196 56.7             L 196 60.9             A 2.5 2.5 0 0 0 196 65.9             L 196 70             A 16 16 0 0 0 176 86             L 20 86             A 16 16 0 0 0 4 70             L 4 65.9             A 2.5 2.5 0 0 0 4 60.9             L 4 56.7             A 2.5 2.5 0 0 0 4 51.7             L 4 47.5             A 2.5 2.5 0 0 0 4 42.5             L 4 38.3             A 2.5 2.5 0 0 0 4 33.3             L 4 29.1             A 2.5 2.5 0 0 0 4 24.1             L 4 20             A 16 16 0 0 0 20 4             Z           "
-          fill={done ? "#f5f5f4" : "#fff"}
+          fill={
+            dark ? (done ? "#292524" : "#1c1917") : done ? "#f5f5f4" : "#fff"
+          }
           stroke={ink}
           strokeWidth={2.2}
         />
