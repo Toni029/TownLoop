@@ -89,7 +89,7 @@ Do not resume Work Orders until the user reviews News and authorizes continuatio
 - Private server key comparison: no matches in Android/iOS bundles. Existing public Firebase client configuration is retained.
 - Dependency audit: 36 unresolved findings (11 moderate, 25 high), including inherited Expo/Firebase dependencies and native plugin chains. This is not a clean release-security audit. No forced downgrade was applied.
 
-**Acceptance still open:** signed-in production News data has not been independently confirmed in this run; no test records or real RSVP/admin mutations were written to production. Await resident/admin review and native device tests. The resident RSVP permission mismatch must be resolved before full feature parity can be signed off. Work Orders remains paused regardless.
+**Acceptance still open:** signed-in production News data has not been independently confirmed in this run; no test records or real RSVP/admin mutations were written to production. Await resident/admin review and native device tests. The resident RSVP permission mismatch must be resolved before full feature parity can be signed off. The user subsequently authorized the Work Orders and Social phase; its checkpoints and acceptance notes are recorded separately.
 
 Committed visual review images are in `verification/screenshots/` (isolated fixtures, not production records).
 
