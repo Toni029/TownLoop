@@ -6,6 +6,7 @@ import {
   assemblePdf,
   belongsToEdition,
   editionKey,
+  hasUploadedNewsletter,
   eventForResident,
   rsvpPatch,
   singleFlight,
@@ -179,4 +180,31 @@ test("live document normalization matches reference defaults and Firestore times
   assert.equal(notice.authorLabel, "Community Update");
   assert.equal(notice.summary, "Details");
   assert.equal(notice.createdAt, 456);
+});
+
+test("newsletter availability requires an upload and never expires it by edition month", () => {
+  const metadata = {
+    id: "legacy-edition",
+    editionTitle: "Past edition",
+    monthEdition: "September 2026",
+    description: "",
+    uploadedAt: Date.UTC(2026, 8, 1),
+  };
+  assert.equal(hasUploadedNewsletter(null), false);
+  assert.equal(hasUploadedNewsletter(metadata), false);
+  const uploaded = {
+    ...metadata,
+    pdfUrl: "firestore:uploaded-edition",
+    isCustomUpload: true,
+  };
+  assert.equal(hasUploadedNewsletter(uploaded), true);
+  assert.equal(
+    hasUploadedNewsletter({ ...uploaded, monthEdition: "December 2025" }),
+    true,
+  );
+  assert.equal(
+    hasUploadedNewsletter({ ...metadata, hasFirestoreBlob: true, totalChunks: 4 }),
+    true,
+  );
+  assert.equal(hasUploadedNewsletter({ ...uploaded, isRemoved: true }), false);
 });

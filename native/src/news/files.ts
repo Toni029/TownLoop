@@ -1,4 +1,3 @@
-import { Asset } from "expo-asset";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
@@ -34,38 +33,23 @@ export async function preparePdf(
     `townloop-news-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`,
   );
   try {
-    if (
-      config.id === "the-breeze-september-2026" &&
-      !config.isCustomUpload &&
-      !config.pdfUrl &&
-      !config.fileUrl
-    ) {
-      const asset = Asset.fromModule(
-        require("../../assets/default-september-2026.pdf"),
-      );
-      await asset.downloadAsync();
-      if (!asset.localUri)
-        throw new Error("Unable to load the original edition.");
-      new File(asset.localUri).copy(file);
-    } else {
-      try {
-        const dataUrl = await loadPdfData(config);
-        file.write(dataUrl.split(",")[1], { encoding: "base64" });
-      } catch (error) {
-        const url = config.pdfUrl || config.fileUrl || "";
-        if (
-          !(error instanceof Error) ||
-          !error.message.startsWith("No complete PDF") ||
-          !url.startsWith("https://")
-        )
-          throw error;
-        await File.downloadFileAsync(url, file);
-        if (
-          file.size > MAX_PDF_BYTES ||
-          !(await file.base64()).startsWith("JVBERi0")
-        )
-          throw new Error("This file is not a supported PDF.");
-      }
+    try {
+      const dataUrl = await loadPdfData(config);
+      file.write(dataUrl.split(",")[1], { encoding: "base64" });
+    } catch (error) {
+      const url = config.pdfUrl || config.fileUrl || "";
+      if (
+        !(error instanceof Error) ||
+        !error.message.startsWith("No complete PDF") ||
+        !url.startsWith("https://")
+      )
+        throw error;
+      await File.downloadFileAsync(url, file);
+      if (
+        file.size > MAX_PDF_BYTES ||
+        !(await file.base64()).startsWith("JVBERi0")
+      )
+        throw new Error("This file is not a supported PDF.");
     }
   } catch (error) {
     if (file.exists) file.delete();

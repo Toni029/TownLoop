@@ -22,11 +22,7 @@ import {
 import { Copy, NewsDialog, Action } from "./ui";
 import { PdfReader } from "./PdfReader";
 import { UploadEdition } from "./UploadEdition";
-import {
-  removeEdition,
-  purgeRemovedEdition,
-  restoreDefaultEdition,
-} from "./edition";
+import { removeEdition, purgeRemovedEdition } from "./edition";
 import { sharePdf } from "./files";
 import { editionKey } from "./model";
 import { AI_DEFERRED_MESSAGE } from "./ai";
@@ -93,13 +89,6 @@ export default function NewsScreen() {
         break;
       case "analyze":
         setMessage(AI_DEFERRED_MESSAGE);
-        break;
-      case "restore":
-        if (news.newsletter)
-          void perform(
-            () => restoreDefaultEdition(news.newsletter!),
-            "Restored default September 2026 edition.",
-          );
         break;
       case "remove":
         if (news.newsletter) {

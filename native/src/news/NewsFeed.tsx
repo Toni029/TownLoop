@@ -1,3 +1,4 @@
+import { hasUploadedNewsletter } from "./model";
 import { useReducedMotion } from "../home/hooks";
 import { useState, useEffect } from "react";
 import {
@@ -15,7 +16,6 @@ import {
   Upload,
   Sparkles,
   Trash2,
-  RotateCcw,
   CalendarCheck,
   Pin,
   Plus,
@@ -48,7 +48,6 @@ export type NewsAction =
         | "upload"
         | "analyze"
         | "remove"
-        | "restore"
         | "addEvent"
         | "pin";
     }
@@ -92,11 +91,7 @@ export function NewsFeed({
   }, [tab, fade, reduced]);
   useNewsFonts();
   const removed = !!newsletter?.isRemoved;
-  const custom = !!(
-    newsletter?.pdfUrl ||
-    newsletter?.fileUrl ||
-    newsletter?.isCustomUpload
-  );
+  const available = hasUploadedNewsletter(newsletter);
   const act =
     (
       type:
@@ -105,7 +100,6 @@ export function NewsFeed({
         | "upload"
         | "analyze"
         | "remove"
-        | "restore"
         | "addEvent"
         | "pin",
     ) =>
@@ -188,10 +182,10 @@ export function NewsFeed({
                   OFFICIAL PUBLICATION
                 </Copy>
               </View>
-              {custom && !removed && <Badge tone="sky">Custom Upload</Badge>}
+              {available && <Badge tone="sky">Custom Upload</Badge>}
             </View>
             <Copy style={{ fontSize: 11, color: "#94a3b8" }}>
-              {newsletter?.monthEdition || "The Breeze"}
+              {available ? newsletter?.monthEdition : "The Breeze"}
             </Copy>
           </View>
           <Copy
@@ -204,16 +198,19 @@ export function NewsFeed({
           >
             {removed
               ? "Newsletter Currently Removed"
-              : newsletter?.editionTitle || "Community Newsletter"}
+              : available
+                ? newsletter?.editionTitle || "Community Newsletter"
+                : "No Newsletter Uploaded"}
           </Copy>
           <Copy style={{ color: "#cbd5e1" }}>
             {removed
               ? "The publication was removed. Admins and VIP residents can upload a new edition (.pdf or document) to share with the community."
-              : newsletter?.description ||
-                "The latest community publication will appear here."}
+              : available
+                ? newsletter?.description || "Community newsletter"
+                : "The monthly newsletter will appear here when it is uploaded."}
           </Copy>
           <View style={s.row}>
-            {!removed && (
+            {available && (
               <>
                 <Action
                   label="Open PDF"
@@ -236,7 +233,7 @@ export function NewsFeed({
                   label={
                     removed
                       ? "Upload PDF"
-                      : custom
+                      : available
                         ? "Replace PDF"
                         : "Upload New PDF"
                   }
@@ -245,7 +242,7 @@ export function NewsFeed({
                   onPress={act("upload")}
                   disabled={busy}
                 />
-                {!removed ? (
+                {available && (
                   <View style={{ gap: 6 }}>
                     <Action
                       compact
@@ -286,14 +283,6 @@ export function NewsFeed({
                       />
                     )}
                   </View>
-                ) : (
-                  <Action
-                    label="Restore Default Edition"
-                    icon={RotateCcw}
-                    tone="dark"
-                    onPress={act("restore")}
-                    disabled={busy}
-                  />
                 )}
               </>
             )}

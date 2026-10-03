@@ -4,7 +4,7 @@ import { FileText, Upload, Check } from "lucide-react-native";
 import type { NewsletterConfig } from "../models";
 import { Action, Copy, ErrorNotice, Field, NewsDialog, s } from "./ui";
 import { pickPdf, type PickedPdf } from "./files";
-import { editionKey } from "./model";
+import { editionKey, hasUploadedNewsletter } from "./model";
 import { approvedUser, newNewsId } from "./actions";
 import { publishEdition } from "./edition";
 export function UploadEdition({
@@ -16,9 +16,10 @@ export function UploadEdition({
   onClose: () => void;
   onPublished: () => void;
 }) {
-  const [title, setTitle] = useState(current?.editionTitle || "");
-  const [month, setMonth] = useState(current?.monthEdition || "");
-  const [description, setDescription] = useState(current?.description || "");
+  const uploaded = hasUploadedNewsletter(current) ? current : null;
+  const [title, setTitle] = useState(uploaded?.editionTitle || "");
+  const [month, setMonth] = useState(uploaded?.monthEdition || "");
+  const [description, setDescription] = useState(uploaded?.description || "");
   const [file, setFile] = useState<PickedPdf | null>(null);
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);

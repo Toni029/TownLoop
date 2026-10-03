@@ -17,9 +17,8 @@ The pre-existing untracked root package-lock.json remains preserved in the named
 - Community Bulletin heading, publication gradient card, publication/custom-upload badges, edition metadata and description, two counted green selectors, dated RSVP cards, attendance/spots/deadline indicators, resident-specific Going state, and amber pinned notice cards with management attribution.
 - Event creation/editing/deletion, highlight creation/deletion, role-dependent controls, and live refresh of all three Firebase sources. Existing News has no separate facility-notice or announcement collection: those are highlight categories.
 - Atomic RSVP updates based on the current attendee list, with same-action double-tap protection. Resident identity comes from `attendees[].id/userId`, never a shared `userRsvp` flag. Only the current resident is added/removed. Same-name neighbors are preserved. No false success on failed writes.
-- Manual publishing without Gemini, PDF selection, filename-based month/title detection, editable title/edition/description, review/confirmation, upload progress, retryable failures, replacement/removal and restoration of the original September edition.
+- Manual publishing without Gemini, PDF selection, filename-based month/title detection, editable title/edition/description, review/confirmation, upload progress, retryable failures, replacement/removal. Only uploaded PDFs are used; there is no bundled newsletter or restore-default action.
 - Native PDF rendering using react-native-pdf (not a WebView, canvas or embedded web app): full-screen reader, compact title/download/upload/close bar, continuous pages, previous/next/direct-page controls, pinch/double-tap and 75–250% button zoom, fit-width, loading/failure/retry, Android back, safe areas and native share/save.
-- Original six-page September content is rendered from the unchanged reference into `assets/default-september-2026.pdf`. It opens only when the server confirms the explicitly restored default edition. This is existing TownLoop content, not sample live data. No events/notices are seeded from it.
 - Same Jakarta/Playfair fonts, Lucide icons, card geometry, colored dialog headers, responsive wrapping, custom controls and opening/closing motion intent. Success messages remain floating toasts rather than interrupting dialogs.
 
 ## Firebase/data
@@ -36,6 +35,8 @@ Existing project and `(default)` database are retained:
 | `newsletters/{editionId}/chunks/{index}` | Existing chunked base64 PDF representation |
 | `newsletters/current/chunks/{index}` | Legacy chunks: removed during cleanup; no new writes to this legacy mirror |
 | Storage `newsletters/{editionId}/document.pdf` | Cleanup of pre-existing PDF objects |
+
+Uploaded newsletters remain current across month and year changes until an administrator explicitly removes or replaces them. A missing/removed newsletter shows an empty state; legacy default metadata cannot open a built-in file.
 
 PDF bytes are staged under a new edition id before an atomic pointer switch. The real October file is 16,344,292 bytes; a single Firestore transaction cannot contain it. The new publisher retains the existing edition chunk schema and does not duplicate those bytes into the legacy current/chunks mirror. `current.totalChunks=0` prevents accidentally reading obsolete legacy bytes; both native and the current web reader resolve the current edition id. Uploads are capped at 32 MiB to bound phone memory.
 
@@ -78,13 +79,12 @@ Do not resume Work Orders until the user reviews News and authorizes continuatio
 ## Recorded validation results
 
 - TypeScript and lint: pass.
-- Tests: 18 pass (all existing Home/auth tests plus seven News tests).
+- Tests: 19 pass (all existing Home/auth tests plus eight News tests, including uploaded-only newsletter availability and retention across edition months).
 - Firestore emulator: 28 permission/concurrency/removal checks pass against the unchanged repository rules in `demo-townloop-news`. This confirms resident/staff write restrictions; it does not validate production-deployed rules. `verification/news-emulator.mjs` refuses a non-local emulator host.
 - Expo doctor: 21/21 pass, including after native project generation. Expo dependency versions: compatible.
-- Android/iOS native project generation and bundle exports: pass, including native PDF code and the default edition asset. Generated project folders remain ignored. Actual APK/IPA compilation is not verified.
+- Android/iOS native project generation and bundle exports: pass, including native PDF code. Generated project folders remain ignored. Actual APK/IPA compilation is not verified.
 - Visual harness: 16 assertions pass at 320, 390 and 768 px: overflow, dialog validation, resident/admin controls, tabs and empty/error states. Reviewed alongside the unchanged web reference; corrected button sizing, badges, headers and wrapping.
 - Real October PDF: 33 existing-format chunks reconstruct all 16,344,292 bytes identically; checked locally with no upload.
-- Preserved six-page default PDF: all rendered pages reviewed; no content invented.
 - Browser-API inspection: no browser-only APIs in News Android/iOS implementation. `.web` adapters explain the mobile build requirement rather than embedding a website/PDF plugin.
 - Private server key comparison: no matches in Android/iOS bundles. Existing public Firebase client configuration is retained.
 - Dependency audit: 36 unresolved findings (11 moderate, 25 high), including inherited Expo/Firebase dependencies and native plugin chains. This is not a clean release-security audit. No forced downgrade was applied.
@@ -92,3 +92,9 @@ Do not resume Work Orders until the user reviews News and authorizes continuatio
 **Acceptance still open:** signed-in production News data has not been independently confirmed in this run; no test records or real RSVP/admin mutations were written to production. Await resident/admin review and native device tests. The resident RSVP permission mismatch must be resolved before full feature parity can be signed off. Work Orders remains paused regardless.
 
 Committed visual review images are in `verification/screenshots/` (isolated fixtures, not production records).
+
+## Uploaded-only newsletter correction
+
+Removed the bundled default PDF, its native asset loader, and the restore-default action. The publication card and upload form no longer use legacy default edition metadata as a real uploaded publication. With no upload, News shows “No Newsletter Uploaded” and offers managers an upload action. A removed upload stays removed; there is no fallback or scheduled expiry. Existing uploaded files, Firebase records, Home, and Work Orders were not changed by this correction.
+
+TypeScript, lint, all 19 tests, Expo version compatibility, and fresh Android/iOS exports passed. Both export asset lists contain no bundled PDF. An isolated layout harness also passed 18 uploaded/missing/removed/default-metadata and resident/admin checks. Physical-device PDF verification remains outstanding as above.

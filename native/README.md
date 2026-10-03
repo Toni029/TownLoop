@@ -19,7 +19,7 @@ News uses a native PDF module and now requires a **development build**, not Expo
 - Persistent native authentication through AsyncStorage; no passwords are stored by application code.
 - Live `users/{uid}` approval/role profile, guarded routes, recovery states, sign-out.
 - Existing Home / News / Work Orders / Social tab order and matching Lucide icons.
-- Native News: publication cards, live events/notices, guarded RSVP/admin actions, publishing/removal and full-screen native PDF reader. See [News migration and acceptance details](NEWS_MIGRATION.md).
+- Native News: publication cards, live events/notices, guarded RSVP/admin actions, publishing/removal and full-screen native PDF reader. Newsletters use administrator-uploaded files only, retained until removal or replacement; no default edition is bundled. See [News migration and acceptance details](NEWS_MIGRATION.md).
 - Home: live weather, medication management, Daily Checklist and the complete recurring-activity calendar. See [Home migration details](HOME_MIGRATION.md).
 - Shared web data types, recurrence rules and event sorting. No demo resident data or production writes.
 - Existing Firestore PDF chunk storage and legacy Firebase Storage cleanup. Database is explicitly `(default)`; never use the AI Studio named database.

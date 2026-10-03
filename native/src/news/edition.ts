@@ -13,14 +13,14 @@ import { deleteObject, ref } from "firebase/storage";
 import type { NewsletterConfig } from "../models";
 import { db, storage } from "../lib/firebase";
 import { approvedUser } from "./actions";
-import { assemblePdf, editionKey } from "./model";
+import { assemblePdf, editionKey, hasUploadedNewsletter } from "./model";
 export const MAX_PDF_BYTES = 32 * 1024 * 1024;
 export async function activeEdition(expected?: NewsletterConfig) {
   const snap = await getDocFromServer(doc(db, "newsletters", "current"));
   const current = snap.exists() ? (snap.data() as NewsletterConfig) : null;
   if (
     !current ||
-    current.isRemoved ||
+    !hasUploadedNewsletter(current) ||
     (expected && editionKey(current) !== editionKey(expected))
   )
     throw new Error(
@@ -173,32 +173,4 @@ export async function publishEdition(
     });
   });
   onProgress(100);
-}
-
-export async function restoreDefaultEdition(expected: NewsletterConfig) {
-  await approvedUser(true);
-  await runTransaction(db, async (tx) => {
-    const pointer = doc(db, "newsletters", "current");
-    const current = await tx.get(pointer);
-    if (!current.data()?.isRemoved || current.data()?.id !== expected.id)
-      throw new Error(
-        "The newsletter changed. Refresh before restoring the default edition.",
-      );
-    tx.set(pointer, {
-      id: "the-breeze-september-2026",
-      editionTitle: "The Breeze: September 2026",
-      monthEdition: "September 2026",
-      description:
-        "Featuring the 2026 Pet Gallery, Flu Shot Clinic, Continuum of Care Olive Garden Lunch, Make Your Own Sundae Social, Wii Bowling Results & Community Potlucks.",
-      isCustomUpload: false,
-      isRemoved: false,
-      pdfUrl: "",
-      fileUrl: "",
-      pageImages: [],
-      hasFirestoreBlob: false,
-      totalChunks: 0,
-      uploadedAt: Date.now(),
-      updatedAt: serverTimestamp(),
-    });
-  });
 }

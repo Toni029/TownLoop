@@ -65,6 +65,22 @@ export function rsvpPatch(
 export function newestFirst<T extends { createdAt?: number }>(items: T[]) {
   return [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 }
+/** Only uploaded files are available; edition dates never expire an upload. */
+export function hasUploadedNewsletter(
+  config:
+    | (NewsletterConfig & { hasFirestoreBlob?: boolean; totalChunks?: number })
+    | null,
+) {
+  return !!(
+    config &&
+    !config.isRemoved &&
+    (config.pdfUrl ||
+      config.fileUrl ||
+      config.isCustomUpload ||
+      config.hasFirestoreBlob ||
+      (config.totalChunks || 0) > 0)
+  );
+}
 export function editionKey(config: NewsletterConfig | null) {
   return config && !config.isRemoved
     ? [
