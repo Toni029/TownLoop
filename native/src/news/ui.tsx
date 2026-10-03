@@ -77,6 +77,9 @@ export function Action({
   tone = "green",
   compact = false,
   square = false,
+  size = "default",
+  radius,
+  maxWidth,
 }: {
   label: string;
   icon?: LucideIcon;
@@ -86,6 +89,9 @@ export function Action({
     "green" | "emerald" | "glass" | "sky" | "amber" | "rose" | "light" | "dark";
   compact?: boolean;
   square?: boolean;
+  size?: "default" | "small" | "short";
+  radius?: number;
+  maxWidth?: number;
 }) {
   const tones = {
     green: ["#047857", "#fff"],
@@ -107,10 +113,25 @@ export function Action({
       onPress={onPress}
       hitSlop={compact && tone === "rose" ? 9 : 6}
       style={({ pressed }) => ({
-        minHeight: compact && tone === "rose" ? 30 : 36,
+        minHeight:
+          size === "small"
+            ? 32
+            : size === "short"
+              ? 28
+              : compact && tone === "rose"
+                ? 30
+                : 36,
         paddingHorizontal: compact ? 12 : 14,
-        paddingVertical: compact && tone === "rose" ? 5 : 8,
-        borderRadius: compact || square ? 12 : 99,
+        paddingVertical:
+          size === "small"
+            ? 7
+            : size === "short"
+              ? 5
+              : compact && tone === "rose"
+                ? 5
+                : 8,
+        borderRadius: radius ?? (compact || square ? 12 : 99),
+        maxWidth,
         backgroundColor: bg,
         borderWidth: 1,
         borderColor: tone === "glass" ? "#ffffff33" : bg,
@@ -123,7 +144,14 @@ export function Action({
       })}
     >
       {Icon && <Icon size={15} color={fg} />}
-      <Copy weight="bold" style={{ color: fg, flexShrink: 1 }}>
+      <Copy
+        weight="bold"
+        style={{
+          color: fg,
+          flexShrink: 1,
+          lineHeight: size === "default" ? 18 : 16,
+        }}
+      >
         {label}
       </Copy>
     </Pressable>

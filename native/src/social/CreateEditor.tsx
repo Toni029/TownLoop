@@ -71,6 +71,8 @@ export function CreateEditor({
   }
   return (
     <ProductDialog
+      sheet
+      serif
       title={
         kind === "post" ? "Create Community Post" : "Post Item for Sale / Free"
       }
@@ -199,7 +201,7 @@ export function CreateEditor({
           </View>
         ))}
       </View>
-      {!!(error) && <ErrorNotice message={error} />}
+      {!!error && <ErrorNotice message={error} />}
       <Action
         label={
           busy

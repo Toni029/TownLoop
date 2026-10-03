@@ -8,6 +8,7 @@ import {
   Share,
   useWindowDimensions,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   MessageSquare,
@@ -56,20 +57,30 @@ export function Avatar({ uri, name }: { uri?: string; name: string }) {
       }}
     />
   ) : (
-    <View
+    <LinearGradient
+      colors={["#f5f5f4", "#e7e5e4"]}
       style={{
         width: 36,
         height: 36,
         borderRadius: 20,
-        backgroundColor: "#f5f5f4",
+        borderWidth: 1,
+        borderColor: "#e7e5e4",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
       <Copy weight="bold" style={{ color: "#44403c" }}>
-        {name.slice(0, 2).toUpperCase()}
+        {(name.trim().includes(" ")
+          ? name
+              .split(" ")
+              .filter(Boolean)
+              .map((n) => n[0])
+              .slice(0, 2)
+              .join("")
+          : name.slice(0, 2)
+        ).toUpperCase()}
       </Copy>
-    </View>
+    </LinearGradient>
   );
 }
 function Pill({
@@ -91,8 +102,9 @@ function Pill({
   return (
     <View
       style={{
-        paddingHorizontal: 8,
-        paddingVertical: 3,
+        paddingHorizontal:
+          solid || label === "Available" || label === "Sold" ? 10 : 8,
+        paddingVertical: 2,
         borderRadius: 20,
         borderWidth: 1,
         borderColor: solid
@@ -113,7 +125,19 @@ function Pill({
               : "#f5f5f4",
       }}
     >
-      <Copy weight="bold" style={{ fontSize: 10, color }}>
+      <Copy
+        weight={solid ? "extra" : "semi"}
+        style={{
+          fontSize: solid
+            ? 12
+            : label === "Available" || label === "Sold"
+              ? 11
+              : 10,
+          lineHeight: solid ? 16 : 15,
+          color,
+        }}
+      >
+        {label === "Available" || label === "Sold" ? "• " : ""}
         {label}
       </Copy>
     </View>
@@ -150,9 +174,10 @@ function DeleteControl({
       accessibilityLabel="Delete item"
       disabled={busy}
       onPress={() => setConfirm(true)}
-      style={{ padding: 12 }}
+      hitSlop={12}
+      style={{ padding: 4 }}
     >
-      <Trash2 size={16} color="#a8a29e" />
+      <Trash2 size={14} color="#a8a29e" />
     </Pressable>
   );
 }
@@ -260,28 +285,31 @@ export function ListingActions({
         <Pressable
           accessibilityRole="button"
           disabled={busy}
+          hitSlop={9}
           onPress={() =>
             void onAction("listing", String(item.id), "sold", { sold: !sold })
           }
           style={[
             s.row,
             {
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              minHeight: 44,
+              paddingHorizontal: 15,
+              paddingVertical: 6,
+              minHeight: 30,
               borderRadius: 24,
               borderWidth: 1,
               borderColor: "#d6d3d1",
-              backgroundColor: "#f5f5f4cc",
+              backgroundColor: "#f2f6fccf",
+              boxShadow:
+                "0px 0px 0px 1.5px rgba(255,255,255,0.95), 0px 0px 0px 3px rgba(175,192,212,0.65), 0px 0px 0px 4.5px rgba(255,255,255,0.85), 0px 5px 14px -2px rgba(15,23,42,0.16)",
             },
           ]}
         >
           {sold ? (
-            <RotateCcw size={16} color="#78716c" />
+            <RotateCcw size={14} color="#78716c" />
           ) : (
-            <CheckCircle2 size={16} color="#059669" />
+            <CheckCircle2 size={14} color="#059669" />
           )}
-          <Copy weight="bold">
+          <Copy weight="extra" style={{ letterSpacing: 0.24, lineHeight: 16 }}>
             {sold ? "Mark as Available" : "Mark as Sold"}
           </Copy>
         </Pressable>
@@ -290,6 +318,8 @@ export function ListingActions({
       ) : (
         <Action
           label="Message Seller"
+          size="short"
+          square
           icon={MessageSquare}
           onPress={() => onMessage(item)}
           disabled={busy}
@@ -303,11 +333,13 @@ function MediaPreview({
   title,
   onMedia,
   listing = false,
+  sold = false,
 }: {
   media: MediaAttachment[];
   title: string;
   onMedia: (media: MediaAttachment[], title: string, index?: number) => void;
   listing?: boolean;
+  sold?: boolean;
 }) {
   return (
     <Pressable
@@ -353,6 +385,37 @@ function MediaPreview({
           }}
         >
           <Copy style={{ color: "#fff" }}>+{media.length - 1}</Copy>
+        </View>
+      )}
+      {sold && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: "#78716c66",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Copy
+            weight="extra"
+            style={{
+              color: "#fff",
+              backgroundColor: "#1c1917e6",
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+              borderRadius: 4,
+              fontSize: 10,
+              lineHeight: 15,
+              letterSpacing: 1,
+            }}
+          >
+            SOLD
+          </Copy>
         </View>
       )}
     </Pressable>
@@ -405,12 +468,17 @@ export function SocialFeed({
     >
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 128 }}
+        contentContainerStyle={{
+          padding: 20,
+          paddingTop: 16,
+          gap: 16,
+          paddingBottom: 128,
+        }}
       >
         <View
           style={[
             s.row,
-            { justifyContent: "space-between", alignItems: "flex-start" },
+            { justifyContent: "space-between", alignItems: "center" },
           ]}
         >
           <View style={{ flex: 1, minWidth: 120 }}>
@@ -434,8 +502,8 @@ export function SocialFeed({
                 style={[
                   s.row,
                   {
-                    padding: 10,
-                    minHeight: 44,
+                    padding: 8,
+                    minHeight: 34,
                     borderRadius: 16,
                     backgroundColor: "#f5f5f4",
                     borderWidth: 1,
@@ -443,17 +511,25 @@ export function SocialFeed({
                   },
                 ]}
               >
-                <Mail size={18} color="#047857" />
+                <Mail size={16} color="#047857" />
                 {width >= 600 && <Copy weight="bold">Marketplace Chats</Copy>}
                 {unread > 0 && (
                   <View
                     style={{
                       backgroundColor: "#e11d48",
-                      borderRadius: 12,
-                      paddingHorizontal: 5,
+                      borderRadius: 8,
+                      width: 16,
+                      height: 16,
+                      position: "absolute",
+                      top: -4,
+                      right: -4,
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    <Copy style={{ color: "#fff", fontSize: 10 }}>
+                    <Copy
+                      style={{ color: "#fff", fontSize: 10, lineHeight: 15 }}
+                    >
                       {unread}
                     </Copy>
                   </View>
@@ -461,6 +537,9 @@ export function SocialFeed({
               </Pressable>
             )}
             <Action
+              size="small"
+              radius={16}
+              maxWidth={view === "listing" ? 98 : undefined}
               label={view === "listing" ? "New listing" : "New post"}
               icon={Plus}
               onPress={onCreate}
@@ -490,8 +569,9 @@ export function SocialFeed({
                 {
                   flex: 1,
                   justifyContent: "center",
-                  minHeight: 44,
-                  padding: 8,
+                  minHeight: 32,
+                  paddingVertical: 8,
+                  paddingHorizontal: 4,
                   borderRadius: 12,
                   backgroundColor: view === kind ? "#fff" : "transparent",
                   flexWrap: "nowrap",
@@ -509,6 +589,7 @@ export function SocialFeed({
                   color: view === kind ? "#022c22" : "#57534e",
                   flexShrink: 1,
                   textAlign: "center",
+                  lineHeight: 16,
                 }}
               >
                 {kind === "post"
@@ -524,7 +605,7 @@ export function SocialFeed({
             color="#047857"
           />
         )}
-        {!!(error) && <ErrorNotice message={error} retry={retry} />}
+        {!!error && <ErrorNotice message={error} retry={retry} />}
         {!loading &&
           !error &&
           !(view === "post" ? posts.length : listings.length) && (
@@ -567,7 +648,13 @@ export function SocialFeed({
                     <Avatar uri={post.authorAvatar} name={post.author} />
                     <View style={{ flex: 1 }}>
                       <Copy weight="bold">{post.author}</Copy>
-                      <Copy style={{ fontSize: 10, color: "#a8a29e" }}>
+                      <Copy
+                        style={{
+                          fontSize: 10,
+                          lineHeight: 15,
+                          color: "#a8a29e",
+                        }}
+                      >
                         {post.timeAgo}
                       </Copy>
                     </View>
@@ -587,12 +674,12 @@ export function SocialFeed({
                   accessibilityLabel={`Read ${post.title}`}
                   onPress={() => onOpen("post", String(post.id))}
                 >
-                  <Copy weight="bold" style={{ fontSize: 14, lineHeight: 21 }}>
+                  <Copy weight="bold" style={{ fontSize: 14, lineHeight: 20 }}>
                     {post.title}
                   </Copy>
                   <Copy
                     numberOfLines={3}
-                    style={{ color: "#57534e", lineHeight: 21, marginTop: 6 }}
+                    style={{ color: "#57534e", lineHeight: 19.5, marginTop: 6 }}
                   >
                     {post.content}
                   </Copy>
@@ -609,8 +696,8 @@ export function SocialFeed({
                     s.row,
                     {
                       borderTopWidth: 1,
-                      borderColor: "#e7e5e4",
-                      paddingTop: 6,
+                      borderColor: "#f5f5f4",
+                      paddingTop: 8,
                     },
                   ]}
                 >
@@ -627,14 +714,21 @@ export function SocialFeed({
                         liked: !post.liked,
                       })
                     }
+                    hitSlop={{ top: 10, bottom: 10 }}
                     style={{
-                      padding: 10,
-                      minHeight: 44,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      minHeight: 24,
                       borderRadius: 12,
                       backgroundColor: post.liked ? "#fff1f2" : "transparent",
                     }}
                   >
-                    <Copy style={{ color: post.liked ? "#e11d48" : "#78716c" }}>
+                    <Copy
+                      style={{
+                        color: post.liked ? "#e11d48" : "#78716c",
+                        lineHeight: 16,
+                      }}
+                    >
                       {post.liked ? "❤️" : "🤍"} {post.likes}
                     </Copy>
                   </Pressable>
@@ -651,28 +745,36 @@ export function SocialFeed({
                     }
                     style={[
                       s.row,
-                      { padding: 10, minHeight: 44, marginLeft: "auto" },
+                      {
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        minHeight: 24,
+                        marginLeft: "auto",
+                        gap: 6,
+                      },
                     ]}
                   >
-                    <MessageSquare size={16} color="#78716c" />
-                    <Copy>
+                    <MessageSquare size={14} color="#78716c" />
+                    <Copy style={{ lineHeight: 16 }}>
                       {post.comments.length}{" "}
                       {post.comments.length === 1 ? "Comment" : "Comments"}
                     </Copy>
                   </Pressable>
                 </View>
-                <Collapsible open={comments === String(post.id)}>
-                  <Comments
-                    comments={post.comments}
-                    busy={busy}
-                    onSubmit={(text, commentId) =>
-                      onAction("post", String(post.id), "comment", {
-                        text,
-                        commentId,
-                      })
-                    }
-                  />
-                </Collapsible>
+                <View style={{ marginTop: -12 }}>
+                  <Collapsible open={comments === String(post.id)}>
+                    <Comments
+                      comments={post.comments}
+                      busy={busy}
+                      onSubmit={(text, commentId) =>
+                        onAction("post", String(post.id), "comment", {
+                          text,
+                          commentId,
+                        })
+                      }
+                    />
+                  </Collapsible>
+                </View>
               </View>
             ))
           : listings.map((item) => (
@@ -683,7 +785,7 @@ export function SocialFeed({
                   {
                     borderRadius: 24,
                     padding: 16,
-                    gap: 14,
+                    gap: 12,
                     backgroundColor: item.sold ? "#f5f5f4" : "#fff",
                     opacity: item.sold ? 0.8 : 1,
                   },
@@ -694,7 +796,13 @@ export function SocialFeed({
                     <Avatar uri={item.authorAvatar} name={item.author} />
                     <View style={{ flex: 1 }}>
                       <Copy weight="bold">{item.author}</Copy>
-                      <Copy style={{ fontSize: 10, color: "#a8a29e" }}>
+                      <Copy
+                        style={{
+                          fontSize: 10,
+                          lineHeight: 15,
+                          color: "#a8a29e",
+                        }}
+                      >
                         ◷ {item.timeAgo}
                       </Copy>
                     </View>
@@ -726,7 +834,7 @@ export function SocialFeed({
                 <View
                   style={[
                     s.row,
-                    { alignItems: "flex-start", flexWrap: "nowrap", gap: 14 },
+                    { alignItems: "flex-start", flexWrap: "nowrap", gap: 12 },
                   ]}
                 >
                   <MediaPreview
@@ -734,18 +842,19 @@ export function SocialFeed({
                     title={item.title}
                     onMedia={onMedia}
                     listing
+                    sold={!!item.sold}
                   />
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`View item ${item.title}`}
                     onPress={() => onOpen("listing", String(item.id))}
-                    style={{ flex: 1, gap: 6 }}
+                    style={{ flex: 1, gap: 4 }}
                   >
                     <Copy
                       weight="bold"
                       style={{
-                        fontSize: 16,
-                        lineHeight: 23,
+                        fontSize: 14,
+                        lineHeight: 19.25,
                         textDecorationLine: item.sold ? "line-through" : "none",
                       }}
                     >
@@ -753,7 +862,7 @@ export function SocialFeed({
                     </Copy>
                     <Copy
                       numberOfLines={3}
-                      style={{ color: "#57534e", lineHeight: 21 }}
+                      style={{ color: "#57534e", lineHeight: 19.5 }}
                     >
                       {item.description}
                     </Copy>
@@ -851,7 +960,7 @@ export function Detail({
           />
         )}
       </View>
-      {!!((error || shareError)) && <ErrorNotice message={error || shareError} />}
+      {!!(error || shareError) && <ErrorNotice message={error || shareError} />}
       <Copy weight="bold" style={{ fontSize: 20, lineHeight: 28 }}>
         {item.title}
       </Copy>

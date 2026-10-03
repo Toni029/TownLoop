@@ -56,8 +56,8 @@ export const townLoopTabs = [
 const Presentation = createContext<{
   dark: boolean;
   toggleTheme: () => void;
-  blurTarget: RefObject<View | null>;
-  attachBlurTarget: (node: View | null) => () => void;
+  blurTarget: RefObject<View | null> | undefined;
+  attachBlurTarget: (target: RefObject<View | null>) => () => void;
 } | null>(null);
 export const usePresentation = () => useContext(Presentation);
 export function TownLoopShell({
@@ -74,19 +74,14 @@ export function TownLoopShell({
 }>) {
   const scheme = useColorScheme();
   const [dark, setDark] = useState(scheme === "dark");
-  const blurTarget = useRef<View | null>(null);
-  const attachBlurTarget = useCallback((node: View | null) => {
-    blurTarget.current = node;
-    return () => {
-      if (blurTarget.current === node) blurTarget.current = null;
-    };
-  }, []);
-  const [fonts,fontError]=useFonts({
-    NewsRegular:PlusJakartaSans_400Regular,
-    NewsSemi:PlusJakartaSans_600SemiBold,
-    NewsBold:PlusJakartaSans_700Bold,
-    NewsExtra:PlusJakartaSans_800ExtraBold,
-    NewsSerif:PlayfairDisplay_700Bold,
+  const [blurTarget,setBlurTarget] = useState<RefObject<View | null>>();
+  const attachBlurTarget=useCallback((target:RefObject<View|null>)=>{setBlurTarget(target);return ()=>setBlurTarget(current=>current===target?undefined:current);},[]);
+  const [fonts, fontError] = useFonts({
+    NewsRegular: PlusJakartaSans_400Regular,
+    NewsSemi: PlusJakartaSans_600SemiBold,
+    NewsBold: PlusJakartaSans_700Bold,
+    NewsExtra: PlusJakartaSans_800ExtraBold,
+    NewsSerif: PlayfairDisplay_700Bold,
     Jakarta: PlusJakartaSans_400Regular,
     JakartaBold: PlusJakartaSans_700Bold,
     JakartaSemi: PlusJakartaSans_600SemiBold,
@@ -94,7 +89,20 @@ export function TownLoopShell({
     Playfair: PlayfairDisplay_700Bold,
     PlayfairBlack: PlayfairDisplay_900Black,
   });
-  if(!fonts && !fontError)return <View style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#f7f3ea"}}><ActivityIndicator color="#047857"/><Text>Loading TownLoop…</Text></View>;
+  if (!fonts && !fontError)
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#f7f3ea",
+        }}
+      >
+        <ActivityIndicator color="#047857" />
+        <Text>Loading TownLoop…</Text>
+      </View>
+    );
   return (
     <Presentation.Provider
       value={{
@@ -465,9 +473,9 @@ export function PortalHeader({
 }
 // The scene owns the Android blur surface; the dock is rendered after it.
 export function BlurScene({ children }: PropsWithChildren) {
-  const p = usePresentation();
+  const attach = usePresentation()?.attachBlurTarget;
   const target = useRef<View | null>(null);
-  useFocusEffect(useCallback(() => p?.attachBlurTarget(target.current), [p]));
+  useFocusEffect(useCallback(() => attach?.(target), [attach]));
   return (
     <BlurTargetView ref={target} style={{ flex: 1 }}>
       {children}
@@ -545,13 +553,13 @@ export function FloatingDock({
             borderColor: dark ? "#ffffff2e" : "#ffffff66",
           }}
         >
-          <BlurView
+          {!!p?.blurTarget && <BlurView
             blurTarget={p?.blurTarget}
             blurMethod="dimezisBlurViewSdk31Plus"
             intensity={45}
             tint={dark ? "dark" : "light"}
             style={StyleSheet.absoluteFill}
-          />
+          />}
           <LinearGradient
             pointerEvents="none"
             colors={
@@ -575,10 +583,10 @@ export function FloatingDock({
                 pointerEvents="none"
                 style={{
                   position: "absolute",
-                  left: 6,
+                  left: active === "workorders" ? 0 : 6,
                   top: 4,
                   bottom: 4,
-                  width: cell + 8,
+                  width: cell + (active === "workorders" ? 20 : 8),
                   borderRadius: 99,
                   borderWidth: 1,
                   borderColor: dark ? "#ffffff2e" : "#ffffff59",
