@@ -108,14 +108,14 @@ export function NewsFeed({
   return (
     <SafeAreaView
       edges={["left", "right"]}
-      style={{ flex: 1, backgroundColor: "#faf8f4" }}
+      style={{ flex: 1, backgroundColor: "transparent" }}
     >
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           paddingHorizontal: 20,
           paddingTop: 16,
-          paddingBottom: 32,
+          paddingBottom: 128,
           gap: 16,
         }}
       >

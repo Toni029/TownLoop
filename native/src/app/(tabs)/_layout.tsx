@@ -1,5 +1,63 @@
-import { Home, FileText, Wrench, Users } from 'lucide-react-native';
-import { Tabs, router } from 'expo-router';
-import { Pressable, Text } from 'react-native';
-import { colors } from '../../components/ui';
-export default function TabLayout() { return <Tabs screenOptions={{ headerStyle: { backgroundColor: colors.cream }, headerTintColor: colors.ink, tabBarActiveTintColor: colors.green, tabBarStyle: { backgroundColor: '#fffefc' }, headerRight: () => <Pressable accessibilityRole="button" onPress={() => router.push('/account')} style={{ padding: 14 }}><Text style={{ color: colors.green, fontWeight: '700' }}>Account</Text></Pressable> }}><Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Home color={color} size={size}/> }}/><Tabs.Screen name="news" options={{ title: 'News', tabBarIcon: ({ color, size }) => <FileText color={color} size={size}/> }}/><Tabs.Screen name="workorders" options={{ title: 'Work Orders', tabBarIcon: ({ color, size }) => <Wrench color={color} size={size}/> }}/><Tabs.Screen name="social" options={{ title: 'Social', tabBarIcon: ({ color, size }) => <Users color={color} size={size}/> }}/></Tabs>; }
+import { Tabs, router } from "expo-router";
+import { useSession } from "../../lib/session";
+import {
+  BlurScene,
+  FloatingDock,
+  TownLoopShell,
+  type TabName,
+} from "../../shell/TownLoopShell";
+export default function TabLayout() {
+  const { profile } = useSession();
+  const source = profile?.source;
+  const photo = [
+    source?.photoURL,
+    source?.profilePhotoUrl,
+    source?.avatarUrl,
+  ].find((v) => typeof v === "string" && v.trim()) as string | undefined;
+  return (
+    <TownLoopShell
+      name={profile?.name || "Resident"}
+      role={profile?.role || "resident"}
+      photo={photo}
+      onAccount={() => router.push("/account")}
+    >
+      <Tabs
+        screenLayout={({ children }) => <BlurScene>{children}</BlurScene>}
+        screenOptions={{
+          headerShown: false,
+          sceneStyle: { backgroundColor: "transparent" },
+          tabBarHideOnKeyboard: true,
+        }}
+        tabBar={({ state, navigation }) => (
+          <FloatingDock
+            active={state.routes[state.index].name as TabName}
+            onSelect={(name) => {
+              const route = state.routes.find((r) => r.name === name);
+              if (!route) return;
+              const event = navigation.emit({
+                type: "tabPress",
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (
+                state.routes[state.index].key !== route.key &&
+                !event.defaultPrevented
+              )
+                navigation.navigate(route.name);
+            }}
+            onLongPress={(name) => {
+              const route = state.routes.find((r) => r.name === name);
+              if (route)
+                navigation.emit({ type: "tabLongPress", target: route.key });
+            }}
+          />
+        )}
+      >
+        <Tabs.Screen name="index" options={{ title: "Home" }} />
+        <Tabs.Screen name="news" options={{ title: "News" }} />
+        <Tabs.Screen name="workorders" options={{ title: "Work Orders" }} />
+        <Tabs.Screen name="social" options={{ title: "Social" }} />
+      </Tabs>
+    </TownLoopShell>
+  );
+}

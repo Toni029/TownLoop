@@ -13,6 +13,7 @@ import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans
 import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
 import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
 import { Moon, Sun, User } from "lucide-react-native";
+import { usePresentation } from "../shell/TownLoopShell";
 import { Theme, Action, Box, Row, Txt, usePalette } from "./ui";
 import { useHomeStore, useReducedMotion, useToday } from "./hooks";
 import { friendlyDate, toggleReminder, nextTaskId } from "./model";
@@ -31,8 +32,10 @@ export function HomeScreen({
   role: string;
   onAccount: () => void;
 }) {
+  const presentation = usePresentation();
   const scheme = useColorScheme();
-  const [dark, setDark] = useState(scheme === "dark");
+  const [localDark, setDark] = useState(scheme === "dark");
+  const dark = presentation?.dark ?? localDark;
   const [fonts, fontError] = useFonts({
     Jakarta: PlusJakartaSans_400Regular,
     JakartaBold: PlusJakartaSans_700Bold,
@@ -56,7 +59,8 @@ export function HomeScreen({
         role={role}
         onAccount={onAccount}
         dark={dark}
-        toggleTheme={() => setDark(!dark)}
+        embedded={!!presentation}
+        toggleTheme={() => presentation ? presentation.toggleTheme() : setDark(!dark)}
       />
     </Theme.Provider>
   );
@@ -68,6 +72,7 @@ function HomeContent({
   onAccount,
   dark,
   toggleTheme,
+  embedded,
 }: {
   uid: string;
   name: string;
@@ -75,6 +80,7 @@ function HomeContent({
   onAccount: () => void;
   dark: boolean;
   toggleTheme: () => void;
+  embedded: boolean;
 }) {
   const p = usePalette(),
     store = useHomeStore(uid),
@@ -98,10 +104,10 @@ function HomeContent({
   const busy = store.saving || !store.ready;
   return (
     <SafeAreaView
-      edges={["top", "left", "right"]}
-      style={{ flex: 1, backgroundColor: p.bg }}
+      edges={embedded ? ["left", "right"] : ["top", "left", "right"]}
+      style={{ flex: 1, backgroundColor: embedded ? "transparent" : p.bg }}
     >
-      <View
+      {!embedded && <View
         style={{
           paddingHorizontal: 24,
           paddingTop: 16,
@@ -168,13 +174,13 @@ function HomeContent({
             />
           </View>
         </Row>
-      </View>
+      </View>}
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           padding: 20,
           paddingTop: 16,
-          paddingBottom: 32,
+          paddingBottom: embedded ? 128 : 32,
         }}
       >
         <Animated.View style={{ gap: 16, opacity }}>

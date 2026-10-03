@@ -401,11 +401,11 @@ export function SocialFeed({
   return (
     <SafeAreaView
       edges={["left", "right"]}
-      style={{ flex: 1, backgroundColor: "#faf8f4" }}
+      style={{ flex: 1, backgroundColor: "transparent" }}
     >
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 32 }}
+        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 128 }}
       >
         <View
           style={[
