@@ -31,15 +31,14 @@ import type {
   UserProfile,
 } from '../types';
 import { savePdfToStorage, saveNewsletterConfigToStorage } from '../utils/pdfStorage';
-import { uploadNewsletterPdfToStorage } from '../services/storage';
+import { uploadNewsletterPdfToStorage, removeNewsletterEditionFiles } from '../services/storage';
 import {
   saveNewsletterConfigToFirestore,
   deleteOldAiEventsFromFirestore,
   deleteOldAiHighlightsFromFirestore,
 } from '../services/firestoreSync';
 import {
-  extractNewsletterClientSide,
-  getGeminiApiKey,
+  extractNewsletter,
   formatGeminiError,
   type ExtractedPreviewEvent,
   type ExtractedPreviewHighlight,
@@ -48,6 +47,7 @@ import {
 export type { ExtractedPreviewEvent, ExtractedPreviewHighlight };
 
 interface ReviewPayload {
+  sourceModel: string;
   newsletterId: string;
   monthEdition: string;
   editionTitle: string;
@@ -177,7 +177,7 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
       const cleanBase64 = dataUrl.includes('base64,') ? dataUrl.split('base64,')[1] : dataUrl;
       const fileMime = file.type || 'application/pdf';
 
-      savePdfToStorage('current_newsletter_pdf', dataUrl).catch(() => {});
+
       setSelectedFile({
         name: file.name,
         size: sizeStr,
@@ -241,12 +241,6 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
       return;
     }
 
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) {
-      setError('Gemini API key is not configured. Please add VITE_GEMINI_API_KEY.');
-      return;
-    }
-
     const newsletterId = `newsletter-${Date.now()}`;
     setIsProcessing(true);
     setError(null);
@@ -255,32 +249,11 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
     setStatusMessage('Reading and preparing document...');
 
     try {
-      // 1. Direct PDF Upload to storage
-      let finalPdfUrl: string = selectedFile?.dataUrl || '';
+      // Analysis is a preview; persist the PDF only after Confirm & Publish.
+      const finalPdfUrl = selectedFile?.dataUrl || '';
 
-      if (rawFile) {
-        updateProgress(15, 'Securing document in storage...');
-        try {
-          finalPdfUrl = await uploadNewsletterPdfToStorage({
-            newsletterId,
-            pdfFile: rawFile,
-            currentUser,
-            onProgress: ({ percent, message }) => {
-              const mapped = 15 + Math.round((Math.max(0, Math.min(100, percent)) / 100) * 25);
-              updateProgress(mapped, message);
-            },
-          });
-        } catch (uploadErr) {
-          console.warn('Direct upload notice, falling back to data URL:', uploadErr);
-          if (selectedFile?.dataUrl) {
-            finalPdfUrl = selectedFile.dataUrl;
-          }
-        }
-        updateProgress(42, 'Document prepared.');
-      }
-
-      // 2. Multimodal Gemini Direct File Processing Client-Side
-      updateProgress(45, 'Sending document directly to client-side Gemini AI parser...');
+      // 2. Server-side Gemini document processing
+      updateProgress(45, 'Analyzing newsletter with Gemini...');
 
       if (aiIntervalRef.current) clearInterval(aiIntervalRef.current);
       aiIntervalRef.current = setInterval(() => {
@@ -293,10 +266,10 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
       const mime = selectedFile?.type || rawFile?.type || 'application/pdf';
 
       console.log(
-        `[Newsletter Pipeline] Dispatching client-side Gemini extraction - base64 length: ${base64Clean.length}, MIME: ${mime}`
+        `[Newsletter Pipeline] Dispatching Gemini extraction - base64 length: ${base64Clean.length}, MIME: ${mime}`
       );
 
-      const extractionResult = await extractNewsletterClientSide({
+      const extractionResult = await extractNewsletter({
         base64Data: base64Clean,
         mimeType: mime,
         fileName: selectedFile?.name || rawFile?.name || 'document.pdf',
@@ -318,10 +291,6 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
       const parsedEvents: ExtractedPreviewEvent[] = Array.isArray(extractionResult.events) ? extractionResult.events : [];
       const parsedHighlights: ExtractedPreviewHighlight[] = Array.isArray(extractionResult.highlights) ? extractionResult.highlights : [];
 
-      if (parsedEvents.length === 0 && parsedHighlights.length === 0 && (!extractionResult.rsvp_events || extractionResult.rsvp_events.length === 0)) {
-        throw new Error('Failed to extract content from uploaded newsletter. Please check file format.');
-      }
-
       updateProgress(100, 'Analysis complete! Review extracted items below.');
 
       // Populate review state
@@ -329,6 +298,7 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
       const effectiveTitle = editionTitle.trim() || `The Breeze: ${detectedMonth}`;
 
       setReviewData({
+        sourceModel: extractionResult.sourceModel,
         newsletterId,
         monthEdition: detectedMonth,
         editionTitle: effectiveTitle,
@@ -366,6 +336,13 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
     updateProgress(10, 'Initiating clean-slate portal sync...');
 
     try {
+      let publishedPdfUrl = reviewData.finalPdfUrl;
+      if (rawFile) {
+        publishedPdfUrl = await uploadNewsletterPdfToStorage({
+          newsletterId: reviewData.newsletterId, pdfFile: rawFile, currentUser,
+          onProgress: ({ percent, message }) => updateProgress(Math.round(percent * 0.3), message),
+        });
+      }
       // 1. Clear stale localStorage keys holding old events and highlights
       try {
         localStorage.removeItem('portal_rsvp_events_list');
@@ -387,8 +364,8 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
         editionTitle: reviewData.editionTitle,
         monthEdition: reviewData.monthEdition,
         description: currentConfig.description || 'Official monthly publication for community residents.',
-        pdfUrl: reviewData.finalPdfUrl,
-        fileUrl: reviewData.finalPdfUrl,
+        pdfUrl: publishedPdfUrl,
+        fileUrl: publishedPdfUrl,
         fileName: selectedFile?.name || rawFile?.name || 'document.pdf',
         fileType: 'application/pdf',
         fileSize: selectedFile?.size ? undefined : rawFile?.size,
@@ -398,14 +375,17 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
         isRemoved: false,
       };
 
-      await saveNewsletterConfigToFirestore(newConfig).catch((err) => {
-        console.warn('Firestore newsletter config save notice:', err);
-      });
+      if (!await saveNewsletterConfigToFirestore(newConfig)) {
+        throw new Error('Could not publish the newsletter to Firebase. Please try again.');
+      }
 
       await saveNewsletterConfigToStorage(newConfig).catch((err) => {
         console.warn('IndexedDB newsletter config save notice:', err);
       });
 
+      if (currentConfig.id && currentConfig.id !== newConfig.id && !currentConfig.isRemoved) {
+        await removeNewsletterEditionFiles(currentConfig.id);
+      }
       // 4. Dispatch clean-slate events and highlights with fresh editionContext
       updateProgress(85, 'Updating community calendar & announcements...');
       if (onExtractContent) {
@@ -557,16 +537,6 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
               <div className="mx-5 mt-4 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 px-4 py-3 rounded-2xl text-xs flex items-center gap-2.5 shadow-xs">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
                 <span className="font-semibold">{error}</span>
-              </div>
-            )}
-
-            {/* Explicit API Key Notice */}
-            {!getGeminiApiKey() && !error && (
-              <div className="mx-5 mt-4 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 px-4 py-3 rounded-2xl text-xs flex items-center gap-2.5 shadow-xs">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <span className="font-semibold">
-                  Gemini API key is not configured. Please add VITE_GEMINI_API_KEY.
-                </span>
               </div>
             )}
 
@@ -810,6 +780,9 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
             {/* Step 2: Extraction Review & Clean-Slate Publish */}
             {step === 'review' && reviewData && (
               <div className="p-5 overflow-y-auto space-y-4 text-stone-900 dark:text-stone-100 flex-1">
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Analyzed with {reviewData.sourceModel}{reviewData.sourceModel !== 'gemini-3.8-flash' ? ' (fallback model)' : ''}
+                </p>
                 {/* Review Header Banner */}
                 <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
                   <div>
@@ -907,6 +880,11 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
                                 </span>
                               )}
                             </div>
+                            {ev.rsvpDetails && (
+                              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                                {ev.sourcePage ? `PDF page ${ev.sourcePage}: ` : ''}{ev.rsvpDetails}
+                              </p>
+                            )}
                             {ev.description && (
                               <p className="text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed">
                                 {ev.description}

@@ -1,9 +1,10 @@
-import { ref, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'firebase/storage';
+import { ref, deleteObject, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'firebase/storage';
 import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { auth, storage, isFirebaseConfigured } from '../firebase';
+import { auth, db, storage, isFirebaseConfigured } from '../firebase';
+import { deleteDoc, doc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { savePdfToStorage } from '../utils/pdfStorage';
 import {
@@ -238,7 +239,7 @@ export async function uploadNewsletterPdfToStorage({
     onProgress?.({ percent: 65, message: 'Persisting PDF to server storage...' });
     const serverResp = await fetch('/api/newsletter/upload-pdf', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await auth?.currentUser?.getIdToken() || ''}` },
       body: JSON.stringify({
         fileDataUrl: dataUrl,
         fileName: pdfFile.name || 'document.pdf',
@@ -352,3 +353,14 @@ export async function uploadNewsletterEditionMedia({
   return { pdfUrl: pdfDataUrl || '' };
 }
 
+
+/** Remove a superseded edition without deleting the newly published current PDF. */
+export async function removeNewsletterEditionFiles(newsletterId: string): Promise<void> {
+  if (!newsletterId || newsletterId === 'current') return;
+  if (storage) {
+    try { await deleteObject(ref(storage, `newsletters/${newsletterId}/document.pdf`)); }
+    catch (error: any) { if (error?.code !== 'storage/object-not-found') throw error; }
+  }
+  await deleteNewsletterPdfChunksFromFirestore(newsletterId);
+  if (db) await deleteDoc(doc(db, 'newsletters', newsletterId));
+}

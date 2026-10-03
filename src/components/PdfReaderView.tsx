@@ -1,3 +1,4 @@
+import { InAppPdfDocument } from './InAppPdfDocument';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -12,8 +13,7 @@ import {
   FileText,
   AlertCircle,
 } from 'lucide-react';
-import { getPdfFromStorage, savePdfToStorage, convertDataUrlToBlobUrl } from '../utils/pdfStorage';
-import { downloadNewsletterPdfFromFirestore } from '../services/storage';
+import { useNewsletterPdf } from '../hooks/useNewsletterPdf';
 
 interface PdfReaderViewProps {
   fileUrl: string;
@@ -31,77 +31,7 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
   title = 'Community Newsletter',
   onClose,
 }) => {
-  const [resolvedUrl, setResolvedUrl] = useState<string>(pdfUrl || fileUrl || '');
-  const [isLoading, setIsLoading] = useState<boolean>(!resolvedUrl);
-  const [blobUrl, setBlobUrl] = useState<string>(() => convertDataUrlToBlobUrl(pdfUrl || fileUrl || ''));
-
-  useEffect(() => {
-    let active = true;
-    const initial = pdfUrl || fileUrl || '';
-
-    if (initial && !initial.startsWith('indexeddb:')) {
-      setResolvedUrl(initial);
-      setIsLoading(false);
-      return;
-    }
-
-    getPdfFromStorage('current_newsletter_pdf')
-      .then(async (saved) => {
-        if (!active) return;
-        if (saved) {
-          setResolvedUrl(saved);
-          setIsLoading(false);
-          return;
-        }
-
-        // Retrieve from permanent Cloud Firestore chunked storage
-        const firestorePdf = await downloadNewsletterPdfFromFirestore('current').catch(() => null);
-        if (active && firestorePdf) {
-          setResolvedUrl(firestorePdf);
-          savePdfToStorage('current_newsletter_pdf', firestorePdf).catch(() => {});
-          setIsLoading(false);
-          return;
-        }
-
-        if (active && initial) {
-          setResolvedUrl(initial);
-        }
-        if (active) setIsLoading(false);
-      })
-      .catch(async () => {
-        if (!active) return;
-        const firestorePdf = await downloadNewsletterPdfFromFirestore('current').catch(() => null);
-        if (active && firestorePdf) {
-          setResolvedUrl(firestorePdf);
-        } else if (active) {
-          setResolvedUrl(initial);
-        }
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [fileUrl, pdfUrl]);
-
-  // Convert base64 data URLs to same-origin Blob URLs so browser security permits inline rendering
-  useEffect(() => {
-    if (!resolvedUrl) {
-      setBlobUrl('');
-      return;
-    }
-
-    const converted = convertDataUrlToBlobUrl(resolvedUrl);
-    setBlobUrl(converted);
-
-    return () => {
-      if (converted && converted.startsWith('blob:') && !resolvedUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(converted);
-      }
-    };
-  }, [resolvedUrl]);
-
-  const activePdfUrl = blobUrl || resolvedUrl;
+  const { activePdfUrl, isLoading } = useNewsletterPdf();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -115,10 +45,10 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[130] w-screen h-screen bg-stone-950 text-stone-100 flex flex-col select-none overflow-hidden"
+      className="fixed inset-0 z-[130] w-screen h-[100dvh] bg-stone-950 text-stone-100 flex flex-col select-none overflow-hidden"
     >
       {/* Top Header */}
-      <header className="shrink-0 h-16 px-4 sm:px-6 flex items-center justify-between bg-stone-900/95 border-b border-stone-800 backdrop-blur-xl">
+      <header className="shrink-0 h-12 px-2 sm:px-3 flex items-center justify-between bg-stone-900/95 border-b border-stone-800 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
             <BookOpen className="w-5 h-5" />
@@ -144,6 +74,7 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
                     return;
                   }
                   const res = await fetch(activePdfUrl);
+                  if (!res.ok) throw new Error('This newsletter is no longer available.');
                   const blob = await res.blob();
                   const bUrl = URL.createObjectURL(blob);
                   const a = document.createElement('a');
@@ -180,7 +111,7 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
       </header>
 
       {/* Embedded PDF View */}
-      <main className="flex-1 w-full h-full p-2 sm:p-4 md:p-6 flex flex-col items-center justify-center overflow-y-auto">
+      <main className="flex-1 min-h-0 w-full p-0.5 sm:p-1 flex flex-col items-center justify-center overflow-hidden">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center gap-3 text-center">
             <div className="w-10 h-10 rounded-2xl bg-emerald-950 border border-emerald-700 flex items-center justify-center">
@@ -189,32 +120,7 @@ export const PdfReaderView: React.FC<PdfReaderViewProps> = ({
             <p className="text-base font-bold text-stone-200">Opening newsletter...</p>
           </div>
         ) : activePdfUrl ? (
-          <div className="w-full max-w-6xl mx-auto flex flex-col bg-white rounded-2xl border border-stone-800 shadow-2xl overflow-hidden relative">
-            <object
-              data={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-              type="application/pdf"
-              width="100%"
-              height="720px"
-              className="w-full h-[720px] border-0 rounded-2xl bg-white shadow-inner"
-              title={title}
-            >
-              <iframe
-                src={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-                width="100%"
-                height="720px"
-                className="w-full h-[720px] border-0 rounded-2xl bg-white shadow-inner"
-                title={title}
-              >
-                <embed
-                  src={`${activePdfUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-                  type="application/pdf"
-                  width="100%"
-                  height="720px"
-                  className="w-full h-[720px]"
-                />
-              </iframe>
-            </object>
-          </div>
+          <InAppPdfDocument key={activePdfUrl} url={activePdfUrl} />
         ) : (
           <div className="max-w-md bg-stone-900 border border-stone-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-amber-950/80 border border-amber-700 text-amber-400 flex items-center justify-center mx-auto">

@@ -757,12 +757,14 @@ export async function getNewsletterPdfFromFirestore(
 ): Promise<string | null> {
   if (!isFirebaseConfigured() || !db) return null;
   try {
+    const active = await getDoc(doc(db, 'newsletters', 'current'));
+    const activeConfig = active.exists() ? active.data() : null;
+    if (!activeConfig || activeConfig.isRemoved || (newsletterId !== 'current' && activeConfig.id !== newsletterId)) return null;
+    const metadata = await getDoc(doc(db, 'newsletters', newsletterId));
+    const expectedChunks = metadata.data()?.totalChunks;
+    if (!Number.isInteger(expectedChunks) || expectedChunks < 1) return null;
     const chunksColl = collection(db, 'newsletters', newsletterId, 'chunks');
     const snap = await getDocs(chunksColl);
-
-    if (snap.empty && newsletterId !== 'current') {
-      return getNewsletterPdfFromFirestore('current');
-    }
 
     if (snap.empty) return null;
 
@@ -777,7 +779,9 @@ export async function getNewsletterPdfFromFirestore(
     if (chunkItems.length === 0) return null;
 
     chunkItems.sort((a, b) => a.index - b.index);
-    const assembledDataUrl = chunkItems.map((c) => c.data).join('');
+    const currentChunks = chunkItems.filter((c) => c.index < expectedChunks);
+    if (currentChunks.length !== expectedChunks || currentChunks.some((c, index) => c.index !== index)) return null;
+    const assembledDataUrl = currentChunks.map((c) => c.data).join('');
 
     return assembledDataUrl;
   } catch (err) {
@@ -800,15 +804,9 @@ export async function deleteNewsletterPdfChunksFromFirestore(
     snap.forEach((d) => batch.delete(d.ref));
     await batch.commit();
 
-    if (newsletterId !== 'current') {
-      const currentChunksColl = collection(db, 'newsletters', 'current', 'chunks');
-      const currentSnap = await getDocs(currentChunksColl);
-      const currentBatch = writeBatch(db);
-      currentSnap.forEach((d) => currentBatch.delete(d.ref));
-      await currentBatch.commit();
-    }
+
   } catch (err) {
-    console.warn('Failed to delete newsletter PDF chunks from Firestore:', err);
+    throw new Error('Could not remove the newsletter from cloud storage. Please try again.');
   }
 }
 

@@ -29,7 +29,6 @@ import type { PortalDatesState } from '../hooks/usePortalDates';
 import type { UserProfile } from '../types';
 import { canManageNewsletter, canManagePinnedHighlights, isVip } from '../utils/permissions';
 import { sortEventsEarlyFirst } from '../utils/eventSort';
-import { convertDataUrlToBlobUrl } from '../utils/pdfStorage';
 import { UploadNewsletterModal } from '../components/UploadNewsletterModal';
 import { AddRsvpEventModal } from '../components/AddRsvpEventModal';
 import { AddHighlightModal } from '../components/AddHighlightModal';
@@ -86,16 +85,7 @@ export const NewsScreen = React.memo(function NewsScreen({
     newsletterConfig?.description ||
     'Featuring the 2026 Pet Gallery, Flu Shot Clinic, Continuum of Care Olive Garden Lunch, Make Your Own Sundae Social, Wii Bowling Results & Community Potlucks.';
 
-  const handleOpenPdfInNewTab = () => {
-    if (pdfUrl) {
-      const targetUrl = convertDataUrlToBlobUrl(pdfUrl);
-      if (targetUrl) {
-        window.open(targetUrl, '_blank', 'noopener,noreferrer');
-        return;
-      }
-    }
-    setIsPdfModalOpen(true);
-  };
+  const handleOpenPdf = () => setIsPdfModalOpen(true);
 
   // Events sorted from the beginning of the month to the last of the month (early first)
   const sortedEvents = useMemo(() => sortEventsEarlyFirst(rsvpEvents), [rsvpEvents]);
@@ -206,12 +196,12 @@ export const NewsScreen = React.memo(function NewsScreen({
           {!isRemoved && (
             <button
               type="button"
-              onClick={handleOpenPdfInNewTab}
+              onClick={handleOpenPdf}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow transition cursor-pointer"
-              title="Open newsletter PDF in new tab"
+              title="Open newsletter PDF"
             >
               <BookOpen className="w-4 h-4" />
-              <span>Open PDF in new tab</span>
+              <span>Open PDF</span>
             </button>
           )}
 

@@ -26,7 +26,9 @@ import {
   deletePinnedHighlightFromFirestore,
   getNewsletterPdfFromFirestore,
 } from '../services/firestoreSync';
-import { removeNewsletterPdfFromFirestore } from '../services/storage';
+import { auth, db } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { removeNewsletterPdfFromFirestore, removeNewsletterEditionFiles } from '../services/storage';
 import {
   clearAllNewsletterPdfStorage,
   removePdfFromStorage,
@@ -36,10 +38,9 @@ import {
   deleteNewsletterConfigFromStorage,
 } from '../utils/pdfStorage';
 import {
-  extractNewsletterClientSide,
+  extractNewsletter,
   formatGeminiError,
   parseRobustMonthAndDay,
-  isRecurringCalendarActivity,
 } from '../services/geminiNewsletter';
 
 const STORAGE_EVENTS_KEY = 'portal_rsvp_events_list';
@@ -130,6 +131,20 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
   const [isAddHighlightModalOpen, setIsAddHighlightModalOpen] = useState(false);
   const [isReanalyzingAi, setIsReanalyzingAi] = useState(false);
 
+  useEffect(() => {
+    if (!db || !currentUser) return;
+    return onSnapshot(doc(db, 'newsletters', 'current'), (snapshot) => {
+      if (snapshot.metadata.fromCache || !snapshot.exists()) return;
+      const config = snapshot.data() as NewsletterConfig;
+      setNewsletterConfig(config);
+      if (config.isRemoved) {
+        setIsPdfModalOpen(false);
+        void clearAllNewsletterPdfStorage();
+        navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_PDF_CACHE' });
+      }
+    });
+  }, [currentUser?.id]);
+
   // Auto-dismiss rsvpToast
   useEffect(() => {
     if (!rsvpToast) return;
@@ -198,13 +213,13 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
       }
 
       // 2. Check Firestore if not yet found from server
-      if (!resolvedConfig) {
+      {
         try {
           const firestoreCfg = await getNewsletterConfigFromFirestore();
           if (firestoreCfg && isMounted) {
             resolvedConfig = firestoreCfg;
             setNewsletterConfig((prev) => {
-              if (!prev || !prev.isCustomUpload || (firestoreCfg.uploadedAt || 0) >= (prev.uploadedAt || 0)) {
+              if (firestoreCfg.isRemoved || !prev || !prev.isCustomUpload || (firestoreCfg.uploadedAt || 0) >= (prev.uploadedAt || 0)) {
                 return firestoreCfg;
               }
               return prev;
@@ -278,7 +293,7 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
 
   const handleRemoveNewsletter = useCallback(async () => {
     const cleanConfig: NewsletterConfig = {
-      id: 'current_newsletter',
+      id: newsletterConfig?.id || 'current_newsletter',
       editionTitle: 'Community Newsletter',
       monthEdition: '',
       description: 'The community newsletter was removed. Admins may upload a new edition at any time.',
@@ -315,17 +330,24 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
 
     // 3. Clean Server Storage
     try {
-      await fetch('/api/newsletter/current', { method: 'DELETE' });
+      const removal = await fetch('/api/newsletter/current', {
+        method: 'DELETE', headers: { Authorization: `Bearer ${await auth?.currentUser?.getIdToken() || ''}` },
+      });
+      if (!removal.ok) throw new Error('Server newsletter removal failed.');
     } catch (e) {
-      console.warn('Failed to clean server storage on newsletter remove:', e);
+      setRsvpToast('Newsletter removal could not be completed on the server. Please try again.');
+      return;
     }
 
     // 4. Clean Firestore document & chunked storage
     try {
-      await saveNewsletterConfigToFirestore(cleanConfig);
+      const removed = await saveNewsletterConfigToFirestore(cleanConfig);
+      if (!removed) throw new Error('Unable to save the removal to Firebase.');
+      await removeNewsletterEditionFiles(newsletterConfig?.id || '');
       await removeNewsletterPdfFromFirestore('current');
     } catch (e) {
-      console.warn('Failed to sync newsletter remove to Firestore:', e);
+      setRsvpToast('Newsletter removal could not be completed in Firebase. Please try again.');
+      return;
     }
 
     // 5. Invalidate Service Worker dedicated PDF cache
@@ -338,7 +360,7 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
     }
 
     setRsvpToast('Newsletter PDF has been removed.');
-  }, []);
+  }, [newsletterConfig]);
 
   const handleRestoreDefaultNewsletter = useCallback(async () => {
     const restored: NewsletterConfig = {
@@ -359,7 +381,10 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
       await clearAllNewsletterPdfStorage();
       await removePdfFromStorage('current_newsletter_pdf');
       await deleteNewsletterConfigFromStorage();
-      await fetch('/api/newsletter/current', { method: 'DELETE' });
+      const removal = await fetch('/api/newsletter/current', {
+        method: 'DELETE', headers: { Authorization: `Bearer ${await auth?.currentUser?.getIdToken() || ''}` },
+      });
+      if (!removal.ok) throw new Error('Server newsletter removal failed.');
     } catch (e) {
       console.warn('Failed to clean IndexedDB and server on restore:', e);
     }
@@ -568,17 +593,15 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
         `[Newsletter Pipeline] Step 4a: Applying AI extraction in useNewsState for "${currentTitle}" (${currentMonth}), ID: ${currentId}`
       );
 
-      const candidateEvents = (extracted.rsvp_events || []).filter(
-        (e) => !isRecurringCalendarActivity(e.title)
-      );
+      const candidateEvents = extracted.rsvp_events || [];
 
-      if (candidateEvents.length > 0) {
+      if (Array.isArray(extracted.rsvp_events)) {
         const timestamp = Date.now();
-        const fallbackM = currentMonth ? currentMonth.slice(0, 3).toUpperCase() : 'OCT';
+        const fallbackM = '';
 
         const newEvents: CommunityRsvpEvent[] = candidateEvents.map((e, idx) => {
           const { month, day } = parseRobustMonthAndDay(
-            e.deadline || '',
+            '',
             e.day,
             e.month,
             undefined,
@@ -589,7 +612,7 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
             id: `ai-ev-${currentId}-${timestamp}-${idx}`,
             title: e.title,
             month: month || String(e.month || fallbackM).toUpperCase().slice(0, 3),
-            day: day || String(e.day || '01').padStart(2, '0'),
+            day: day || '',
             time: e.time,
             location: e.location,
             category: e.category || 'Special Event',
@@ -625,7 +648,7 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
         });
       }
 
-      if (extracted.pinned_highlights && extracted.pinned_highlights.length > 0) {
+      if (Array.isArray(extracted.pinned_highlights)) {
         const timestamp = Date.now();
         const newHighlights: PinnedHighlight[] = extracted.pinned_highlights.map((h, idx) => ({
           id: `ai-hl-${currentId}-${timestamp}-${idx}`,
@@ -813,10 +836,10 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
       }
 
       console.log(
-        `[Newsletter Pipeline] Dispatching client-side Gemini re-analysis for ${currentDoc?.editionTitle || 'document'}`
+        `[Newsletter Pipeline] Dispatching Gemini re-analysis for ${currentDoc?.editionTitle || 'document'}`
       );
 
-      const extractionResult = await extractNewsletterClientSide({
+      const extractionResult = await extractNewsletter({
         base64Data: cleanBase64,
         mimeType,
         fileName: currentDoc?.fileName || 'Newsletter.pdf',

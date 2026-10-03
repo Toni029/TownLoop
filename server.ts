@@ -11,6 +11,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { translateWorkOrderContent } from './server/translation.ts';
 import { extractNewsletterContent } from './server/newsletterExtractor.ts';
+import { requireNewsletterManager } from './server/newsletterAuth.ts';
 
 dotenv.config();
 
@@ -53,13 +54,13 @@ function limitAiRequests(req: Request, res: Response, next: () => void) {
 }
 
 // Parse JSON and urlencoded bodies with sufficient size limit for large PDF documents & text payloads
-app.use(express.json({ limit: '35mb' }));
-app.use(express.urlencoded({ extended: true, limit: '35mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ==================== API ROUTES ====================
 
 // Newsletter AI extraction endpoint for PDF / community bulletin documents
-app.post('/api/newsletter/extract-content', limitAiRequests, async (req: Request, res: Response) => {
+app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterManager, async (req: Request, res: Response) => {
   try {
     const {
       newsletterId,
@@ -149,13 +150,28 @@ app.post('/api/newsletter/extract-content', limitAiRequests, async (req: Request
 
     res.json(result);
   } catch (error: any) {
-    console.error('[Newsletter Pipeline] Extraction failed with error:', error?.message || error);
-    res.status(500).json({ error: 'Failed to extract content from uploaded newsletter. Please check file format.' });
+    const message = String(error?.message || '');
+    let status = 502;
+    let detail = 'Newsletter analysis failed. Please retry; your published newsletter has not been changed.';
+    if (/API key is not configured/i.test(message)) {
+      status = 503;
+      detail = 'Gemini is not configured. Ask your administrator to add GEMINI_API_KEY to the server environment and restart the app.';
+    } else if (/API_KEY_INVALID|API key not valid|PERMISSION_DENIED|401|403/.test(message)) {
+      detail = 'Gemini rejected the server API key. Please check its API permissions.';
+    } else if (/429|RESOURCE_EXHAUSTED|quota/i.test(message)) {
+      status = 429;
+      detail = 'Gemini quota or rate limit reached. Please check billing or try again later.';
+    } else if (/timeout|timed out|503|UNAVAILABLE/i.test(message)) {
+      status = 503;
+      detail = 'Gemini is temporarily unavailable or took too long. Please try again shortly.';
+    }
+    console.error('[Newsletter Pipeline] Extraction failed:', status);
+    res.status(status).json({ error: detail });
   }
 });
 
 // Newsletter PDF upload & permanent filesystem persistence endpoint
-app.post('/api/newsletter/upload-pdf', async (req: Request, res: Response) => {
+app.post('/api/newsletter/upload-pdf', requireNewsletterManager, async (req: Request, res: Response) => {
   try {
     const { fileDataUrl, fileName, newsletterId, config } = req.body;
     if (!fileDataUrl || typeof fileDataUrl !== 'string') {
@@ -169,12 +185,9 @@ app.post('/api/newsletter/upload-pdf', async (req: Request, res: Response) => {
     const buffer = Buffer.from(base64Data, 'base64');
 
     const sanitizedId = (newsletterId || 'current').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const editionFileName = `newsletter_${sanitizedId}.pdf`;
-    const editionPath = path.join(UPLOADS_DIR, editionFileName);
     const currentPdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
 
     // Write file to persistent storage
-    fs.writeFileSync(editionPath, buffer);
     fs.writeFileSync(currentPdfPath, buffer);
 
     const timestamp = Date.now();
@@ -216,6 +229,14 @@ app.get('/api/newsletter/pdf/:filename', (req: Request, res: Response) => {
   try {
     const rawFilename = req.params.filename || 'current_newsletter.pdf';
     const filename = path.basename(rawFilename);
+    const metadataPath = path.join(UPLOADS_DIR, 'current_newsletter.json');
+    const metadata = fs.existsSync(metadataPath) ? JSON.parse(fs.readFileSync(metadataPath, 'utf8')) : null;
+    res.setHeader('Cache-Control', 'no-store');
+    if (filename !== 'current_newsletter.pdf' || !metadata || metadata.isRemoved ||
+        (req.query.v && String(req.query.v) !== String(metadata.uploadedAt))) {
+      res.status(404).send('This newsletter is no longer available');
+      return;
+    }
     const filePath = path.join(UPLOADS_DIR, filename);
 
     if (!fs.existsSync(filePath)) {
@@ -228,7 +249,7 @@ app.get('/api/newsletter/pdf/:filename', (req: Request, res: Response) => {
       'Content-Type': 'application/pdf',
       'Content-Length': stat.size,
       'Content-Disposition': `inline; filename="${filename}"`,
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'no-store',
       'Accept-Ranges': 'bytes',
     });
 
@@ -258,12 +279,15 @@ app.get('/api/newsletter/current', (req: Request, res: Response) => {
 });
 
 // Remove current newsletter PDF from disk
-app.delete('/api/newsletter/current', (req: Request, res: Response) => {
+app.delete('/api/newsletter/current', requireNewsletterManager, (req: Request, res: Response) => {
   try {
     const configPath = path.join(UPLOADS_DIR, 'current_newsletter.json');
     const pdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
     if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
     if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+    for (const name of fs.readdirSync(UPLOADS_DIR)) {
+      if (/^newsletter_[a-zA-Z0-9_-]+\.pdf$/.test(name)) fs.unlinkSync(path.join(UPLOADS_DIR, name));
+    }
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to remove newsletter document' });

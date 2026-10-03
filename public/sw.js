@@ -52,7 +52,7 @@ function shouldBypassServiceWorker(url, req) {
   }
 
   // 3. Backend API proxy routes and internal server endpoints
-  // Note: Newsletter PDF streams (/api/newsletter/pdf/) are permitted through to service worker for offline/reload caching
+  // Note: Newsletter PDF streams (/api/newsletter/pdf/) are permitted through to service worker for network-only delivery
   if (pathname.startsWith('/api/newsletter/pdf/')) {
     return false;
   }
@@ -89,13 +89,13 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: purge older caches and claim clients (preserving dedicated PDF cache)
+// Activate: purge older caches and claim clients (including obsolete PDF caches)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME && key !== PDF_CACHE_NAME)
+          .filter((key) => key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       );
     }).then(() => self.clients.claim())
@@ -128,26 +128,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Dedicated PDF Document Handling: Network-First with Persistent PDF Cache fallback across app reloads
-  if (url.pathname.startsWith('/api/newsletter/pdf/') || url.pathname.endsWith('.pdf')) {
-    event.respondWith(
-      fetch(req)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const copy = networkResponse.clone();
-            caches.open(PDF_CACHE_NAME).then((cache) => cache.put(req, copy));
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          return caches.open(PDF_CACHE_NAME).then((cache) => {
-            return cache.match(req).then((cached) => {
-              if (cached) return cached;
-              return cache.match('/api/newsletter/pdf/current_newsletter.pdf');
-            });
-          });
-        })
-    );
+  // Newsletter availability is controlled by the admin; never serve stale offline PDFs.
+  if (url.pathname.startsWith('/api/newsletter/pdf/') || url.pathname.endsWith('.pdf') ||
+      (url.hostname === 'firebasestorage.googleapis.com' && url.pathname.includes('newsletters'))) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }
 
