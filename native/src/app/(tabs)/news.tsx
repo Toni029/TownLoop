@@ -1,13 +1,1 @@
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useNews } from '../../lib/news';
-import { Page, Card, Heading, Body, Button, colors } from '../../components/ui';
-export default function News() {
-    const { events, highlights, newsletter, loading, error, retry } = useNews();
-    const [tab, setTab] = useState<'events' | 'highlights'>('events');
-    return <Page><Heading>Community Bulletin</Heading><Text style={{ color: colors.muted }}>Announcements, upcoming events, and official gazette</Text><View style={{ backgroundColor: '#0f172a', borderRadius: 30, padding: 22, gap: 10 }}><Text style={{ color: '#34d399', fontWeight: '800' }}>OFFICIAL PUBLICATION</Text><Text style={{ color: 'white', fontSize: 24, fontWeight: '700' }}>{newsletter?.isRemoved ? 'Newsletter Currently Removed' : newsletter?.editionTitle || 'Community Newsletter'}</Text><Text style={{ color: '#cbd5e1' }}>{newsletter?.isRemoved ? 'A new edition will appear when your administrator publishes it.' : newsletter?.monthEdition || ''}</Text></View>
- <View style={{ flexDirection: 'row', gap: 8 }}>{(['events', 'highlights'] as const).map(key => <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)} style={{ flex: 1, padding: 14, borderRadius: 16, backgroundColor: tab === key ? colors.green : '#e7e5e4' }}><Text style={{ textAlign: 'center', fontWeight: '700', color: tab === key ? 'white' : colors.ink }}>{key === 'events' ? 'RSVP Upcoming Events' : 'Pinned Highlights'}</Text></Pressable>)}</View>
- {loading && <ActivityIndicator accessibilityLabel="Loading community news" color={colors.green}/>}{!!error && <Card><Body>{error}</Body><Button title="Try again" onPress={retry}/></Card>}
- {tab === 'events' ? events.map(event => <Card key={String(event.id)}><Text style={{ color: colors.green, fontWeight: '800' }}>{event.month} {event.day} · {event.time}</Text><Heading>{event.title}</Heading>{!!event.location && <Body>{event.location}</Body>}<Body>{event.description}</Body>{!!event.deadline && <Text style={{ color: colors.green }}>{event.deadline}</Text>}</Card>) : highlights.map(item => <Card key={item.id}><Text style={{ color: colors.green, fontWeight: '700' }}>{item.category || item.tag}</Text><Heading>{item.title}</Heading><Body>{item.description || item.summary}</Body></Card>)}
- {!loading && !error && (tab === 'events' ? events : highlights).length === 0 && <Card><Body>{tab === 'events' ? 'No upcoming RSVP events have been published.' : 'No pinned highlights have been published.'}</Body></Card>}</Page>;
-}
+export { default } from '../../news/NewsScreen';

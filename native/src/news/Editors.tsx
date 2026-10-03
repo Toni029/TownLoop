@@ -99,8 +99,14 @@ export function EventEditor({
   }
   return (
     <NewsDialog
-      title={event ? "Edit RSVP Event" : "Add RSVP Event"}
-      subtitle="Community events & reservations"
+      title={event ? "Edit RSVP Event" : "Create RSVP Event"}
+      tone="green"
+      icon={CalendarPlus}
+      subtitle={
+        event
+          ? "Review and adjust event details, schedule, or attendee capacity"
+          : "Publish event to Community Bulletin for resident sign-up"
+      }
       onClose={onClose}
       busy={busy}
     >
@@ -224,13 +230,15 @@ export function HighlightEditor({
   }
   return (
     <NewsDialog
-      title="Pin a Highlight"
-      subtitle="Important updates for your community"
+      title="Create Pinned Highlight"
+      tone="amber"
+      icon={Pin}
+      subtitle="Pin a high-priority announcement to the Community Bulletin"
       onClose={onClose}
       busy={busy}
     >
       <Field
-        label="Highlight Title *"
+        label="Highlight Headline *"
         value={title}
         onChangeText={setTitle}
         editable={!busy}

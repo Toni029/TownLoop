@@ -121,7 +121,20 @@ export function NewsFeed({
           </View>
           {manager && (
             <View style={{ alignSelf: "flex-start" }}>
-              <Badge>Admin / VIP Management Mode</Badge>
+              <View
+                style={{
+                  backgroundColor: "#d1fae5",
+                  borderWidth: 1,
+                  borderColor: "#6ee7b7",
+                  borderRadius: 20,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                }}
+              >
+                <Copy weight="bold" style={{ fontSize: 11, color: "#065f46" }}>
+                  Admin / VIP Management Mode
+                </Copy>
+              </View>
             </View>
           )}
         </View>
@@ -464,7 +477,7 @@ export function NewsFeed({
                       {event.day}
                     </Copy>
                   </View>
-                  <View style={{ flex: 1, gap: 5 }}>
+                  <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
                     <View style={s.row}>
                       <Badge>{event.category}</Badge>
                       {event.deadline && (

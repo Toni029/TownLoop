@@ -62,16 +62,29 @@ export function useNews() {
               ),
             error,
           ),
-        newsletter: (next, error) =>
-          onSnapshot(
+        newsletter: (next, error) => {
+          const timer = setTimeout(
+            () => error({ code: "auth/network-request-failed" }),
+            20000,
+          );
+          const stop = onSnapshot(
             doc(db, "newsletters", "current"),
             { includeMetadataChanges: true },
             (snap) => {
-              if (!snap.metadata.fromCache)
-                next(snap.exists() ? (snap.data() as NewsletterConfig) : null);
+              if (snap.metadata.fromCache) return;
+              clearTimeout(timer);
+              next(snap.exists() ? (snap.data() as NewsletterConfig) : null);
             },
-            error,
-          ),
+            (e) => {
+              clearTimeout(timer);
+              error(e);
+            },
+          );
+          return () => {
+            clearTimeout(timer);
+            stop();
+          };
+        },
       },
       (state) => setOwned({ uid, state }),
       friendlyError,

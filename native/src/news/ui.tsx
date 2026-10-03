@@ -15,7 +15,8 @@ import {
   type TextInputProps,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { X, type LucideIcon } from "lucide-react-native";
+import { X, ChevronDown, type LucideIcon } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFonts } from "expo-font";
 import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
 import { PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans/600SemiBold";
@@ -100,9 +101,9 @@ export function Action({
       onPress={onPress}
       hitSlop={compact ? 5 : 2}
       style={({ pressed }) => ({
-        minHeight: compact ? 36 : 42,
+        minHeight: compact && tone === "rose" ? 30 : 36,
         paddingHorizontal: compact ? 12 : 14,
-        paddingVertical: 8,
+        paddingVertical: compact && tone === "rose" ? 5 : 8,
         borderRadius: compact ? 12 : 16,
         backgroundColor: bg,
         borderWidth: 1,
@@ -222,11 +223,16 @@ export function Choices({
   return (
     <View style={{ gap: 6 }}>
       <Copy weight="bold">{label}</Copy>
-      <Action
-        tone="light"
-        label={value || "Choose"}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
-      />
+        style={[s.input, s.row, { justifyContent: "space-between" }]}
+      >
+        <Copy weight="semi">{value || "Choose"}</Copy>
+        <ChevronDown size={16} color="#78716c" />
+      </Pressable>
       {open && (
         <View style={[s.card, { gap: 4 }]}>
           {values.map((v) => (
@@ -258,11 +264,15 @@ export function NewsDialog({
   onClose,
   children,
   busy = false,
+  tone,
+  icon: HeaderIcon,
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
   onClose: () => void;
   busy?: boolean;
+  tone?: "green" | "amber";
+  icon?: LucideIcon;
 }>) {
   const [progress] = useState(() => new Animated.Value(0));
   const reduced = useReducedMotion();
@@ -329,31 +339,89 @@ export function NewsDialog({
             }}
           >
             <SafeAreaView edges={["bottom"]} style={{ flexShrink: 1 }}>
-              <View
+              <LinearGradient
+                colors={
+                  tone === "amber"
+                    ? ["#92400e", "#b45309"]
+                    : tone === "green"
+                      ? ["#065f46", "#115e59"]
+                      : ["#fff", "#fff"]
+                }
                 style={[
                   s.row,
                   {
                     padding: 20,
+                    flexWrap: "nowrap",
                     borderBottomWidth: 1,
                     borderColor: palette.line,
                   },
                 ]}
               >
-                <View style={{ flex: 1 }}>
-                  <Copy weight="serif" style={{ fontSize: 20, lineHeight: 27 }}>
+                {HeaderIcon && (
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 16,
+                      backgroundColor: "#ffffff1a",
+                      borderWidth: 1,
+                      borderColor: "#ffffff33",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <HeaderIcon
+                      size={20}
+                      color={tone === "amber" ? "#fde68a" : "#6ee7b7"}
+                    />
+                  </View>
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Copy
+                    weight="serif"
+                    style={{
+                      fontSize: 18,
+                      lineHeight: 25,
+                      color: tone ? "#fff" : palette.ink,
+                    }}
+                  >
                     {title}
                   </Copy>
                   {subtitle && (
-                    <Copy style={{ color: palette.muted }}>{subtitle}</Copy>
+                    <Copy
+                      style={{
+                        fontSize: 11,
+                        lineHeight: 16,
+                        color:
+                          tone === "amber"
+                            ? "#fef3c7"
+                            : tone
+                              ? "#a7f3d0"
+                              : palette.muted,
+                      }}
+                    >
+                      {subtitle}
+                    </Copy>
                   )}
                 </View>
-                <IconAction
-                  label="Close"
-                  icon={X}
-                  onPress={onClose}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
                   disabled={busy}
-                />
-              </View>
+                  hitSlop={6}
+                  onPress={onClose}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: "#ffffff1a",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <X size={16} color={tone ? "#fff" : palette.muted} />
+                </Pressable>
+              </LinearGradient>
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 style={{ flexGrow: 0, flexShrink: 1 }}
