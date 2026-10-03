@@ -35,7 +35,7 @@ const suggestions = [
 ];
 export function Bottle() {
   return (
-    <Svg width={28} height={28} viewBox="0 0 24 24">
+    <Svg width={24} height={24} viewBox="0 0 24 24">
       <Rect
         x={7}
         y={2}
@@ -95,9 +95,22 @@ export function Medications({
       notify(message);
   }
   return (
-    <Tile>
+    <Tile tone="medication">
       <Row>
-        <Bottle />
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 16,
+            backgroundColor: "#f59e0b33",
+            borderWidth: 1,
+            borderColor: "#f59e0b66",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Bottle />
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -112,36 +125,65 @@ export function Medications({
               );
             setExpanded(!expanded);
           }}
-          style={{ flex: 1, minHeight: 48, justifyContent: "center" }}
+          hitSlop={8}
+          style={{ flex: 1, minHeight: 44, justifyContent: "center" }}
         >
-          <Row>
+          <Row style={{ paddingRight: 44 }}>
             <Txt
               bold
               accessibilityRole="header"
-              style={{ fontSize: 16, flex: 1 }}
+              style={{ fontSize: 16, lineHeight: 24, flex: 1 }}
             >
               Daily Medications
             </Txt>
-            {expanded ? (
-              <ChevronUp color={p.blue} />
-            ) : (
-              <ChevronDown color={p.blue} />
-            )}
           </Row>
-          <Txt style={{ color: p.blue, fontSize: 12 }}>
+          <View
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              width: 36,
+              height: 36,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: expanded ? "#0284c7" : "#cbd5e1",
+              backgroundColor: expanded ? "#0369a1" : p.paper,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {expanded ? (
+              <ChevronUp size={20} color="#fff" />
+            ) : (
+              <ChevronDown size={20} color={p.ink} />
+            )}
+          </View>
+          <Txt bold style={{ color: p.blue, fontSize: 12, lineHeight: 18 }}>
             {taken === items.length && items.length > 0
               ? "All doses completed for today! 🎉"
               : `${taken} of ${items.length} doses taken today`}
           </Txt>
         </Pressable>
       </Row>
-      <Row style={{ justifyContent: "space-between" }}>
-        <Txt bold style={{ color: p.blue }}>
-          {taken}/{items.length} Done
-        </Txt>
+      <Row style={{ gap: 10 }}>
+        <View
+          style={{
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 99,
+            borderWidth: 1,
+            borderColor: "#bae6fd",
+            backgroundColor: "#e0f2fee6",
+          }}
+        >
+          <Txt bold style={{ color: p.blue, fontSize: 12, lineHeight: 18 }}>
+            {taken}/{items.length} Done
+          </Txt>
+        </View>
         <Action
           icon={Plus}
           label="Add Medication"
+          large
           active
           color={p.blue}
           disabled={busy}
@@ -324,7 +366,7 @@ export function Medications({
           )}
         </View>
       )}
-      {!!(editor) && (
+      {!!editor && (
         <MedicationEditor
           initial={editor === "new" ? undefined : editor}
           busy={busy}
@@ -369,6 +411,7 @@ function MedicationEditor({
     [error, setError] = useState("");
   return (
     <Sheet
+      centered
       title={initial ? "Edit Medication" : "Add Medication Reminder"}
       onClose={onClose}
     >

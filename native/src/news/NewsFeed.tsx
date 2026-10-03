@@ -8,6 +8,7 @@ import {
   ScrollView,
   View,
 } from "react-native";
+import Svg, { Defs, RadialGradient, Stop, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -158,17 +159,37 @@ export function NewsFeed({
           style={{
             borderRadius: 30,
             padding: 20,
-            gap: 12,
+            gap: 0,
             overflow: "hidden",
             boxShadow: "0px 4px 6px rgba(0,0,0,0.12)",
           }}
         >
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              right: -40,
+              bottom: -40,
+              width: 210,
+              height: 210,
+            }}
+          >
+            <Svg width={210} height={210}>
+              <Defs>
+                <RadialGradient id="publicationGlow">
+                  <Stop offset="0" stopColor="#10b981" stopOpacity={0.13} />
+                  <Stop offset="1" stopColor="#10b981" stopOpacity={0} />
+                </RadialGradient>
+              </Defs>
+              <Circle cx={105} cy={105} r={105} fill="url(#publicationGlow)" />
+            </Svg>
+          </View>
           <View style={[s.row, { justifyContent: "space-between" }]}>
             <View style={[s.row, { maxWidth: "100%", flexShrink: 1 }]}>
               <View
                 style={{
                   paddingHorizontal: 10,
-                  paddingVertical: 3,
+                  paddingVertical: 2,
                   borderRadius: 20,
                   borderWidth: 1,
                   borderColor: "#10b9814d",
@@ -177,22 +198,29 @@ export function NewsFeed({
               >
                 <Copy
                   weight="extra"
-                  style={{ color: "#34d399", fontSize: 11, letterSpacing: 1 }}
+                  style={{
+                    color: "#34d399",
+                    fontSize: 11,
+                    lineHeight: 16.5,
+                    letterSpacing: 1,
+                  }}
                 >
                   OFFICIAL PUBLICATION
                 </Copy>
               </View>
               {available && <Badge tone="sky">Custom Upload</Badge>}
             </View>
-            <Copy style={{ fontSize: 11, color: "#94a3b8" }}>
+            <Copy style={{ fontSize: 11, lineHeight: 16.5, color: "#94a3b8" }}>
               {available ? newsletter?.monthEdition : "The Breeze"}
             </Copy>
           </View>
           <Copy
             weight="serif"
             style={{
+              fontFamily: "NewsSerifExtra",
               fontSize: 20,
-              lineHeight: 27,
+              lineHeight: 25,
+              marginTop: 12,
               color: removed ? "#fda4af" : "white",
             }}
           >
@@ -202,17 +230,18 @@ export function NewsFeed({
                 ? newsletter?.editionTitle || "Community Newsletter"
                 : "No Newsletter Uploaded"}
           </Copy>
-          <Copy style={{ color: "#cbd5e1" }}>
+          <Copy style={{ color: "#cbd5e1", lineHeight: 19.5, marginTop: 8 }}>
             {removed
               ? "The publication was removed. Admins and VIP residents can upload a new edition (.pdf or document) to share with the community."
               : available
                 ? newsletter?.description || "Community newsletter"
                 : "The monthly newsletter will appear here when it is uploaded."}
           </Copy>
-          <View style={s.row}>
+          <View style={[s.row, { marginTop: 16 }]}>
             {available && (
               <>
                 <Action
+                  tone="emerald"
                   label="Open PDF"
                   icon={BookOpen}
                   onPress={act("open")}
@@ -288,7 +317,7 @@ export function NewsFeed({
             )}
           </View>
         </LinearGradient>
-        {!!(error) && <ErrorNotice message={error} retry={retry} />}
+        {!!error && <ErrorNotice message={error} retry={retry} />}
         {loading && (
           <ActivityIndicator
             accessibilityLabel="Loading community news"
@@ -326,24 +355,27 @@ export function NewsFeed({
                   justifyContent: "center",
                   alignItems: "center",
                   gap: 6,
-                  padding: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 12,
                   borderRadius: 12,
                   backgroundColor: selected ? "#047857" : "transparent",
                 }}
               >
                 <View style={s.row}>
-                  <Icon size={18} color={selected ? "#fff" : "#064e3b"} />
+                  <Icon size={16} color={selected ? "#fff" : "#064e3b"} />
                   <View
                     style={{
                       backgroundColor: selected ? "#065f46" : "#d1fae5",
                       borderRadius: 20,
                       paddingHorizontal: 6,
+                      paddingVertical: 2,
                     }}
                   >
                     <Copy
                       weight="bold"
                       style={{
                         fontSize: 10,
+                        lineHeight: 15,
                         color: selected ? "#d1fae5" : "#065f46",
                       }}
                     >
@@ -368,7 +400,7 @@ export function NewsFeed({
             );
           })}
         </LinearGradient>
-        <Animated.View style={{ gap: 12, opacity: fade }}>
+        <Animated.View style={{ gap: 12, opacity: fade, paddingTop: 4 }}>
           <View style={[s.row, { justifyContent: "space-between" }]}>
             <View style={s.row}>
               {tab === "events" ? (
@@ -489,7 +521,7 @@ export function NewsFeed({
                     <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
                       <View style={s.row}>
                         <Badge>{event.category}</Badge>
-                        {!!(event.deadline) && (
+                        {!!event.deadline && (
                           <Badge tone="amber">{event.deadline}</Badge>
                         )}
                         {event.userRsvp && <Badge>✓ You&apos;re Going</Badge>}
@@ -500,7 +532,7 @@ export function NewsFeed({
                       >
                         {event.title}
                       </Copy>
-                      <Copy style={{ color: "#57534e" }}>
+                      <Copy style={{ color: "#57534e", lineHeight: 19.5 }}>
                         {event.description}
                       </Copy>
                       <View
@@ -546,7 +578,7 @@ export function NewsFeed({
                       },
                     ]}
                   >
-                    <View style={s.row}>
+                    <View style={[s.row, { gap: 4, flex: 1 }]}>
                       <Users size={14} color="#a8a29e" />
                       <Copy style={{ color: "#78716c" }}>
                         <Copy weight="bold">{event.attendeesCount}</Copy>{" "}
@@ -614,7 +646,7 @@ export function NewsFeed({
                   >
                     {h.title}
                   </Copy>
-                  <Copy style={{ color: "#57534e" }}>
+                  <Copy style={{ color: "#57534e", lineHeight: 19.5 }}>
                     {h.description || h.summary}
                   </Copy>
                 </LinearGradient>

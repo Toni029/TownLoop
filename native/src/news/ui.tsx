@@ -22,6 +22,7 @@ import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans
 import { PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans/600SemiBold";
 import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
+import { PlayfairDisplay_800ExtraBold } from "@expo-google-fonts/playfair-display/800ExtraBold";
 import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
 import { useReducedMotion } from "../home/hooks";
 export const palette = {
@@ -39,6 +40,7 @@ export function useNewsFonts() {
     NewsBold: PlusJakartaSans_700Bold,
     NewsExtra: PlusJakartaSans_800ExtraBold,
     NewsSerif: PlayfairDisplay_700Bold,
+    NewsSerifExtra: PlayfairDisplay_800ExtraBold,
   });
 }
 export function Copy({
@@ -74,16 +76,20 @@ export function Action({
   disabled = false,
   tone = "green",
   compact = false,
+  square = false,
 }: {
   label: string;
   icon?: LucideIcon;
   onPress: () => void;
   disabled?: boolean;
-  tone?: "green" | "glass" | "sky" | "amber" | "rose" | "light" | "dark";
+  tone?:
+    "green" | "emerald" | "glass" | "sky" | "amber" | "rose" | "light" | "dark";
   compact?: boolean;
+  square?: boolean;
 }) {
   const tones = {
     green: ["#047857", "#fff"],
+    emerald: ["#059669", "#fff"],
     glass: ["#ffffff30", "#fff"],
     sky: ["#0284c7", "#fff"],
     amber: ["#b45309", "#fff"],
@@ -104,7 +110,7 @@ export function Action({
         minHeight: compact && tone === "rose" ? 30 : 36,
         paddingHorizontal: compact ? 12 : 14,
         paddingVertical: compact && tone === "rose" ? 5 : 8,
-        borderRadius: compact ? 12 : 16,
+        borderRadius: compact || square ? 12 : 99,
         backgroundColor: bg,
         borderWidth: 1,
         borderColor: tone === "glass" ? "#ffffff33" : bg,
@@ -171,8 +177,8 @@ export function Badge({
         backgroundColor: c[0],
         borderColor: c[2],
         borderWidth: 1,
-        borderRadius: 5,
-        paddingHorizontal: 7,
+        borderRadius: tone === "sky" ? 99 : 4,
+        paddingHorizontal: 8,
         paddingVertical: 2,
       }}
     >
@@ -400,7 +406,7 @@ export function NewsDialog({
                   >
                     {title}
                   </Copy>
-                  {!!(subtitle) && (
+                  {!!subtitle && (
                     <Copy
                       style={{
                         fontSize: 11,

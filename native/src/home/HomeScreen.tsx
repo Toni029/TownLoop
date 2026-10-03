@@ -60,7 +60,9 @@ export function HomeScreen({
         onAccount={onAccount}
         dark={dark}
         embedded={!!presentation}
-        toggleTheme={() => presentation ? presentation.toggleTheme() : setDark(!dark)}
+        toggleTheme={() =>
+          presentation ? presentation.toggleTheme() : setDark(!dark)
+        }
       />
     </Theme.Provider>
   );
@@ -107,74 +109,83 @@ function HomeContent({
       edges={embedded ? ["left", "right"] : ["top", "left", "right"]}
       style={{ flex: 1, backgroundColor: embedded ? "transparent" : p.bg }}
     >
-      {!embedded && <View
-        style={{
-          paddingHorizontal: 24,
-          paddingTop: 16,
-          paddingBottom: 14,
-          borderBottomWidth: 1,
-          borderColor: p.line,
-        }}
-      >
-        <Row
-          style={{ justifyContent: "space-between", alignItems: "flex-start" }}
+      {!embedded && (
+        <View
+          style={{
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: 14,
+            borderBottomWidth: 1,
+            borderColor: p.line,
+          }}
         >
-          <View style={{ flex: 1 }}>
-            <Txt
-              accessibilityRole="header"
-              style={{ fontFamily: "Playfair", fontSize: 30, lineHeight: 34 }}
-            >
-              Good Morning,
-            </Txt>
-            <Txt
-              style={{
-                fontFamily: "Playfair",
-                fontSize: 30,
-                lineHeight: 36,
-                color: dark ? "#34d399" : "#000",
-              }}
-            >
-              {name.split(" ")[0] || "Resident"}
-            </Txt>
-            <Txt
-              bold
-              style={{ fontSize: 13, marginTop: 8, textTransform: "uppercase" }}
-            >
-              {friendlyDate(today)}
-            </Txt>
-            {!!role && role !== "resident" && (
+          <Row
+            style={{
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Txt
+                accessibilityRole="header"
+                style={{ fontFamily: "Playfair", fontSize: 30, lineHeight: 34 }}
+              >
+                Good Morning,
+              </Txt>
+              <Txt
+                style={{
+                  fontFamily: "Playfair",
+                  fontSize: 30,
+                  lineHeight: 36,
+                  color: dark ? "#34d399" : "#000",
+                }}
+              >
+                {name.split(" ")[0] || "Resident"}
+              </Txt>
               <Txt
                 bold
                 style={{
-                  color: p.green,
-                  fontSize: 12,
+                  fontSize: 13,
+                  marginTop: 8,
                   textTransform: "uppercase",
                 }}
               >
-                {role}
+                {friendlyDate(today)}
               </Txt>
-            )}
-          </View>
-          <View style={{ gap: 6 }}>
-            <Action
-              icon={User}
-              iconOnly
-              label="Your account"
-              onPress={onAccount}
-            />
-            <Action
-              icon={dark ? Sun : Moon}
-              iconOnly
-              label={
-                dark
-                  ? "Switch to light appearance"
-                  : "Switch to dark appearance"
-              }
-              onPress={toggleTheme}
-            />
-          </View>
-        </Row>
-      </View>}
+              {!!role && role !== "resident" && (
+                <Txt
+                  bold
+                  style={{
+                    color: p.green,
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {role}
+                </Txt>
+              )}
+            </View>
+            <View style={{ gap: 6 }}>
+              <Action
+                icon={User}
+                iconOnly
+                label="Your account"
+                onPress={onAccount}
+              />
+              <Action
+                icon={dark ? Sun : Moon}
+                iconOnly
+                label={
+                  dark
+                    ? "Switch to light appearance"
+                    : "Switch to dark appearance"
+                }
+                onPress={toggleTheme}
+              />
+            </View>
+          </Row>
+        </View>
+      )}
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{

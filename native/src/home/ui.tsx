@@ -92,27 +92,32 @@ export function Row({
 export function Tile({
   children,
   tone = "blue",
-}: PropsWithChildren<{ tone?: "blue" | "green" }>) {
+}: PropsWithChildren<{ tone?: "blue" | "green" | "medication" }>) {
   const dark = useContext(Theme);
   return (
     <LinearGradient
       colors={
         dark
           ? ["#0f172a", "#020617"]
-          : tone === "green"
-            ? ["#f2f7f4", "#e8f1ec"]
-            : ["#f0f6fc", "#e1edf8"]
+          : tone === "medication"
+            ? ["#f8fbfd", "#f1f6fa", "#e8f2f9"]
+            : tone === "green"
+              ? ["#f2f7f4", "#e8f1ec"]
+              : ["#f0f6fc", "#e1edf8"]
       }
       style={{
-        padding: 20,
+        padding: tone === "medication" ? 16 : 20,
         borderRadius: 30,
+        boxShadow: "0px 1px 2px rgba(0,0,0,0.08)",
         borderWidth: 1,
         borderColor: dark
           ? "#1e293b"
-          : tone === "green"
-            ? "#bbdfca"
-            : "#bcd6ee",
-        gap: 14,
+          : tone === "medication"
+            ? "#cfe0ee"
+            : tone === "green"
+              ? "#bbdfca"
+              : "#bcd6ee",
+        gap: tone === "medication" ? 12 : 14,
       }}
     >
       {children}
@@ -150,6 +155,9 @@ export function Action({
   color,
   disabled = false,
   iconOnly = false,
+  large = false,
+  square = false,
+  borderless = false,
 }: {
   label: string;
   onPress: () => void;
@@ -158,6 +166,9 @@ export function Action({
   color?: string;
   disabled?: boolean;
   iconOnly?: boolean;
+  large?: boolean;
+  square?: boolean;
+  borderless?: boolean;
 }) {
   const p = usePalette();
   const tint = color || p.green;
@@ -172,15 +183,16 @@ export function Action({
       aria-disabled={disabled}
       disabled={disabled}
       onPress={onPress}
+      hitSlop={iconOnly ? 8 : { top: 8, bottom: 8, left: 2, right: 2 }}
       style={({ pressed }) => ({
-        minWidth: 48,
-        minHeight: 48,
-        paddingHorizontal: iconOnly ? 10 : 12,
-        paddingVertical: 10,
-        borderRadius: 14,
-        borderWidth: 1,
+        minWidth: iconOnly ? 32 : undefined,
+        minHeight: iconOnly ? 32 : large ? 40 : active ? 24 : 26,
+        paddingHorizontal: iconOnly ? 8 : large ? 16 : 12,
+        paddingVertical: large ? 8 : 4,
+        borderRadius: square || large ? 12 : 99,
+        borderWidth: borderless || active ? 0 : 1,
         borderColor: active ? tint : p.line,
-        backgroundColor: active ? fill : p.paper,
+        backgroundColor: active ? fill : borderless ? "transparent" : p.paper,
         opacity: disabled ? 0.45 : pressed ? 0.7 : 1,
         flexDirection: "row",
         alignItems: "center",
@@ -189,11 +201,16 @@ export function Action({
         flexShrink: 1,
       })}
     >
-      {Icon && <Icon size={18} color={active ? "#fff" : tint} />}
+      {Icon && <Icon size={16} color={active ? "#fff" : tint} />}
       {!iconOnly && (
         <Txt
           bold
-          style={{ color: active ? "#fff" : tint, flexShrink: 1, fontSize: 13 }}
+          style={{
+            color: active ? "#fff" : tint,
+            flexShrink: 1,
+            fontSize: 12,
+            lineHeight: large ? 18 : 16,
+          }}
         >
           {label}
         </Txt>
@@ -230,7 +247,12 @@ export function Sheet({
   title,
   onClose,
   children,
-}: PropsWithChildren<{ title: string; onClose: () => void }>) {
+  centered = false,
+}: PropsWithChildren<{
+  title: string;
+  onClose: () => void;
+  centered?: boolean;
+}>) {
   const p = usePalette();
   const reduced = useReducedMotion();
   const progress = useState(() => new Animated.Value(0))[0];
@@ -264,7 +286,13 @@ export function Sheet({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        <View
+          style={{
+            flex: 1,
+            justifyContent: centered ? "center" : "flex-end",
+            padding: centered ? 12 : 0,
+          }}
+        >
           <Animated.View
             style={[
               StyleSheet.absoluteFill,
@@ -282,14 +310,19 @@ export function Sheet({
             accessibilityViewIsModal
             style={{
               maxHeight: "92%",
-              borderTopLeftRadius: 32,
-              borderTopRightRadius: 32,
+              width: "100%",
+              maxWidth: centered ? 576 : 384,
+              alignSelf: "center",
+              borderRadius: centered ? 24 : undefined,
+              borderTopLeftRadius: centered ? 24 : 32,
+              borderTopRightRadius: centered ? 24 : 32,
+              overflow: "hidden",
               backgroundColor: p.paper,
               transform: [
                 {
                   translateY: progress.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [600, 0],
+                    outputRange: centered ? [24, 0] : [600, 0],
                   }),
                 },
               ],
@@ -299,29 +332,34 @@ export function Sheet({
               edges={["bottom", "left", "right"]}
               style={{ flexShrink: 1 }}
             >
-              <View
-                {...pan.panHandlers}
-                style={{ alignItems: "center", padding: 12 }}
-              >
+              {!centered && (
                 <View
-                  style={{
-                    width: 48,
-                    height: 5,
-                    borderRadius: 5,
-                    backgroundColor: p.line,
-                  }}
-                />
-              </View>
+                  {...pan.panHandlers}
+                  style={{ alignItems: "center", padding: 12 }}
+                >
+                  <View
+                    style={{
+                      width: 48,
+                      height: 5,
+                      borderRadius: 5,
+                      backgroundColor: p.line,
+                    }}
+                  />
+                </View>
+              )}
               <Row
                 style={{
                   paddingHorizontal: 20,
+                  paddingVertical: centered ? 20 : 0,
+                  borderBottomWidth: 1,
+                  borderColor: p.line,
                   justifyContent: "space-between",
                 }}
               >
                 <Txt
                   bold
                   accessibilityRole="header"
-                  style={{ fontSize: 18, flex: 1 }}
+                  style={{ fontSize: centered ? 18 : 16, flex: 1 }}
                 >
                   {title}
                 </Txt>

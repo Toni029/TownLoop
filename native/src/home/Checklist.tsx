@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 import {
   Calendar as CalendarIcon,
   CheckCircle2,
@@ -49,37 +49,62 @@ export function Checklist({
   });
   return (
     <Tile tone="green">
-      <Row>
-        <CheckCircle2 color={p.green} size={22} />
-        <Txt bold accessibilityRole="header" style={{ fontSize: 16, flex: 1 }}>
-          Daily Checklist
-        </Txt>
-        <Txt bold style={{ color: p.green }}>
-          {list.filter((t) => t.done).length}/{list.length} Done
-        </Txt>
-      </Row>
-      <Txt style={{ fontSize: 12, color: p.green }}>
-        {filter === "all"
-          ? "All Scheduled Tasks"
-          : `${filter === "today" ? "Today • " : filter === "tomorrow" ? "Tomorrow • " : ""}${friendlyDate(target)}`}
-      </Txt>
-      <Row>
-        <Action
-          icon={CalendarIcon}
-          label="Choose Date on Calendar"
-          iconOnly
-          onPress={() => {
-            setMonth(parseDate(target));
-            setDialog("calendar");
-          }}
-        />
-        <Action
-          icon={Plus}
-          label="Add Task"
-          active
-          disabled={busy}
-          onPress={() => setDialog("add")}
-        />
+      <Row
+        style={{ justifyContent: "space-between", gap: 8, flexWrap: "nowrap" }}
+      >
+        <Row style={{ flex: 1, flexWrap: "nowrap", gap: 8 }}>
+          <CheckCircle2 color={p.green} size={20} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Txt
+              bold
+              accessibilityRole="header"
+              style={{ fontSize: 16, lineHeight: 24 }}
+            >
+              Daily Checklist
+            </Txt>
+            <Txt
+              bold
+              style={{ fontSize: 11, lineHeight: 16.5, color: p.green }}
+            >
+              {filter === "all"
+                ? "All Scheduled Tasks"
+                : `${filter === "today" ? "Today • " : filter === "tomorrow" ? "Tomorrow • " : ""}${friendlyDate(target)}`}
+            </Txt>
+          </View>
+        </Row>
+        <Row style={{ gap: 8, flexWrap: "nowrap" }}>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 99,
+              borderWidth: 1,
+              borderColor: "#a7f3d0",
+              backgroundColor: "#d1fae5cc",
+            }}
+          >
+            <Txt bold style={{ color: p.green, fontSize: 12, lineHeight: 16 }}>
+              {list.filter((t) => t.done).length}/{list.length} Done
+            </Txt>
+          </View>
+          <Action
+            icon={CalendarIcon}
+            label="Choose Date on Calendar"
+            iconOnly
+            onPress={() => {
+              setMonth(parseDate(target));
+              setDialog("calendar");
+            }}
+          />
+          <Action
+            icon={Plus}
+            label="Add Task"
+            iconOnly
+            active
+            disabled={busy}
+            onPress={() => setDialog("add")}
+          />
+        </Row>
       </Row>
       <Row>
         <Action
@@ -114,12 +139,19 @@ export function Checklist({
         />
       </Row>
       {list.length === 0 ? (
-        <Txt style={{ color: p.muted, textAlign: "center", padding: 12 }}>
+        <Txt
+          style={{
+            color: p.muted,
+            fontSize: 12,
+            textAlign: "center",
+            paddingVertical: 12,
+          }}
+        >
           No tasks scheduled for this day.
         </Txt>
       ) : (
         list.map((t) => (
-          <Box key={t.id}>
+          <Box key={t.id} style={{ padding: 12, gap: 0 }}>
             <Row>
               <Pressable
                 accessibilityRole="checkbox"
@@ -127,9 +159,10 @@ export function Checklist({
                 aria-checked={t.done}
                 accessibilityLabel={t.text}
                 disabled={busy}
+                hitSlop={{ top: 10, bottom: 10 }}
                 onPress={() => onToggle(t.id)}
                 style={{
-                  minHeight: 48,
+                  minHeight: 24,
                   flex: 1,
                   flexDirection: "row",
                   alignItems: "center",
@@ -137,13 +170,15 @@ export function Checklist({
                 }}
               >
                 {t.done ? (
-                  <SquareCheck color={p.green} size={22} />
+                  <SquareCheck color={p.green} size={16} />
                 ) : (
-                  <Square color={p.green} size={22} />
+                  <Square color={p.green} size={16} />
                 )}
                 <Txt
                   style={{
                     flex: 1,
+                    fontSize: 12,
+                    lineHeight: 16.5,
                     textDecorationLine: t.done ? "line-through" : "none",
                     color: t.done ? p.muted : p.ink,
                   }}
@@ -151,6 +186,9 @@ export function Checklist({
                   {t.text}
                 </Txt>
               </Pressable>
+              <Txt style={{ fontSize: 10, lineHeight: 15, color: p.muted }}>
+                {t.date}
+              </Txt>
               <Action
                 icon={Trash2}
                 iconOnly
@@ -159,9 +197,6 @@ export function Checklist({
                 onPress={() => onDelete(t)}
               />
             </Row>
-            <Txt style={{ fontSize: 12, color: p.muted, textAlign: "right" }}>
-              {t.date}
-            </Txt>
           </Box>
         ))
       )}

@@ -93,16 +93,35 @@ export function Activities({
   return (
     <Tile>
       <Row>
-        <CalendarDays color={p.blue} size={22} />
+        <CalendarDays color={p.blue} size={20} />
         <Txt bold accessibilityRole="header" style={{ fontSize: 16, flex: 1 }}>
           Monthly Activity Reminder
         </Txt>
       </Row>
-      <Txt style={{ color: p.blue, fontSize: 12 }}>
+      <Txt
+        bold
+        style={{
+          color: p.blue,
+          fontSize: 11,
+          lineHeight: 16.5,
+          marginTop: -12,
+        }}
+      >
         Recurring monthly gatherings, health visits & weekly routines
       </Txt>
-      <Row>
+      <Row
+        style={{
+          alignSelf: "flex-start",
+          gap: 4,
+          padding: 4,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: "#bcd6ee",
+          backgroundColor: "#ffffffcc",
+        }}
+      >
         <Action
+          square
           icon={CalendarIcon}
           label="Calendar"
           active={mode === "calendar"}
@@ -110,6 +129,7 @@ export function Activities({
           onPress={() => setMode("calendar")}
         />
         <Action
+          square
           icon={List}
           label="All Activities"
           active={mode === "list"}
@@ -217,8 +237,8 @@ function Activity({
   return (
     <Box>
       <Row>
-        <Icon size={22} color={categoryColors[e.category]} />
-        <Txt bold style={{ fontSize: 16, flex: 1 }}>
+        <Icon size={20} color={categoryColors[e.category]} />
+        <Txt bold style={{ fontSize: 14, lineHeight: 20, flex: 1 }}>
           {e.title}
         </Txt>
       </Row>
@@ -236,7 +256,7 @@ function Activity({
         <MapPin size={16} color={p.muted} />
         <Txt style={{ color: p.muted, flex: 1 }}>{e.location}</Txt>
       </Row>
-      <Txt>{e.description}</Txt>
+      <Txt style={{ fontSize: 12, lineHeight: 19.5 }}>{e.description}</Txt>
       <Action
         disabled={busy}
         icon={added ? Check : Plus}

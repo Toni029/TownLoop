@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Path,
   Circle,
+  Line,
   RadialGradient,
   Defs,
   LinearGradient as SvgGradient,
@@ -29,6 +30,8 @@ import {
   CloudFog,
   Clock,
   Calendar,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react-native";
 import { Action, Box, Row, Txt } from "./ui";
 import { useReducedMotion } from "./hooks";
@@ -126,10 +129,62 @@ export function Weather() {
   const Icon = h ? icons[h.icon] : Sun;
   return (
     <View style={{ gap: 8 }}>
-      <Row>
-        <MapPin color="#047857" size={16} />
-        <Txt bold>Cecil Pines</Txt>
-        <Txt style={{ fontSize: 12 }}>• Jacksonville, FL</Txt>
+      <Row
+        style={{
+          justifyContent: "space-between",
+          paddingHorizontal: 4,
+          flexWrap: "nowrap",
+        }}
+      >
+        <Row style={{ gap: 6, flexShrink: 1 }}>
+          <MapPin color="#047857" size={14} />
+          <Txt
+            bold
+            style={{
+              fontSize: 12,
+              lineHeight: 16,
+              color: "#1c1917",
+              letterSpacing: -0.3,
+            }}
+          >
+            Cecil Pines
+          </Txt>
+        </Row>
+        {!!d && !!h && (
+          <Row
+            style={{
+              gap: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 99,
+              borderWidth: 1,
+              borderColor: h.icon === "sun" ? "#fcd34d" : "#cbd5e1",
+              backgroundColor: h.icon === "sun" ? "#fef3c7" : "#e7e5e4",
+            }}
+          >
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: h.icon === "sun" ? "#f59e0b" : "#64748b",
+              }}
+            />
+            <Txt
+              bold
+              style={{
+                fontSize: 12,
+                lineHeight: 16,
+                color: h.icon === "sun" ? "#451a03" : "#1c1917",
+              }}
+            >
+              {d.dayName.slice(0, 3)} •{" "}
+              {h.time === "Now"
+                ? data?.currentRealTimeWeather.label
+                : `${h.time}: ${h.shortForecast}`}
+            </Txt>
+          </Row>
+        )}
       </Row>
       {!!error && (
         <Box>
@@ -149,113 +204,285 @@ export function Weather() {
           <Txt>{loading ? "Loading weather…" : "Weather unavailable."}</Txt>
         </Box>
       ) : (
-        <>
-          <Txt bold style={{ fontSize: 12 }}>
-            {d.dayName.slice(0, 3)} •{" "}
-            {h.time === "Now"
-              ? data?.currentRealTimeWeather.label
-              : `${h.time}: ${h.shortForecast}`}
-          </Txt>
-          <LinearGradient
-            colors={backgrounds[h.icon]}
+        <LinearGradient
+          colors={backgrounds[h.icon]}
+          style={{
+            borderRadius: 28,
+            padding: 20,
+            overflow: "hidden",
+            borderWidth: 1,
+            borderColor: "#7dd3fc66",
+            boxShadow: "0px 10px 15px -3px rgba(0,0,0,0.1)",
+          }}
+        >
+          {h.icon === "sun" && (
+            <LinearGradient
+              pointerEvents="none"
+              colors={["#fde68a4d", "#fef08a26", "#fef08a00"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
+          <WeatherAtmosphere condition={h.icon} />
+          <Row
             style={{
-              borderRadius: 28,
-              padding: 20,
-              overflow: "hidden",
-              gap: 14,
-              borderWidth: 1,
-              borderColor: "#7dd3fc66",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 8,
+              flexWrap: "nowrap",
             }}
           >
-            <WeatherAtmosphere condition={h.icon} />
-            <Row>
+            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+              <Row
+                style={{ gap: 8, alignItems: "baseline", flexWrap: "nowrap" }}
+              >
+                <Txt
+                  bold
+                  style={{
+                    fontFamily: "JakartaExtra",
+                    color: "#fff",
+                    fontSize: 48,
+                    lineHeight: 48,
+                    letterSpacing: -1.2,
+                  }}
+                >
+                  {h.temp}
+                </Txt>
+                <Txt
+                  bold
+                  style={{ fontSize: 12, lineHeight: 18, color: "#ffffffe6" }}
+                >
+                  H: {d.high} L: {d.low}
+                </Txt>
+              </Row>
+              <Row style={{ gap: 6, flexWrap: "nowrap" }}>
+                <Sparkles size={14} color="#fde047" />
+                <Txt
+                  bold
+                  numberOfLines={1}
+                  style={{
+                    fontSize: 12,
+                    lineHeight: 16,
+                    color: "#fffffff2",
+                    flexShrink: 1,
+                  }}
+                >
+                  {h.condition}
+                </Txt>
+              </Row>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
               <Txt
                 bold
-                style={{ color: "white", fontSize: 50, lineHeight: 62 }}
+                style={{
+                  fontSize: 10,
+                  lineHeight: 15,
+                  letterSpacing: 1,
+                  color: "#ffffffbf",
+                  textTransform: "uppercase",
+                }}
               >
-                {h.temp}
-              </Txt>
-              <Txt bold style={{ color: "white", fontSize: 12 }}>
-                H: {d.high} L: {d.low}
-              </Txt>
-            </Row>
-            <Txt bold style={{ color: "white" }}>
-              {h.condition}
-            </Txt>
-            <Row>
-              <Txt style={{ color: "#ffffffcc", fontSize: 12 }}>
                 Forecast • {h.time}
               </Txt>
-              <Icon color="#fef3c7" size={20} />
-              <Txt bold style={{ color: "white" }}>
-                {h.shortForecast}
-              </Txt>
+              <Row
+                style={{
+                  marginTop: 4,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#ffffff40",
+                  backgroundColor: "#00000059",
+                  gap: 6,
+                  flexWrap: "nowrap",
+                }}
+              >
+                <Icon size={14} color="#fde047" />
+                <Txt
+                  bold
+                  style={{
+                    color: "#fff",
+                    fontSize: 12,
+                    lineHeight: 16,
+                    letterSpacing: -0.3,
+                  }}
+                >
+                  {h.shortForecast}
+                </Txt>
+              </Row>
+            </View>
+          </Row>
+          <View
+            style={{
+              marginTop: 14,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderColor: "#ffffff33",
+              gap: 8,
+            }}
+          >
+            <Row
+              style={{
+                justifyContent: "space-between",
+                flexWrap: "nowrap",
+                gap: 4,
+              }}
+            >
+              <Row style={{ gap: 6, flex: 1, flexWrap: "nowrap" }}>
+                <Clock size={14} color="#ffffffcc" />
+                <Txt
+                  bold
+                  style={{
+                    fontSize: 11,
+                    lineHeight: 16.5,
+                    color: "#ffffffe6",
+                    flexShrink: 1,
+                  }}
+                >
+                  HOURLY FORECAST (NEXT 12 HOURS)
+                </Txt>
+              </Row>
+              <Row style={{ gap: 4, width: 112, flexWrap: "nowrap" }}>
+                <Txt
+                  style={{
+                    fontSize: 10,
+                    lineHeight: 15,
+                    color: "#ffffffbf",
+                    flex: 1,
+                  }}
+                >
+                  Swipe hours to preview
+                </Txt>
+                <ChevronRight size={12} color="#ffffff99" />
+              </Row>
             </Row>
-            <View style={{ height: 1, backgroundColor: "#ffffff33" }} />
-            <Row>
-              <Clock size={16} color="white" />
-              <Txt bold style={{ color: "white", fontSize: 11 }}>
-                HOURLY FORECAST (NEXT 12 HOURS)
-              </Txt>
-            </Row>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <Row style={{ flexWrap: "nowrap" }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingVertical: 4,
+                paddingHorizontal: 2,
+              }}
+            >
+              <Row style={{ flexWrap: "nowrap", gap: 8 }}>
                 {d.hourly.map((item, i) => {
                   const I = icons[item.icon];
+                  const selected = hour === i;
                   return (
                     <Pressable
                       key={i}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: hour === i }}
+                      accessibilityState={{ selected }}
                       accessibilityLabel={`${item.time}, ${item.temp}, ${item.shortForecast}`}
                       onPress={() => setHour(i)}
                       style={{
-                        minWidth: 66,
-                        minHeight: 88,
-                        padding: 10,
-                        gap: 6,
+                        minWidth: 64,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
                         alignItems: "center",
                         borderRadius: 16,
-                        backgroundColor: hour === i ? "#ffffff44" : "#ffffff15",
-                        borderWidth: 1,
-                        borderColor: hour === i ? "#ffffffaa" : "transparent",
+                        backgroundColor: selected ? "#ffffff59" : "#00000040",
+                        borderWidth: selected ? 2 : 1,
+                        borderColor: selected ? "#fff" : "#ffffff26",
+                        transform: [{ scale: selected ? 1.05 : 1 }],
+                        boxShadow: selected
+                          ? "0px 0px 0px 2px rgba(255,255,255,0.4)"
+                          : undefined,
                       }}
                     >
-                      <Txt bold style={{ color: "white", fontSize: 12 }}>
+                      <Txt
+                        bold
+                        style={{
+                          fontSize: 10,
+                          lineHeight: 12.5,
+                          color: selected ? "#fff" : "#ffffffcc",
+                        }}
+                      >
                         {item.time}
                       </Txt>
-                      <I color="#fef3c7" size={20} />
-                      <Txt bold style={{ color: "white" }}>
-                        {item.temp}
-                      </Txt>
-                      {!!(item.pop) && (
-                        <Txt style={{ color: "white", fontSize: 11 }}>
+                      <View style={{ marginVertical: 6 }}>
+                        <I size={16} color="#fef08a" />
+                      </View>
+                      {!!item.pop && (
+                        <Txt
+                          bold
+                          style={{
+                            fontSize: 9,
+                            lineHeight: 10,
+                            color: "#67e8f9",
+                            marginBottom: 4,
+                          }}
+                        >
                           {item.pop}
                         </Txt>
+                      )}
+                      <Txt
+                        bold
+                        style={{
+                          fontFamily: "JakartaExtra",
+                          color: "#fff",
+                          fontSize: 12,
+                          lineHeight: 15,
+                        }}
+                      >
+                        {item.temp}
+                      </Txt>
+                      {selected && (
+                        <View
+                          style={{
+                            marginTop: 4,
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: "#fff",
+                          }}
+                        />
                       )}
                     </Pressable>
                   );
                 })}
               </Row>
             </ScrollView>
-            <View style={{ height: 1, backgroundColor: "#ffffff33" }} />
-            <Row>
-              <Calendar size={16} color="white" />
-              <Txt bold style={{ color: "white", fontSize: 12 }}>
-                5-DAY OUTLOOK
+          </View>
+          <View
+            style={{
+              marginTop: 12,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderColor: "#ffffff33",
+              gap: 8,
+            }}
+          >
+            <Row
+              style={{
+                justifyContent: "space-between",
+                flexWrap: "nowrap",
+                gap: 4,
+              }}
+            >
+              <Row style={{ gap: 4 }}>
+                <Calendar size={12} color="#ffffffb3" />
+                <Txt
+                  bold
+                  style={{ fontSize: 11, lineHeight: 16.5, color: "#ffffffd9" }}
+                >
+                  5-DAY OUTLOOK
+                </Txt>
+              </Row>
+              <Txt style={{ fontSize: 10, lineHeight: 15, color: "#ffffffb3" }}>
+                Tap day to preview forecast
               </Txt>
             </Row>
-            <Txt style={{ color: "#ffffffcc", fontSize: 11 }}>
-              Tap day to preview forecast
-            </Txt>
-            <Row style={{ alignItems: "stretch", gap: 4 }}>
+            <Row style={{ alignItems: "stretch", gap: 6, flexWrap: "nowrap" }}>
               {data?.forecastDays.map((item, i) => {
                 const I = icons[item.iconType];
+                const selected = day === i;
                 return (
                   <Pressable
                     key={i}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: day === i }}
+                    accessibilityState={{ selected }}
                     accessibilityLabel={`${item.dayName}, ${item.dateStr}, high ${item.high}, low ${item.low}, ${item.shortForecast}`}
                     onPress={() => {
                       setDay(i);
@@ -263,38 +490,47 @@ export function Weather() {
                     }}
                     style={{
                       flex: 1,
-                      minWidth: 46,
-                      minHeight: 100,
-                      padding: 6,
-                      gap: 4,
+                      paddingHorizontal: 4,
+                      paddingVertical: 8,
                       alignItems: "center",
-                      borderRadius: 14,
-                      backgroundColor: day === i ? "#fffffff2" : "#ffffff15",
+                      borderRadius: 12,
+                      backgroundColor: selected ? "#fff" : "#00000040",
+                      boxShadow: selected
+                        ? "0px 0px 0px 2px rgba(255,255,255,0.9)"
+                        : undefined,
                     }}
                   >
                     <Txt
                       bold
                       style={{
-                        fontSize: 11,
-                        color: day === i ? "#0f172a" : "white",
+                        fontSize: 10,
+                        lineHeight: 12.5,
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                        color: selected ? "#0f172a" : "#ffffffe6",
                       }}
                     >
                       {item.isToday ? "Today" : item.dayName.slice(0, 3)}
                     </Txt>
-                    <I color={day === i ? "#64748b" : "#fde68a"} size={20} />
+                    <View style={{ marginVertical: 4 }}>
+                      <I size={14} color={selected ? "#f59e0b" : "#fef08a"} />
+                    </View>
                     <Txt
                       bold
                       style={{
+                        fontFamily: "JakartaExtra",
                         fontSize: 12,
-                        color: day === i ? "#0f172a" : "white",
+                        lineHeight: 15,
+                        color: selected ? "#0f172a" : "#fff",
                       }}
                     >
                       {item.high}
                     </Txt>
                     <Txt
                       style={{
-                        fontSize: 11,
-                        color: day === i ? "#64748b" : "white",
+                        fontSize: 9,
+                        lineHeight: 11.25,
+                        color: selected ? "#64748b" : "#ffffffb3",
                       }}
                     >
                       {item.low}
@@ -303,12 +539,13 @@ export function Weather() {
                 );
               })}
             </Row>
-          </LinearGradient>
-        </>
+          </View>
+        </LinearGradient>
       )}
     </View>
   );
 }
+
 function WeatherAtmosphere({ condition }: { condition: WeatherConditionType }) {
   const reduced = useReducedMotion(),
     v = useState(() => new Animated.Value(0))[0];
@@ -347,14 +584,14 @@ function WeatherAtmosphere({ condition }: { condition: WeatherConditionType }) {
         <Animated.View
           style={{
             position: "absolute",
-            right: -40,
-            top: -50,
-            width: 200,
-            height: 200,
-            borderRadius: 100,
+            right: -125,
+            top: -140,
+            width: 400,
+            height: 400,
+            borderRadius: 200,
             opacity: v.interpolate({
               inputRange: [0, 1],
-              outputRange: [0.2, 0.4],
+              outputRange: [0.85, 1],
             }),
             transform: [
               {
@@ -366,7 +603,7 @@ function WeatherAtmosphere({ condition }: { condition: WeatherConditionType }) {
             ],
           }}
         >
-          <Svg width={200} height={200} viewBox="0 0 200 200">
+          <Svg width={400} height={400} viewBox="0 0 200 200">
             <Defs>
               <RadialGradient id="sunGlow">
                 <Stop offset="0" stopColor="#fff7cc" />
@@ -375,6 +612,18 @@ function WeatherAtmosphere({ condition }: { condition: WeatherConditionType }) {
               </RadialGradient>
             </Defs>
             <Circle cx={100} cy={100} r={100} fill="url(#sunGlow)" />
+            {Array.from({ length: 28 }, (_, i) => (
+              <Line
+                key={i}
+                x1={100 + 22 * Math.cos((i * Math.PI) / 14)}
+                y1={100 + 22 * Math.sin((i * Math.PI) / 14)}
+                x2={100 + 130 * Math.cos((i * Math.PI) / 14)}
+                y2={100 + 130 * Math.sin((i * Math.PI) / 14)}
+                stroke="#fff7cc"
+                strokeOpacity={0.32}
+                strokeWidth={0.9}
+              />
+            ))}
           </Svg>
         </Animated.View>
       )}

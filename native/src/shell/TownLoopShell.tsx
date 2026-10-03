@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Image,
   Keyboard,
@@ -80,7 +81,12 @@ export function TownLoopShell({
       if (blurTarget.current === node) blurTarget.current = null;
     };
   }, []);
-  useFonts({
+  const [fonts,fontError]=useFonts({
+    NewsRegular:PlusJakartaSans_400Regular,
+    NewsSemi:PlusJakartaSans_600SemiBold,
+    NewsBold:PlusJakartaSans_700Bold,
+    NewsExtra:PlusJakartaSans_800ExtraBold,
+    NewsSerif:PlayfairDisplay_700Bold,
     Jakarta: PlusJakartaSans_400Regular,
     JakartaBold: PlusJakartaSans_700Bold,
     JakartaSemi: PlusJakartaSans_600SemiBold,
@@ -88,6 +94,7 @@ export function TownLoopShell({
     Playfair: PlayfairDisplay_700Bold,
     PlayfairBlack: PlayfairDisplay_900Black,
   });
+  if(!fonts && !fontError)return <View style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#f7f3ea"}}><ActivityIndicator color="#047857"/><Text>Loading TownLoop…</Text></View>;
   return (
     <Presentation.Provider
       value={{
