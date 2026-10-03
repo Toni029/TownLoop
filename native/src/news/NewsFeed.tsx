@@ -288,7 +288,7 @@ export function NewsFeed({
             )}
           </View>
         </LinearGradient>
-        {error && <ErrorNotice message={error} retry={retry} />}
+        {!!(error) && <ErrorNotice message={error} retry={retry} />}
         {loading && (
           <ActivityIndicator
             accessibilityLabel="Loading community news"
@@ -489,7 +489,7 @@ export function NewsFeed({
                     <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
                       <View style={s.row}>
                         <Badge>{event.category}</Badge>
-                        {event.deadline && (
+                        {!!(event.deadline) && (
                           <Badge tone="amber">{event.deadline}</Badge>
                         )}
                         {event.userRsvp && <Badge>✓ You&apos;re Going</Badge>}

@@ -55,7 +55,7 @@ export function MessageSeller({
         </Copy>
       </View>
       <Copy>{item.price} • Porch pickup</Copy>
-      {error && <ErrorNotice message={error} />}
+      {!!(error) && <ErrorNotice message={error} />}
       <Field
         label="Your Message"
         value={text}
@@ -185,7 +185,7 @@ export function Inbox({
           color="#047857"
         />
       )}
-      {error && <ErrorNotice message={error} retry={retry} />}
+      {!!(error) && <ErrorNotice message={error} retry={retry} />}
       {selected ? (
         <>
           <Action

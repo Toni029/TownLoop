@@ -228,7 +228,7 @@ export function Weather() {
                       <Txt bold style={{ color: "white" }}>
                         {item.temp}
                       </Txt>
-                      {item.pop && (
+                      {!!(item.pop) && (
                         <Txt style={{ color: "white", fontSize: 11 }}>
                           {item.pop}
                         </Txt>

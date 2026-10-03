@@ -35,7 +35,7 @@ export function RequestEditor({onClose,onSaved}:{onClose:()=>void;onSaved:()=>vo
       {progress!==null && <Copy accessibilityLiveRegion="polite">Uploading photo… {progress}%</Copy>}
       <View style={s.row}>{photos.map((uri,index)=><View key={`${uri}-${index}`} style={{gap:4}}><Image source={{uri}} accessibilityLabel={`Attached photo ${index+1}`} style={{width:90,height:90,borderRadius:12}}/><Action compact label="Remove photo" icon={Trash2} tone="rose" disabled={busy} onPress={()=>setPhotos(p=>p.filter((_,i)=>i!==index))}/></View>)}</View>
     </View>
-    {error && <ErrorNotice message={error}/>}
+    {!!(error) && <ErrorNotice message={error}/>}
     <Action label={busy ? progress!==null ? `Uploading Photos (${progress}%)…` : 'Submitting Request…' : 'Submit Work Order'} disabled={busy} onPress={()=>void submit()}/>
   </ProductDialog>;
 }

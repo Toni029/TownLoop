@@ -42,3 +42,13 @@ Test Android and iOS development builds with real existing resident/admin/crew a
 Work Orders' reference local Spanish translator is implemented; secure server-assisted translation remains unavailable until authenticated `/api/translate` is deployed. Social functions are implemented, with existing device-local reaction membership retained. Ambiguous network acknowledgement of a reaction counter cannot be made exactly-once without a backend change. The unchanged marketplace chat rules do not enforce participant privacy on the server; see the Social report before release. Existing News Gemini-backend and resident RSVP permission limitations remain documented in NEWS_MIGRATION.md.
 
 No full-app visual-polish phase, unrelated general chat, notifications or additional screens were started. Stop at this checkpoint for user review.
+
+## Preview console fix after bd73527
+
+The user's preview reported repeated `Unexpected text node ... A text node cannot be a child of a View` errors. The initial visual checks asserted uncaught page exceptions, but React Native Web logs this issue through console.error instead. A News fixture reproduced three console errors; changing only its empty error-string prop to undefined reduced that count to zero, confirming the primitive conditional guard cause.
+
+Corrected 23 JSX expressions: string/number guards now produce booleans, and stray literal spaces between native elements are removed. Real error text remains inside the existing text/error components. Labels, colors, layout, actions, Firebase and recurrence logic remain intact. No error logging was suppressed.
+
+`tests/native-text.test.ts` checks actual native JSX with TypeScript's type checker for raw literal text and primitive conditional guards outside Text or known text wrappers. It failed on the original call sites and passes after the fix. Native tests now total 34 passing checks; TypeScript, lint, Expo compatibility/21 Doctor checks and both mobile bundle exports passed again.
+
+The original News console reproduction now reports zero unexpected-text errors. Screen checks now assert console.error as well as page exceptions: 16 News, 18 newsletter-state, 28 Work Orders and 40 Social checks pass, plus Home's seven interaction flows. All four fixture startup checks report zero console/runtime errors. These use the actual components with isolated fixtures and do not write production records. The connected user preview was reloaded through Expo after the fix; authenticated device acceptance remains open.

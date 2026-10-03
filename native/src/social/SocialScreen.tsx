@@ -260,13 +260,13 @@ export default function SocialScreen() {
           }}
         />
       )}
-      {error && !item && !sellerItem && !showInbox && !media && !create && (
+      {!!(error && !item && !sellerItem && !showInbox && !media && !create) && (
         <NewsDialog title="Community" onClose={() => setError("")}>
           <Copy>{error}</Copy>
           <Action label="OK" onPress={() => setError("")} />
         </NewsDialog>
       )}
-      {toast && (
+      {!!(toast) && (
         <ProductToast key={toast} message={toast} onDone={() => setToast("")} />
       )}
     </View>

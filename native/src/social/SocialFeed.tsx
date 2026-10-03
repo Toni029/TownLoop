@@ -524,7 +524,7 @@ export function SocialFeed({
             color="#047857"
           />
         )}
-        {error && <ErrorNotice message={error} retry={retry} />}
+        {!!(error) && <ErrorNotice message={error} retry={retry} />}
         {!loading &&
           !error &&
           !(view === "post" ? posts.length : listings.length) && (
@@ -851,7 +851,7 @@ export function Detail({
           />
         )}
       </View>
-      {(error || shareError) && <ErrorNotice message={error || shareError} />}
+      {!!((error || shareError)) && <ErrorNotice message={error || shareError} />}
       <Copy weight="bold" style={{ fontSize: 20, lineHeight: 28 }}>
         {item.title}
       </Copy>
@@ -877,7 +877,7 @@ export function Detail({
             })
           }
         />
-      )}{" "}
+      )}
       {listing && (
         <ListingActions
           item={listing}

@@ -199,7 +199,7 @@ export function CreateEditor({
           </View>
         ))}
       </View>
-      {error && <ErrorNotice message={error} />}
+      {!!(error) && <ErrorNotice message={error} />}
       <Action
         label={
           busy

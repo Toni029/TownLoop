@@ -154,7 +154,7 @@ export default function NewsScreen() {
           onClose={() => setEditor(null)}
           onSave={(draft) => saveEvent(editor.id, draft, !!editor.event)}
         />
-      )}{" "}
+      )}
       {manager && editor?.type === "highlight" && (
         <HighlightEditor
           onClose={() => setEditor(null)}
@@ -188,7 +188,7 @@ export default function NewsScreen() {
       {!!message && (
         <NewsDialog title="TownLoop" onClose={() => setMessage("")}>
           <Copy style={{ fontSize: 14, lineHeight: 22 }}>{message}</Copy>
-          {cleanup && news.newsletter?.isRemoved && manager && (
+          {!!(cleanup && news.newsletter?.isRemoved && manager) && (
             <Action
               label="Retry file cleanup"
               disabled={busy}

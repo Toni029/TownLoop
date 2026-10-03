@@ -63,7 +63,7 @@ export function Video({ uri }: { uri: string }) {
         nativeControls
         contentFit="contain"
       />
-      {error && (
+      {!!(error) && (
         <>
           <Copy style={{ color: "#fda4af", padding: 12 }}>
             Unable to play this video. {error}

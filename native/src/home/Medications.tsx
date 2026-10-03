@@ -324,7 +324,7 @@ export function Medications({
           )}
         </View>
       )}
-      {editor && (
+      {!!(editor) && (
         <MedicationEditor
           initial={editor === "new" ? undefined : editor}
           busy={busy}

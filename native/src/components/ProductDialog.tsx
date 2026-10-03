@@ -39,7 +39,7 @@ export function ProductDialog({ title, subtitle, children, busy = false, onClose
           <Animated.View style={{flex:1, backgroundColor:'#fff', borderRadius:full ? 18 : 24, overflow:'hidden', opacity:open, transform:[{translateY:open.interpolate({inputRange:[0,1],outputRange:[24,0]})},{scale:open.interpolate({inputRange:[0,1],outputRange:[0.88,1]})}]}}>
             <SafeAreaView edges={['left','right']} style={{flex:1}}>
               <View style={[s.row,{padding:18,borderBottomWidth:1,borderColor:'#e7e5e4',flexWrap:'nowrap'}]}>
-                <View style={{flex:1}}><Copy weight="bold" style={{fontSize:18,lineHeight:25}}>{title}</Copy>{subtitle && <Copy style={{color:'#78716c'}}>{subtitle}</Copy>}</View>
+                <View style={{flex:1}}><Copy weight="bold" style={{fontSize:18,lineHeight:25}}>{title}</Copy>{!!(subtitle) && <Copy style={{color:'#78716c'}}>{subtitle}</Copy>}</View>
                 <Pressable accessibilityRole="button" accessibilityLabel={full ? 'Exit full screen' : 'Expand to full screen'} disabled={busy} onPress={() => setFull(v => !v)} style={{padding:10,borderRadius:22,backgroundColor:'#f5f5f4'}}>{full ? <Minimize2 size={18} color="#78716c"/> : <Maximize2 size={18} color="#78716c"/>}</Pressable>
                 <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={busy} onPress={close} style={{padding:10,borderRadius:22,backgroundColor:'#f5f5f4'}}><X size={18} color="#78716c"/></Pressable>
               </View>

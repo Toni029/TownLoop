@@ -400,7 +400,7 @@ export function NewsDialog({
                   >
                     {title}
                   </Copy>
-                  {subtitle && (
+                  {!!(subtitle) && (
                     <Copy
                       style={{
                         fontSize: 11,
