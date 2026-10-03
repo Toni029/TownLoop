@@ -35,7 +35,7 @@ import {
   User,
   X,
 } from "lucide-react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback } from "react";
 import { useFonts } from "expo-font";
 import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
@@ -477,11 +477,18 @@ export function PortalHeader({
 }
 // The scene owns the Android blur surface; the dock is rendered after it.
 export function BlurScene({ children }: PropsWithChildren) {
+  const focused = useIsFocused();
   const attach = usePresentation()?.attachBlurTarget;
   const target = useRef<View | null>(null);
   useFocusEffect(useCallback(() => attach?.(target), [attach]));
   return (
-    <BlurTargetView ref={target} style={{ flex: 1 }}>
+    <BlurTargetView
+      ref={target}
+      pointerEvents={focused ? "auto" : "none"}
+      accessibilityElementsHidden={!focused}
+      importantForAccessibility={focused ? "auto" : "no-hide-descendants"}
+      style={{ flex: 1, display: focused ? "flex" : "none" }}
+    >
       {children}
     </BlurTargetView>
   );
