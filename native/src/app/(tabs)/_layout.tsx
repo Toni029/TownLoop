@@ -1,0 +1,5 @@
+import { Home, FileText, Wrench, Users } from 'lucide-react-native';
+import { Tabs, router } from 'expo-router';
+import { Pressable, Text } from 'react-native';
+import { colors } from '../../components/ui';
+export default function TabLayout() { return <Tabs screenOptions={{ headerStyle: { backgroundColor: colors.cream }, headerTintColor: colors.ink, tabBarActiveTintColor: colors.green, tabBarStyle: { backgroundColor: '#fffefc' }, headerRight: () => <Pressable accessibilityRole="button" onPress={() => router.push('/account')} style={{ padding: 14 }}><Text style={{ color: colors.green, fontWeight: '700' }}>Account</Text></Pressable> }}><Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Home color={color} size={size}/> }}/><Tabs.Screen name="news" options={{ title: 'News', tabBarIcon: ({ color, size }) => <FileText color={color} size={size}/> }}/><Tabs.Screen name="workorders" options={{ title: 'Work Orders', tabBarIcon: ({ color, size }) => <Wrench color={color} size={size}/> }}/><Tabs.Screen name="social" options={{ title: 'Social', tabBarIcon: ({ color, size }) => <Users color={color} size={size}/> }}/></Tabs>; }

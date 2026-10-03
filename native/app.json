@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "TownLoop",
+    "slug": "townloop-native",
+    "version": "0.1.0",
+    "scheme": "townloop",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.toni029.townloop"
+    },
+    "android": {
+      "package": "com.toni029.townloop",
+      "predictiveBackGestureEnabled": true
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
