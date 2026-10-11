@@ -10,4 +10,4 @@ Residents query and can read only their own tickets. Crew, admin and VIP retain 
 
 Validation: native and original TypeScript checks, focused native ESLint, six unit/JSX checks, Expo web export, and disposable Firestore emulator tests for concurrent numbering, retries, resident isolation, crew listing, tamper rejection and normal crew updates. No production data was changed.
 
-Live rule deployment is approved by the user but remains pending Firebase CLI authentication on this computer. Sequential live submissions require that deployment. Login session CABA2 was initiated; the user must complete Google authentication. The rule target is cc-livingcommunity-app.
+Live Firestore rules successfully compiled and deployed to cc-livingcommunity-app on 2026-10-11 after the user completed Firebase CLI authentication. Sequential submissions and server-enforced resident isolation are now enabled. No production tickets were created for verification.
