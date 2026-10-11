@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Animated,
   ScrollView,
-  useColorScheme,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,8 +32,7 @@ export function HomeScreen({
   onAccount: () => void;
 }) {
   const presentation = usePresentation();
-  const scheme = useColorScheme();
-  const [localDark, setDark] = useState(scheme === "dark");
+  const [localDark, setDark] = useState(false);
   const dark = presentation?.dark ?? localDark;
   const [fonts, fontError] = useFonts({
     Jakarta: PlusJakartaSans_400Regular,

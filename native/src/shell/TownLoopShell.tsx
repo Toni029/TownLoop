@@ -16,7 +16,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useColorScheme,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -36,6 +35,13 @@ import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/70
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
 import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
 import { PlayfairDisplay_900Black } from "@expo-google-fonts/playfair-display/900Black";
+import Motion, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  ReduceMotion,
+} from "react-native-reanimated";
 import { ProfileMenu } from "../profile/ProfileMenu";
 import { useReducedMotion, useToday } from "../home/hooks";
 import { parseDate } from "../home/model";
@@ -65,10 +71,9 @@ export function TownLoopShell({
   photo?: string;
   onAccount: () => void;
 }>) {
-  const scheme = useColorScheme();
   const { width } = useWindowDimensions();
   const framed = Platform.OS === "web" && width >= 640;
-  const [dark, setDark] = useState(scheme === "dark");
+  const [dark, setDark] = useState(false);
   const [blurTarget, setBlurTarget] = useState<RefObject<View | null>>();
   const attachBlurTarget = useCallback((target: RefObject<View | null>) => {
     setBlurTarget(target);
@@ -175,6 +180,38 @@ export function PortalHeader({
   const dark = presentation?.dark ?? false;
   const [menu, setMenu] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [avatarHovered, setAvatarHovered] = useState(false);
+  const reducedAvatarMotion = useReducedMotion();
+  const avatarScale = useSharedValue(1),
+    avatarTilt = useSharedValue(0),
+    avatarSheen = useSharedValue(0);
+  const hover = useRef(false);
+  function avatarFeedback(pressed = false) {
+    avatarScale.set(
+      withSpring(pressed ? 0.9 : hover.current ? 1.05 : 1, {
+        damping: 18,
+        stiffness: 260,
+        reduceMotion: reducedAvatarMotion
+          ? ReduceMotion.Always
+          : ReduceMotion.System,
+      }),
+    );
+    avatarTilt.set(
+      withTiming(pressed ? -2 : 0, { duration: reducedAvatarMotion ? 0 : 200 }),
+    );
+    avatarSheen.set(
+      withTiming(hover.current ? 1 : 0, {
+        duration: reducedAvatarMotion ? 0 : 300,
+      }),
+    );
+  }
+  const avatarMotion = useAnimatedStyle(() => ({
+    transform: [
+      { scale: avatarScale.value },
+      { rotate: `${avatarTilt.value}deg` },
+    ],
+  }));
+  const avatarLight = useAnimatedStyle(() => ({ opacity: avatarSheen.value }));
   const today = useToday();
   const ink = dark ? "#fff" : "#0f172a";
   const label =
@@ -303,119 +340,152 @@ export function PortalHeader({
             )}
           </View>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Open Resident Profile & Menu${unread ? `, ${unread} unread messages` : ""}`}
-          hitSlop={8}
-          onPress={() => setMenu(true)}
-          style={({ pressed }) => ({
-            width: 64,
-            height: 64,
-            transform: [{ scale: pressed ? 0.95 : 1 }],
-          })}
-        >
-          <LinearGradient
-            colors={dark ? ["#1e293b", "#334155"] : ["#f5f5f4", "#e7e5e4"]}
+        <Motion.View style={avatarMotion}>
+          <Pressable
+            onHoverIn={() => {
+              hover.current = true;
+              setAvatarHovered(true);
+              avatarFeedback();
+            }}
+            onHoverOut={() => {
+              hover.current = false;
+              setAvatarHovered(false);
+              avatarFeedback();
+            }}
+            onPressIn={() => avatarFeedback(true)}
+            onPressOut={() => avatarFeedback()}
+            accessibilityRole="button"
+            accessibilityLabel={`Open Resident Profile & Menu${unread ? `, ${unread} unread messages` : ""}`}
+            hitSlop={8}
+            onPress={() => setMenu(true)}
             style={{
               width: 64,
               height: 64,
-              borderRadius: 32,
-              borderWidth: 2,
-              borderColor: dark ? "#a7f3d0aa" : "#05966966",
-              overflow: "hidden",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0px 1px 2px rgba(0,0,0,0.1)",
             }}
           >
-            {photo ? (
-              <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} />
-            ) : (
-              <Text
-                style={{
-                  fontFamily: "JakartaBold",
-                  fontSize: 14,
-                  color: dark ? "#cbd5e1" : "#57534e",
-                }}
+            <LinearGradient
+              colors={dark ? ["#1e293b", "#334155"] : ["#f5f5f4", "#e7e5e4"]}
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                borderWidth: 2,
+                borderColor: avatarHovered
+                  ? "#10b981cc"
+                  : dark
+                    ? "#a7f3d0aa"
+                    : "#05966966",
+                overflow: "hidden",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: avatarHovered
+                  ? "0px 4px 8px rgba(0,0,0,0.12)"
+                  : "0px 1px 2px rgba(0,0,0,0.1)",
+              }}
+            >
+              {photo ? (
+                <Image
+                  source={{ uri: photo }}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : (
+                <Text
+                  style={{
+                    fontFamily: "JakartaBold",
+                    fontSize: 14,
+                    color: dark ? "#cbd5e1" : "#57534e",
+                  }}
+                >
+                  {(name.trim().includes(" ")
+                    ? name
+                        .split(" ")
+                        .filter(Boolean)
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join("")
+                    : name.slice(0, 2)
+                  ).toUpperCase() || "RE"}
+                </Text>
+              )}
+              <View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  { backgroundColor: "#0478571a" },
+                ]}
+              />
+              <Motion.View
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, avatarLight]}
               >
-                {(name.trim().includes(" ")
-                  ? name
-                      .split(" ")
-                      .filter(Boolean)
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join("")
-                  : name.slice(0, 2)
-                ).toUpperCase() || "RE"}
-              </Text>
+                <LinearGradient
+                  colors={["#ffffff00", "#ffffff40", "#ffffff00"]}
+                  start={{ x: 0, y: 1 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Motion.View>
+            </LinearGradient>
+            {!!label && (
+              <Image
+                source={
+                  role === "crew"
+                    ? require("../../assets/crew-badge.png")
+                    : require("../../assets/vip-badge.png")
+                }
+                style={{
+                  position: "absolute",
+                  bottom: -2,
+                  left: -2,
+                  width: 24,
+                  height: 24,
+                }}
+              />
             )}
             <View
-              pointerEvents="none"
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: "#0478571a" },
-              ]}
-            />
-          </LinearGradient>
-          {!!label && (
-            <Image
-              source={
-                role === "crew"
-                  ? require("../../assets/crew-badge.png")
-                  : require("../../assets/vip-badge.png")
-              }
               style={{
                 position: "absolute",
                 bottom: -2,
-                left: -2,
-                width: 24,
-                height: 24,
+                right: -2,
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 3,
+                borderColor: "#fff",
+                backgroundColor: "#10b981",
+                boxShadow: "0px 1px 3px rgba(0,0,0,0.15)",
               }}
             />
-          )}
-          <View
-            style={{
-              position: "absolute",
-              bottom: -2,
-              right: -2,
-              width: 20,
-              height: 20,
-              borderRadius: 10,
-              borderWidth: 3,
-              borderColor: "#fff",
-              backgroundColor: "#10b981",
-              boxShadow: "0px 1px 3px rgba(0,0,0,0.15)",
-            }}
-          />
-          {unread > 0 && (
-            <View
-              style={{
-                position: "absolute",
-                top: -4,
-                right: -4,
-                minWidth: 22,
-                height: 22,
-                paddingHorizontal: 4,
-                borderRadius: 11,
-                borderWidth: 2,
-                borderColor: "#fff",
-                backgroundColor: "#e11d48",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text
+            {unread > 0 && (
+              <View
                 style={{
-                  color: "#fff",
-                  fontFamily: "JakartaBold",
-                  fontSize: 10,
+                  position: "absolute",
+                  top: -4,
+                  right: -4,
+                  minWidth: 22,
+                  height: 22,
+                  paddingHorizontal: 4,
+                  borderRadius: 11,
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                  backgroundColor: "#e11d48",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                {unread > 99 ? "99+" : unread}
-              </Text>
-            </View>
-          )}
-        </Pressable>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontFamily: "JakartaBold",
+                    fontSize: 10,
+                  }}
+                >
+                  {unread > 99 ? "99+" : unread}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </Motion.View>
       </View>
       <ProfileMenu
         open={menu}

@@ -21,3 +21,11 @@ Validation: TypeScript, ESLint and 38 regression tests passed, including added i
 Remaining acceptance: saved browser permissions prevented automated visual inspection of localhost. Compare matching signed-in web/native menus, check opening/closing and each subview, verify actual send/read/photo workflows with authorized test accounts, and test reduced motion, screen readers, keyboards and Android/iOS Back behavior on physical devices. Bundle exports do not verify authenticated production operations or actual-device animation quality. The new Expo image-manipulator dependency requires rebuilding an existing native development client.
 
 Previous functional checkpoint `bd73527` and branch base `7a7bbd4` remain in history. This checkpoint also includes the preceding authorized sign-in and shared visual styling pass.
+
+## Profile interaction polish — October 11, 2026
+
+Matched source-defined avatar hover scale (1.05), sheen, emerald border/shadow response, and touch press scale/rotation with Reanimated and reduced-motion support. Retained the original centered modal positioning. Closing now uses the original 0.88 scale/-18px offset rather than reversing the opening 0.84/-28px geometry. Added the original 850ms opening light sweep and eased backdrop fade.
+
+Corrected Expo web blur scaling: the former intensity 35 yielded approximately 7px; the web backdrop now specifies the reference 24px blur and the panel 36px glass blur/saturation. Android BlurViews now use the existing scene's blur target and supported blur method. Mobile/desktop radii, padding, glass colors, row geometry and icons follow the original component. Functionality/data actions are unchanged. This checkpoint also preserves the previously requested light-theme default.
+
+Validation: TypeScript, lint, five targeted profile/native-container checks, and web bundle export passed. Direct visual and motion comparison remains unverified because the browser tool rejected localhost access due to its saved permission setting. Manual preview review is required before further visual work; no alternative browser-control method was used.

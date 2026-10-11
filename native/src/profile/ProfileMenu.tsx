@@ -13,6 +13,7 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
@@ -25,6 +26,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withDelay,
   withTiming,
 } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
@@ -88,6 +90,7 @@ const MenuStyle = createContext({
   panel: { backgroundColor: "#ffffff99", borderColor: "#ffffffbf" },
   busy: false,
   closing: false,
+  dark: false,
 });
 function Row({
   title,
@@ -104,19 +107,51 @@ function Row({
   tone?: string;
   badge?: number;
 }) {
-  const { ink, muted, panel, busy, closing } = useContext(MenuStyle);
+  const { ink, muted, panel, busy, closing, dark } = useContext(MenuStyle);
+  const wide = useWindowDimensions().width >= 640;
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
       disabled={busy || closing}
-      style={({ pressed }) => [s.row, panel, pressed && { opacity: 0.7 }]}
+      style={({ pressed }) => [
+        s.row,
+        panel,
+        {
+          backgroundColor: dark ? "#0f172a73" : "transparent",
+          padding: wide ? 16 : 14,
+          overflow: "hidden",
+        },
+        pressed && { opacity: 0.7 },
+      ]}
     >
-      <View style={[s.icon, { backgroundColor: tone + "20" }]}>
-        <Icon size={22} color={tone} />
+      <LinearGradient
+        pointerEvents="none"
+        colors={
+          dark
+            ? ["#ffffff24", "#ffffff0a", "#ffffff14"]
+            : ["#ffffffcc", "#ffffff75", "#ffffffad"]
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View
+        style={[
+          s.icon,
+          {
+            backgroundColor: tone + "20",
+            width: wide ? 48 : 44,
+            height: wide ? 48 : 44,
+          },
+        ]}
+      >
+        <Icon size={wide ? 24 : 20} color={tone} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[s.rowTitle, { color: ink }]}>{title}</Text>
+        <Text style={[s.rowTitle, { color: ink, fontSize: wide ? 16 : 14 }]}>
+          {title}
+        </Text>
         {!!subtitle && (
           <Text style={[s.small, { color: muted }]}>{subtitle}</Text>
         )}
@@ -222,6 +257,7 @@ export function ProfileMenu({
   } | null>(null);
   const lock = useRef(false),
     afterClose = useRef<(() => void) | null>(null);
+  const glint = useSharedValue(-1);
   const progress = useSharedValue(0),
     shade = useSharedValue(0);
   const conversation = data.threads.find(
@@ -248,21 +284,33 @@ export function ProfileMenu({
       setClosing(false);
       progress.value = 0;
       shade.value = 0;
+      glint.value = -1;
+      glint.value = withDelay(
+        reduced ? 0 : 50,
+        withTiming(1.8, {
+          duration: reduced ? 0 : 850,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+        }),
+      );
       progress.value = withSpring(1, {
         damping: 25,
         stiffness: 280,
         mass: 0.75,
         reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System,
       });
-      shade.value = withTiming(1, { duration: reduced ? 0 : 280 });
+      shade.value = withTiming(1, {
+        duration: reduced ? 0 : 280,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+      });
     }
-  }, [open, progress, shade, reduced]);
+  }, [open, progress, shade, glint, reduced]);
   useEffect(
     () => () => {
       cancelAnimation(progress);
       cancelAnimation(shade);
+      cancelAnimation(glint);
     },
-    [progress, shade],
+    [progress, shade, glint],
   );
   function finishClose() {
     setMounted(false);
@@ -293,8 +341,21 @@ export function ProfileMenu({
   const cardMotion = useAnimatedStyle(() => ({
     opacity: progress.value,
     transform: [
-      { scale: 0.84 + progress.value * 0.16 },
-      { translateY: -28 * (1 - progress.value) },
+      {
+        scale:
+          (closing ? 0.88 : 0.84) + progress.value * (closing ? 0.12 : 0.16),
+      },
+      { translateY: (closing ? -18 : -28) * (1 - progress.value) },
+    ],
+  }));
+  const glintMotion = useAnimatedStyle(() => ({
+    opacity: reduced ? 0 : Math.max(0, 0.8 * (1 - (glint.value + 1) / 2.8)),
+    transform: [
+      {
+        translateX:
+          glint.value * Math.min(width - 24, width >= 640 ? 540 : 500),
+      },
+      { skewX: "-12deg" },
     ],
   }));
   const shadeMotion = useAnimatedStyle(() => ({ opacity: shade.value }));
@@ -344,7 +405,7 @@ export function ProfileMenu({
   ];
   if (!user) return null;
   return (
-    <MenuStyle.Provider value={{ ink, muted, panel, busy, closing }}>
+    <MenuStyle.Provider value={{ ink, muted, panel, busy, closing, dark }}>
       <Modal
         visible={mounted}
         transparent
@@ -369,11 +430,26 @@ export function ProfileMenu({
             ]}
           >
             <Animated.View style={[StyleSheet.absoluteFill, shadeMotion]}>
-              <BlurView
-                intensity={35}
-                tint="dark"
-                style={StyleSheet.absoluteFill}
-              />
+              {Platform.OS === "web" ? (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFill,
+                    {
+                      backdropFilter: "blur(24px)",
+                      WebkitBackdropFilter: "blur(24px)",
+                    } as ViewStyle,
+                  ]}
+                />
+              ) : (
+                <BlurView
+                  blurTarget={presentation?.blurTarget}
+                  blurMethod="dimezisBlurViewSdk31Plus"
+                  intensity={70}
+                  tint="default"
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Dismiss resident menu"
@@ -394,27 +470,63 @@ export function ProfileMenu({
                     width >= 640 ? 560 : 520,
                     height - insets.top - insets.bottom - 24,
                   ),
-                  backgroundColor: dark ? "#0f172ae8" : "#fafaf0e8",
+                  borderRadius: width >= 640 ? 36 : 32,
+                  padding: width >= 640 ? 20 : 16,
+                  paddingTop: width >= 640 ? 16 : 14,
+                  borderColor: dark ? "#ffffff42" : "#ffffffe6",
+                  backgroundColor: dark ? "#0f172ac7" : "#ffffffa6",
                 },
                 cardMotion,
               ]}
             >
-              <BlurView
-                intensity={65}
-                tint={dark ? "dark" : "light"}
-                style={StyleSheet.absoluteFill}
-              />
+              {Platform.OS === "web" ? (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFill,
+                    {
+                      backdropFilter:
+                        "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
+                      WebkitBackdropFilter:
+                        "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
+                    } as ViewStyle,
+                  ]}
+                />
+              ) : (
+                <BlurView
+                  blurTarget={presentation?.blurTarget}
+                  blurMethod="dimezisBlurViewSdk31Plus"
+                  intensity={90}
+                  tint={dark ? "dark" : "light"}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <LinearGradient
                 pointerEvents="none"
                 colors={
                   dark
                     ? ["#ffffff33", "#ffffff0a", "#ffffff26"]
-                    : ["#ffffffcc", "#ffffff4d", "#ffffffa6"]
+                    : ["#ffffffe0", "#ffffffb3", "#ffffff94", "#ffffffd1"]
                 }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
+              <Animated.View
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, glintMotion]}
+              >
+                <LinearGradient
+                  colors={[
+                    "#ffffff00",
+                    dark ? "#ffffff1f" : "#ffffff40",
+                    "#ffffff00",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close Resident Menu"
