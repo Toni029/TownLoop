@@ -17,3 +17,7 @@ Corrected the heading to the actual 700-weight Playfair loaded by the original b
 Native Android/iOS Google OAuth is not configured in this repository (no platform client IDs or Google service configuration files). The button matches the original on all platforms; device presses explain the configuration requirement. Email authentication remains available. No production test accounts were created, and OAuth was not tested with a user account.
 
 Validation: TypeScript, focused ESLint and native JSX checks passed. Android/iOS/web exports passed, followed by a final web export after font/focus refinements. Automatic visual inspection remains blocked, so exact pixel parity is not asserted.
+
+## Login fallback routing correction
+
+The always-public first community screen was Expo Router’s fallback when authentication removed the sign-in route. Moved communities into the signed-out protected group. Approved users can now resolve only to tabs/account; pending or missing profiles resolve to pending. Signed-out users retain community selection/sign-in. Three regression checks inspect actual screen order and inherited protection guards, covering approved, pending, missing-profile and signed-out states. TypeScript, focused ESLint and Expo web export passed. No account or production data changes.

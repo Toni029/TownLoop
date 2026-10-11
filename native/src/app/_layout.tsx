@@ -21,8 +21,8 @@ function Navigation() {
         headerTintColor: colors.ink,
       }}
     >
-      <Stack.Screen name="communities" options={{ headerShown: false }} />
       <Stack.Protected guard={!user}>
+        <Stack.Screen name="communities" options={{ headerShown: false }} />
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={!!user && !profile?.approved}>
