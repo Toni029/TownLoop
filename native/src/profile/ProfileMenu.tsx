@@ -285,27 +285,37 @@ export function ProfileMenu({
       progress.value = 0;
       shade.value = 0;
       glint.value = -1;
-      glint.value = withDelay(
-        reduced ? 0 : 50,
-        withTiming(1.8, {
-          duration: reduced ? 0 : 850,
-          easing: Easing.bezier(0.16, 1, 0.3, 1),
-        }),
-      );
-      progress.value = withSpring(1, {
-        damping: 25,
-        stiffness: 280,
-        mass: 0.75,
-        reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System,
-      });
-      shade.value = withTiming(1, {
-        duration: reduced ? 0 : 280,
-        easing: Easing.bezier(0.16, 1, 0.3, 1),
-      });
     }
-  }, [open, progress, shade, glint, reduced]);
+  }, [open, progress, shade, glint]);
+  const openingFrame = useRef<number | null>(null);
+  function animateOpen() {
+    // Wait until the modal has painted its initial pose before starting the spring.
+    openingFrame.current = requestAnimationFrame(() => {
+      openingFrame.current = requestAnimationFrame(() => {
+        glint.value = withDelay(
+          reduced ? 0 : 50,
+          withTiming(1.8, {
+            duration: reduced ? 0 : 850,
+            easing: Easing.bezier(0.16, 1, 0.3, 1),
+          }),
+        );
+        progress.value = withSpring(1, {
+          damping: 25,
+          stiffness: 280,
+          mass: 0.75,
+          reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System,
+        });
+        shade.value = withTiming(1, {
+          duration: reduced ? 0 : 280,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+        });
+      });
+    });
+  }
   useEffect(
     () => () => {
+      if (openingFrame.current !== null)
+        cancelAnimationFrame(openingFrame.current);
       cancelAnimation(progress);
       cancelAnimation(shade);
       cancelAnimation(glint);
@@ -410,6 +420,7 @@ export function ProfileMenu({
         visible={mounted}
         transparent
         animationType="none"
+        onShow={animateOpen}
         onRequestClose={() => {
           if (view !== "menu") go("menu");
           else close();
@@ -429,19 +440,18 @@ export function ProfileMenu({
               },
             ]}
           >
-            <Animated.View style={[StyleSheet.absoluteFill, shadeMotion]}>
-              {Platform.OS === "web" ? (
-                <View
-                  pointerEvents="none"
-                  style={[
-                    StyleSheet.absoluteFill,
-                    {
-                      backdropFilter: "blur(24px)",
-                      WebkitBackdropFilter: "blur(24px)",
-                    } as ViewStyle,
-                  ]}
-                />
-              ) : (
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                Platform.OS === "web" &&
+                  ({
+                    backdropFilter: "blur(24px)",
+                    WebkitBackdropFilter: "blur(24px)",
+                  } as ViewStyle),
+                shadeMotion,
+              ]}
+            >
+              {Platform.OS !== "web" && (
                 <BlurView
                   blurTarget={presentation?.blurTarget}
                   blurMethod="dimezisBlurViewSdk31Plus"
@@ -476,23 +486,17 @@ export function ProfileMenu({
                   borderColor: dark ? "#ffffff42" : "#ffffffe6",
                   backgroundColor: dark ? "#0f172ac7" : "#ffffffa6",
                 },
+                Platform.OS === "web" &&
+                  ({
+                    backdropFilter:
+                      "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
+                    WebkitBackdropFilter:
+                      "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
+                  } as ViewStyle),
                 cardMotion,
               ]}
             >
-              {Platform.OS === "web" ? (
-                <View
-                  pointerEvents="none"
-                  style={[
-                    StyleSheet.absoluteFill,
-                    {
-                      backdropFilter:
-                        "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
-                      WebkitBackdropFilter:
-                        "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
-                    } as ViewStyle,
-                  ]}
-                />
-              ) : (
+              {Platform.OS !== "web" && (
                 <BlurView
                   blurTarget={presentation?.blurTarget}
                   blurMethod="dimezisBlurViewSdk31Plus"
@@ -1271,7 +1275,14 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  initials: { fontFamily: "JakartaBold", fontSize: 20, color: "#57534e" },
+  initials: {
+    fontFamily: "JakartaBold",
+    fontSize: 20,
+    lineHeight: 24,
+    textAlign: "center",
+    includeFontPadding: false,
+    color: "#57534e",
+  },
   camera: {
     position: "absolute",
     bottom: -2,
@@ -1369,7 +1380,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionText: { fontFamily: "JakartaBold", color: "#fff", fontSize: 14 },
+  actionText: {
+    fontFamily: "JakartaBold",
+    color: "#fff",
+    fontSize: 14,
+    textAlign: "center",
+    includeFontPadding: false,
+  },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 12,

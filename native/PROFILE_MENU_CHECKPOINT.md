@@ -29,3 +29,12 @@ Matched source-defined avatar hover scale (1.05), sheen, emerald border/shadow r
 Corrected Expo web blur scaling: the former intensity 35 yielded approximately 7px; the web backdrop now specifies the reference 24px blur and the panel 36px glass blur/saturation. Android BlurViews now use the existing scene's blur target and supported blur method. Mobile/desktop radii, padding, glass colors, row geometry and icons follow the original component. Functionality/data actions are unchanged. This checkpoint also preserves the previously requested light-theme default.
 
 Validation: TypeScript, lint, five targeted profile/native-container checks, and web bundle export passed. Direct visual and motion comparison remains unverified because the browser tool rejected localhost access due to its saved permission setting. Manual preview review is required before further visual work; no alternative browser-control method was used.
+
+
+## Profile interaction correction — 2026-10-11
+
+- Start the original scale/translate spring from Modal onShow after the initial pose paints, rather than before mounting the modal.
+- Apply web backdrop filters on the animated backdrop and glass panel themselves so nested opacity layers do not isolate background blur.
+- Center avatar initials and action labels explicitly; restore the header initials to the original 20px size. Hover enlargement/sheens and touch compression/tilt remain enabled, respecting reduced-motion settings.
+- Validation: TypeScript, focused ESLint, five profile/text checks, and Expo web export passed. Preview returns HTTP 200 at localhost:8082.
+- Direct browser visual verification remains unavailable because browser automation access is blocked; visual approval remains with the user.

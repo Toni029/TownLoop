@@ -392,7 +392,10 @@ export function PortalHeader({
                 <Text
                   style={{
                     fontFamily: "JakartaBold",
-                    fontSize: 14,
+                    fontSize: 20,
+                    lineHeight: 24,
+                    textAlign: "center",
+                    includeFontPadding: false,
                     color: dark ? "#cbd5e1" : "#57534e",
                   }}
                 >
