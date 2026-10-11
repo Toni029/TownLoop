@@ -1,3 +1,4 @@
+import { canViewAllWorkOrders } from "../utils/permissions";
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { WorkOrderItem, WorkOrderComment, UserProfile } from '../types';
@@ -8,7 +9,7 @@ import {
   saveWorkOrderResolutionToFirestore,
   updateFirestoreDocument,
 } from '../services/firestoreSync';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase';
 
 const STORAGE_KEY = 'portal_work_orders_list';
@@ -107,11 +108,13 @@ export function useWorkOrders(
     }
     let unsubscribe = () => {};
     try {
-      const q = query(collection(db, 'work_orders'), orderBy('createdAt', 'desc'));
+      const q = canViewAllWorkOrders(currentUser)
+        ? query(collection(db, 'work_orders'), orderBy('createdAt', 'desc'))
+        : query(collection(db, 'work_orders'), where('userId', '==', String(currentUser.id)));
       unsubscribe = onSnapshot(
         q,
         (snapshot) => {
-          const remoteOrders: WorkOrderItem[] = snapshot.docs.map((doc) => {
+          const remoteOrders: WorkOrderItem[] = [...snapshot.docs].sort((a, b) => (b.data().createdAt?.toMillis?.() || 0) - (a.data().createdAt?.toMillis?.() || 0)).map((doc) => {
             const data = doc.data();
             return {
               id: doc.id,
@@ -164,8 +167,7 @@ export function useWorkOrders(
       e.preventDefault();
       if (!newWoTitle.trim()) return;
 
-      const codeNum = Math.floor(1000 + Math.random() * 9000);
-      const code = `WO-${codeNum}`;
+      const code = 'Assigning…';
       const emoji = getCategoryEmoji(newWoCategory);
       const unit = currentUser?.address || currentUser?.apartmentNumber || 'Unit 208';
 

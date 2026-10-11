@@ -1,3 +1,4 @@
+import { nextWorkOrderNumber, workOrderCode } from "../data/workOrderNumber";
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -5,6 +6,7 @@
  * via any medium, is strictly prohibited.
  */
 import {
+  runTransaction,
   collection,
   addDoc,
   doc,
@@ -204,7 +206,7 @@ export async function saveWorkOrderToFirestore(
     userId: finalUserId,
     photoUrl: params.photoUrl || '',
     // Additional helpful metadata for portal UI
-    code: params.code || `WO-${Math.floor(1000 + Math.random() * 9000)}`,
+    code: params.code || "Assigning…",
     title: params.title || (params.description ? params.description.slice(0, 35) : 'Work Order Request'),
     category: params.category || 'General Maintenance',
     categoryEmoji: params.categoryEmoji || '🛠️',
@@ -218,7 +220,16 @@ export async function saveWorkOrderToFirestore(
     userEmail: currentUser?.email || auth?.currentUser?.email || '',
   };
 
-  return saveDocument('work_orders', params, docPayload);
+  if (params.id != null) return saveDocument('work_orders', params, docPayload);
+  const reference = doc(collection(db, 'work_orders'));
+  const counter = doc(db, 'counters', 'work_orders');
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(counter);
+    const ticketNumber = nextWorkOrderNumber(snapshot.data()?.lastNumber);
+    transaction.set(counter, { lastNumber: ticketNumber, orderId: reference.id });
+    transaction.set(reference, { ...docPayload, ticketNumber, code: workOrderCode(ticketNumber) });
+  });
+  return reference.id;
 }
 
 /**

@@ -88,6 +88,7 @@ export function TownLoopShell({
     NewsSerif: PlayfairDisplay_700Bold,
     Jakarta: PlusJakartaSans_400Regular,
     JakartaBold: PlusJakartaSans_700Bold,
+    TicketDotrice: require("../../assets/fonts/DotGothic16-Regular.ttf"),
     JakartaSemi: PlusJakartaSans_600SemiBold,
     JakartaExtra: PlusJakartaSans_800ExtraBold,
     Playfair: PlayfairDisplay_700Bold,

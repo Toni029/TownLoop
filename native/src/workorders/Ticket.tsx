@@ -1,4 +1,4 @@
-import { View, Text, Platform } from "react-native";
+import { View, Text } from "react-native";
 import { usePresentation } from "../shell/TownLoopShell";
 import Svg, { Path, Line, Rect } from "react-native-svg";
 export function Ticket({ code, done }: { code: string; done: boolean }) {
@@ -53,13 +53,11 @@ export function Ticket({ code, done }: { code: string; done: boolean }) {
       >
         <Text
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
           style={{
-            fontFamily: Platform.select({
-              ios: "Menlo",
-              android: "monospace",
-              default: "monospace",
-            }),
-            fontWeight: "bold",
+            fontFamily: "TicketDotrice",
+            fontWeight: "700",
             fontSize: 14,
             letterSpacing: 0.7,
             color: ink,

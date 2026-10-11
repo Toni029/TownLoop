@@ -73,10 +73,28 @@ service cloud.firestore {
       allow delete: if isManager() || resource.data.userId == request.auth.uid;
     }
 
-    match /work_orders/{orderId} {
+    // Counter updates must be paired atomically with the submitting resident's new ticket.
+    match /counters/work_orders {
       allow read: if isApproved();
+      function validCounterTicket() {
+        return isApproved() &&
+        request.resource.data.keys().hasOnly(['lastNumber', 'orderId']) &&
+        request.resource.data.lastNumber is int &&
+        request.resource.data.orderId is string &&
+        !exists(/databases/$(database)/documents/work_orders/$(request.resource.data.orderId)) &&
+        getAfter(/databases/$(database)/documents/work_orders/$(request.resource.data.orderId)).data.userId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/work_orders/$(request.resource.data.orderId)).data.ticketNumber == request.resource.data.lastNumber;
+      }
+      allow create: if validCounterTicket() && request.resource.data.lastNumber == 10000;
+      allow update: if validCounterTicket() && request.resource.data.lastNumber == resource.data.lastNumber + 1;
+    }
+
+    match /work_orders/{orderId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/work_orders/$(orderId)) || isCrewOrManager() || resource.data.userId == request.auth.uid);
+      allow list: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid);
       allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
-      allow update: if isCrewOrManager() || resource.data.userId == request.auth.uid;
+      allow update: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber']);
       allow delete: if isManager() ||
         (resource.data.userId == request.auth.uid && resource.data.status != 'Done') ||
         (currentProfile().role == 'crew' && resource.data.status == 'Done');

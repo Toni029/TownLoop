@@ -1,3 +1,4 @@
+import { CategoryPicker } from "./CategoryPicker";
 import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState } from "react";
 import { Image, View } from "react-native";
@@ -7,7 +8,6 @@ import {
   Action,
   Copy,
   Field,
-  Choices,
   ErrorNotice,
   UploadTarget,
   useNewsStyles,
@@ -74,15 +74,7 @@ export function RequestEditor({
       busy={busy}
       onClose={onClose}
     >
-      <Choices
-        label="CATEGORY"
-        optionIcon={(v) =>
-          WORK_ORDER_CATEGORIES.find((c) => c.name === v)?.emoji
-        }
-        values={WORK_ORDER_CATEGORIES.map((c) => c.name)}
-        value={category}
-        onChange={setCategory}
-      />
+      <CategoryPicker value={category} onChange={setCategory} disabled={busy} />
       <Copy style={{ color: "#a8a29e", fontSize: 11, marginTop: -6 }}>
         {WORK_ORDER_CATEGORIES.find((c) => c.name === category)?.description}
       </Copy>
