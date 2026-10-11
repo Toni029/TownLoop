@@ -332,24 +332,38 @@ export function ProfileMenu({
   }
   function close(next?: () => void) {
     if (closing) return;
+    if (openingFrame.current !== null)
+      cancelAnimationFrame(openingFrame.current);
     setClosing(true);
     afterClose.current = next || null;
-    shade.set(withTiming(0, { duration: reduced ? 0 : 200 }));
-    progress.set(
+    shade.set(
       withTiming(
         0,
         {
-          duration: reduced ? 0 : 200,
-          easing: Easing.bezier(0.32, 0.72, 0, 1),
+          duration: reduced ? 0 : 280,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
         },
         (finished) => {
           if (finished) runOnJS(finishClose)();
         },
       ),
     );
+    progress.set(
+      withTiming(0, {
+        duration: reduced ? 0 : 200,
+        easing: Easing.bezier(0.32, 0.72, 0, 1),
+      }),
+    );
   }
   const cardMotion = useAnimatedStyle(() => ({
-    opacity: progress.value,
+    opacity: Math.max(0, Math.min(1, progress.value)),
+    // Match the original popup's blur-to-focus reveal on the web renderer.
+    // Native renderers retain the spring, fade and glass backdrop.
+    ...(Platform.OS === "web"
+      ? {
+          filter: `blur(${Math.max(0, (closing ? 8 : 14) * (1 - progress.value))}px)`,
+        }
+      : {}),
     transform: [
       {
         scale:

@@ -38,3 +38,7 @@ Validation: TypeScript, lint, five targeted profile/native-container checks, and
 - Center avatar initials and action labels explicitly; restore the header initials to the original 20px size. Hover enlargement/sheens and touch compression/tilt remain enabled, respecting reduced-motion settings.
 - Validation: TypeScript, focused ESLint, five profile/text checks, and Expo web export passed. Preview returns HTTP 200 at localhost:8082.
 - Direct browser visual verification remains unavailable because browser automation access is blocked; visual approval remains with the user.
+
+## Original popup motion study — 2026-10-11
+
+Compared directly with the original ProfileAvatar.tsx motion definitions. Preserved its opening spring (scale .84, y -28, damping 25, stiffness 280, mass .75) and 200ms card exit (scale .88, y -18). Added the missing web blur-to-focus reveal (14px opening, 8px closing). Restored the backdrop 280ms cubic easing on exit and deferred modal removal until that fade completes. Cancel pending opening frames when dismissing. iOS/Android retain Reanimated scale/translation/fade and the existing native glass backdrop; content filter blur is web-only. TypeScript, focused ESLint and Expo web export passed. Browser visual verification remains blocked by saved browser permission.
