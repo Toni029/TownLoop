@@ -9,3 +9,11 @@ Validation: TypeScript, focused ESLint, native JSX text check and Expo web expor
 ## Cecil Pines login brand parity
 
 Matched original AuthScreen title sizing (30px/mobile, 36px/desktop, Playfair black serif), emblem (80px/mobile, 88px/desktop), official green/gold badge colors and 56/64px pine artwork, subtitle (14/16px), Resident Portal tag (12/14px), gold divider and card geometry. Switch Community now matches the original top-left white pill with Building2 icon and press compression; it clears the stored selection and returns to /communities. Removed the previous text-only footer link. Authentication and password-reset behavior retained. TypeScript, focused ESLint, native JSX check and Expo web export passed. Compared with source; browser visual verification remains blocked.
+
+## Full login controls correction
+
+Corrected the heading to the actual 700-weight Playfair loaded by the original browser stylesheet, and added Jakarta Medium for the original input typography. Reproduced Sign In/Create Account segmented tabs, active/inactive treatment and icons, original registration fields, action labels, Google four-color mark/button, input focus borders/rings, responsive sizing and concierge/version footer. Existing sign-in, reset, password visibility and switch-community flows remain. Registration creates an unapproved blank-role resident profile using the original schema, without granting resident/admin approval. Web Google sign-in uses the existing Firebase popup provider and creates the same pending profile for new Google users.
+
+Native Android/iOS Google OAuth is not configured in this repository (no platform client IDs or Google service configuration files). The button matches the original on all platforms; device presses explain the configuration requirement. Email authentication remains available. No production test accounts were created, and OAuth was not tested with a user account.
+
+Validation: TypeScript, focused ESLint and native JSX checks passed. Android/iOS/web exports passed, followed by a final web export after font/focus refinements. Automatic visual inspection remains blocked, so exact pixel parity is not asserted.

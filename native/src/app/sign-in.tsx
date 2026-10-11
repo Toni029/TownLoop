@@ -1,3 +1,6 @@
+import { ResidentRegistration } from "../components/ResidentRegistration";
+import { googleSignIn } from "../lib/googleSignIn";
+import Svg, { Path } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
@@ -15,10 +18,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
+  LogIn,
+  UserPlus,
   Building2,
   Mail,
   Lock,
-  ShieldCheck,
   ArrowRight,
   Eye,
   EyeOff,
@@ -33,6 +37,9 @@ import { auth } from "../lib/firebase";
 import { friendlyError } from "../lib/profile";
 import { CecilPinesMark } from "../components/CecilPinesMark";
 export default function SignIn() {
+  const [focused, setFocused] = useState("");
+  const [googleHovered, setGoogleHovered] = useState(false);
+  const [mode, setMode] = useState<"signin" | "register">("signin");
   const wide = useWindowDimensions().width >= 640;
   const [community, setCommunity] = useState<string | null>(null);
   useEffect(() => {
@@ -257,6 +264,88 @@ export default function SignIn() {
                   },
                 ]}
               >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    padding: 6,
+                    gap: 4,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: dark ? "#1e293b" : "#ded2bc",
+                    backgroundColor: dark ? "#020617cc" : "#ede6d8",
+                    marginBottom: 2,
+                  }}
+                >
+                  {(["signin", "register"] as const).map((tab) => {
+                    const selected = mode === tab;
+                    const Icon = tab === "signin" ? LogIn : UserPlus;
+                    return (
+                      <Pressable
+                        key={tab}
+                        disabled={busy}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected }}
+                        onPress={() => {
+                          setMode(tab);
+                          setMessage("");
+                        }}
+                        style={({ pressed }) => ({
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 8,
+                          paddingHorizontal: 16,
+                          paddingVertical: 12,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor:
+                            selected && !dark ? "#d8cdb8" : "transparent",
+                          backgroundColor: selected
+                            ? dark
+                              ? "#1e293b"
+                              : "#fff"
+                            : pressed
+                              ? dark
+                                ? "#0f172a"
+                                : "#e7decd"
+                              : "transparent",
+                          boxShadow: selected
+                            ? "0px 1px 3px rgba(0,0,0,0.1)"
+                            : "none",
+                        })}
+                      >
+                        <Icon
+                          size={wide ? 20 : 16}
+                          color={
+                            selected
+                              ? dark
+                                ? "#fff"
+                                : "#0f4423"
+                              : dark
+                                ? "#94a3b8"
+                                : "#6e6350"
+                          }
+                        />
+                        <Text
+                          style={{
+                            fontFamily: "JakartaBold",
+                            fontSize: wide ? 16 : 14,
+                            color: selected
+                              ? dark
+                                ? "#fff"
+                                : "#0f4423"
+                              : dark
+                                ? "#94a3b8"
+                                : "#6e6350",
+                          }}
+                        >
+                          {tab === "signin" ? "Sign In" : "Create Account"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 <View style={s.cardHeading}>
                   <Text
                     accessibilityRole="header"
@@ -266,7 +355,9 @@ export default function SignIn() {
                       { color: dark ? "#fff" : "#154628" },
                     ]}
                   >
-                    Resident Sign In
+                    {mode === "signin"
+                      ? "Resident Sign In"
+                      : "Create Resident Account"}
                   </Text>
                   <View
                     style={[
@@ -277,114 +368,270 @@ export default function SignIn() {
                     <Text
                       style={[s.secureText, { fontSize: 12 }, { color: ink }]}
                     >
-                      Secure Access
+                      {mode === "signin"
+                        ? "Secure Access"
+                        : "Approval Required"}
                     </Text>
                   </View>
                 </View>
-                <View style={s.field}>
-                  <Text style={[s.label, { color: ink }]}>
-                    Resident Email Address
-                  </Text>
-                  <View style={s.inputWrap}>
-                    <Mail size={20} color={muted} style={s.inputIcon} />
-                    <TextInput
-                      accessibilityLabel="Resident Email Address"
-                      placeholder="e.g. resident@cecilpines.com"
-                      placeholderTextColor={muted}
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoComplete="email"
-                      style={inputStyle}
-                    />
-                  </View>
-                </View>
-                <View style={s.field}>
-                  <View style={s.passwordHeading}>
-                    <Text style={[s.label, { color: ink }]}>Password</Text>
+                {mode === "register" ? (
+                  <ResidentRegistration
+                    dark={dark}
+                    wide={wide}
+                    busy={busy}
+                    setBusy={setBusy}
+                    onError={setMessage}
+                    onSignIn={() => {
+                      setMode("signin");
+                      setMessage("");
+                    }}
+                  />
+                ) : (
+                  <>
+                    <View style={s.field}>
+                      <Text
+                        style={[
+                          s.label,
+                          { color: ink, fontSize: wide ? 16 : 14 },
+                        ]}
+                      >
+                        Resident Email Address
+                      </Text>
+                      <View style={s.inputWrap}>
+                        <Mail size={20} color={muted} style={s.inputIcon} />
+                        <TextInput
+                          accessibilityLabel="Resident Email Address"
+                          placeholder="e.g. resident@cecilpines.com"
+                          placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
+                          onFocus={() => setFocused("email")}
+                          onBlur={() => setFocused("")}
+                          value={email}
+                          onChangeText={setEmail}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoComplete="email"
+                          style={[
+                            ...inputStyle,
+                            focused === "email" && {
+                              borderColor: dark ? "#10b981" : "#175d3a",
+                              backgroundColor: dark ? "#0f172a" : "#fff",
+                              boxShadow: "0px 0px 0px 4px rgba(23,93,58,0.15)",
+                            },
+                            {
+                              fontSize: wide ? 18 : 16,
+                              minHeight: wide ? 58 : 52,
+                              paddingVertical: wide ? 14 : 12,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                    <View style={s.field}>
+                      <View style={s.passwordHeading}>
+                        <Text
+                          style={[
+                            s.label,
+                            { color: ink, fontSize: wide ? 16 : 14 },
+                          ]}
+                        >
+                          Password
+                        </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          disabled={busy}
+                          onPress={() => void submit(true)}
+                          style={s.forgot}
+                        >
+                          <Text
+                            style={[
+                              s.forgotText,
+                              { color: muted, fontSize: wide ? 16 : 14 },
+                            ]}
+                          >
+                            Forgot password?
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <View style={s.inputWrap}>
+                        <Lock size={20} color={muted} style={s.inputIcon} />
+                        <TextInput
+                          accessibilityLabel="Password"
+                          placeholder="Enter your password"
+                          placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
+                          onFocus={() => setFocused("password")}
+                          onBlur={() => setFocused("")}
+                          value={password}
+                          onChangeText={setPassword}
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                          autoComplete="current-password"
+                          onSubmitEditing={() => void submit()}
+                          style={[
+                            ...inputStyle,
+                            focused === "password" && {
+                              borderColor: dark ? "#10b981" : "#175d3a",
+                              backgroundColor: dark ? "#0f172a" : "#fff",
+                              boxShadow: "0px 0px 0px 4px rgba(23,93,58,0.15)",
+                            },
+                            {
+                              paddingRight: 48,
+                              fontSize: wide ? 18 : 16,
+                              minHeight: wide ? 58 : 52,
+                              paddingVertical: wide ? 14 : 12,
+                            },
+                          ]}
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            showPassword ? "Hide password" : "Show password"
+                          }
+                          onPress={() => setShowPassword(!showPassword)}
+                          style={s.eye}
+                        >
+                          {showPassword ? (
+                            <EyeOff size={20} color={muted} />
+                          ) : (
+                            <Eye size={20} color={muted} />
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                    {!!message && (
+                      <View
+                        style={[
+                          s.notice,
+                          dark && { backgroundColor: "#1e293b" },
+                        ]}
+                      >
+                        <Text
+                          accessibilityLiveRegion="polite"
+                          style={[s.noticeText, { color: ink }]}
+                        >
+                          {message}
+                        </Text>
+                      </View>
+                    )}
                     <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: busy }}
+                      disabled={busy}
+                      onPress={() => void submit()}
+                      style={({ pressed }) => [
+                        s.submit,
+                        (pressed || busy) && { opacity: 0.65 },
+                        { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={["#175d3a", "#124b2e"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[
+                          s.submitInner,
+                          { paddingVertical: wide ? 16 : 14, minHeight: 52 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            s.submitText,
+                            { fontSize: wide ? 18 : 16, letterSpacing: 0.4 },
+                          ]}
+                        >
+                          {busy ? "Signing in…" : "Sign In"}
+                        </Text>
+                        <ArrowRight size={20} color="#fff" />
+                      </LinearGradient>
+                    </Pressable>
+                    <Pressable
+                      onHoverIn={() => setGoogleHovered(true)}
+                      onHoverOut={() => setGoogleHovered(false)}
                       accessibilityRole="button"
                       disabled={busy}
-                      onPress={() => void submit(true)}
-                      style={s.forgot}
+                      onPress={async () => {
+                        if (busy) return;
+                        setBusy(true);
+                        setMessage("");
+                        try {
+                          await googleSignIn();
+                        } catch (e) {
+                          setMessage(friendlyError(e));
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                      style={({ pressed }) => ({
+                        paddingVertical: wide ? 14 : 12,
+                        paddingHorizontal: 16,
+                        minHeight: 50,
+                        borderRadius: 16,
+                        borderWidth: 2,
+                        borderColor: dark ? "#334155" : "#d8cebe",
+                        backgroundColor: dark
+                          ? "#1e293be6"
+                          : pressed || googleHovered
+                            ? "#f2ebe0"
+                            : "#faf6ee",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 12,
+                        opacity: busy ? 0.6 : 1,
+                        transform: [{ scale: pressed ? 0.98 : 1 }],
+                      })}
                     >
-                      <Text style={[s.forgotText, { color: muted }]}>
-                        Forgot password?
+                      <Svg width={20} height={20} viewBox="0 0 24 24">
+                        <Path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <Path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <Path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <Path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </Svg>
+                      <Text
+                        style={{
+                          fontFamily: "JakartaBold",
+                          fontSize: wide ? 16 : 14,
+                          color: dark ? "#f1f5f9" : "#1c1917",
+                        }}
+                      >
+                        Continue with Google
                       </Text>
                     </Pressable>
-                  </View>
-                  <View style={s.inputWrap}>
-                    <Lock size={20} color={muted} style={s.inputIcon} />
-                    <TextInput
-                      accessibilityLabel="Password"
-                      placeholder="Enter your password"
-                      placeholderTextColor={muted}
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      autoComplete="current-password"
-                      onSubmitEditing={() => void submit()}
-                      style={[...inputStyle, { paddingRight: 52 }]}
-                    />
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        showPassword ? "Hide password" : "Show password"
-                      }
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={s.eye}
-                    >
-                      {showPassword ? (
-                        <EyeOff size={20} color={muted} />
-                      ) : (
-                        <Eye size={20} color={muted} />
-                      )}
-                    </Pressable>
-                  </View>
-                </View>
-                {!!message && (
-                  <View
-                    style={[s.notice, dark && { backgroundColor: "#1e293b" }]}
-                  >
-                    <Text
-                      accessibilityLiveRegion="polite"
-                      style={[s.noticeText, { color: ink }]}
-                    >
-                      {message}
-                    </Text>
-                  </View>
+                  </>
                 )}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: busy }}
-                  disabled={busy}
-                  onPress={() => void submit()}
-                  style={({ pressed }) => [
-                    s.submit,
-                    (pressed || busy) && { opacity: 0.65 },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={["#1a643b", "#0d4722"]}
-                    style={s.submitInner}
+                {mode === "register" && !!message && (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={{ fontFamily: "Jakarta", color: ink }}
                   >
-                    <Text style={s.submitText}>
-                      {busy ? "Signing in…" : "Sign In"}
-                    </Text>
-                    <ArrowRight size={20} color="#fff" />
-                  </LinearGradient>
-                </Pressable>
-                <View style={s.security}>
-                  <ShieldCheck size={15} color={muted} />
-                  <Text style={[s.securityText, { color: muted }]}>
-                    Secure resident access
+                    {message}
                   </Text>
-                </View>
+                )}
               </View>
+              <Text
+                style={{
+                  fontFamily: "Jakarta",
+                  fontSize: wide ? 14 : 12,
+                  textAlign: "center",
+                  color: dark ? "#94a3b8" : "#635949",
+                  marginTop: 16,
+                }}
+              >
+                Cecil Pines Adult Living Community Concierge: (904) 555-0100
+              </Text>
               <Text style={[s.footer, { color: muted }]}>
-                © 2026 TownLoop • All rights reserved.
+                Version 1.0.0 • © 2026 TownLoop • All rights reserved.
               </Text>
             </LinearGradient>
           </ScrollView>
@@ -450,7 +697,7 @@ const s = StyleSheet.create({
     boxShadow: "0px 8px 20px rgba(13,71,34,0.2)",
   },
   community: {
-    fontFamily: "PlayfairBlack",
+    fontFamily: "Playfair",
     fontSize: 38,
     color: "#0d4722",
     letterSpacing: -1,
@@ -480,7 +727,7 @@ const s = StyleSheet.create({
     borderColor: "#dfd5c3",
     borderRadius: 38,
     padding: 24,
-    gap: 18,
+    gap: 16,
     boxShadow:
       "0px 35px 80px -15px rgba(50,35,15,0.28), 0px 15px 30px -8px rgba(0,0,0,0.12)",
   },
@@ -492,7 +739,7 @@ const s = StyleSheet.create({
     gap: 8,
     borderBottomWidth: 1,
     borderColor: "#ece3d4",
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   title: { fontFamily: "JakartaExtra", fontSize: 18 },
   securePill: {
@@ -504,7 +751,7 @@ const s = StyleSheet.create({
     paddingVertical: 5,
   },
   secureText: { fontFamily: "JakartaBold", fontSize: 10 },
-  field: { gap: 8 },
+  field: { gap: 6 },
   label: { fontFamily: "JakartaBold", fontSize: 14 },
   inputWrap: { justifyContent: "center" },
   inputIcon: { position: "absolute", left: 14, zIndex: 1 },
@@ -518,7 +765,7 @@ const s = StyleSheet.create({
     paddingRight: 14,
     paddingVertical: 12,
     backgroundColor: "#fcfaf5",
-    fontFamily: "Jakarta",
+    fontFamily: "JakartaMedium",
     fontSize: 16,
     color: "#1c1917",
   },
@@ -564,6 +811,6 @@ const s = StyleSheet.create({
     fontFamily: "Jakarta",
     fontSize: 11,
     textAlign: "center",
-    marginTop: 32,
+    marginTop: 4,
   },
 });

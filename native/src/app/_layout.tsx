@@ -1,3 +1,4 @@
+import { PlusJakartaSans_500Medium } from "@expo-google-fonts/plus-jakarta-sans/500Medium";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -37,6 +38,7 @@ function Navigation() {
 export default function Root() {
   const [fonts, error] = useFonts({
     Jakarta: PlusJakartaSans_400Regular,
+    JakartaMedium: PlusJakartaSans_500Medium,
     JakartaSemi: PlusJakartaSans_600SemiBold,
     JakartaBold: PlusJakartaSans_700Bold,
     JakartaExtra: PlusJakartaSans_800ExtraBold,
