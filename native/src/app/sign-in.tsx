@@ -10,10 +10,12 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
+  Building2,
   Mail,
   Lock,
   ShieldCheck,
@@ -31,6 +33,7 @@ import { auth } from "../lib/firebase";
 import { friendlyError } from "../lib/profile";
 import { CecilPinesMark } from "../components/CecilPinesMark";
 export default function SignIn() {
+  const wide = useWindowDimensions().width >= 640;
   const [community, setCommunity] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
@@ -103,7 +106,7 @@ export default function SignIn() {
         <SafeAreaView style={{ flex: 1 }}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={s.page}
+            contentContainerStyle={[s.page, { paddingVertical: wide ? 24 : 0 }]}
           >
             <LinearGradient
               colors={
@@ -111,12 +114,47 @@ export default function SignIn() {
                   ? ["#020617", "#0f172a"]
                   : ["#f7f3ea", "#f1ebe0", "#e8decb"]
               }
-              style={s.portal}
+              style={[
+                s.portal,
+                { padding: wide ? 28 : 16, borderRadius: wide ? 44 : 0 },
+              ]}
             >
-              <View style={s.utility}>
-                <View style={s.brandPill}>
-                  <Text style={s.brandText}>TownLoop Resident Portal</Text>
-                </View>
+              <View style={[s.utility, { marginBottom: wide ? 16 : 12 }]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Switch Community"
+                  hitSlop={6}
+                  disabled={busy}
+                  onPress={async () => {
+                    try {
+                      await AsyncStorage.removeItem("selected_community");
+                      router.replace("/communities");
+                    } catch {
+                      setMessage(
+                        "Unable to switch communities. Please try again.",
+                      );
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    s.switchCommunity,
+                    {
+                      backgroundColor: dark ? "#1e293b" : "#fffffff2",
+                      borderColor: dark ? "#334155" : "#e7e5e4",
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                    },
+                  ]}
+                >
+                  <Building2 size={14} color={dark ? "#34d399" : "#059669"} />
+                  <Text
+                    style={{
+                      fontFamily: "JakartaBold",
+                      fontSize: 12,
+                      color: dark ? "#e2e8f0" : "#44403c",
+                    }}
+                  >
+                    Switch Community
+                  </Text>
+                </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
@@ -125,25 +163,45 @@ export default function SignIn() {
                       : "Switch to dark appearance"
                   }
                   onPress={() => setDark(!dark)}
-                  style={[s.theme, dark && { backgroundColor: "#1e293b" }]}
+                  style={[
+                    s.theme,
+                    {
+                      minWidth: wide ? 38 : 34,
+                      minHeight: wide ? 38 : 34,
+                      borderWidth: 1,
+                      borderColor: dark ? "#334155" : "#d6d3d1",
+                      backgroundColor: dark ? "#1e293b" : "#f5f5f4f2",
+                    },
+                  ]}
                 >
                   {dark ? (
-                    <Sun size={18} color="#fbbf24" />
+                    <Sun size={16} color="#fbbf24" />
                   ) : (
-                    <Moon size={18} color="#334155" />
+                    <Moon size={16} color="#334155" />
                   )}
                 </Pressable>
               </View>
               <View style={s.identity}>
                 <LinearGradient
-                  colors={["#155a33", "#0d4722"]}
-                  style={s.emblem}
+                  colors={["#185d3b", "#145334", "#0c3621"]}
+                  style={[
+                    s.emblem,
+                    { width: wide ? 88 : 80, height: wide ? 88 : 80 },
+                  ]}
                 >
-                  <CecilPinesMark />
+                  <CecilPinesMark size={wide ? 64 : 56} />
                 </LinearGradient>
                 <Text
                   accessibilityRole="header"
-                  style={[s.community, dark && { color: "#34d399" }]}
+                  style={[
+                    s.community,
+                    {
+                      fontSize: wide ? 36 : 30,
+                      lineHeight: wide ? 36 : 30,
+                      letterSpacing: wide ? -0.9 : -0.75,
+                    },
+                    dark && { color: "#34d399" },
+                  ]}
                 >
                   {community === "cecil_pines"
                     ? "Cecil Pines"
@@ -153,18 +211,46 @@ export default function SignIn() {
                   colors={["#d99c0000", "#d99c00", "#d99c0000"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={s.goldRule}
+                  style={[s.goldRule, { width: wide ? 224 : 176 }]}
                 />
-                <Text style={[s.tagline, dark && { color: "#6ee7b7" }]}>
+                <Text
+                  style={[
+                    s.tagline,
+                    {
+                      fontSize: wide ? 16 : 14,
+                      letterSpacing: wide ? 0.8 : 0.7,
+                    },
+                    dark && { color: "#6ee7b7" },
+                  ]}
+                >
                   Active Adult Living Community
                 </Text>
-                <View style={s.residentPill}>
-                  <Text style={s.residentText}>Resident Portal</Text>
+                <View
+                  style={[
+                    s.residentPill,
+                    dark && {
+                      backgroundColor: "#1e293b",
+                      borderColor: "#334155",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      s.residentText,
+                      {
+                        fontSize: wide ? 14 : 12,
+                        color: dark ? "#6ee7b7" : "#124d2c",
+                      },
+                    ]}
+                  >
+                    Resident Portal
+                  </Text>
                 </View>
               </View>
               <View
                 style={[
                   s.card,
+                  { padding: wide ? 32 : 24, borderRadius: wide ? 44 : 38 },
                   dark && {
                     backgroundColor: "#0f172a",
                     borderColor: "#334155",
@@ -174,7 +260,11 @@ export default function SignIn() {
                 <View style={s.cardHeading}>
                   <Text
                     accessibilityRole="header"
-                    style={[s.title, { color: dark ? "#fff" : "#154628" }]}
+                    style={[
+                      s.title,
+                      { fontSize: wide ? 20 : 16 },
+                      { color: dark ? "#fff" : "#154628" },
+                    ]}
                   >
                     Resident Sign In
                   </Text>
@@ -184,7 +274,9 @@ export default function SignIn() {
                       dark && { backgroundColor: "#1e293b" },
                     ]}
                   >
-                    <Text style={[s.secureText, { color: ink }]}>
+                    <Text
+                      style={[s.secureText, { fontSize: 12 }, { color: ink }]}
+                    >
                       Secure Access
                     </Text>
                   </View>
@@ -291,21 +383,6 @@ export default function SignIn() {
                   </Text>
                 </View>
               </View>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push("/communities")}
-                style={{ alignItems: "center", padding: 14 }}
-              >
-                <Text
-                  style={{
-                    fontFamily: "JakartaBold",
-                    fontSize: 12,
-                    color: muted,
-                  }}
-                >
-                  Switch community
-                </Text>
-              </Pressable>
               <Text style={[s.footer, { color: muted }]}>
                 © 2026 TownLoop • All rights reserved.
               </Text>
@@ -331,7 +408,17 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  switchCommunity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 99,
+    borderWidth: 1,
+    boxShadow: "0px 1px 3px rgba(0,0,0,0.1)",
   },
   brandPill: {
     backgroundColor: "#d1fae5",
@@ -350,16 +437,16 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  identity: { alignItems: "center", marginBottom: 24 },
+  identity: { alignItems: "center", marginBottom: 16 },
   emblem: {
     width: 96,
     height: 96,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 28,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#c99b3c",
+    borderRadius: 24,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: "#fbbf24b3",
     boxShadow: "0px 8px 20px rgba(13,71,34,0.2)",
   },
   community: {
@@ -368,7 +455,7 @@ const s = StyleSheet.create({
     color: "#0d4722",
     letterSpacing: -1,
   },
-  goldRule: { width: 220, height: 4, marginVertical: 8, borderRadius: 2 },
+  goldRule: { width: 220, height: 4, marginVertical: 6, borderRadius: 2 },
   tagline: {
     fontFamily: "JakartaBold",
     fontSize: 12,
@@ -378,9 +465,9 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   residentPill: {
-    marginTop: 12,
+    marginTop: 8,
     paddingHorizontal: 14,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 99,
     backgroundColor: "#edf5ee",
     borderWidth: 1,
@@ -394,7 +481,8 @@ const s = StyleSheet.create({
     borderRadius: 38,
     padding: 24,
     gap: 18,
-    boxShadow: "0px 24px 50px -15px rgba(50,35,15,0.28)",
+    boxShadow:
+      "0px 35px 80px -15px rgba(50,35,15,0.28), 0px 15px 30px -8px rgba(0,0,0,0.12)",
   },
   cardHeading: {
     flexDirection: "row",
