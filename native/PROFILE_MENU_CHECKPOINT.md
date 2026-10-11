@@ -42,3 +42,7 @@ Validation: TypeScript, lint, five targeted profile/native-container checks, and
 ## Original popup motion study — 2026-10-11
 
 Compared directly with the original ProfileAvatar.tsx motion definitions. Preserved its opening spring (scale .84, y -28, damping 25, stiffness 280, mass .75) and 200ms card exit (scale .88, y -18). Added the missing web blur-to-focus reveal (14px opening, 8px closing). Restored the backdrop 280ms cubic easing on exit and deferred modal removal until that fade completes. Cancel pending opening frames when dismissing. iOS/Android retain Reanimated scale/translation/fade and the existing native glass backdrop; content filter blur is web-only. TypeScript, focused ESLint and Expo web export passed. Browser visual verification remains blocked by saved browser permission.
+
+## Avatar feedback and responsive geometry — 2026-10-11
+
+Matched original source: hover scales only the circle to 1.05, leaving badges stationary; press scales the outer trigger to .90 and circle to .95 with -2 degree tilt. Uses original 300ms easing curves through Reanimated. Header photo is 64px/mobile, 80px/desktop; close control is 36px/mobile, 40px/desktop with original offsets. No menu functionality changed. TypeScript, focused lint and Expo web export passed. Direct visual comparison remains blocked by saved browser permission; user review is required before further polish.

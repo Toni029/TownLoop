@@ -38,7 +38,7 @@ import { PlayfairDisplay_900Black } from "@expo-google-fonts/playfair-display/90
 import Motion, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  Easing,
   withTiming,
   ReduceMotion,
 } from "react-native-reanimated";
@@ -182,22 +182,33 @@ export function PortalHeader({
   const [unread, setUnread] = useState(0);
   const [avatarHovered, setAvatarHovered] = useState(false);
   const reducedAvatarMotion = useReducedMotion();
-  const avatarScale = useSharedValue(1),
+  const avatarCircleScale = useSharedValue(1),
+    avatarScale = useSharedValue(1),
     avatarTilt = useSharedValue(0),
     avatarSheen = useSharedValue(0);
   const hover = useRef(false);
   function avatarFeedback(pressed = false) {
+    const duration = reducedAvatarMotion ? 0 : 300;
     avatarScale.set(
-      withSpring(pressed ? 0.9 : hover.current ? 1.05 : 1, {
-        damping: 18,
-        stiffness: 260,
+      withTiming(pressed ? 0.9 : 1, {
+        duration,
+        easing: Easing.bezier(0.34, 1.56, 0.64, 1),
         reduceMotion: reducedAvatarMotion
           ? ReduceMotion.Always
           : ReduceMotion.System,
       }),
     );
+    avatarCircleScale.set(
+      withTiming(pressed ? 0.95 : hover.current ? 1.05 : 1, {
+        duration,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+      }),
+    );
     avatarTilt.set(
-      withTiming(pressed ? -2 : 0, { duration: reducedAvatarMotion ? 0 : 200 }),
+      withTiming(pressed ? -2 : 0, {
+        duration,
+        easing: Easing.bezier(0.34, 1.56, 0.64, 1),
+      }),
     );
     avatarSheen.set(
       withTiming(hover.current ? 1 : 0, {
@@ -210,6 +221,9 @@ export function PortalHeader({
       { scale: avatarScale.value },
       { rotate: `${avatarTilt.value}deg` },
     ],
+  }));
+  const avatarCircleMotion = useAnimatedStyle(() => ({
+    transform: [{ scale: avatarCircleScale.value }],
   }));
   const avatarLight = useAnimatedStyle(() => ({ opacity: avatarSheen.value }));
   const today = useToday();
@@ -363,72 +377,74 @@ export function PortalHeader({
               height: 64,
             }}
           >
-            <LinearGradient
-              colors={dark ? ["#1e293b", "#334155"] : ["#f5f5f4", "#e7e5e4"]}
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 32,
-                borderWidth: 2,
-                borderColor: avatarHovered
-                  ? "#10b981cc"
-                  : dark
-                    ? "#a7f3d0aa"
-                    : "#05966966",
-                overflow: "hidden",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: avatarHovered
-                  ? "0px 4px 8px rgba(0,0,0,0.12)"
-                  : "0px 1px 2px rgba(0,0,0,0.1)",
-              }}
-            >
-              {photo ? (
-                <Image
-                  source={{ uri: photo }}
-                  style={StyleSheet.absoluteFill}
-                />
-              ) : (
-                <Text
-                  style={{
-                    fontFamily: "JakartaBold",
-                    fontSize: 20,
-                    lineHeight: 24,
-                    textAlign: "center",
-                    includeFontPadding: false,
-                    color: dark ? "#cbd5e1" : "#57534e",
-                  }}
-                >
-                  {(name.trim().includes(" ")
-                    ? name
-                        .split(" ")
-                        .filter(Boolean)
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join("")
-                    : name.slice(0, 2)
-                  ).toUpperCase() || "RE"}
-                </Text>
-              )}
-              <View
-                pointerEvents="none"
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: "#0478571a" },
-                ]}
-              />
-              <Motion.View
-                pointerEvents="none"
-                style={[StyleSheet.absoluteFill, avatarLight]}
+            <Motion.View style={avatarCircleMotion}>
+              <LinearGradient
+                colors={dark ? ["#1e293b", "#334155"] : ["#f5f5f4", "#e7e5e4"]}
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 32,
+                  borderWidth: 2,
+                  borderColor: avatarHovered
+                    ? "#10b981cc"
+                    : dark
+                      ? "#a7f3d0aa"
+                      : "#05966966",
+                  overflow: "hidden",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: avatarHovered
+                    ? "0px 4px 8px rgba(0,0,0,0.12)"
+                    : "0px 1px 2px rgba(0,0,0,0.1)",
+                }}
               >
-                <LinearGradient
-                  colors={["#ffffff00", "#ffffff40", "#ffffff00"]}
-                  start={{ x: 0, y: 1 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
+                {photo ? (
+                  <Image
+                    source={{ uri: photo }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                ) : (
+                  <Text
+                    style={{
+                      fontFamily: "JakartaBold",
+                      fontSize: 20,
+                      lineHeight: 24,
+                      textAlign: "center",
+                      includeFontPadding: false,
+                      color: dark ? "#cbd5e1" : "#57534e",
+                    }}
+                  >
+                    {(name.trim().includes(" ")
+                      ? name
+                          .split(" ")
+                          .filter(Boolean)
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join("")
+                      : name.slice(0, 2)
+                    ).toUpperCase() || "RE"}
+                  </Text>
+                )}
+                <View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFill,
+                    { backgroundColor: "#0478571a" },
+                  ]}
                 />
-              </Motion.View>
-            </LinearGradient>
+                <Motion.View
+                  pointerEvents="none"
+                  style={[StyleSheet.absoluteFill, avatarLight]}
+                >
+                  <LinearGradient
+                    colors={["#ffffff00", "#ffffff40", "#ffffff00"]}
+                    start={{ x: 0, y: 1 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </Motion.View>
+              </LinearGradient>
+            </Motion.View>
             {!!label && (
               <Image
                 source={

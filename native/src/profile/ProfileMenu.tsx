@@ -549,7 +549,17 @@ export function ProfileMenu({
                 accessibilityRole="button"
                 accessibilityLabel="Close Resident Menu"
                 onPress={() => close()}
-                style={[s.close, panel]}
+                style={[
+                  s.close,
+                  panel,
+                  {
+                    width: width >= 640 ? 40 : 36,
+                    height: width >= 640 ? 40 : 36,
+                    borderRadius: width >= 640 ? 20 : 18,
+                    top: width >= 640 ? 16 : 14,
+                    right: width >= 640 ? 16 : 14,
+                  },
+                ]}
               >
                 <X size={20} color={ink} />
               </Pressable>
@@ -630,7 +640,10 @@ export function ProfileMenu({
                               })
                             }
                           >
-                            <Avatar resident={user} size={72} />
+                            <Avatar
+                              resident={user}
+                              size={width >= 640 ? 80 : 64}
+                            />
                             <View style={s.camera}>
                               <Camera size={15} color="#fff" />
                             </View>
