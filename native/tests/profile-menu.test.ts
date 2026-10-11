@@ -1,0 +1,99 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  identifiers,
+  participantKey,
+  residentKey,
+  readThread,
+  neighbors,
+  senderLabel,
+} from "../src/profile/model.ts";
+import type { UserProfile } from "../../src/types.ts";
+const resident = {
+  id: "uid-one",
+  name: "Alex Resident",
+  email: "alex@example.invalid",
+  role: "resident",
+  approved: true,
+} as UserProfile;
+const other = { ...resident, id: "uid-two", email: "other@example.invalid" };
+test("profile chats use stable identity and do not give a namesake access to another resident’s messages", () => {
+  assert.equal(participantKey(resident), "alex@example.invalid");
+  assert.equal(residentKey(resident), "alex_example_invalid");
+  assert.ok(!identifiers(resident).includes("alex_resident"));
+  const data = {
+    participantIds: identifiers(resident),
+    participants: [resident, { ...other, name: "Another Neighbor" }],
+    unreadBy: ["uid-one"],
+    messages: [],
+  };
+  assert.equal(
+    readThread("friend", "chat", data, {
+      ...other,
+      id: "unrelated",
+      email: "unrelated@example.invalid",
+    }),
+    null,
+  );
+  assert.equal(readThread("friend", "chat", data, resident)?.unread, true);
+  assert.equal(
+    readThread("friend", "chat", { ...data, unreadBy: [] }, resident)?.unread,
+    false,
+  );
+});
+test("office and maintenance inboxes select the correct resident and staff unread flags", () => {
+  const data = {
+    residentId: resident.id,
+    residentEmail: resident.email,
+    residentName: resident.name,
+    unreadByVip: true,
+    unreadByCrew: true,
+    unreadByResident: false,
+  };
+  assert.equal(readThread("office", "one", data, other), null);
+  assert.equal(readThread("maintenance", "one", data, other), null);
+  assert.equal(
+    readThread("office", "one", data, resident)?.name,
+    "Community Office",
+  );
+  assert.equal(readThread("office", "one", data, resident)?.unread, false);
+  assert.equal(
+    readThread("office", "one", data, { ...other, role: "vip" })?.unread,
+    true,
+  );
+  assert.equal(
+    readThread("maintenance", "one", data, { ...other, role: "crew" })?.name,
+    resident.name,
+  );
+});
+test("directory excludes pending accounts, self and staff while preserving neighbor identity", () => {
+  const people = [
+    resident,
+    other,
+    { ...other, id: "pending", approved: false },
+    ...["admin", "vip", "staff", "crew"].map((role) => ({
+      ...other,
+      id: role,
+      role,
+    })),
+  ] as UserProfile[];
+  assert.deepEqual(
+    neighbors(people, resident).map((p) => p.id),
+    ["uid-two"],
+  );
+});
+test("office replies preserve anonymous office identity for residents", () => {
+  const message = {
+    id: "m",
+    senderId: "vip",
+    senderName: "Office Person",
+    senderRole: "vip",
+    body: "Hello",
+    createdAt: 1,
+  };
+  assert.equal(senderLabel(message, "office", resident), "Community Office");
+  assert.equal(
+    senderLabel(message, "office", { ...other, role: "admin" }),
+    "Office Person",
+  );
+});

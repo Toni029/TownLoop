@@ -12,11 +12,12 @@ import {
   Animated,
   Image,
   Keyboard,
-  Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   useColorScheme,
+  useWindowDimensions,
   View,
 } from "react-native";
 import {
@@ -25,16 +26,7 @@ import {
 } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurTargetView, BlurView } from "expo-blur";
-import {
-  Home,
-  FileText,
-  Wrench,
-  Users,
-  Moon,
-  Sun,
-  User,
-  X,
-} from "lucide-react-native";
+import { Home, FileText, Wrench, Users } from "lucide-react-native";
 import { useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback } from "react";
 import { useFonts } from "expo-font";
@@ -44,6 +36,7 @@ import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/70
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
 import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
 import { PlayfairDisplay_900Black } from "@expo-google-fonts/playfair-display/900Black";
+import { ProfileMenu } from "../profile/ProfileMenu";
 import { useReducedMotion, useToday } from "../home/hooks";
 import { parseDate } from "../home/model";
 export type TabName = "index" | "news" | "workorders" | "social";
@@ -73,6 +66,8 @@ export function TownLoopShell({
   onAccount: () => void;
 }>) {
   const scheme = useColorScheme();
+  const { width } = useWindowDimensions();
+  const framed = Platform.OS === "web" && width >= 640;
   const [dark, setDark] = useState(scheme === "dark");
   const [blurTarget, setBlurTarget] = useState<RefObject<View | null>>();
   const attachBlurTarget = useCallback((target: RefObject<View | null>) => {
@@ -116,34 +111,52 @@ export function TownLoopShell({
         attachBlurTarget,
       }}
     >
-      <View
+      <LinearGradient
+        colors={
+          dark ? ["#020617", "#0f172a"] : ["#faf6f0", "#f5ede2", "#e9decb"]
+        }
         style={{
           flex: 1,
-          backgroundColor: dark ? "#020617" : "#f7f3ea",
-          width: "100%",
-          maxWidth: 448,
-          alignSelf: "center",
-          borderWidth: 1,
-          borderColor: dark ? "#1e293b" : "#d8cdbc",
+          paddingVertical: framed ? 24 : 0,
+          paddingHorizontal: framed ? 16 : 0,
         }}
       >
-        <View style={{ flex: 1 }}>
-          <LinearGradient
-            colors={
-              dark ? ["#020617", "#0f172a"] : ["#f7f3ea", "#f1ebe0", "#e8decb"]
-            }
-            style={{ flex: 1 }}
-          >
-            <PortalHeader
-              name={name}
-              role={role}
-              photo={photo}
-              onAccount={onAccount}
-            />
-            <View style={{ flex: 1 }}>{children}</View>
-          </LinearGradient>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: dark ? "#020617" : "#f7f3ea",
+            width: "100%",
+            maxWidth: 448,
+            alignSelf: "center",
+            borderWidth: 1,
+            borderColor: dark ? "#1e293b" : "#d8cdbc",
+            borderRadius: framed ? 44 : 0,
+            overflow: "hidden",
+            boxShadow: framed
+              ? "0px 24px 50px -12px rgba(110,85,60,0.12)"
+              : undefined,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <LinearGradient
+              colors={
+                dark
+                  ? ["#020617", "#0f172a"]
+                  : ["#f7f3ea", "#f1ebe0", "#e8decb"]
+              }
+              style={{ flex: 1 }}
+            >
+              <PortalHeader
+                name={name}
+                role={role}
+                photo={photo}
+                onAccount={onAccount}
+              />
+              <View style={{ flex: 1 }}>{children}</View>
+            </LinearGradient>
+          </View>
         </View>
-      </View>
+      </LinearGradient>
     </Presentation.Provider>
   );
 }
@@ -161,6 +174,7 @@ export function PortalHeader({
   const presentation = usePresentation();
   const dark = presentation?.dark ?? false;
   const [menu, setMenu] = useState(false);
+  const [unread, setUnread] = useState(0);
   const today = useToday();
   const ink = dark ? "#fff" : "#0f172a";
   const label =
@@ -291,7 +305,7 @@ export function PortalHeader({
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open Resident Profile & Menu"
+          accessibilityLabel={`Open Resident Profile & Menu${unread ? `, ${unread} unread messages` : ""}`}
           hitSlop={8}
           onPress={() => setMenu(true)}
           style={({ pressed }) => ({
@@ -373,105 +387,42 @@ export function PortalHeader({
               boxShadow: "0px 1px 3px rgba(0,0,0,0.15)",
             }}
           />
-        </Pressable>
-      </View>
-      {menu && (
-        <Modal
-          transparent
-          animationType="fade"
-          onRequestClose={() => setMenu(false)}
-        >
-          <Pressable
-            accessibilityLabel="Close profile menu"
-            onPress={() => setMenu(false)}
-            style={{
-              flex: 1,
-              backgroundColor: "#0c0a0966",
-              justifyContent: "center",
-              padding: 24,
-            }}
-          >
+          {unread > 0 && (
             <View
               style={{
-                padding: 20,
-                borderRadius: 24,
-                backgroundColor: dark ? "#0f172a" : "#fff",
-                gap: 12,
-                maxWidth: 390,
-                width: "100%",
-                alignSelf: "center",
+                position: "absolute",
+                top: -4,
+                right: -4,
+                minWidth: 22,
+                height: 22,
+                paddingHorizontal: 4,
+                borderRadius: 11,
+                borderWidth: 2,
+                borderColor: "#fff",
+                backgroundColor: "#e11d48",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              <View
+              <Text
                 style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  color: "#fff",
+                  fontFamily: "JakartaBold",
+                  fontSize: 10,
                 }}
               >
-                <Text
-                  style={{ fontFamily: "Playfair", fontSize: 20, color: ink }}
-                >
-                  {name}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Close"
-                  hitSlop={12}
-                  onPress={() => setMenu(false)}
-                >
-                  <X size={18} color={ink} />
-                </Pressable>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setMenu(false);
-                  onAccount();
-                }}
-                style={{
-                  padding: 12,
-                  flexDirection: "row",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <User size={18} color="#059669" />
-                <Text style={{ fontFamily: "JakartaBold", color: ink }}>
-                  Your account
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  dark
-                    ? "Switch to light appearance"
-                    : "Switch to dark appearance"
-                }
-                onPress={() => {
-                  presentation?.toggleTheme();
-                  setMenu(false);
-                }}
-                style={{
-                  padding: 12,
-                  flexDirection: "row",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                {dark ? (
-                  <Sun size={18} color="#059669" />
-                ) : (
-                  <Moon size={18} color="#059669" />
-                )}
-                <Text style={{ fontFamily: "JakartaBold", color: ink }}>
-                  {dark ? "Light appearance" : "Dark appearance"}
-                </Text>
-              </Pressable>
+                {unread > 99 ? "99+" : unread}
+              </Text>
             </View>
-          </Pressable>
-        </Modal>
-      )}
+          )}
+        </Pressable>
+      </View>
+      <ProfileMenu
+        open={menu}
+        onClose={() => setMenu(false)}
+        onAccount={onAccount}
+        onUnread={setUnread}
+      />
     </SafeAreaView>
   );
 }

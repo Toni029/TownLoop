@@ -1,4 +1,4 @@
-import { UserProfile, UserRole } from '../types';
+import type { UserProfile, UserRole } from '../types';
 
 /** @deprecated Roles are sourced exclusively from the approved Firestore profile. */
 export function isMasterAdminEmail(_email?: string | null): boolean {
