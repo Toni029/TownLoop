@@ -383,26 +383,6 @@ export function ProfileMenu({
       { translateY: (closing ? -18 : -28) * (1 - progress.value) },
     ],
   }));
-  // Resize alongside the new content, rather than resizing an empty shell.
-  const panelSizeMotion = useAnimatedStyle(() => ({
-    width: withTiming(
-      Math.min(width - 24, view === "admin" ? 672 : width >= 640 ? 540 : 500),
-      {
-        duration: reduced ? 0 : 180,
-        easing: Easing.out(Easing.cubic),
-      },
-    ),
-    height: withTiming(
-      Math.min(
-        view === "admin" ? height * 0.88 : width >= 640 ? 560 : 520,
-        height - insets.top - insets.bottom - 24,
-      ),
-      {
-        duration: reduced ? 0 : 180,
-        easing: Easing.out(Easing.cubic),
-      },
-    ),
-  }));
   const glintMotion = useAnimatedStyle(() => ({
     opacity: reduced ? 0 : Math.max(0, 0.8 * (1 - (glint.value + 1) / 2.8)),
     transform: [
@@ -521,6 +501,12 @@ export function ProfileMenu({
               style={[
                 s.window,
                 {
+                  // Every subview shares the same shell; only the contents scroll.
+                  width: Math.min(width - 24, width >= 640 ? 540 : 500),
+                  height: Math.min(
+                    width >= 640 ? 680 : 640,
+                    height - insets.top - insets.bottom - 24,
+                  ),
                   borderRadius: width >= 640 ? 36 : 32,
                   padding: view === "admin" ? 0 : width >= 640 ? 20 : 16,
                   paddingTop: view === "admin" ? 0 : width >= 640 ? 16 : 14,
@@ -534,7 +520,6 @@ export function ProfileMenu({
                     WebkitBackdropFilter:
                       "blur(44px) saturate(210%) contrast(108%) brightness(104%)",
                   } as ViewStyle),
-                panelSizeMotion,
                 cardMotion,
               ]}
             >
