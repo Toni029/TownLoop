@@ -169,5 +169,11 @@ export function senderLabel(
     message.senderRole === "vip"
   )
     return "Community Office";
+  if (
+    category === "maintenance" &&
+    !isCrew(user) &&
+    message.senderRole === "crew"
+  )
+    return "Maintenance Crew";
   return message.senderName || "Resident";
 }

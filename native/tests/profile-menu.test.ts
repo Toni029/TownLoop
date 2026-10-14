@@ -97,3 +97,15 @@ test("office replies preserve anonymous office identity for residents", () => {
     "Office Person",
   );
 });
+
+test("only crew see the shared team identities; residents see one maintenance contact", () => {
+  const message = { id: "m", senderId: "crew-one", senderName: "Pat", senderRole: "crew", body: "Hello", createdAt: 1 };
+  assert.equal(senderLabel(message, "maintenance", resident), "Maintenance Crew");
+  assert.equal(senderLabel(message, "maintenance", { ...other, role: "crew" }), "Pat");
+  const data = { residentId: resident.id, residentEmail: resident.email, messages: [message] };
+  for (const role of ["resident", "admin", "vip", "staff"]) {
+    assert.equal(readThread("maintenance", "one", data, { ...other, role }), null);
+  }
+  for (const role of ["admin", "vip"]) assert.ok(readThread("office", "one", data, { ...other, role }));
+  assert.equal(readThread("office", "one", data, { ...other, role: "crew" }), null);
+});

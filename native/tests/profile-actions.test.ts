@@ -7,14 +7,14 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url),
   ts = require("typescript");
 const root = fileURLToPath(new URL("../../", import.meta.url));
-function fixture(uid: string, data: Record<string, unknown>) {
+function fixture(uid: string, data: Record<string, unknown>, role = "resident") {
   const writes: { kind: string; ref: any; patch?: any }[] = [];
   const user = {
     id: uid,
     name: uid,
     email: `${uid}@example.invalid`,
     approved: true,
-    role: "resident",
+    role,
   };
   const cache = new Map();
   function load(file: string): any {
@@ -37,6 +37,7 @@ function fixture(uid: string, data: Record<string, unknown>) {
           runTransaction: async (_db: any, fn: any) =>
             fn({
               get: async () => ({ exists: () => true, data: () => data }),
+              set: (ref: any, patch: any) => writes.push({ kind: "set", ref, patch }),
               delete: (ref: any) => writes.push({ kind: "delete", ref }),
               update: (ref: any, patch: any) =>
                 writes.push({ kind: "update", ref, patch }),
@@ -89,4 +90,20 @@ test("mark all read can clear only the current resident unread marker", async ()
   const owner = fixture("alice", chat);
   await owner.actions.markRead(thread);
   assert.deepEqual(owner.writes[0].patch, { unreadBy: ["bob"] });
+});
+
+test("crew members append to the same resident conversation without losing previous replies", async () => {
+  const resident = { id: "alice", name: "Alice", email: "alice@example.invalid" };
+  const original = { residentId: "alice", residentEmail: resident.email, messages: [{ id: "first", body: "Please help" }] };
+  const crewOne = fixture("crew-one", original, "crew");
+  await crewOne.actions.sendMessage("maintenance", resident, "Repair", "On my way");
+  const first = crewOne.writes[0];
+  const crewTwo = fixture("crew-two", first.patch, "crew");
+  await crewTwo.actions.sendMessage("maintenance", resident, "Repair", "I can help too");
+  assert.deepEqual(crewTwo.writes[0].ref, first.ref);
+  assert.equal(first.ref.collection, "maintenance_chats");
+  assert.equal(crewTwo.writes[0].patch.messages.length, 3);
+  assert.equal(crewTwo.writes[0].patch.messages[1].senderId, "crew-one");
+  assert.equal(crewTwo.writes[0].patch.messages[2].senderId, "crew-two");
+  assert.equal(crewTwo.writes[0].patch.unreadByResident, true);
 });

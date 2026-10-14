@@ -36,6 +36,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Mail,
   Users,
   User,
@@ -258,6 +259,7 @@ export function ProfileMenu({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [recipientOpen, setRecipientOpen] = useState(false);
   const [deleting, setDeleting] = useState<Thread | null>(null);
   const lock = useRef(false),
     afterClose = useRef<(() => void) | null>(null);
@@ -416,6 +418,7 @@ export function ProfileMenu({
     }
   }
   function compose(target: Category, recipient?: UserProfile) {
+    setRecipientOpen(false);
     setCategory(target);
     setPerson(recipient || null);
     setSelected(null);
@@ -1280,76 +1283,128 @@ export function ProfileMenu({
                   )}
                   {view === "compose" && (
                     <>
-                      <View style={s.chips}>
-                        {(
-                          ["friend", "office", "maintenance"] as Category[]
-                        ).map((v) => (
+                      <View
+                        style={[
+                          s.composeHero,
+                          {
+                            backgroundColor:
+                              category === "office"
+                                ? "#2563eb18"
+                                : category === "maintenance"
+                                  ? "#d9770618"
+                                  : "#05966918",
+                          },
+                        ]}
+                      >
+                        {category === "office" ? (
+                          <Building2 size={28} color="#2563eb" />
+                        ) : category === "maintenance" ? (
+                          <Wrench size={28} color="#d97706" />
+                        ) : (
+                          <Users size={28} color="#059669" />
+                        )}
+                        <Text style={[s.rowTitle, { color: ink }]}>
+                          {category === "office"
+                            ? "Message Community Office"
+                            : category === "maintenance"
+                              ? "Message Maintenance Crew"
+                              : "Message a Friend or Neighbor"}
+                        </Text>
+                        <Text
+                          style={[
+                            s.small,
+                            { color: muted, textAlign: "center" },
+                          ]}
+                        >
+                          {category === "office"
+                            ? "Contact your community office in one private conversation."
+                            : category === "maintenance"
+                              ? "Your maintenance team can respond in this shared conversation."
+                              : "Choose a resident to start a private conversation."}
+                        </Text>
+                      </View>
+                      <Text style={[s.rowTitle, { color: muted }]}>
+                        Recipient
+                      </Text>
+                      {category === "friend" ||
+                      (category === "office"
+                        ? officeManager(user)
+                        : isCrew(user)) ? (
+                        <View style={[s.recipientPanel, panel]}>
                           <Pressable
                             accessibilityRole="button"
-                            accessibilityState={{ selected: category === v }}
-                            key={v}
-                            onPress={() => {
-                              setCategory(v);
-                              setPerson(null);
-                            }}
-                            style={[
-                              s.chip,
-                              panel,
-                              category === v && { backgroundColor: "#059669" },
-                            ]}
+                            accessibilityLabel="Choose recipient"
+                            accessibilityState={{ expanded: recipientOpen }}
+                            onPress={() => setRecipientOpen(!recipientOpen)}
+                            style={s.recipientChoice}
                           >
-                            <Text
-                              style={[
-                                s.small,
-                                { color: category === v ? "#fff" : ink },
-                              ]}
-                            >
-                              {v === "friend"
-                                ? "Friend"
-                                : v === "office"
-                                  ? "Community Office"
-                                  : "Maintenance"}
+                            <Text style={[s.rowTitle, { color: ink, flex: 1 }]}>
+                              {person
+                                ? `${person.name}${person.address ? ` · ${person.address}` : ""}`
+                                : "Select a resident…"}
                             </Text>
+                            <ChevronDown size={18} color={muted} />
                           </Pressable>
-                        ))}
-                      </View>
-                      {(category === "friend" ||
-                        (category === "office"
-                          ? officeManager(user)
-                          : isCrew(user))) && (
-                        <>
-                          <Text style={[s.rowTitle, { color: ink }]}>
-                            Select a resident
-                          </Text>
-                          {friends.map((p) => (
-                            <Pressable
-                              accessibilityRole="button"
-                              key={String(p.id)}
-                              onPress={() => setPerson(p)}
-                              style={[
-                                s.chip,
-                                panel,
-                                person?.id === p.id && {
-                                  borderColor: "#059669",
-                                  borderWidth: 2,
-                                },
-                              ]}
+                          {recipientOpen && (
+                            <ScrollView
+                              nestedScrollEnabled
+                              style={{ maxHeight: 180 }}
                             >
-                              <Text style={[s.small, { color: ink }]}>
-                                {p.name} • {p.address}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </>
-                      )}
-                      <Text style={[s.rowTitle, { color: ink }]}>
-                        To:{" "}
-                        {person?.name ||
-                          (category === "friend"
-                            ? "Select a neighbor"
-                            : category === "office"
+                              {friends.length === 0 && (
+                                <Text
+                                  style={[
+                                    s.small,
+                                    { color: muted, padding: 16 },
+                                  ]}
+                                >
+                                  No residents available.
+                                </Text>
+                              )}
+                              {friends.map((p) => (
+                                <Pressable
+                                  key={String(p.id)}
+                                  accessibilityRole="button"
+                                  accessibilityState={{
+                                    selected: person?.id === p.id,
+                                  }}
+                                  onPress={() => {
+                                    setPerson(p);
+                                    setRecipientOpen(false);
+                                  }}
+                                  style={[
+                                    s.recipientChoice,
+                                    person?.id === p.id && {
+                                      backgroundColor: "#05966920",
+                                    },
+                                  ]}
+                                >
+                                  <Text style={[s.small, { color: ink }]}>
+                                    {p.name}
+                                    {p.address ? ` · ${p.address}` : ""}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            </ScrollView>
+                          )}
+                        </View>
+                      ) : (
+                        <View
+                          style={[s.recipientPanel, s.recipientChoice, panel]}
+                        >
+                          {category === "office" ? (
+                            <Building2 size={19} color="#2563eb" />
+                          ) : (
+                            <Wrench size={19} color="#d97706" />
+                          )}
+                          <Text style={[s.rowTitle, { color: ink }]}>
+                            {category === "office"
                               ? "Community Office"
-                              : "Maintenance Crew")}
+                              : "Maintenance Crew"}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={[s.rowTitle, { color: muted }]}>
+                        Subject
                       </Text>
                       <TextInput
                         accessibilityLabel="Message subject"
@@ -1360,6 +1415,9 @@ export function ProfileMenu({
                         maxLength={160}
                         style={textInput}
                       />
+                      <Text style={[s.rowTitle, { color: muted }]}>
+                        Message
+                      </Text>
                       <TextInput
                         accessibilityLabel="Message body"
                         placeholder="Write your message…"
@@ -1688,6 +1746,15 @@ export function ProfileMenu({
   );
 }
 const s = StyleSheet.create({
+  composeHero: { padding: 20, borderRadius: 22, alignItems: "center", gap: 10 },
+  recipientPanel: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  recipientChoice: {
+    padding: 16,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   stage: {
     flex: 1,
     alignItems: "center",
