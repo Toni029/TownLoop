@@ -185,6 +185,19 @@ test('large PDF uploads once, reuses file across fallbacks, and cleans up after 
 
 test('file-service failure falls back to page-labelled text instead of resending a large inline PDF',async()=>{
  const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw Object.assign(new Error('404'),{status:404})}};models={generateContent:async args=>{global.__textParts=args.contents[0].parts;return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
- const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=> '=== PDF PAGE 1 === Test document facts';`});
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export class NewsletterPdfError extends Error {}; export const newsletterPdfText=async()=> '=== PDF PAGE 1 === Test document facts';`});
  process.env.GEMINI_API_KEY='test-only';await extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});assert.match(global.__textParts[0].text,/PDF PAGE 1/);assert.equal(global.__textParts[0].inlineData,undefined);delete process.env.GEMINI_API_KEY;
+});
+
+
+test('image-only PDF uses labelled page images when file upload and text extraction fail', async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw new Error('404')}};models={generateContent:async args=>{global.__visionParts=args.contents[0].parts;return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw new Error('image-only')};`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>[{text:'PDF PAGE 1'},{inlineData:{mimeType:'image/jpeg',data:'page-image'}}];`});
+ process.env.GEMINI_API_KEY='test-only';
+ try {
+  await extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});
+  assert.equal(global.__visionParts[0].text,'PDF PAGE 1');
+  assert.deepEqual(global.__visionParts[1].inlineData,{mimeType:'image/jpeg',data:'page-image'});
+  assert.ok(!global.__visionParts.some(p=>p.inlineData?.mimeType==='application/pdf'));
+ } finally {delete process.env.GEMINI_API_KEY;}
 });
