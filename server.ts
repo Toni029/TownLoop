@@ -171,7 +171,10 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
     const message = String(error?.message || '');
     let status = 502;
     let detail = 'Newsletter analysis failed. Please retry; your published newsletter has not been changed.';
-    if (/API key is not configured/i.test(message)) {
+    if (error?.name === 'NewsletterPdfError') {
+      status = 422;
+      detail = message;
+    } else if (/API key is not configured/i.test(message)) {
       status = 503;
       detail = 'Gemini is not configured. Ask your administrator to add GEMINI_API_KEY to the server environment and restart the app.';
     } else if (/API_KEY_INVALID|API key not valid|PERMISSION_DENIED|401|403/.test(message)) {
@@ -183,7 +186,7 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
       status = 503;
       detail = 'Gemini is temporarily unavailable or took too long. Please try again shortly.';
     }
-    console.error('[Newsletter Pipeline] Extraction failed:', status);
+    console.error('[Newsletter Pipeline] Extraction failed:', status, error?.name === 'NewsletterPdfError' ? message : 'Upstream service error');
     res.status(status).json({ error: detail });
   }
 });
