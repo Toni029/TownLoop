@@ -33,7 +33,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
         request.resource.data.id == request.auth.uid &&
         request.resource.data.email == request.auth.token.email &&
-        request.resource.data.role == '' &&
+        request.resource.data.role == 'resident' &&
         request.resource.data.approved == false;
       allow update: if isManager() ||
         (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys()

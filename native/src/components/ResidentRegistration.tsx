@@ -61,7 +61,7 @@ export function ResidentRegistration({
         id: credential.user.uid,
         name: fields.name.trim(),
         email: credential.user.email,
-        role: "",
+        role: "resident",
         address: fields.address.trim(),
         phone: fields.phone.trim(),
         avatarUrl: "",

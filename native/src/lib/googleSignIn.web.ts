@@ -9,7 +9,7 @@ export async function googleSignIn() {
       id: user.uid,
       name: user.displayName || "Resident",
       email: user.email,
-      role: "",
+      role: "resident",
       address: "",
       avatarUrl: user.photoURL || "",
       approved: false,
