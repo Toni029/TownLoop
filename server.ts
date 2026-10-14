@@ -179,7 +179,7 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
     } else if (/429|RESOURCE_EXHAUSTED|quota/i.test(message)) {
       status = 429;
       detail = 'Gemini quota or rate limit reached. Please check billing or try again later.';
-    } else if (/timeout|timed out|503|UNAVAILABLE/i.test(message)) {
+    } else if (/timeout|timed out|503|504|UNAVAILABLE|DEADLINE_EXCEEDED|abort/i.test(message)) {
       status = 503;
       detail = 'Gemini is temporarily unavailable or took too long. Please try again shortly.';
     }

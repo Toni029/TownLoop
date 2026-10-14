@@ -7,14 +7,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
 let aiClient: GoogleGenAI | null = null;
-const withTimeout = <T>(operation: Promise<T>, timeoutMs = 45_000): Promise<T> =>
-  new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Gemini request timed out after ${timeoutMs}ms.`)), timeoutMs);
-    operation.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); },
-    );
-  });
 
 function getGenAI(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -107,6 +99,7 @@ export interface NewsletterExtractionResponse {
 
 const MODEL_FALLBACK_CHAIN = [
   'gemini-3.8-flash',
+  'gemini-3-flash-preview',
   'gemini-3.1-flash-lite',
 ];
 
@@ -369,6 +362,21 @@ or sign-up instruction. Do not confuse volunteer recruitment with attendee RSVP.
 Do not include past events dated before this newsletter's edition month. Preserve their
 printed dates; do not move an old notice forward to make it current.
 
+*** COVERAGE CHECK BEFORE FINAL OUTPUT ***
+First scan every page for attendee action phrases: RSVP, reserve your seat, call the
+ office to attend, sign up, register, tickets, reservations, and respond by. Inspect
+flyers, small print, calendar boxes and continued articles. Match each instruction
+to its event and printed event date; never use the RSVP deadline as the event date.
+A call-to-reserve or sign-up instruction qualifies even when the literal word RSVP
+is absent. Judge recurrence from the printed schedule, not merely the event name:
+a one-off special dinner or outing is not recurring just because dinners happen
+elsewhere. Exclude genuinely recurring daily/weekly/monthly activities. Review all
+candidate announcements before returning zero events. An empty result is valid
+only when there is no qualifying evidence; never invent items to avoid an empty result.
+For stories, include noteworthy resident achievements and community milestones,
+in addition to board updates, safety, policy, closures and service notices. Do not
+repeat RSVP events as stories. Keep source wording factual and preserve names/dates.
+
 *** WHAT TO EXTRACT ***
 
 1. RSVP & Upcoming Events:
@@ -496,20 +504,22 @@ STRICT ZERO-HALLUCINATION RULES:
       continue;
     }
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 1; attempt++) {
       try {
         console.info(
           `[Newsletter Pipeline] Step 2: Dispatching stateless prompt to Gemini model: ${model} (attempt ${attempt + 1}) with inlineData (${Math.round((rawBase64.length * 0.75) / 1024)} KB, mime: ${mime})...`
         );
 
-        const response = await withTimeout(
-          ai.models.generateContent({
-            model,
-            contents,
-            config: generationConfig,
-          }),
-          45_000
-        );
+        const response = await ai.models.generateContent({
+          model,
+          contents,
+          config: {
+            ...generationConfig,
+            // Abort the actual HTTP request, rather than leaving timed-out work running.
+            httpOptions: { timeout: 40_000 },
+            abortSignal: AbortSignal.timeout(40_000),
+          },
+        });
 
         const responseText = response?.text;
         if (!responseText) {
@@ -518,6 +528,9 @@ STRICT ZERO-HALLUCINATION RULES:
 
         console.info(`[Newsletter Pipeline] Step 3: Received Gemini response from ${model}, parsing structured JSON...`);
         const parsed = JSON.parse(responseText);
+        if (!parsed || !Array.isArray(parsed.events) || !Array.isArray(parsed.highlights)) {
+          throw new Error('Gemini returned incomplete analysis; trying another model.');
+        }
 
         const rawEvents: ExtractedEventItem[] = Array.isArray(parsed.events) ? parsed.events : [];
         const rawHighlights: ExtractedHighlightItem[] = Array.isArray(parsed.highlights) ? parsed.highlights : [];
@@ -592,16 +605,10 @@ STRICT ZERO-HALLUCINATION RULES:
       } catch (err: any) {
         lastError = err;
         const rawMsg = err?.message || String(err);
-        if (rawMsg.includes('503') && attempt === 0) {
-          console.warn(`[Newsletter Pipeline] Model ${model} reported 503 high demand; waiting 1.5s for spike to subside before retry...`);
-          await new Promise((r) => setTimeout(r, 1500));
-          continue;
-        }
-        if (rawMsg.includes('429')) {
-          setModelCooldown(model, 60_000);
-        } else if (rawMsg.includes('503')) {
-          setModelCooldown(model, 30_000);
-        }
+        if (/API_KEY_INVALID|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED|401|403/i.test(rawMsg)) throw err;
+        if (/429|RESOURCE_EXHAUSTED/.test(rawMsg)) setModelCooldown(model, 60_000);
+        else if (/503|504|timeout|timed out|DEADLINE_EXCEEDED|abort/i.test(rawMsg)) setModelCooldown(model, 60_000);
+        else if (/404|NOT_FOUND/.test(rawMsg)) setModelCooldown(model, 5 * 60_000);
         console.warn(`[Newsletter Pipeline] Model ${model} extraction failed (status ${err?.status || 'unavailable'}).`);
         break;
       }

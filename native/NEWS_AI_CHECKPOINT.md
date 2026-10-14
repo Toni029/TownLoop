@@ -33,3 +33,17 @@ without authentication and 204 for allowed Expo preflight. No live Gemini
 extraction was performed: GEMINI_API_KEY is absent on this computer. No live
 newsletter or event data was changed during tests. User browser inspection is
 still blocked by the saved browser permission restriction.
+
+## Fallback recovery verification
+
+Updated model chain: gemini-3.8-flash → gemini-3-flash-preview →
+gemini-3.1-flash-lite. One attempt per model, actual HTTP abort/timeout at 40s,
+short cooldowns for overload/timeouts, no fallback on invalid credentials.
+Malformed response shapes trigger fallback rather than appearing as zero items.
+
+Live synthetic-PDF test passed on gemini-3.1-flash-lite after earlier models
+returned 503: two special events with reserve/sign-up language were extracted,
+weekly bingo was excluded, and the library renovation story was highlighted.
+Twelve regression tests passed. The server was restarted with the new chain.
+This does not establish accuracy for the resident's actual newsletter: that PDF
+is still needed for a document-specific audit. No production data was changed.

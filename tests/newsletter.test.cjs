@@ -163,3 +163,15 @@ test('native upload stages PDF before review and atomically publishes approved i
  await assert.rejects(finishEdition(staged,editionKey(null),items),/Another administrator/);
  assert.equal(global.__publishWrites.length,0);
 });
+
+test('unavailable primary moves directly to PDF-capable fallback with bounded HTTP requests', async()=>{
+ global.__attempts=[];
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{models={generateContent:async args=>{global.__attempts.push({model:args.model,timeout:args.config.httpOptions.timeout,abort:!!args.config.abortSignal});if(args.model==='gemini-3.8-flash')throw Object.assign(new Error('503 UNAVAILABLE'),{status:503});return {text:JSON.stringify(global.__newsletter)};}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock});
+ process.env.GEMINI_API_KEY='test-only';global.__newsletter={monthEdition:'October 2026',events:[event()],highlights:[]};
+ const result=await extractNewsletterContent({base64Data:'x'.repeat(60)});
+ assert.equal(result.sourceModel,'gemini-3-flash-preview');assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3.8-flash','gemini-3-flash-preview']);
+ assert.ok(global.__attempts.every(a=>a.timeout===40000&&a.abort));
+ global.__attempts=[];await extractNewsletterContent({base64Data:'x'.repeat(60)});assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3-flash-preview']);
+ delete process.env.GEMINI_API_KEY;
+});
