@@ -39,6 +39,7 @@ import {
   Copy,
   ErrorNotice,
   IconAction,
+  NewsDialog,
   useNewsFonts,
   useNewsStyles,
 } from "./ui";
@@ -80,6 +81,8 @@ export function NewsFeed({
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
   const [tab, setTab] = useState<"events" | "highlights">("events");
+  const [storyId, setStoryId] = useState<string | null>(null);
+  const story = highlights.find((item) => String(item.id) === storyId);
   const [confirm, setConfirm] = useState(false);
   const [fade] = useState(() => new Animated.Value(1));
   const reduced = useReducedMotion();
@@ -243,80 +246,38 @@ export function NewsFeed({
                 ? newsletter?.description || "Community newsletter"
                 : "The monthly newsletter will appear here when it is uploaded."}
           </Copy>
-          <View style={[s.row, { marginTop: 16 }]}>
+          <View style={{ marginTop: 16, gap: 10 }}>
             {available && (
-              <>
-                <Action
-                  tone="emerald"
-                  label="Open PDF"
-                  icon={BookOpen}
-                  onPress={act("open")}
-                  disabled={loading || busy || !newsletter}
-                />
-                <Action
-                  label="Download Edition"
-                  icon={Download}
-                  tone="glass"
-                  onPress={act("download")}
-                  disabled={loading || busy || !newsletter}
-                />
-              </>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Action tone="emerald" label="Open PDF" icon={BookOpen} onPress={act("open")} disabled={loading || busy || !newsletter} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Action label="Download Edition" icon={Download} tone="glass" onPress={act("download")} disabled={loading || busy || !newsletter} />
+                </View>
+              </View>
             )}
             {manager && (
               <>
-                <Action
-                  label={
-                    removed
-                      ? "Upload PDF"
-                      : available
-                        ? "Replace PDF"
-                        : "Upload New PDF"
-                  }
-                  icon={Upload}
-                  tone="sky"
-                  onPress={act("upload")}
-                  disabled={busy}
-                />
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Action label={removed ? "Upload PDF" : available ? "Replace PDF" : "Upload New PDF"} icon={Upload} tone="sky" onPress={act("upload")} disabled={busy} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    {available && <Action label={busy ? "Working…" : "Re-analyze with AI"} icon={Sparkles} tone="amber" onPress={act("analyze")} disabled={busy || !newsletter} />}
+                  </View>
+                </View>
                 {available && (
-                  <View style={{ gap: 6 }}>
-                    <Action
-                      compact
-                      label={busy ? "Working…" : "Re-analyze with AI"}
-                      icon={Sparkles}
-                      tone="amber"
-                      onPress={act("analyze")}
-                      disabled={busy || !newsletter}
-                    />
-                    {confirm ? (
-                      <View style={s.row}>
-                        <Action
-                          compact
-                          label="Confirm Remove PDF"
-                          tone="rose"
-                          icon={Trash2}
-                          onPress={() => {
-                            setConfirm(false);
-                            onAction({ type: "remove" });
-                          }}
-                          disabled={busy}
-                        />
-                        <Action
-                          compact
-                          label="Cancel"
-                          tone="dark"
-                          onPress={() => setConfirm(false)}
-                        />
-                      </View>
-                    ) : (
-                      <Action
-                        compact
-                        label="Remove PDF"
-                        tone="rose"
-                        icon={Trash2}
-                        onPress={() => setConfirm(true)}
-                        disabled={busy || !newsletter}
-                      />
-                    )}
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Action label={confirm ? "Confirm Remove PDF" : "Remove PDF"} tone="rose" icon={Trash2} onPress={() => {
+                        if (confirm) { setConfirm(false); onAction({ type: "remove" }); }
+                        else setConfirm(true);
+                      }} disabled={busy || !newsletter} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      {confirm && <Action label="Cancel" tone="dark" onPress={() => setConfirm(false)} />}
+                    </View>
                   </View>
                 )}
               </>
@@ -509,13 +470,15 @@ export function NewsFeed({
                     style={{
                       flexDirection: "row",
                       gap: 12,
-                      paddingRight: 64,
+                      paddingTop: manager ? 34 : 0,
                     }}
                   >
                     <View
                       style={{
-                        width: 52,
-                        height: 56,
+                        minWidth: 76,
+                        minHeight: 86,
+                        padding: 10,
+                        alignSelf: "flex-start",
                         borderRadius: 12,
                         backgroundColor: dark ? "#1e293b" : "#f5f5f4",
                         borderWidth: 1,
@@ -527,7 +490,8 @@ export function NewsFeed({
                       <Copy
                         weight="extra"
                         style={{
-                          fontSize: 10,
+                          fontSize: 15,
+                          lineHeight: 22,
                           color: dark ? "#34d399" : "#065f46",
                           letterSpacing: 1,
                         }}
@@ -536,7 +500,7 @@ export function NewsFeed({
                       </Copy>
                       <Copy
                         weight="extra"
-                        style={{ fontSize: 18, lineHeight: 22 }}
+                        style={{ fontSize: 30, lineHeight: 38 }}
                       >
                         {event.day}
                       </Copy>
@@ -564,9 +528,9 @@ export function NewsFeed({
                           { marginTop: 5, columnGap: 12, rowGap: 4 },
                         ]}
                       >
-                        <View style={[s.row, { gap: 4, flexWrap: "nowrap" }]}>
-                          <Clock size={12} color="#a8a29e" />
-                          <Copy style={{ color: "#78716c", fontSize: 11 }}>
+                        <View style={[s.row, { gap: 7, flexWrap: "nowrap", flexShrink: 1 }]}>
+                          <Clock size={20} color={dark ? "#6ee7b7" : "#047857"} />
+                          <Copy weight="bold" style={{ color: "#57534e", fontSize: 18, lineHeight: 26, flexShrink: 1 }}>
                             {event.time}
                           </Copy>
                         </View>
@@ -614,8 +578,8 @@ export function NewsFeed({
                       )}
                     </View>
                     <Action
-                      compact
-                      label={event.userRsvp ? "RSVP'd ✓" : "RSVP"}
+                      size="large"
+                      label={event.userRsvp ? "RSVP'd ✓" : "+ RSVP"}
                       icon={event.userRsvp ? Check : CalendarPlus}
                       tone={event.userRsvp ? "light" : "green"}
                       disabled={busy}
@@ -656,6 +620,7 @@ export function NewsFeed({
                       />
                     </View>
                   )}
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Read story: ${h.title}`} onPress={() => setStoryId(String(h.id))} style={{ gap: 10 }}>
                   <View
                     style={[
                       s.row,
@@ -674,17 +639,27 @@ export function NewsFeed({
                   </View>
                   <Copy
                     weight="bold"
-                    style={{ fontSize: 14, paddingRight: manager ? 32 : 0 }}
+                    style={{ fontSize: 20, lineHeight: 28, paddingRight: manager ? 32 : 0 }}
                   >
                     {h.title}
                   </Copy>
                   <Copy style={{ color: "#57534e", lineHeight: 19.5 }}>
                     {h.description || h.summary}
                   </Copy>
+                  <Copy weight="bold" style={{ color: dark ? "#fcd34d" : "#92400e", marginTop: 4 }}>Read story →</Copy>
+                  </Pressable>
                 </LinearGradient>
               ))}
         </Animated.View>
       </ScrollView>
+      {!!story && (
+        <NewsDialog title="Pinned story" tone="amber" icon={BookOpen} maxWidth={760} onClose={() => setStoryId(null)}>
+          <Copy accessibilityRole="header" weight="bold" style={{ fontSize: 28, lineHeight: 38, flexShrink: 1 }}>{story.title}</Copy>
+          {!!(story.category || story.authorLabel) && <Copy weight="semi" style={{ fontSize: 16, lineHeight: 24, color: "#78716c" }}>{[story.category, story.authorLabel].filter(Boolean).join(" · ")}</Copy>}
+          <Copy selectable style={{ fontSize: 22, lineHeight: 34 }}>{story.description || story.summary}</Copy>
+          <Action size="large" label="Close story" onPress={() => setStoryId(null)} />
+        </NewsDialog>
+      )}
     </SafeAreaView>
   );
 }
