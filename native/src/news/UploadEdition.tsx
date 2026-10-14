@@ -1,6 +1,6 @@
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Pressable, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Animated, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   FileText,
@@ -351,12 +351,15 @@ export function UploadEdition({
             {result.pinned_highlights.length} stories. Review the details before
             publishing.
           </Copy>
-          <View style={{ flexDirection: width >= 760 ? "row" : "column", gap: 24, alignItems: "flex-start" }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingBottom: 10 }}>
+          <View style={{ width: Math.max(520, Math.min(1016, width - 64)), flexDirection: "row", gap: 20, alignItems: "flex-start" }}>
           {(["rsvp_events", "pinned_highlights"] as const).map((kind) => (
-            <View key={kind} style={{ flex: width >= 760 ? 1 : undefined, width: width >= 760 ? undefined : "100%", minWidth: 0, gap: 14 }}>
-              <Copy weight="bold" style={{ fontSize: 19, lineHeight: 26, color: kind === "rsvp_events" ? "#047857" : "#b45309" }}>
+            <View key={kind} style={{ flex: 1, minWidth: 0, gap: 14 }}>
+              <View style={{ padding: 16, borderRadius: 18, backgroundColor: kind === "rsvp_events" ? "#064e3b" : "#78350f" }}>
+              <Copy weight="bold" style={{ fontSize: 19, lineHeight: 26, color: "#ffffff" }}>
                 {kind === "rsvp_events" ? "RSVP events" : "Pinned highlights"} · {result[kind].length}
               </Copy>
+              </View>
               {!result[kind].length && <Copy>No items to publish.</Copy>}
             {result[kind].map((item, index) => {
               const key = `${kind}-${index}`,
@@ -366,8 +369,8 @@ export function UploadEdition({
                   key={key}
                   style={{
                     borderWidth: 1,
-                    borderColor: "#a8a29e55",
-                    padding: 22,
+                    borderColor: dark ? "#475569" : kind === "rsvp_events" ? "#a7d9c8" : "#e8cf9c",
+                    padding: 16,
                     borderRadius: 24,
                     backgroundColor: dark ? "#172536" : kind === "rsvp_events" ? "#f3faf7" : "#fffbf2",
                     gap: 14,
@@ -380,13 +383,13 @@ export function UploadEdition({
                       gap: 8,
                     }}
                   >
-                    <View style={{ flex: 1 }} />
+                    <Copy weight="bold" style={{ flex: 1, fontSize: 10, letterSpacing: 1, color: dark ? "#cbd5e1" : "#78716c" }}>{kind === "rsvp_events" ? "EVENT" : "STORY"} {String(index + 1).padStart(2, "0")}</Copy>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Edit ${item.title}`}
                       disabled={busy}
                       onPress={() => setEditing(edit ? "" : key)}
-                      style={{ padding: 10 }}
+                      style={{ padding: 11, borderRadius: 12, borderWidth: 1, borderColor: dark ? "#475569" : "#d6d3d1", backgroundColor: dark ? "#1e293b" : "#fff" }}
                     >
                       <Pencil size={19} color="#059669" />
                     </Pressable>
@@ -401,12 +404,14 @@ export function UploadEdition({
                         });
                         setEditing("");
                       }}
-                      style={{ padding: 10 }}
+                      style={{ padding: 11, borderRadius: 12, borderWidth: 1, borderColor: dark ? "#475569" : "#d6d3d1", backgroundColor: dark ? "#1e293b" : "#fff" }}
                     >
                       <Trash2 size={19} color="#e11d48" />
                     </Pressable>
                   </View>
+                  <View style={{ padding: 18, borderRadius: 16, borderWidth: 1, borderColor: kind === "rsvp_events" ? "#05966960" : "#d9770660", backgroundColor: dark ? "#1e293b" : "#ffffff" }}>
                   <Copy weight="bold" style={{ fontSize: 22, lineHeight: 29, textAlign: "center" }}>{String(item.title)}</Copy>
+                  </View>
                   {edit ? (
                     (kind === "rsvp_events"
                       ? [
@@ -443,19 +448,22 @@ export function UploadEdition({
                     ))
                   ) : (
                     <View style={{ gap: 14 }}>
-                      <Copy style={{ fontSize: 14, lineHeight: 22 }} numberOfLines={kind === "rsvp_events" ? 4 : undefined}>
+                      <View style={{ padding: 16, borderRadius: 16, borderWidth: 1, borderColor: dark ? "#475569" : "#d6d3d1", backgroundColor: dark ? "#0f172a" : "#ffffff" }}>
+                      <Copy weight="bold" style={{ fontSize: 10, letterSpacing: 1, color: "#78716c", marginBottom: 8 }}>{kind === "rsvp_events" ? "ABOUT THIS EVENT" : "STORY"}</Copy>
+                      <Copy style={{ fontSize: 14, lineHeight: 22 }}>
                         {String(kind === "rsvp_events" ? item.description || "" : item.summary || "")}
                       </Copy>
+                      </View>
                       {kind === "rsvp_events" ? <>
                         {[
                           ["DATE", `${item.month || ""} ${item.day || ""}`.trim() || "Not specified"],
                           ["TIME", String(item.time || "Not specified")],
                           ["LOCATION", String(item.location || "Not specified")],
-                        ].map(([label, value]) => <View key={label} style={{ gap: 3 }}>
+                        ].map(([label, value]) => <View key={label} style={{ gap: 5, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: dark ? "#475569" : "#b9dccc", backgroundColor: dark ? "#1e293b" : "#ffffff" }}>
                           <Copy weight="bold" style={{ fontSize: 10, color: dark ? "#6ee7b7" : "#047857", letterSpacing: 1 }}>{label}</Copy>
                           <Copy weight="semi" style={{ fontSize: 14, lineHeight: 21 }}>{value}</Copy>
                         </View>)}
-                        {!!item.deadline && <View style={{ borderTopWidth: 1, borderColor: "#05966930", paddingTop: 12 }}>
+                        {!!item.deadline && <View style={{ borderWidth: 1, borderRadius: 14, borderColor: "#05966960", padding: 14, backgroundColor: dark ? "#064e3b" : "#d1fae5" }}>
                           <Copy weight="semi">RSVP details</Copy>
                           <Copy style={{ marginTop: 4 }}>{String(item.deadline)}</Copy>
                         </View>}
@@ -468,6 +476,7 @@ export function UploadEdition({
             </View>
           ))}
           </View>
+          </ScrollView>
         </>
       )}
       {!!error && <ErrorNotice message={error} />}
