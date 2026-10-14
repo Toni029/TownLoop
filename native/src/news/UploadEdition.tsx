@@ -1,6 +1,6 @@
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   FileText,
@@ -262,7 +262,10 @@ export function UploadEdition({
       {step >= 0 && (
         <View
           accessibilityRole="progressbar"
-          accessibilityValue={{ min: 0, max: 100, now: progress }}
+          accessibilityLiveRegion="polite"
+          accessibilityValue={
+            step === 1 ? undefined : { min: 0, max: 100, now: progress }
+          }
           style={{
             padding: 18,
             borderRadius: 22,
@@ -275,11 +278,27 @@ export function UploadEdition({
           >
             <Sparkles size={20} color="#059669" />
             <Copy weight="bold">
-              {labels[step]} · {progress}%
+              {step === 1
+                ? error
+                  ? "Analysis paused — retry available"
+                  : busy
+                    ? "AI is reading your newsletter…"
+                    : "Analysis ready for review"
+                : `${labels[step]} · ${progress}%`}
             </Copy>
           </View>
+          {step === 1 && busy && (
+            <View style={{ gap: 8 }}>
+              <ActivityIndicator color="#059669" />
+              <Copy>
+                Large PDFs can take a few minutes. Alternate models are tried
+                automatically; your current newsletter stays live.
+              </Copy>
+            </View>
+          )}
           <View
             style={{
+              display: step === 1 ? "none" : "flex",
               height: 12,
               backgroundColor: "#05966922",
               borderRadius: 9,

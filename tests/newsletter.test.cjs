@@ -175,3 +175,16 @@ test('unavailable primary moves directly to PDF-capable fallback with bounded HT
  global.__attempts=[];await extractNewsletterContent({base64Data:'x'.repeat(60)});assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3-flash-preview']);
  delete process.env.GEMINI_API_KEY;
 });
+
+test('large PDF uploads once, reuses file across fallbacks, and cleans up after success or failure',async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{global.__uploads++;return{name:'files/test',uri:'https://example.invalid/file',state:'ACTIVE'}},delete:async()=>{global.__deletes++}};models={generateContent:async args=>{global.__largeAttempts.push(args);if(global.__allFail||args.model==='gemini-3.1-flash-lite')throw Object.assign(new Error('503 UNAVAILABLE'),{status:503});return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
+ const run=async fail=>{global.__uploads=0;global.__deletes=0;global.__largeAttempts=[];global.__allFail=fail;process.env.GEMINI_API_KEY='test-only';const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock});return extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});};
+ const result=await run(false);assert.equal(result.sourceModel,'gemini-3-flash-preview');assert.equal(global.__uploads,1);assert.equal(global.__deletes,1);assert.ok(global.__largeAttempts.every(a=>a.contents[0].parts[0].fileData && !a.contents[0].parts[0].inlineData && a.config.httpOptions.timeout===60000));
+ await assert.rejects(run(true),/503/);assert.equal(global.__uploads,1);assert.equal(global.__deletes,1);delete process.env.GEMINI_API_KEY;
+});
+
+test('file-service failure falls back to page-labelled text instead of resending a large inline PDF',async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw Object.assign(new Error('404'),{status:404})}};models={generateContent:async args=>{global.__textParts=args.contents[0].parts;return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=> '=== PDF PAGE 1 === Test document facts';`});
+ process.env.GEMINI_API_KEY='test-only';await extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});assert.match(global.__textParts[0].text,/PDF PAGE 1/);assert.equal(global.__textParts[0].inlineData,undefined);delete process.env.GEMINI_API_KEY;
+});

@@ -47,3 +47,23 @@ weekly bingo was excluded, and the library renovation story was highlighted.
 Twelve regression tests passed. The server was restarted with the new chain.
 This does not establish accuracy for the resident's actual newsletter: that PDF
 is still needed for a document-specific audit. No production data was changed.
+
+## Large-document recovery
+
+Server logs showed repeated failures on the resident's roughly 16 MB October PDF.
+Large PDFs (>8 MB) now try a single Gemini Files upload, reused across model
+attempts and deleted in finally. This environment returned 404 from the Files
+service, so a server-only PDF.js fallback extracts page-labelled text. It refuses
+pages with fewer than 40 readable characters, rather than silently treating a
+scan as empty. Text fallback cannot interpret illustrations or image-only text.
+
+Large analysis tries gemini-3.1-flash-lite first, uses up to 60s/model, and the
+native request budget is 300s including file processing. Small PDFs retain the
+existing model order and 40s/model. The AI stage displays a spinner/status instead
+of a misleading fixed percentage.
+
+Live 16 MB synthetic PDF (known text plus padding, not a complexity-equivalent
+newsletter) passed via text fallback: two RSVP events and one highlight, with
+weekly bingo excluded. Fourteen regression tests passed. Actual October PDF
+accuracy remains unverified; do not equate the synthetic transport test with a
+full real-document acceptance test.

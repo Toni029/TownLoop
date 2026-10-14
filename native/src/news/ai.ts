@@ -33,7 +33,7 @@ export async function analyzeNewsletter(
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw Error("Please sign in again.");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 180000);
+  const timer = setTimeout(() => controller.abort(), 300000);
   try {
     const response = await fetch(
       `${base.replace(/\/$/, "")}/api/newsletter/extract-content`,
