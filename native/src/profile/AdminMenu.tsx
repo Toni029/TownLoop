@@ -7,7 +7,6 @@ import {
   Image,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import {
@@ -34,6 +33,10 @@ import { useLiveCollection } from "../lib/liveCollection";
 import { readNewsEvent } from "../news/model";
 import { approvedUser, removeNewsItem } from "../news/actions";
 import { manageResident } from "./data";
+const eventDetail = (value: unknown) => {
+  const text = String(value ?? "").trim();
+  return /not specified/i.test(text) ? "" : text;
+};
 export function AdminMenu({
   user,
   residents,
@@ -50,7 +53,6 @@ export function AdminMenu({
   onBack: () => void;
 }) {
   const [tab, setTab] = useState("residents"),
-    [search, setSearch] = useState(""),
     [expanded, setExpanded] = useState<Record<string, boolean>>({}),
     [busy, setBusy] = useState(false),
     [confirm, setConfirm] = useState<{
@@ -77,11 +79,7 @@ export function AdminMenu({
   });
   const people = adminDirectory(residents);
   const pending = people.filter((p) => p.approved === false).length;
-  const filteredEvents = sortEventsEarlyFirst(events.items).filter((e) =>
-    `${e.title} ${e.category} ${e.location} ${e.attendees?.map((a) => `${a.name} ${a.unit}`)}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const sortedEvents = sortEventsEarlyFirst(events.items);
   const totalRsvpCount = events.items.reduce(
     (count, event) =>
       count + (event.attendees?.length || event.attendeesCount || 0),
@@ -397,17 +395,6 @@ export function AdminMenu({
             <Text style={{ ...font(11), color: muted }}>
               Roster of residents signed up for community events
             </Text>
-            <TextInput
-              accessibilityLabel="Search RSVP events"
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search event or neighbor..."
-              placeholderTextColor={muted}
-              style={[
-                panel,
-                { color: ink, fontFamily: "Jakarta", fontSize: 12 },
-              ]}
-            />
             {events.loading && <ActivityIndicator />}
             {!!events.error && (
               <>
@@ -421,11 +408,11 @@ export function AdminMenu({
             )}
             {!events.loading &&
               !events.error &&
-              filteredEvents.length === 0 && (
+              sortedEvents.length === 0 && (
                 <View style={panel}>
                   <CalendarCheck size={32} color={muted} />
                   <Text style={font(14, true)}>
-                    No matching RSVP events found
+                    No upcoming RSVP events
                   </Text>
                   <Text style={{ ...font(12), color: muted }}>
                     There are currently no upcoming RSVP events listed in the
@@ -433,7 +420,7 @@ export function AdminMenu({
                   </Text>
                 </View>
               )}
-            {filteredEvents.map((e) => (
+            {sortedEvents.map((e) => (
               <View key={String(e.id)} style={panel}>
                 <View
                   style={{
@@ -443,13 +430,15 @@ export function AdminMenu({
                   }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={font(14, true)}>{e.title}</Text>
+                    <Text style={{ ...font(16, true), lineHeight: 23 }}>{e.title}</Text>
                     <Text style={{ ...font(12), color: muted }}>
-                      {e.month} {e.day} • {e.time}
+                      {[[eventDetail(e.month), eventDetail(e.day)].filter(Boolean).join(" "), eventDetail(e.time)].filter(Boolean).join(" • ")}
                     </Text>
-                    <Text style={{ ...font(11), color: muted }}>
-                      {e.location}
-                    </Text>
+                    {!!eventDetail(e.location) && (
+                      <Text style={{ ...font(11), color: muted }}>
+                        {eventDetail(e.location)}
+                      </Text>
+                    )}
                   </View>
                   <Pressable
                     accessibilityRole="button"
@@ -467,6 +456,7 @@ export function AdminMenu({
                 </View>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel={`Resident signups for ${e.title}`}
                   accessibilityState={{ expanded: !!expanded[String(e.id)] }}
                   onPress={() =>
                     setExpanded({
@@ -478,12 +468,17 @@ export function AdminMenu({
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 8,
+                    minHeight: 48,
+                    padding: 12,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: dark ? "#065f46" : "#a7f3d0",
+                    backgroundColor: dark ? "#022c22" : "#ecfdf5",
                   }}
                 >
                   <Users size={16} color="#059669" />
-                  <Text style={font(12, true)}>
-                    {e.attendees?.length || e.attendeesCount} residents signed
-                    up
+                  <Text style={{ ...font(13, true), flex: 1, flexShrink: 1 }}>
+                    Resident signups ({e.attendees?.length ?? e.attendeesCount ?? 0})
                   </Text>
                   {expanded[String(e.id)] ? (
                     <ChevronDown size={16} color={ink} />
@@ -491,6 +486,9 @@ export function AdminMenu({
                     <ChevronRight size={16} color={ink} />
                   )}
                 </Pressable>
+                {expanded[String(e.id)] && !e.attendees?.length && (
+                  <Text style={{ ...font(12), color: muted, padding: 8 }}>No residents have signed up yet.</Text>
+                )}
                 {expanded[String(e.id)] &&
                   (e.attendees || []).map((a) => (
                     <View

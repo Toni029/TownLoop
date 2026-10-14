@@ -257,6 +257,9 @@ export function Badge({
   return (
     <View
       style={{
+        maxWidth: "100%",
+        minWidth: 0,
+        flexShrink: 1,
         backgroundColor: c[0],
         borderColor: c[2],
         borderWidth: 1,
@@ -268,6 +271,7 @@ export function Badge({
       <Copy
         weight={uppercase ? "extra" : "semi"}
         style={{
+          flexShrink: 1,
           fontSize: 10,
           lineHeight: 14,
           color: c[1],
