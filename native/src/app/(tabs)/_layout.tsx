@@ -1,4 +1,5 @@
 import { Tabs, router } from "expo-router";
+import { NewsProvider } from "../../lib/news";
 import { useSession } from "../../lib/session";
 import {
   BlurScene,
@@ -17,6 +18,7 @@ export default function TabLayout() {
     source?.avatarUrl,
   ].find((v) => typeof v === "string" && v.trim()) as string | undefined;
   return (
+    <NewsProvider>
     <TownLoopShell
       name={profile?.name || "Resident"}
       role={profile?.role || "resident"}
@@ -61,5 +63,6 @@ export default function TabLayout() {
         <Tabs.Screen name="social" options={{ title: "Social" }} />
       </Tabs>
     </TownLoopShell>
+    </NewsProvider>
   );
 }

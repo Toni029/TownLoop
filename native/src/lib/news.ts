@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useState, type PropsWithChildren } from "react";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { sortEventsEarlyFirst } from "../../../src/utils/eventSort";
 import { db } from "./firebase";
@@ -21,7 +21,7 @@ const empty: NewsSnapshot = {
   loading: true,
   error: "",
 };
-export function useNews() {
+function useNewsSource() {
   const { user, profile } = useSession();
   const [owned, setOwned] = useState<{ uid?: string; state: NewsSnapshot }>({
     state: empty,
@@ -55,7 +55,9 @@ export function useNews() {
             doc(db, "newsletters", "current"),
             { includeMetadataChanges: true },
             (snap) => {
-              if (snap.metadata.fromCache) return;
+              // Show previously loaded Firebase data immediately while the server refreshes.
+              // An empty cache is not evidence that a published edition was deleted.
+              if (snap.metadata.fromCache && !snap.exists()) return;
               clearTimeout(timer);
               next(snap.exists() ? (snap.data() as NewsletterConfig) : null);
             },
@@ -87,4 +89,16 @@ export function useNews() {
     ),
     retry: () => setAttempt((n) => n + 1),
   };
+}
+
+// Own subscriptions above the tab screens so navigation cannot clear published News.
+const NewsContext = createContext<ReturnType<typeof useNewsSource> | null>(null);
+export function NewsProvider({ children }: PropsWithChildren) {
+  const news = useNewsSource();
+  return createElement(NewsContext.Provider, { value: news }, children);
+}
+export function useNews() {
+  const news = useContext(NewsContext);
+  if (!news) throw new Error("News must be rendered inside NewsProvider.");
+  return news;
 }
