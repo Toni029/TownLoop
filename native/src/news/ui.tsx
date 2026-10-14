@@ -390,6 +390,7 @@ export function Choices({
   );
 }
 export function NewsDialog({
+  maxWidth = 512,
   title,
   subtitle,
   onClose,
@@ -398,6 +399,7 @@ export function NewsDialog({
   tone,
   icon: HeaderIcon,
 }: PropsWithChildren<{
+  maxWidth?: number;
   title: string;
   subtitle?: string;
   onClose: () => void;
@@ -461,7 +463,7 @@ export function NewsDialog({
             style={{
               maxHeight: "92%",
               width: "100%",
-              maxWidth: 512,
+              maxWidth,
               alignSelf: "center",
               borderRadius: 24,
               backgroundColor: dark ? "#0f172a" : "#fff",

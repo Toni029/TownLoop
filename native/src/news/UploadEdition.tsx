@@ -1,6 +1,6 @@
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Pressable, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, View, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   FileText,
@@ -28,6 +28,7 @@ export function UploadEdition({
   onClose: () => void;
   onPublished: () => void;
 }) {
+  const { width } = useWindowDimensions();
   const dark = !!usePresentation()?.dark;
   const reduced = useReducedMotion();
   const uploaded = hasUploadedNewsletter(current) ? current : null;
@@ -154,16 +155,18 @@ export function UploadEdition({
     "Done",
   ];
   const ink = dark ? "#f5f5f4" : "#1c1917";
+  const reviewing = !!result && step !== 3;
   return (
     <NewsDialog
-      title="Upload Community Newsletter"
+      title={reviewing ? "Review your newsletter" : "Upload Community Newsletter"}
+      maxWidth={reviewing ? 1080 : 512}
       tone="green"
       icon={FileText}
-      subtitle="Share your monthly edition"
+      subtitle={reviewing ? `${month || title} · Review and edit before publishing` : "Share your monthly edition"}
       busy={busy}
       onClose={onClose}
     >
-      {step !== 3 && (
+      {!reviewing && step !== 3 && (
         <>
           <Copy weight="bold">SELECT NEWSLETTER DOCUMENT (.PDF) *</Copy>
           <Pressable
@@ -259,7 +262,7 @@ export function UploadEdition({
           </Pressable>
         </>
       )}
-      {step >= 0 && (
+      {!reviewing && step >= 0 && (
         <View
           accessibilityRole="progressbar"
           accessibilityLiveRegion="polite"
@@ -354,14 +357,19 @@ export function UploadEdition({
       )}
       {result && step !== 3 && (
         <>
-          <Copy weight="bold">Newsletter AI analysis</Copy>
           <Copy>
             {result.rsvp_events.length} RSVP events ·{" "}
             {result.pinned_highlights.length} stories. Review the details before
             publishing.
           </Copy>
-          {(["rsvp_events", "pinned_highlights"] as const).map((kind) =>
-            result[kind].map((item, index) => {
+          <View style={{ flexDirection: width >= 760 ? "row" : "column", gap: 24, alignItems: "flex-start" }}>
+          {(["rsvp_events", "pinned_highlights"] as const).map((kind) => (
+            <View key={kind} style={{ flex: width >= 760 ? 1 : undefined, width: width >= 760 ? undefined : "100%", minWidth: 0, gap: 14 }}>
+              <Copy weight="bold" style={{ fontSize: 19, lineHeight: 26, color: kind === "rsvp_events" ? "#047857" : "#b45309" }}>
+                {kind === "rsvp_events" ? "RSVP events" : "Pinned highlights"} · {result[kind].length}
+              </Copy>
+              {!result[kind].length && <Copy>No items to publish.</Copy>}
+            {result[kind].map((item, index) => {
               const key = `${kind}-${index}`,
                 edit = editing === key;
               return (
@@ -370,9 +378,10 @@ export function UploadEdition({
                   style={{
                     borderWidth: 1,
                     borderColor: "#a8a29e55",
-                    padding: 16,
-                    borderRadius: 18,
-                    gap: 8,
+                    padding: 22,
+                    borderRadius: 24,
+                    backgroundColor: dark ? "#172536" : kind === "rsvp_events" ? "#f3faf7" : "#fffbf2",
+                    gap: 14,
                   }}
                 >
                   <View
@@ -382,9 +391,7 @@ export function UploadEdition({
                       gap: 8,
                     }}
                   >
-                    <Copy weight="bold" style={{ flex: 1 }}>
-                      {String(item.title)}
-                    </Copy>
+                    <View style={{ flex: 1 }} />
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Edit ${item.title}`}
@@ -410,6 +417,7 @@ export function UploadEdition({
                       <Trash2 size={19} color="#e11d48" />
                     </Pressable>
                   </View>
+                  <Copy weight="bold" style={{ fontSize: 22, lineHeight: 29, textAlign: "center" }}>{String(item.title)}</Copy>
                   {edit ? (
                     (kind === "rsvp_events"
                       ? [
@@ -445,16 +453,32 @@ export function UploadEdition({
                       />
                     ))
                   ) : (
-                    <Copy>
-                      {kind === "rsvp_events"
-                        ? `${item.month} ${item.day} • ${item.time || ""}\n${item.location || ""}\nRSVP: ${item.deadline || ""}\n${item.description || ""}`
-                        : String(item.summary || "")}
-                    </Copy>
+                    <View style={{ gap: 14 }}>
+                      <Copy style={{ fontSize: 14, lineHeight: 22 }} numberOfLines={kind === "rsvp_events" ? 4 : undefined}>
+                        {String(kind === "rsvp_events" ? item.description || "" : item.summary || "")}
+                      </Copy>
+                      {kind === "rsvp_events" ? <>
+                        {[
+                          ["DATE", `${item.month || ""} ${item.day || ""}`.trim() || "Not specified"],
+                          ["TIME", String(item.time || "Not specified")],
+                          ["LOCATION", String(item.location || "Not specified")],
+                        ].map(([label, value]) => <View key={label} style={{ gap: 3 }}>
+                          <Copy weight="bold" style={{ fontSize: 10, color: dark ? "#6ee7b7" : "#047857", letterSpacing: 1 }}>{label}</Copy>
+                          <Copy weight="semi" style={{ fontSize: 14, lineHeight: 21 }}>{value}</Copy>
+                        </View>)}
+                        {!!item.deadline && <View style={{ borderTopWidth: 1, borderColor: "#05966930", paddingTop: 12 }}>
+                          <Copy weight="semi">RSVP details</Copy>
+                          <Copy style={{ marginTop: 4 }}>{String(item.deadline)}</Copy>
+                        </View>}
+                      </> : !!item.tag && <Copy weight="semi" style={{ color: dark ? "#fcd34d" : "#92400e" }}>{String(item.tag)}</Copy>}
+                    </View>
                   )}
                 </View>
               );
-            }),
-          )}
+            })}
+            </View>
+          ))}
+          </View>
         </>
       )}
       {!!error && <ErrorNotice message={error} />}
