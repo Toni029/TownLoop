@@ -58,6 +58,7 @@ export function AdminMenu({
       run: () => Promise<unknown>;
     } | null>(null),
     [roles, setRoles] = useState("");
+  const [pendingOnly, setPendingOnly] = useState(false);
   const events = useLiveCollection("community_events", readNewsEvent);
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
@@ -260,114 +261,134 @@ export function AdminMenu({
                 </Text>
               )}
             </View>
-            {people.length === 0 && (
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              {button(`All residents (${people.length})`, () =>
+                setPendingOnly(false),
+              )}
+              {button(`Pending approvals (${pending})`, () =>
+                setPendingOnly(true),
+              )}
+            </View>
+            <Text style={{ ...font(12), color: muted }}>
+              {pendingOnly
+                ? "Showing new signups awaiting approval."
+                : "New signups appear first. Approve them to give them access as residents."}
+            </Text>
+            {pendingOnly && pending === 0 && (
+              <Text style={font(13)}>No signups awaiting approval.</Text>
+            )}
+            {people.length === 0 && !pendingOnly && (
               <Text style={{ ...font(13), textAlign: "center", padding: 24 }}>
                 No residents in directory.
               </Text>
             )}
-            {people.map((p) => {
-              const badge = getRoleBadgeInfo(getUserRole(p));
-              return (
-                <View key={String(p.id)} style={panel}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      gap: 12,
-                      alignItems: "center",
-                    }}
-                  >
-                    {p.avatarUrl || p.avatar_url ? (
-                      <Image
-                        source={{ uri: p.avatarUrl || p.avatar_url }}
-                        style={{ width: 44, height: 44, borderRadius: 22 }}
-                      />
-                    ) : (
-                      <View
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 22,
-                          backgroundColor: "#d1fae5",
-                          justifyContent: "center",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Users size={20} color="#047857" />
-                      </View>
-                    )}
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <Text style={font(14, true)}>{p.name}</Text>
-                      <Text style={{ ...font(10, true), color: "#b45309" }}>
-                        {badge.label}
-                      </Text>
-                      <Text style={{ ...font(12), color: muted }}>
-                        {p.email}
-                      </Text>
-                      <Text style={{ ...font(11), color: muted }}>
-                        {p.address || p.unit || "Resident Unit"}
-                      </Text>
-                    </View>
-                    {p.approved === false ? (
-                      button(
-                        "Approve",
-                        () =>
-                          void act(
-                            () =>
-                              manageResident(String(p.id), {
-                                approved: true,
-                                ...(!p.role ? { role: "resident" } : {}),
-                              }),
-                            `${p.name} approved.`,
-                          ),
-                      )
-                    ) : (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          gap: 4,
-                          alignItems: "center",
-                        }}
-                      >
-                        <CheckCircle2 size={16} color="#059669" />
-                        <Text style={{ ...font(12, true), color: "#059669" }}>
-                          Approved
+            {people
+              .filter((p) => !pendingOnly || p.approved === false)
+              .map((p) => {
+                const badge = getRoleBadgeInfo(getUserRole(p));
+                return (
+                  <View key={String(p.id)} style={panel}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        gap: 12,
+                        alignItems: "center",
+                      }}
+                    >
+                      {p.avatarUrl || p.avatar_url ? (
+                        <Image
+                          source={{ uri: p.avatarUrl || p.avatar_url }}
+                          style={{ width: 44, height: 44, borderRadius: 22 }}
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 22,
+                            backgroundColor: "#d1fae5",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Users size={20} color="#047857" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <Text style={font(14, true)}>{p.name}</Text>
+                        <Text style={{ ...font(10, true), color: "#b45309" }}>
+                          {p.approved === false
+                            ? "Pending approval"
+                            : badge.label}
+                        </Text>
+                        <Text style={{ ...font(12), color: muted }}>
+                          {p.email}
+                        </Text>
+                        <Text style={{ ...font(11), color: muted }}>
+                          {p.address || p.unit || "Resident Unit"}
                         </Text>
                       </View>
-                    )}
-                  </View>
-                  {String(p.id) !== String(user.id) && (
-                    <>
-                      {button("Role controls", () =>
-                        setRoles(roles === String(p.id) ? "" : String(p.id)),
-                      )}
-                      {roles === String(p.id) && (
+                      {p.approved === false ? (
+                        button(
+                          "Approve",
+                          () =>
+                            void act(
+                              () =>
+                                manageResident(String(p.id), {
+                                  approved: true,
+                                  ...(!p.role ? { role: "resident" } : {}),
+                                }),
+                              `${p.name} approved.`,
+                            ),
+                        )
+                      ) : (
                         <View
                           style={{
                             flexDirection: "row",
-                            flexWrap: "wrap",
-                            gap: 6,
+                            gap: 4,
+                            alignItems: "center",
                           }}
                         >
-                          {["resident", "crew", "staff", "vip", "admin"]
-                            .filter((r) => r !== p.role)
-                            .map((role) => (
-                              <View key={role}>
-                                {button(role, () =>
-                                  setConfirm({
-                                    label: `Change ${p.name} to ${role}? This changes community permissions.`,
-                                    run: () =>
-                                      manageResident(String(p.id), { role }),
-                                  }),
-                                )}
-                              </View>
-                            ))}
+                          <CheckCircle2 size={16} color="#059669" />
+                          <Text style={{ ...font(12, true), color: "#059669" }}>
+                            Approved
+                          </Text>
                         </View>
                       )}
-                    </>
-                  )}
-                </View>
-              );
-            })}
+                    </View>
+                    {String(p.id) !== String(user.id) && (
+                      <>
+                        {button("Role controls", () =>
+                          setRoles(roles === String(p.id) ? "" : String(p.id)),
+                        )}
+                        {roles === String(p.id) && (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              flexWrap: "wrap",
+                              gap: 6,
+                            }}
+                          >
+                            {["resident", "crew", "staff", "vip", "admin"]
+                              .filter((r) => r !== p.role)
+                              .map((role) => (
+                                <View key={role}>
+                                  {button(role, () =>
+                                    setConfirm({
+                                      label: `Change ${p.name} to ${role}? This changes community permissions.`,
+                                      run: () =>
+                                        manageResident(String(p.id), { role }),
+                                    }),
+                                  )}
+                                </View>
+                              ))}
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </View>
+                );
+              })}
           </>
         )}
         {tab === "rsvp" && (

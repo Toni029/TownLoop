@@ -43,3 +43,30 @@ test("removing RSVP is idempotent and updates roster and capacity together", () 
     false,
   );
 });
+
+test("new resident-role signups appear first and move out of pending on approval", () => {
+  const existing = {
+    id: "existing",
+    email: "existing@example.invalid",
+    role: "resident",
+    approved: true,
+  } as UserProfile;
+  const signup = {
+    id: "signup",
+    email: "signup@example.invalid",
+    role: "resident",
+    approved: false,
+  } as UserProfile;
+  const people = adminDirectory([existing, signup]);
+  assert.deepEqual(
+    people.map((p) => p.id),
+    ["signup", "existing"],
+  );
+  assert.equal(people.filter((p) => p.approved === false).length, 1);
+  assert.equal(
+    adminDirectory([existing, { ...signup, approved: true }]).filter(
+      (p) => p.approved === false,
+    ).length,
+    0,
+  );
+});

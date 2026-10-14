@@ -7,7 +7,11 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url),
   ts = require("typescript");
 const root = fileURLToPath(new URL("../../", import.meta.url));
-function fixture(uid: string, data: Record<string, unknown>, role = "resident") {
+function fixture(
+  uid: string,
+  data: Record<string, unknown>,
+  role = "resident",
+) {
   const writes: { kind: string; ref: any; patch?: any }[] = [];
   const user = {
     id: uid,
@@ -30,6 +34,8 @@ function fixture(uid: string, data: Record<string, unknown>, role = "resident") 
     const local = (name: string): any => {
       if (name === "firebase/firestore")
         return {
+          updateDoc: async (ref: any, patch: any) =>
+            writes.push({ kind: "update", ref, patch }),
           doc: (_db: any, collection: string, id: string) => ({
             collection,
             id,
@@ -37,7 +43,8 @@ function fixture(uid: string, data: Record<string, unknown>, role = "resident") 
           runTransaction: async (_db: any, fn: any) =>
             fn({
               get: async () => ({ exists: () => true, data: () => data }),
-              set: (ref: any, patch: any) => writes.push({ kind: "set", ref, patch }),
+              set: (ref: any, patch: any) =>
+                writes.push({ kind: "set", ref, patch }),
               delete: (ref: any) => writes.push({ kind: "delete", ref }),
               update: (ref: any, patch: any) =>
                 writes.push({ kind: "update", ref, patch }),
@@ -93,17 +100,58 @@ test("mark all read can clear only the current resident unread marker", async ()
 });
 
 test("crew members append to the same resident conversation without losing previous replies", async () => {
-  const resident = { id: "alice", name: "Alice", email: "alice@example.invalid" };
-  const original = { residentId: "alice", residentEmail: resident.email, messages: [{ id: "first", body: "Please help" }] };
+  const resident = {
+    id: "alice",
+    name: "Alice",
+    email: "alice@example.invalid",
+  };
+  const original = {
+    residentId: "alice",
+    residentEmail: resident.email,
+    messages: [{ id: "first", body: "Please help" }],
+  };
   const crewOne = fixture("crew-one", original, "crew");
-  await crewOne.actions.sendMessage("maintenance", resident, "Repair", "On my way");
+  await crewOne.actions.sendMessage(
+    "maintenance",
+    resident,
+    "Repair",
+    "On my way",
+  );
   const first = crewOne.writes[0];
   const crewTwo = fixture("crew-two", first.patch, "crew");
-  await crewTwo.actions.sendMessage("maintenance", resident, "Repair", "I can help too");
+  await crewTwo.actions.sendMessage(
+    "maintenance",
+    resident,
+    "Repair",
+    "I can help too",
+  );
   assert.deepEqual(crewTwo.writes[0].ref, first.ref);
   assert.equal(first.ref.collection, "maintenance_chats");
   assert.equal(crewTwo.writes[0].patch.messages.length, 3);
   assert.equal(crewTwo.writes[0].patch.messages[1].senderId, "crew-one");
   assert.equal(crewTwo.writes[0].patch.messages[2].senderId, "crew-two");
   assert.equal(crewTwo.writes[0].patch.unreadByResident, true);
+});
+
+test("admin and vip can approve pending residents; residents and crew cannot", async () => {
+  for (const role of ["admin", "vip"]) {
+    const actor = fixture("manager", {}, role);
+    await actor.actions.manageResident("signup", {
+      approved: true,
+      role: "resident",
+    });
+    assert.deepEqual(actor.writes[0], {
+      kind: "update",
+      ref: { collection: "users", id: "signup" },
+      patch: { approved: true, role: "resident" },
+    });
+  }
+  for (const role of ["resident", "crew"]) {
+    const actor = fixture("outsider", {}, role);
+    await assert.rejects(
+      actor.actions.manageResident("signup", { approved: true }),
+      /Administrator access/,
+    );
+    assert.equal(actor.writes.length, 0);
+  }
 });
