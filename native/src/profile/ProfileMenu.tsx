@@ -118,7 +118,8 @@ function Row({
         s.row,
         panel,
         {
-          backgroundColor: dark ? "#0f172a73" : "transparent",
+          backgroundColor: dark ? "#1e293bf2" : "#fffffff2",
+          boxShadow: dark ? "0px 2px 6px rgba(0,0,0,0.18)" : "0px 2px 6px rgba(28,25,23,0.08)",
           padding: wide ? 16 : 14,
           overflow: "hidden",
         },
@@ -129,8 +130,8 @@ function Row({
         pointerEvents="none"
         colors={
           dark
-            ? ["#ffffff24", "#ffffff0a", "#ffffff14"]
-            : ["#ffffffcc", "#ffffff75", "#ffffffad"]
+            ? ["#ffffff0d", "#ffffff03", "#ffffff08"]
+            : ["#ffffff99", "#ffffff66", "#ffffff80"]
         }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -267,8 +268,8 @@ export function ProfileMenu({
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
   const panel = {
-    backgroundColor: dark ? "#ffffff0d" : "#ffffff99",
-    borderColor: dark ? "#ffffff26" : "#ffffffbf",
+    backgroundColor: dark ? "#1e293bf2" : "#fffffff2",
+    borderColor: dark ? "#64748b99" : "#a8a29e99",
   };
   useEffect(() => {
     onUnread(data.threads.filter((t) => t.unread).length);
@@ -498,14 +499,14 @@ export function ProfileMenu({
                   padding: width >= 640 ? 20 : 16,
                   paddingTop: width >= 640 ? 16 : 14,
                   borderColor: dark ? "#ffffff42" : "#ffffffe6",
-                  backgroundColor: dark ? "#0f172ac7" : "#ffffffa6",
+                  backgroundColor: dark ? "#0f172af5" : "#e7e5e4f5",
                 },
                 Platform.OS === "web" &&
                   ({
                     backdropFilter:
-                      "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
+                      "blur(44px) saturate(210%) contrast(108%) brightness(104%)",
                     WebkitBackdropFilter:
-                      "blur(36px) saturate(210%) contrast(108%) brightness(104%)",
+                      "blur(44px) saturate(210%) contrast(108%) brightness(104%)",
                   } as ViewStyle),
                 cardMotion,
               ]}
@@ -523,8 +524,8 @@ export function ProfileMenu({
                 pointerEvents="none"
                 colors={
                   dark
-                    ? ["#ffffff33", "#ffffff0a", "#ffffff26"]
-                    : ["#ffffffe0", "#ffffffb3", "#ffffff94", "#ffffffd1"]
+                    ? ["#ffffff14", "#ffffff05", "#ffffff0d"]
+                    : ["#e7e5e4eb", "#e7e5e4d9", "#d6d3d1cc", "#e7e5e4e6"]
                 }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
