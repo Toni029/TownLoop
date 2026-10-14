@@ -137,6 +137,17 @@ export async function markRead(thread: Thread) {
       });
   });
 }
+export async function deleteThread(thread: Thread) {
+  const user = await approvedUser();
+  await runTransaction(db, async (tx) => {
+    const reference = doc(db, collectionName[thread.category], thread.id),
+      snap = await tx.get(reference);
+    if (!snap.exists()) return;
+    if (!readThread(thread.category, thread.id, snap.data(), user))
+      throw Error("You cannot access this conversation.");
+    tx.delete(reference);
+  });
+}
 export async function sendMessage(
   category: Category,
   recipient: UserProfile,
