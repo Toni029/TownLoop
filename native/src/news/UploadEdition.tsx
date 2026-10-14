@@ -1,6 +1,6 @@
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Animated, Pressable, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   FileText,
@@ -28,7 +28,7 @@ export function UploadEdition({
   onClose: () => void;
   onPublished: () => void;
 }) {
-  const { width } = useWindowDimensions();
+  const [reviewTab, setReviewTab] = useState<"rsvp_events" | "pinned_highlights">("rsvp_events");
   const dark = !!usePresentation()?.dark;
   const reduced = useReducedMotion();
   const uploaded = hasUploadedNewsletter(current) ? current : null;
@@ -158,7 +158,7 @@ export function UploadEdition({
   return (
     <NewsDialog
       title={reviewing ? "Review your newsletter" : "Upload Community Newsletter"}
-      maxWidth={reviewing ? 1080 : 512}
+      maxWidth={reviewing ? 640 : 512}
       tone="green"
       icon={FileText}
       subtitle={reviewing ? `${month || title} · Review and edit before publishing` : "Share your monthly edition"}
@@ -351,15 +351,17 @@ export function UploadEdition({
             {result.pinned_highlights.length} stories. Review the details before
             publishing.
           </Copy>
-          <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingBottom: 10 }}>
-          <View style={{ width: Math.max(520, Math.min(1016, width - 64)), flexDirection: "row", gap: 20, alignItems: "flex-start" }}>
-          {(["rsvp_events", "pinned_highlights"] as const).map((kind) => (
-            <View key={kind} style={{ flex: 1, minWidth: 0, gap: 14 }}>
-              <View style={{ padding: 16, borderRadius: 18, backgroundColor: kind === "rsvp_events" ? "#064e3b" : "#78350f" }}>
-              <Copy weight="bold" style={{ fontSize: 19, lineHeight: 26, color: "#ffffff" }}>
-                {kind === "rsvp_events" ? "RSVP events" : "Pinned highlights"} · {result[kind].length}
-              </Copy>
-              </View>
+          <View accessibilityRole="tablist" style={{ flexDirection: "row", padding: 4, gap: 4, borderRadius: 16, backgroundColor: dark ? "#1e293b" : "#f1f5f2", borderWidth: 1, borderColor: dark ? "#475569" : "#d6e2dc" }}>
+            {(["rsvp_events", "pinned_highlights"] as const).map((tab) => (
+              <Pressable key={tab} accessibilityRole="tab" accessibilityState={{ selected: reviewTab === tab }} onPress={() => { setReviewTab(tab); setEditing(""); }} style={{ flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 6, borderRadius: 12, backgroundColor: reviewTab === tab ? "#047857" : "transparent" }}>
+                <Copy weight="bold" style={{ fontSize: 13, lineHeight: 19, textAlign: "center", flexShrink: 1, color: reviewTab === tab ? "#ffffff" : dark ? "#cbd5e1" : "#475569" }}>
+                  {tab === "rsvp_events" ? "RSVP events" : "Stories"} ({result[tab].length})
+                </Copy>
+              </Pressable>
+            ))}
+          </View>
+          {[reviewTab].map((kind) => (
+            <View key={kind} style={{ width: "100%", minWidth: 0, gap: 14 }}>
               {!result[kind].length && <Copy>No items to publish.</Copy>}
             {result[kind].map((item, index) => {
               const key = `${kind}-${index}`,
@@ -409,8 +411,8 @@ export function UploadEdition({
                       <Trash2 size={19} color="#e11d48" />
                     </Pressable>
                   </View>
-                  <View style={{ padding: 18, borderRadius: 16, borderWidth: 1, borderColor: kind === "rsvp_events" ? "#05966960" : "#d9770660", backgroundColor: dark ? "#1e293b" : "#ffffff" }}>
-                  <Copy weight="bold" style={{ fontSize: 22, lineHeight: 29, textAlign: "center" }}>{String(item.title)}</Copy>
+                  <View style={{ padding: 12, borderRadius: 16, borderWidth: 1, borderColor: kind === "rsvp_events" ? "#05966960" : "#d9770660", backgroundColor: dark ? "#1e293b" : "#ffffff" }}>
+                  <Copy weight="bold" style={{ fontSize: 16, lineHeight: 23, textAlign: "center", flexShrink: 1, width: "100%" }}>{String(item.title)}</Copy>
                   </View>
                   {edit ? (
                     (kind === "rsvp_events"
@@ -450,7 +452,7 @@ export function UploadEdition({
                     <View style={{ gap: 14 }}>
                       <View style={{ padding: 16, borderRadius: 16, borderWidth: 1, borderColor: dark ? "#475569" : "#d6d3d1", backgroundColor: dark ? "#0f172a" : "#ffffff" }}>
                       <Copy weight="bold" style={{ fontSize: 10, letterSpacing: 1, color: "#78716c", marginBottom: 8 }}>{kind === "rsvp_events" ? "ABOUT THIS EVENT" : "STORY"}</Copy>
-                      <Copy style={{ fontSize: 14, lineHeight: 22 }}>
+                      <Copy style={{ fontSize: 12, lineHeight: 19, flexShrink: 1 }}>
                         {String(kind === "rsvp_events" ? item.description || "" : item.summary || "")}
                       </Copy>
                       </View>
@@ -461,7 +463,7 @@ export function UploadEdition({
                           ["LOCATION", String(item.location || "Not specified")],
                         ].map(([label, value]) => <View key={label} style={{ gap: 5, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: dark ? "#475569" : "#b9dccc", backgroundColor: dark ? "#1e293b" : "#ffffff" }}>
                           <Copy weight="bold" style={{ fontSize: 10, color: dark ? "#6ee7b7" : "#047857", letterSpacing: 1 }}>{label}</Copy>
-                          <Copy weight="semi" style={{ fontSize: 14, lineHeight: 21 }}>{value}</Copy>
+                          <Copy weight="semi" style={{ fontSize: 12, lineHeight: 18, flexShrink: 1 }}>{value}</Copy>
                         </View>)}
                         {!!item.deadline && <View style={{ borderWidth: 1, borderRadius: 14, borderColor: "#05966960", padding: 14, backgroundColor: dark ? "#064e3b" : "#d1fae5" }}>
                           <Copy weight="semi">RSVP details</Copy>
@@ -475,8 +477,6 @@ export function UploadEdition({
             })}
             </View>
           ))}
-          </View>
-          </ScrollView>
         </>
       )}
       {!!error && <ErrorNotice message={error} />}
