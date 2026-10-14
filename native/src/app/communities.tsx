@@ -9,8 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
+import { useCommunity } from "../lib/community";
 import {
   ArrowRight,
   CheckCircle2,
@@ -22,7 +21,6 @@ import {
 import Svg, { Path } from "react-native-svg";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { CecilPinesMark } from "../components/CecilPinesMark";
-export const COMMUNITY_KEY = "selected_community";
 const features = [
   "Full Resident Portal & Daily Check-Ins",
   "Direct Maintenance Work Order Tracking",
@@ -30,6 +28,7 @@ const features = [
   "Daily Community Activities & Calendars",
 ];
 export default function Communities() {
+  const { selectCommunity } = useCommunity();
   const [dark, setDark] = useState(false),
     [hovered, setHovered] = useState(""),
     [busy, setBusy] = useState(false),
@@ -46,8 +45,7 @@ export default function Communities() {
     if (busy) return;
     setBusy(true);
     try {
-      await AsyncStorage.setItem(COMMUNITY_KEY, id);
-      router.replace("/sign-in");
+      await selectCommunity(id);
     } catch {
       setError("Unable to save your community. Please try again.");
     } finally {

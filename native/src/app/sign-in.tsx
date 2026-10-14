@@ -1,9 +1,8 @@
 import { ResidentRegistration } from "../components/ResidentRegistration";
 import { googleSignIn } from "../lib/googleSignIn";
 import Svg, { Path } from "react-native-svg";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCommunity } from "../lib/community";
+import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -41,20 +40,7 @@ export default function SignIn() {
   const [googleHovered, setGoogleHovered] = useState(false);
   const [mode, setMode] = useState<"signin" | "register">("signin");
   const wide = useWindowDimensions().width >= 640;
-  const [community, setCommunity] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    AsyncStorage.getItem("selected_community")
-      .then((value) => {
-        if (!active) return;
-        if (!value) router.replace("/communities");
-        else setCommunity(value);
-      })
-      .catch(() => router.replace("/communities"));
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { community, clearCommunity } = useCommunity();
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [busy, setBusy] = useState(false),
@@ -134,8 +120,7 @@ export default function SignIn() {
                   disabled={busy}
                   onPress={async () => {
                     try {
-                      await AsyncStorage.removeItem("selected_community");
-                      router.replace("/communities");
+                      await clearCommunity();
                     } catch {
                       setMessage(
                         "Unable to switch communities. Please try again.",

@@ -1,3 +1,4 @@
+import { CommunityProvider, useCommunity } from "../lib/community";
 import { PlusJakartaSans_500Medium } from "@expo-google-fonts/plus-jakarta-sans/500Medium";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -13,7 +14,8 @@ import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700
 import { PlayfairDisplay_900Black } from "@expo-google-fonts/playfair-display/900Black";
 function Navigation() {
   const { user, profile, loading } = useSession();
-  if (loading) return <Loading />;
+  const { community, ready } = useCommunity();
+  if (loading || !ready) return <Loading />;
   return (
     <Stack
       screenOptions={{
@@ -21,14 +23,16 @@ function Navigation() {
         headerTintColor: colors.ink,
       }}
     >
-      <Stack.Protected guard={!user}>
+      <Stack.Protected guard={!community}>
         <Stack.Screen name="communities" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!!community && !user}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
-      <Stack.Protected guard={!!user && !profile?.approved}>
+      <Stack.Protected guard={!!community && !!user && !profile?.approved}>
         <Stack.Screen name="pending" options={{ title: "Your account" }} />
       </Stack.Protected>
-      <Stack.Protected guard={!!user && !!profile?.approved}>
+      <Stack.Protected guard={!!community && !!user && !!profile?.approved}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="account" options={{ title: "Account" }} />
       </Stack.Protected>
@@ -53,10 +57,12 @@ export default function Root() {
     );
   return (
     <SafeAreaProvider>
-      <SessionProvider>
-        <StatusBar style="dark" />
-        <Navigation />
-      </SessionProvider>
+      <CommunityProvider>
+        <SessionProvider>
+          <StatusBar style="dark" />
+          <Navigation />
+        </SessionProvider>
+      </CommunityProvider>
     </SafeAreaProvider>
   );
 }

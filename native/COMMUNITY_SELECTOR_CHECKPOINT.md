@@ -21,3 +21,13 @@ Validation: TypeScript, focused ESLint and native JSX checks passed. Android/iOS
 ## Login fallback routing correction
 
 The always-public first community screen was Expo Router’s fallback when authentication removed the sign-in route. Moved communities into the signed-out protected group. Approved users can now resolve only to tabs/account; pending or missing profiles resolve to pending. Signed-out users retain community selection/sign-in. Three regression checks inspect actual screen order and inherited protection guards, covering approved, pending, missing-profile and signed-out states. TypeScript, focused ESLint and Expo web export passed. No account or production data changes.
+
+## Saved-community startup and original favicon — 2026-10-14
+
+Copied public/favicon.svg byte-for-byte from origin/main to native/public/favicon.svg and generated native/assets/favicon.png from that SVG for Expo web.favicon (Expo rejects SVG favicon input). Both Git blob hashes are 7090c851d7aa1d4585336eda52d26ef216a5b03d.
+
+CommunityProvider now hydrates selected_community from AsyncStorage before navigation mounts. Missing/invalid saved selection permits only Welcome; a saved selection permits login for signed-out users, status for pending accounts, or Home/account for approved users. Choosing a community persists it before updating routing; Switch Community removes it before returning to Welcome. This removes competing per-screen redirects and preserves remembered selection on sign-out/reload.
+
+TypeScript, focused ESLint and four routing regression checks passed.
+
+Final Expo web export passed and includes favicon.ico.
