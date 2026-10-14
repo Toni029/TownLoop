@@ -1323,85 +1323,71 @@ export function ProfileMenu({
                               : "Choose a resident to start a private conversation."}
                         </Text>
                       </View>
-                      <Text style={[s.rowTitle, { color: muted }]}>
-                        Recipient
-                      </Text>
-                      {category === "friend" ||
-                      (category === "office"
-                        ? officeManager(user)
-                        : isCrew(user)) ? (
-                        <View style={[s.recipientPanel, panel]}>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel="Choose recipient"
-                            accessibilityState={{ expanded: recipientOpen }}
-                            onPress={() => setRecipientOpen(!recipientOpen)}
-                            style={s.recipientChoice}
-                          >
-                            <Text style={[s.rowTitle, { color: ink, flex: 1 }]}>
-                              {person
-                                ? `${person.name}${person.address ? ` · ${person.address}` : ""}`
-                                : "Select a resident…"}
-                            </Text>
-                            <ChevronDown size={18} color={muted} />
-                          </Pressable>
-                          {recipientOpen && (
-                            <ScrollView
-                              nestedScrollEnabled
-                              style={{ maxHeight: 180 }}
-                            >
-                              {friends.length === 0 && (
-                                <Text
-                                  style={[
-                                    s.small,
-                                    { color: muted, padding: 16 },
-                                  ]}
-                                >
-                                  No residents available.
-                                </Text>
-                              )}
-                              {friends.map((p) => (
-                                <Pressable
-                                  key={String(p.id)}
-                                  accessibilityRole="button"
-                                  accessibilityState={{
-                                    selected: person?.id === p.id,
-                                  }}
-                                  onPress={() => {
-                                    setPerson(p);
-                                    setRecipientOpen(false);
-                                  }}
-                                  style={[
-                                    s.recipientChoice,
-                                    person?.id === p.id && {
-                                      backgroundColor: "#05966920",
-                                    },
-                                  ]}
-                                >
-                                  <Text style={[s.small, { color: ink }]}>
-                                    {p.name}
-                                    {p.address ? ` · ${p.address}` : ""}
-                                  </Text>
-                                </Pressable>
-                              ))}
-                            </ScrollView>
-                          )}
-                        </View>
-                      ) : (
-                        <View
-                          style={[s.recipientPanel, s.recipientChoice, panel]}
-                        >
-                          {category === "office" ? (
-                            <Building2 size={19} color="#2563eb" />
-                          ) : (
-                            <Wrench size={19} color="#d97706" />
-                          )}
-                          <Text style={[s.rowTitle, { color: ink }]}>
-                            {category === "office"
-                              ? "Community Office"
-                              : "Maintenance Crew"}
+                      {category === "friend" && (
+                        <>
+                          <Text style={[s.rowTitle, { color: muted }]}>
+                            Recipient
                           </Text>
-                        </View>
+                          <View style={[s.recipientPanel, panel]}>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Choose recipient"
+                              accessibilityState={{ expanded: recipientOpen }}
+                              onPress={() => setRecipientOpen(!recipientOpen)}
+                              style={s.recipientChoice}
+                            >
+                              <Text
+                                style={[s.rowTitle, { color: ink, flex: 1 }]}
+                              >
+                                {person
+                                  ? `${person.name}${person.address ? ` · ${person.address}` : ""}`
+                                  : "Select a resident…"}
+                              </Text>
+                              <ChevronDown size={18} color={muted} />
+                            </Pressable>
+                            {recipientOpen && (
+                              <ScrollView
+                                nestedScrollEnabled
+                                style={{ maxHeight: 180 }}
+                              >
+                                {friends.length === 0 && (
+                                  <Text
+                                    style={[
+                                      s.small,
+                                      { color: muted, padding: 16 },
+                                    ]}
+                                  >
+                                    No residents available.
+                                  </Text>
+                                )}
+                                {friends.map((p) => (
+                                  <Pressable
+                                    key={String(p.id)}
+                                    accessibilityRole="button"
+                                    accessibilityState={{
+                                      selected: person?.id === p.id,
+                                    }}
+                                    onPress={() => {
+                                      setPerson(p);
+                                      setRecipientOpen(false);
+                                    }}
+                                    style={[
+                                      s.recipientChoice,
+                                      person?.id === p.id && {
+                                        backgroundColor: "#05966920",
+                                      },
+                                    ]}
+                                  >
+                                    <Text style={[s.small, { color: ink }]}>
+                                      {p.name}
+                                      {p.address ? ` · ${p.address}` : ""}
+                                    </Text>
+                                  </Pressable>
+                                ))}
+                              </ScrollView>
+                            )}
+                          </View>
+                        </>
                       )}
                       <Text style={[s.rowTitle, { color: muted }]}>
                         Subject
@@ -1435,13 +1421,7 @@ export function ProfileMenu({
                         title={busy ? "Sending…" : "Send Message"}
                         onPress={() =>
                           void act(async () => {
-                            if (
-                              (category === "friend" ||
-                                (category === "office"
-                                  ? officeManager(user)
-                                  : isCrew(user))) &&
-                              !person
-                            )
+                            if (category === "friend" && !person)
                               throw new Error("Select a resident first.");
                             await sendMessage(
                               category,
