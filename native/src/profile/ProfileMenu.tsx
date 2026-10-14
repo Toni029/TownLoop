@@ -33,6 +33,9 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Camera,
+  Check,
+  CheckCheck,
+  Crown,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -75,6 +78,7 @@ import {
   neighbors,
   officeManager,
   senderLabel,
+  messageIsMine,
   type Category,
   type Thread,
 } from "./model";
@@ -268,6 +272,12 @@ export function ProfileMenu({
   const conversation = data.threads.find(
     (t) => t.id === selected?.id && t.category === selected.category,
   );
+  useEffect(() => {
+    if (view !== "conversation" || !conversation?.unread) return;
+    void markRead(conversation).catch((e) =>
+      setError(e.message || "Unable to mark messages read."),
+    );
+  }, [view, conversation]);
   const friends = user ? neighbors(data.directory.items, user) : [];
   const visibleFriends = friends.filter((p) =>
     `${p.name} ${p.address || ""} ${p.wing || ""}`
@@ -1447,19 +1457,159 @@ export function ProfileMenu({
                           <Text style={[s.small, { color: muted }]}>
                             {conversation.subject}
                           </Text>
-                          {conversation.messages.map((m) => (
-                            <View key={m.id} style={[s.bubble, panel]}>
-                              <Text style={[s.rowTitle, { color: ink }]}>
-                                {senderLabel(m, conversation.category, user)}
-                              </Text>
-                              <Text style={[s.message, { color: ink }]}>
-                                {m.body}
-                              </Text>
-                              <Text style={[s.small, { color: muted }]}>
-                                {new Date(m.createdAt).toLocaleString()}
-                              </Text>
-                            </View>
-                          ))}
+                          {conversation.messages.map((m) => {
+                            const mine = messageIsMine(m, user);
+                            const read = (m.readBy?.length || 0) > 0;
+                            const role = m.senderRole;
+                            const badge =
+                              role === "admin"
+                                ? "#dc2626"
+                                : role === "vip"
+                                  ? "#7c3aed"
+                                  : role === "crew"
+                                    ? "#d97706"
+                                    : null;
+                            const BadgeIcon =
+                              role === "crew"
+                                ? Wrench
+                                : role === "vip"
+                                  ? Crown
+                                  : Shield;
+                            const label = mine
+                              ? "You"
+                              : senderLabel(m, conversation.category, user);
+                            return (
+                              <View
+                                key={m.id}
+                                style={{
+                                  flexDirection: mine ? "row-reverse" : "row",
+                                  alignItems: "flex-end",
+                                  gap: 9,
+                                  marginVertical: 3,
+                                }}
+                              >
+                                <View style={{ width: 36, height: 40 }}>
+                                  <View
+                                    style={{
+                                      width: 36,
+                                      height: 36,
+                                      borderRadius: 18,
+                                      backgroundColor: dark
+                                        ? "#334155"
+                                        : "#e7e5e4",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      overflow: "hidden",
+                                    }}
+                                  >
+                                    {m.senderAvatar ? (
+                                      <Image
+                                        source={{ uri: m.senderAvatar }}
+                                        style={{ width: 36, height: 36 }}
+                                      />
+                                    ) : (
+                                      <Text style={[s.small, { color: ink }]}>
+                                        {label.slice(0, 1).toUpperCase()}
+                                      </Text>
+                                    )}
+                                  </View>
+                                  {badge && (
+                                    <View
+                                      accessibilityLabel={`${role} badge`}
+                                      style={{
+                                        position: "absolute",
+                                        left: -3,
+                                        bottom: 0,
+                                        width: 19,
+                                        height: 19,
+                                        borderRadius: 10,
+                                        backgroundColor: badge,
+                                        borderWidth: 2,
+                                        borderColor: dark ? "#1e293b" : "#fff",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                      }}
+                                    >
+                                      <BadgeIcon size={10} color="#fff" />
+                                    </View>
+                                  )}
+                                </View>
+                                <View
+                                  style={{
+                                    maxWidth: "80%",
+                                    padding: 13,
+                                    gap: 6,
+                                    borderRadius: 18,
+                                    borderBottomRightRadius: mine ? 4 : 18,
+                                    borderBottomLeftRadius: mine ? 18 : 4,
+                                    backgroundColor: mine
+                                      ? dark
+                                        ? "#064e3b"
+                                        : "#d1fae5"
+                                      : dark
+                                        ? "#334155"
+                                        : "#fff",
+                                    borderWidth: 1,
+                                    borderColor: mine
+                                      ? "#05966940"
+                                      : "#78716c25",
+                                  }}
+                                >
+                                  <Text
+                                    style={[
+                                      s.small,
+                                      {
+                                        color: mine
+                                          ? dark
+                                            ? "#6ee7b7"
+                                            : "#047857"
+                                          : muted,
+                                        fontFamily: "JakartaBold",
+                                      },
+                                    ]}
+                                  >
+                                    {label}
+                                  </Text>
+                                  <Text style={[s.message, { color: ink }]}>
+                                    {m.body}
+                                  </Text>
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      justifyContent: "flex-end",
+                                      gap: 5,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{ color: muted, fontSize: 10 }}
+                                    >
+                                      {new Date(m.createdAt).toLocaleTimeString(
+                                        [],
+                                        { hour: "numeric", minute: "2-digit" },
+                                      )}
+                                    </Text>
+                                    {mine && (
+                                      <View
+                                        accessibilityLabel={
+                                          read ? "Read by recipient" : "Sent"
+                                        }
+                                      >
+                                        {read ? (
+                                          <CheckCheck
+                                            size={16}
+                                            color="#0284c7"
+                                          />
+                                        ) : (
+                                          <Check size={16} color={muted} />
+                                        )}
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
+                              </View>
+                            );
+                          })}
                           <TextInput
                             accessibilityLabel="Reply"
                             placeholder="Write a reply…"

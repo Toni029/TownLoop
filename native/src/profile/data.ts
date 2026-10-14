@@ -24,6 +24,7 @@ import {
   residentKey,
   readThread,
   officeManager,
+  receiptMessages,
   type Category,
   type Thread,
 } from "./model";
@@ -121,6 +122,13 @@ export async function markRead(thread: Thread) {
       !readThread(thread.category, thread.id, snap.data(), user)
     )
       throw new Error("This conversation is no longer available.");
+    tx.update(reference, {
+      messages: receiptMessages(
+        snap.data().messages || [],
+        thread.category,
+        user,
+      ),
+    });
     if (thread.category === "friend")
       tx.update(reference, {
         unreadBy: (snap.data().unreadBy || []).filter(
@@ -179,11 +187,15 @@ export async function sendMessage(
       senderId: category === "friend" ? participantKey(user) : String(user.id),
       senderName: user.name,
       senderRole:
-        category === "office" && manager
-          ? "vip"
-          : category === "maintenance" && manager
-            ? "crew"
-            : "resident",
+        category === "friend"
+          ? user.role
+          : category === "office" && manager
+            ? user.role === "admin"
+              ? "admin"
+              : "vip"
+            : category === "maintenance" && manager
+              ? "crew"
+              : "resident",
       senderAvatar: user.avatar_url || user.avatarUrl || "",
       body: body.trim(),
       createdAt: now,

@@ -1,5 +1,6 @@
 import type { UserProfile } from "../../../src/types";
 import {
+  getUserRole,
   isAdmin,
   isVip,
   isCrew,
@@ -13,6 +14,8 @@ export type Message = {
   senderRole: string;
   body: string;
   createdAt: number;
+  senderAvatar?: string;
+  readBy?: string[];
 };
 export type Thread = {
   id: string;
@@ -60,7 +63,7 @@ export function residentKey(user: { id?: string | number; email?: string }) {
     .toLowerCase();
 }
 export function officeManager(user: UserProfile) {
-  return isAdmin(user) || isVip(user);
+  return ["admin", "vip"].includes(getUserRole(user));
 }
 export function neighbors(users: UserProfile[], current: UserProfile) {
   return users.filter(
@@ -166,7 +169,7 @@ export function senderLabel(
   if (
     category === "office" &&
     !officeManager(user) &&
-    message.senderRole === "vip"
+    ["admin", "vip"].includes(message.senderRole)
   )
     return "Community Office";
   if (
@@ -176,4 +179,33 @@ export function senderLabel(
   )
     return "Maintenance Crew";
   return message.senderName || "Resident";
+}
+
+export function messageIsMine(message: Message, user: UserProfile) {
+  return identifiers(user).includes(message.senderId.toLowerCase());
+}
+export function receiptMessages(
+  messages: Message[],
+  category: Category,
+  user: UserProfile,
+) {
+  const team =
+    category === "office"
+      ? officeManager(user)
+      : category === "maintenance" && isCrew(user);
+  return messages.map((message) => {
+    const fromTeam =
+      category === "office"
+        ? ["vip", "admin"].includes(message.senderRole)
+        : category === "maintenance" && message.senderRole === "crew";
+    if (
+      messageIsMine(message, user) ||
+      (category !== "friend" && !!team === !!fromTeam)
+    )
+      return message;
+    return {
+      ...message,
+      readBy: [...new Set([...(message.readBy || []), String(user.id)])],
+    };
+  });
 }

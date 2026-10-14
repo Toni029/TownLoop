@@ -7,6 +7,8 @@ import {
   readThread,
   neighbors,
   senderLabel,
+  receiptMessages,
+  officeManager,
 } from "../src/profile/model.ts";
 import type { UserProfile } from "../../src/types.ts";
 const resident = {
@@ -99,13 +101,71 @@ test("office replies preserve anonymous office identity for residents", () => {
 });
 
 test("only crew see the shared team identities; residents see one maintenance contact", () => {
-  const message = { id: "m", senderId: "crew-one", senderName: "Pat", senderRole: "crew", body: "Hello", createdAt: 1 };
-  assert.equal(senderLabel(message, "maintenance", resident), "Maintenance Crew");
-  assert.equal(senderLabel(message, "maintenance", { ...other, role: "crew" }), "Pat");
-  const data = { residentId: resident.id, residentEmail: resident.email, messages: [message] };
+  const message = {
+    id: "m",
+    senderId: "crew-one",
+    senderName: "Pat",
+    senderRole: "crew",
+    body: "Hello",
+    createdAt: 1,
+  };
+  assert.equal(
+    senderLabel(message, "maintenance", resident),
+    "Maintenance Crew",
+  );
+  assert.equal(
+    senderLabel(message, "maintenance", { ...other, role: "crew" }),
+    "Pat",
+  );
+  const data = {
+    residentId: resident.id,
+    residentEmail: resident.email,
+    messages: [message],
+  };
   for (const role of ["resident", "admin", "vip", "staff"]) {
-    assert.equal(readThread("maintenance", "one", data, { ...other, role }), null);
+    assert.equal(
+      readThread("maintenance", "one", data, { ...other, role }),
+      null,
+    );
   }
-  for (const role of ["admin", "vip"]) assert.ok(readThread("office", "one", data, { ...other, role }));
-  assert.equal(readThread("office", "one", data, { ...other, role: "crew" }), null);
+  for (const role of ["admin", "vip"])
+    assert.ok(readThread("office", "one", data, { ...other, role }));
+  assert.equal(
+    readThread("office", "one", data, { ...other, role: "crew" }),
+    null,
+  );
+});
+
+test("read receipts require the opposite side, not another sender-team member", () => {
+  const crewReply = {
+    id: "reply",
+    senderId: "crew-one",
+    senderRole: "crew",
+    senderName: "Pat",
+    body: "Hello",
+    createdAt: 1,
+  };
+  assert.equal(
+    receiptMessages([crewReply], "maintenance", { ...other, role: "crew" })[0]
+      .readBy,
+    undefined,
+  );
+  assert.deepEqual(
+    receiptMessages([crewReply], "maintenance", resident)[0].readBy,
+    [resident.id],
+  );
+  const request = {
+    ...crewReply,
+    senderId: String(resident.id),
+    senderRole: "resident",
+  };
+  assert.deepEqual(
+    receiptMessages([request], "maintenance", { ...other, role: "crew" })[0]
+      .readBy,
+    [other.id],
+  );
+  for (const role of ["resident", "crew", "staff"])
+    assert.equal(officeManager({ ...other, role }), false);
+  for (const role of ["admin", "vip"])
+    assert.equal(officeManager({ ...other, role }), true);
 });

@@ -96,7 +96,7 @@ test("conversation deletion checks real participant identity before writing", as
 test("mark all read can clear only the current resident unread marker", async () => {
   const owner = fixture("alice", chat);
   await owner.actions.markRead(thread);
-  assert.deepEqual(owner.writes[0].patch, { unreadBy: ["bob"] });
+  assert.deepEqual(owner.writes[1].patch, { unreadBy: ["bob"] });
 });
 
 test("crew members append to the same resident conversation without losing previous replies", async () => {
