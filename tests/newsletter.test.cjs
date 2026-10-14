@@ -10,7 +10,7 @@ async function bundle(entry, mocks = {}) {
  }}]});
  const module={exports:{}};new Function('module','exports','require',result.outputFiles[0].text)(module,module.exports,require);return module.exports;
 }
-const event = (overrides = {}) => ({title:'Fall Festival', date:'October 31', time:'5 PM', location:'Pavilion', description:'Bring a side dish.', requiresRsvp:true, rsvpDetails:'RSVP by Monday, October 26th',sourcePage:10,...overrides});
+const event = (overrides = {}) => ({title:'Fall Festival', date:'October 31', time:'5 PM', location:'Pavilion', description:'Bring a side dish.', requiresRsvp:true, isRecurring:false, rsvpDetails:'RSVP by Monday, October 26th',sourcePage:10,...overrides});
 const sdk = `export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'}; export class GoogleGenAI {models={generateContent: async (args)=>{global.__model=args.model;return {text:JSON.stringify(global.__newsletter)}}}}`;
 test('actual extraction excludes ordinary events, requires evidence, preserves event date and reports model',async()=>{
  const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
@@ -99,10 +99,10 @@ test('reader refuses stale cached metadata and revokes an open PDF when the admi
  }finally{URL.revokeObjectURL=original;}
 });
 
-test('explicit RSVP overrides recurring activity names, while routine activities stay excluded',async()=>{
+test('special events qualify but recurring activities are excluded even with RSVP',async()=>{
  const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
  process.env.GEMINI_API_KEY='test-only';
- global.__newsletter={monthEdition:'October 2026',events:[event({title:'October Potluck',date:'October 20',rsvpDetails:'RSVP by Friday, October 9th'}),event({title:'Bingo',requiresRsvp:false,rsvpDetails:''})],highlights:[]};
+ global.__newsletter={monthEdition:'October 2026',events:[event({title:'October Potluck',date:'October 20',rsvpDetails:'RSVP by Friday, October 9th'}),event({title:'Bingo',isRecurring:true,requiresRsvp:true,rsvpDetails:'RSVP to the office'})],highlights:[]};
  const out=await extractNewsletterContent({base64Data:'x'.repeat(60)});
  assert.deepEqual(out.events.map(e=>e.title),['October Potluck']);
  assert.equal(out.rsvp_events[0].day,'20');
@@ -111,7 +111,7 @@ test('explicit RSVP overrides recurring activity names, while routine activities
 
 test('PDF storage rejects removed editions, incomplete chunks, and stale tails from a larger previous PDF',async()=>{
  const sdkMock = `
- export const collection=(...args)=>args;export const doc=(...args)=>args;
+ export const runTransaction=async()=>{};export const collection=(...args)=>args;export const doc=(...args)=>args;
  export const getDoc=async(ref)=>({exists:()=>true,data:()=>ref.at(-1)==='current'?global.__active:{totalChunks:2}});
  export const getDocs=async()=>({empty:false,forEach:fn=>global.__chunks.forEach(c=>fn({data:()=>c}))});
  export const addDoc=()=>{};export const setDoc=()=>{};export const updateDoc=()=>{};export const arrayUnion=()=>{};
@@ -123,4 +123,23 @@ test('PDF storage rejects removed editions, incomplete chunks, and stale tails f
  assert.equal(await getNewsletterPdfFromFirestore('september'),null);
  global.__chunks=[{index:0,data:'PDF-'}];assert.equal(await getNewsletterPdfFromFirestore('october'),null);
  global.__active.isRemoved=true;assert.equal(await getNewsletterPdfFromFirestore('current'),null);
+});
+
+test('native analysis saves selected drafts once without overwriting RSVP records and rejects changed editions', async()=>{
+ const config={id:'edition-one',editionTitle:'October',monthEdition:'October 2026',uploadedAt:1};
+ global.__aiCurrent=config; global.__aiExists=false; global.__aiWrites=[];
+ const mocks={
+ 'react-native':`export const Platform={OS:'web'};`,
+ '../lib/firebase':`export const db={};export const auth={currentUser:{getIdToken:async()=> 'test-token'}};`,
+ './actions':`export const approvedUser=async()=>({id:'admin',role:'admin'});`,
+ './edition':`export const activeEdition=async()=>global.__aiCurrent;export const loadPdfData=async()=> 'data:application/pdf;base64,JVBERi0=';`,
+ 'firebase/firestore':`export const doc=(_db,c,id)=>({c,id});export const runTransaction=async(_db,fn)=>fn({get:async ref=>({exists:()=>ref.id==='current'||global.__aiExists,data:()=>global.__aiCurrent}),set:(ref,data)=>global.__aiWrites.push({ref,data}),update:()=>{}});`,
+ };
+ const {applyAnalysis}=await bundle('native/src/news/ai.ts',mocks);
+ const {analysisItems}=await bundle('native/src/news/analysisModel.ts');
+ const result={sourceModel:'gemini',rsvp_events:[{title:'Festival',month:'OCT',day:31,deadline:'RSVP by Oct 25'}],pinned_highlights:[]};
+ const selected=analysisItems(result,config).map(item=>item.id);
+ await applyAnalysis(result,config,selected);assert.equal(global.__aiWrites.length,1);
+ global.__aiExists=true;await applyAnalysis(result,config,selected);assert.equal(global.__aiWrites.length,1);
+ global.__aiCurrent={...config,id:'another'};await assert.rejects(applyAnalysis(result,config,selected),/newsletter changed/);assert.equal(global.__aiWrites.length,1);
 });

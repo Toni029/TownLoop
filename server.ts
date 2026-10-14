@@ -53,6 +53,24 @@ function limitAiRequests(req: Request, res: Response, next: () => void) {
   next();
 }
 
+// Allow the local Expo preview and explicitly configured deployed web clients.
+app.use('/api/newsletter/extract-content', (req, res, next) => {
+  const origin = req.headers.origin;
+  const allowed = new Set((process.env.TOWNLOOP_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean));
+  if (process.env.NODE_ENV !== 'production') {
+    allowed.add('http://localhost:8082');
+    allowed.add('http://127.0.0.1:8082');
+  }
+  if (origin && allowed.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  }
+  if (req.method === 'OPTIONS') { res.sendStatus(origin && allowed.has(origin) ? 204 : 403); return; }
+  next();
+});
+
 // Parse JSON and urlencoded bodies with sufficient size limit for large PDF documents & text payloads
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

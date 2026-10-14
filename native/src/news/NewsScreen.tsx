@@ -22,10 +22,10 @@ import {
 import { Copy, NewsDialog, Action } from "./ui";
 import { PdfReader } from "./PdfReader";
 import { UploadEdition } from "./UploadEdition";
-import { removeEdition, purgeRemovedEdition } from "./edition";
+import { removeEdition, purgeRemovedEdition, activeEdition } from "./edition";
 import { sharePdf } from "./files";
 import { editionKey } from "./model";
-import { AI_DEFERRED_MESSAGE } from "./ai";
+import { AnalysisReview } from "./AnalysisReview";
 export default function NewsScreen() {
   const news = useNews();
   const { user, profile } = useSession();
@@ -42,6 +42,7 @@ export default function NewsScreen() {
     event?: CommunityRsvpEvent;
   } | null>(null);
   const [reader, setReader] = useState<NewsletterConfig | null>(null);
+  const [analysis, setAnalysis] = useState<NewsletterConfig | null>(null);
   const [upload, setUpload] = useState(false);
   const [message, setMessage] = useState("");
   const [toast, setToast] = useState("");
@@ -88,7 +89,7 @@ export default function NewsScreen() {
         setUpload(true);
         break;
       case "analyze":
-        setMessage(AI_DEFERRED_MESSAGE);
+        if (news.newsletter) setAnalysis(news.newsletter);
         break;
       case "remove":
         if (news.newsletter) {
@@ -161,11 +162,19 @@ export default function NewsScreen() {
           onSave={(draft) => saveHighlight(editor.id, draft)}
         />
       )}
+      {manager && analysis && (
+        <AnalysisReview config={analysis} onClose={() => setAnalysis(null)} />
+      )}
       {manager && upload && (
         <UploadEdition
           current={news.newsletter}
           onClose={() => setUpload(false)}
-          onPublished={() => setToast("Newsletter published successfully.")}
+          onPublished={() => {
+            setToast("Newsletter published. Ready for AI analysis.");
+            void activeEdition()
+              .then(setAnalysis)
+              .catch((e) => setMessage(e.message));
+          }}
         />
       )}
       {reader && editionKey(reader) === editionKey(news.newsletter) && (

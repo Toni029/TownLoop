@@ -172,9 +172,9 @@ export function UploadEdition({
             ]}
           >
             <Copy>
-              AI analysis will be available after the secure TownLoop service is
-              connected. You can publish the PDF now and manage RSVP events and
-              pinned notices manually.
+              After publishing, analyze this newsletter with Gemini to extract
+              special RSVP events and important community stories. You can
+              review and select the results before adding them to News.
             </Copy>
           </View>
           <Action
@@ -196,8 +196,9 @@ export function UploadEdition({
             <Copy>{file?.name}</Copy>
           </View>
           <Copy>
-            No AI-generated events or highlights will be published. Existing
-            manual community events and notices will be preserved.
+            Your PDF will be published first, then you can run AI analysis and
+            review the extracted events and highlights. Existing events, notices
+            and RSVPs will be preserved.
           </Copy>
           {busy && (
             <View
