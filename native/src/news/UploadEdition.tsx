@@ -34,7 +34,6 @@ export function UploadEdition({
   const uploaded = hasUploadedNewsletter(current) ? current : null;
   const [title, setTitle] = useState(uploaded?.editionTitle || "");
   const [month, setMonth] = useState(uploaded?.monthEdition || "");
-  const [description, setDescription] = useState(uploaded?.description || "");
   const [file, setFile] = useState<PickedPdf | null>(null);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -104,7 +103,7 @@ export function UploadEdition({
           id: editionId,
           editionTitle: title.trim(),
           monthEdition: month.trim(),
-          description: description.trim(),
+          description: "",
           pdfUrl: `firestore:${editionId}`,
           fileUrl: `firestore:${editionId}`,
           fileName: file.name,
@@ -207,16 +206,6 @@ export function UploadEdition({
             onChangeText={(v) => {
               resetDraft();
               setMonth(v);
-            }}
-            editable={!busy}
-          />
-          <Field
-            label="Description"
-            multiline
-            value={description}
-            onChangeText={(v) => {
-              resetDraft();
-              setDescription(v);
             }}
             editable={!busy}
           />

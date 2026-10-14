@@ -172,7 +172,7 @@ test('unavailable primary moves directly to PDF-capable fallback with bounded HT
  const result=await extractNewsletterContent({base64Data:'x'.repeat(60)});
  assert.equal(result.sourceModel,'gemini-3-flash-preview');assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3.8-flash','gemini-3-flash-preview']);
  assert.ok(global.__attempts.every(a=>a.timeout===40000&&a.abort));
- global.__attempts=[];await extractNewsletterContent({base64Data:'x'.repeat(60)});assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3-flash-preview']);
+ global.__attempts=[];await extractNewsletterContent({base64Data:'x'.repeat(60),isReanalysis:true});assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3-flash-preview']);
  delete process.env.GEMINI_API_KEY;
 });
 
@@ -200,4 +200,21 @@ test('image-only PDF uses labelled page images when file upload and text extract
   assert.deepEqual(global.__visionParts[1].inlineData,{mimeType:'image/jpeg',data:'page-image'});
   assert.ok(!global.__visionParts.some(p=>p.inlineData?.mimeType==='application/pdf'));
  } finally {delete process.env.GEMINI_API_KEY;}
+});
+
+test('visual batches retain successful pages across model fallback and cache only complete results',async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw new Error('404')}};models={generateContent:async args=>{const labels=args.contents[0].parts.filter(p=>p.text?.startsWith('PAGE')).map(p=>p.text);const batch=labels.at(-1);global.__batchCalls.push({batch,model:args.model});if(batch==='PAGE 3'&&args.model==='gemini-3.1-flash-lite')throw new Error('503');return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[{title:batch,summary:'Verified page',category:'News'}]})}}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw new Error('scanned')}`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>Array.from({length:3},(_,i)=>[{text:'PAGE '+(i+1)},{inlineData:{mimeType:'image/jpeg',data:'image'}}]).flat();`});
+ process.env.GEMINI_API_KEY='test';global.__batchCalls=[];
+ const payload={base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'};
+ try {
+ const result=await extractNewsletterContent(payload);
+ assert.equal(result.highlights.length,3);
+ assert.equal(global.__batchCalls.length,4);
+ assert.equal(global.__batchCalls.filter(c=>c.batch==='PAGE 1').length,1);
+ result.highlights.length=0;
+ const again=await extractNewsletterContent(payload);
+ assert.equal(again.highlights.length,3);
+ assert.equal(global.__batchCalls.length,4);
+ }finally{delete process.env.GEMINI_API_KEY;}
 });

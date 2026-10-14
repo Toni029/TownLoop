@@ -4,6 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
+import { createHash } from 'node:crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import { newsletterPdfImages } from './newsletterPdfImages.ts';
 import { newsletterPdfText } from './newsletterPdfText.ts';
@@ -304,7 +305,7 @@ export function isRecurringCalendarActivity(title: string): boolean {
  * using Gemini API with multimodal inlineData and strict JSON output schema.
  * STRICT: If extraction fails, throws an error. NEVER falls back to mock or demo data.
  */
-export async function extractNewsletterContent(
+async function runNewsletterExtraction(
   payload: NewsletterExtractionPayload
 ): Promise<NewsletterExtractionResponse> {
   const ai = getGenAI();
@@ -370,7 +371,7 @@ export async function extractNewsletterContent(
       }
     }
   }
-  const parts: any[] = imageParts || [documentPart];
+  const parts: any[] = imageParts ? [...imageParts] : [documentPart];
 
   if (payload.textContent && payload.textContent.trim().length > 0) {
     parts.push({
@@ -528,7 +529,21 @@ STRICT ZERO-HALLUCINATION RULES:
     },
   };
 
+  // Keep successful page batches when a different model must retry a failed batch.
+  const batchSize = imageParts ? Math.ceil(imageParts.length / 2 / 3) * 2 : 0;
+  const batches: any[][] = [];
+  if (imageParts) {
+    for (let offset = 0; offset < imageParts.length; offset += batchSize) {
+      batches.push([
+        ...(offset ? imageParts.slice(0, 2) : []),
+        ...imageParts.slice(offset, offset + batchSize),
+        { text: prompt + "\nAnalyze only this supplied page batch. The repeated first page provides edition context. Preserve original PDF page numbers. Do not invent information from pages you cannot see." },
+      ]);
+    }
+  }
+  const completedBatches = new Map<number, any>();
   let lastError: any = null;
+
 
   const models = largePdf
     ? ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-3.8-flash']
@@ -545,26 +560,51 @@ STRICT ZERO-HALLUCINATION RULES:
           `[Newsletter Pipeline] Step 2: Dispatching stateless prompt to Gemini model: ${model} (attempt ${attempt + 1}) with ${imageParts ? "rendered page images" : documentPart.text ? "page-labelled text" : largePdf ? "uploaded file" : "inline data"} (${Math.round((rawBase64.length * 0.75) / 1024)} KB, mime: ${mime})...`
         );
 
-        const response = await ai.models.generateContent({
-          model,
-          contents,
-          config: {
-            ...generationConfig,
-            // Abort the actual HTTP request, rather than leaving timed-out work running.
-            httpOptions: { timeout: modelTimeout },
-            abortSignal: AbortSignal.timeout(modelTimeout),
-          },
-        });
-
-        const responseText = response?.text;
-        if (!responseText) {
-          throw new Error(`Model ${model} returned empty response.`);
-        }
-
-        console.info(`[Newsletter Pipeline] Step 3: Received Gemini response from ${model}, parsing structured JSON...`);
-        const parsed = JSON.parse(responseText);
-        if (!parsed || !Array.isArray(parsed.events) || !Array.isArray(parsed.highlights)) {
-          throw new Error('Gemini returned incomplete analysis; trying another model.');
+        const generate = async (requestContents: any) => {
+          const response = await ai.models.generateContent({
+            model,
+            contents: requestContents,
+            config: {
+              ...generationConfig,
+              httpOptions: { timeout: modelTimeout },
+              abortSignal: AbortSignal.timeout(modelTimeout),
+            },
+          });
+          if (!response?.text) throw new Error(`Model ${model} returned empty response.`);
+          const parsed = JSON.parse(response.text);
+          if (!parsed || !Array.isArray(parsed.events) || !Array.isArray(parsed.highlights)) {
+            throw new Error('Gemini returned incomplete analysis; trying another model.');
+          }
+          return parsed;
+        };
+        let parsed: any;
+        if (batches.length) {
+          const attempts = await Promise.allSettled(batches.map(async (batch, index) => {
+            if (completedBatches.has(index)) return;
+            const value = await generate([{ role: 'user', parts: batch }]);
+            completedBatches.set(index, value);
+            console.info(`[Newsletter Pipeline] Visual batch ${index + 1}/${batches.length} complete.`);
+          }));
+          const failure = attempts.find((attempt) => attempt.status === 'rejected');
+          if (failure?.status === 'rejected') throw failure.reason;
+          const results = batches.map((_, index) => completedBatches.get(index));
+          const unique = (items: any[], event: boolean) => {
+            const seen = new Set<string>();
+            return items.filter(item => {
+              const key = String(item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '') +
+                (event ? String(item.date || '').toLowerCase() : '');
+              if (seen.has(key)) return false;
+              seen.add(key); return true;
+            });
+          };
+          parsed = {
+            monthEdition: results[0].monthEdition,
+            events: unique(results.flatMap(result => result.events), true),
+            // Interleave batches so later-page stories are not crowded out by front-page notices.
+            highlights: unique(Array.from({ length: 7 }, (_, i) => results.flatMap(result => result.highlights[i] ? [result.highlights[i]] : [])).flat(), false).slice(0, 7),
+          };
+        } else {
+          parsed = await generate(contents);
         }
 
         const rawEvents: ExtractedEventItem[] = Array.isArray(parsed.events) ? parsed.events : [];
@@ -660,4 +700,25 @@ STRICT ZERO-HALLUCINATION RULES:
     }
   }
 
+}
+
+
+// Cache only successful, identical-document analyses; never publish cached content automatically.
+const analysisCache = new Map<string, { expires: number; result: NewsletterExtractionResponse }>();
+export async function extractNewsletterContent(payload: NewsletterExtractionPayload): Promise<NewsletterExtractionResponse> {
+  const key = createHash('sha256').update(JSON.stringify([
+    payload.base64Data || payload.fileDataUrl, payload.mimeType || payload.fileType,
+    payload.monthEdition, payload.editionTitle, payload.textContent, payload.extraInstructions,
+  ])).digest('hex');
+  if (!process.env.GEMINI_API_KEY?.trim()) throw new Error('Gemini API key is not configured.');
+  const cached = analysisCache.get(key);
+  if (!payload.isReanalysis && cached && cached.expires > Date.now()) {
+    console.info('[Newsletter Pipeline] Reusing successful analysis of identical document.');
+    return structuredClone(cached.result);
+  }
+  const result = await runNewsletterExtraction(payload);
+  for (const [id, entry] of analysisCache) if (entry.expires <= Date.now()) analysisCache.delete(id);
+  if (analysisCache.size >= 10) analysisCache.delete(analysisCache.keys().next().value!);
+  analysisCache.set(key, { expires: Date.now() + 10 * 60_000, result: structuredClone(result) });
+  return result;
 }
