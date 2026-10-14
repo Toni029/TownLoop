@@ -120,10 +120,9 @@ export async function purgeRemovedEdition(id: string) {
   }
   await removeEditionFiles(id);
 }
-export async function publishEdition(
+export async function stageEdition(
   config: NewsletterConfig,
   dataUrl: string,
-  expectedKey: string,
   onProgress: (percent: number) => void,
 ) {
   await approvedUser(true);
@@ -151,9 +150,23 @@ export async function publishEdition(
     });
     onProgress(Math.round(((index + 1) / totalChunks) * 80));
   }
+  return metadata;
+}
+export async function finishEdition(
+  metadata: NewsletterConfig & { totalChunks: number; totalSize: number },
+  expectedKey: string,
+  items: {
+    id: string;
+    collection: string;
+    data: Record<string, unknown>;
+  }[] = [],
+) {
+  await approvedUser(true);
+  const config = metadata;
   await runTransaction(db, async (tx) => {
     const pointer = doc(db, "newsletters", "current");
     const old = await tx.get(pointer);
+    if (old.exists() && old.data().id === config.id && !old.data().isRemoved) return;
     if (
       editionKey(old.exists() ? (old.data() as NewsletterConfig) : null) !==
       expectedKey
@@ -161,6 +174,8 @@ export async function publishEdition(
       throw new Error(
         "Another administrator changed the newsletter. Refresh before publishing.",
       );
+    for (const item of items)
+      tx.set(doc(db, item.collection, item.id), item.data);
     tx.set(doc(db, "newsletters", config.id), metadata);
     // PDF bytes live at the immutable edition id. Publishing only the pointer
     // stays below Firestore's 10 MiB transaction limit for the real 16 MiB issue.
@@ -172,5 +187,14 @@ export async function publishEdition(
       totalSize: 0,
     });
   });
+}
+export async function publishEdition(
+  config: NewsletterConfig,
+  dataUrl: string,
+  expectedKey: string,
+  onProgress: (percent: number) => void,
+) {
+  const metadata = await stageEdition(config, dataUrl, onProgress);
+  await finishEdition(metadata, expectedKey);
   onProgress(100);
 }

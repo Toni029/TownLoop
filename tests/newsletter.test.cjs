@@ -143,3 +143,23 @@ test('native analysis saves selected drafts once without overwriting RSVP record
  global.__aiExists=true;await applyAnalysis(result,config,selected);assert.equal(global.__aiWrites.length,1);
  global.__aiCurrent={...config,id:'another'};await assert.rejects(applyAnalysis(result,config,selected),/newsletter changed/);assert.equal(global.__aiWrites.length,1);
 });
+
+test('native upload stages PDF before review and atomically publishes approved items afterward', async()=>{
+ global.__stageWrites=[];global.__publishWrites=[];global.__currentEdition=null;
+ const {stageEdition,finishEdition}=await bundle('native/src/news/edition.ts',{
+ '../lib/firebase':`export const db={};export const storage={};`,
+ './actions':`export const approvedUser=async()=>({id:'admin'});`,
+ 'firebase/storage':`export const ref=()=>{};export const deleteObject=async()=>{};`,
+ 'firebase/firestore':`export const collection=()=>{};export const deleteDoc=async()=>{};export const getDocFromServer=async()=>{};export const getDocsFromServer=async()=>{};export const writeBatch=()=>{};export const serverTimestamp=()=>1;export const doc=(_db,...parts)=>parts.join('/');export const setDoc=async(ref,data)=>global.__stageWrites.push({ref,data});export const runTransaction=async(_db,fn)=>fn({get:async()=>({exists:()=>!!global.__currentEdition,data:()=>global.__currentEdition}),set:(ref,data)=>global.__publishWrites.push({ref,data})});`,
+ });
+ const {editionKey}=await bundle('native/src/news/model.ts');
+ const config={id:'draft',editionTitle:'October',monthEdition:'October 2026',uploadedAt:1};
+ const staged=await stageEdition(config,'data:application/pdf;base64,JVBERi0xLjcK',()=>{});
+ assert.equal(global.__stageWrites.length,1);assert.equal(global.__publishWrites.length,0);
+ const items=[{id:'event',collection:'community_events',data:{title:'Reviewed event'}}];
+ await finishEdition(staged,editionKey(null),items);
+ assert.deepEqual(global.__publishWrites.map(w=>w.ref),['community_events/event','newsletters/draft','newsletters/current']);
+ global.__publishWrites=[];global.__currentEdition={...config,id:'newer'};
+ await assert.rejects(finishEdition(staged,editionKey(null),items),/Another administrator/);
+ assert.equal(global.__publishWrites.length,0);
+});

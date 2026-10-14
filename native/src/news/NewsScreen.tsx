@@ -22,7 +22,7 @@ import {
 import { Copy, NewsDialog, Action } from "./ui";
 import { PdfReader } from "./PdfReader";
 import { UploadEdition } from "./UploadEdition";
-import { removeEdition, purgeRemovedEdition, activeEdition } from "./edition";
+import { removeEdition, purgeRemovedEdition } from "./edition";
 import { sharePdf } from "./files";
 import { editionKey } from "./model";
 import { AnalysisReview } from "./AnalysisReview";
@@ -169,12 +169,7 @@ export default function NewsScreen() {
         <UploadEdition
           current={news.newsletter}
           onClose={() => setUpload(false)}
-          onPublished={() => {
-            setToast("Newsletter published. Ready for AI analysis.");
-            void activeEdition()
-              .then(setAnalysis)
-              .catch((e) => setMessage(e.message));
-          }}
+          onPublished={() => setToast("Newsletter published successfully.")}
         />
       )}
       {reader && editionKey(reader) === editionKey(news.newsletter) && (

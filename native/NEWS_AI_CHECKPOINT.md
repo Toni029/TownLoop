@@ -7,9 +7,13 @@ service URL. Only a Firebase ID token and the PDF are sent; Gemini credentials
 remain on the server. The backend needs GEMINI_API_KEY and, for deployed browser
 clients, a comma-separated TOWNLOOP_ALLOWED_ORIGINS allowlist.
 
-New uploads lead to the analysis review dialog after PDF publication. Existing
-editions use Re-analyze with AI. The manager explicitly starts Gemini analysis,
-reviews/selects results, then publishes selected events/highlights. The server
+New uploads stage PDF chunks without replacing the current edition. AI is checked
+by default. Upload & Publish runs analysis on the selected PDF, then pauses in
+the same panel for review. Event/story pencil and trash controls edit or remove
+drafts. Upload & Publish then commits the PDF pointer and reviewed items in one
+transaction. Unchecking AI publishes PDF-only. Existing editions still use
+Re-analyze with AI. Progress tracks Uploading, AI analysis, Polishing touches,
+and Done; it pauses for review and never signals success after an AI failure. The server
 tries gemini-3.8-flash first, with its existing gemini-3.1-flash-lite fallback;
 the actual model is shown in the review.
 

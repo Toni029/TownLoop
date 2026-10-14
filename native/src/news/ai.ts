@@ -8,6 +8,7 @@ import { editionKey } from "./model";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 export async function analyzeNewsletter(
   config: NewsletterConfig,
+  selectedPdf?: string,
 ): Promise<AnalysisResult> {
   await approvedUser(true);
   const configured = process.env.EXPO_PUBLIC_TOWNLOOP_API_URL;
@@ -28,7 +29,7 @@ export async function analyzeNewsletter(
     !["localhost", "127.0.0.1"].includes(url.hostname)
   )
     throw Error("The TownLoop AI service must use HTTPS.");
-  const data = await loadPdfData(config);
+  const data = selectedPdf || (await loadPdfData(config));
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw Error("Please sign in again.");
   const controller = new AbortController();
@@ -49,7 +50,8 @@ export async function analyzeNewsletter(
           fileName: config.fileName,
           editionTitle: config.editionTitle,
           monthEdition: config.monthEdition,
-          isReanalysis: true,
+          isReanalysis: !selectedPdf,
+          isNewUpload: !!selectedPdf,
         }),
         signal: controller.signal,
       },
@@ -58,7 +60,7 @@ export async function analyzeNewsletter(
     if (!response.ok)
       throw Error(result?.error || "Newsletter analysis failed. Please retry.");
     analysisItems(result, config); // Validate before showing or persisting output.
-    await activeEdition(config);
+    if (!selectedPdf) await activeEdition(config);
     return result;
   } catch (error) {
     if (controller.signal.aborted)
