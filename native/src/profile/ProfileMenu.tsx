@@ -35,7 +35,6 @@ import {
   Camera,
   Check,
   CheckCheck,
-  Crown,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -1462,19 +1461,11 @@ export function ProfileMenu({
                             const read = (m.readBy?.length || 0) > 0;
                             const role = m.senderRole;
                             const badge =
-                              role === "admin"
-                                ? "#dc2626"
-                                : role === "vip"
-                                  ? "#7c3aed"
-                                  : role === "crew"
-                                    ? "#d97706"
-                                    : null;
-                            const BadgeIcon =
                               role === "crew"
-                                ? Wrench
-                                : role === "vip"
-                                  ? Crown
-                                  : Shield;
+                                ? require("../../assets/crew-badge.png")
+                                : role === "admin" || role === "vip"
+                                  ? require("../../assets/vip-badge.png")
+                                  : null;
                             const label = mine
                               ? "You"
                               : senderLabel(m, conversation.category, user);
@@ -1514,24 +1505,21 @@ export function ProfileMenu({
                                     )}
                                   </View>
                                   {badge && (
-                                    <View
-                                      accessibilityLabel={`${role} badge`}
+                                    <Image
+                                      accessibilityLabel={
+                                        role === "crew"
+                                          ? "Crew badge"
+                                          : "Staff badge"
+                                      }
+                                      source={badge}
                                       style={{
                                         position: "absolute",
-                                        left: -3,
-                                        bottom: 0,
-                                        width: 19,
-                                        height: 19,
-                                        borderRadius: 10,
-                                        backgroundColor: badge,
-                                        borderWidth: 2,
-                                        borderColor: dark ? "#1e293b" : "#fff",
-                                        alignItems: "center",
-                                        justifyContent: "center",
+                                        left: -2,
+                                        bottom: -2,
+                                        width: 24,
+                                        height: 24,
                                       }}
-                                    >
-                                      <BadgeIcon size={10} color="#fff" />
-                                    </View>
+                                    />
                                   )}
                                 </View>
                                 <View
