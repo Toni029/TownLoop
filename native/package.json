@@ -26,6 +26,7 @@
     "expo-video": "~57.0.5",
     "firebase": "^12.19.0",
     "lucide-react-native": "^1.51.0",
+    "pdfjs-dist": "6.4.299",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -51,7 +52,10 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "postinstall": "node scripts/prepare-pdf-web.cjs",
+    "prestart": "node scripts/prepare-pdf-web.cjs",
+    "preweb": "node scripts/prepare-pdf-web.cjs"
   },
   "private": true
 }
