@@ -78,6 +78,7 @@ import {
   officeManager,
   senderLabel,
   messageIsMine,
+  messageAvatar,
   type Category,
   type Thread,
 } from "./model";
@@ -1458,6 +1459,10 @@ export function ProfileMenu({
                           </Text>
                           {conversation.messages.map((m) => {
                             const mine = messageIsMine(m, user);
+                            const avatar = messageAvatar(m, [
+                              user,
+                              ...data.directory.items,
+                            ]);
                             const read = (m.readBy?.length || 0) > 0;
                             const role = m.senderRole;
                             const badge =
@@ -1493,9 +1498,9 @@ export function ProfileMenu({
                                       overflow: "hidden",
                                     }}
                                   >
-                                    {m.senderAvatar ? (
+                                    {avatar ? (
                                       <Image
-                                        source={{ uri: m.senderAvatar }}
+                                        source={{ uri: avatar }}
                                         style={{ width: 36, height: 36 }}
                                       />
                                     ) : (

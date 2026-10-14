@@ -9,6 +9,7 @@ import {
   senderLabel,
   receiptMessages,
   officeManager,
+  messageAvatar,
 } from "../src/profile/model.ts";
 import type { UserProfile } from "../../src/types.ts";
 const resident = {
@@ -168,4 +169,32 @@ test("read receipts require the opposite side, not another sender-team member", 
     assert.equal(officeManager({ ...other, role }), false);
   for (const role of ["admin", "vip"])
     assert.equal(officeManager({ ...other, role }), true);
+});
+
+test("office avatars resolve older messages by sender identity and use current profile photos", () => {
+  const message = {
+    id: "old",
+    senderId: String(resident.id),
+    senderName: "Community Office",
+    senderRole: "vip",
+    body: "Hello",
+    createdAt: 1,
+    senderAvatar: "",
+  };
+  assert.equal(
+    messageAvatar(message, [
+      { ...resident, role: "vip", avatar_url: "current.jpg" },
+    ]),
+    "current.jpg",
+  );
+  assert.equal(
+    messageAvatar({ ...message, senderAvatar: "saved.jpg" }, []),
+    "saved.jpg",
+  );
+  assert.equal(
+    messageAvatar(message, [
+      { ...other, name: message.senderName, avatar_url: "wrong.jpg" },
+    ]),
+    "",
+  );
 });

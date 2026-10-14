@@ -209,3 +209,10 @@ export function receiptMessages(
     };
   });
 }
+
+export function messageAvatar(message: Message, people: UserProfile[]): string {
+  const sender = people.find((person) =>
+    identifiers(person).includes(message.senderId.toLowerCase()),
+  );
+  return sender?.avatar_url || sender?.avatarUrl || message.senderAvatar || "";
+}

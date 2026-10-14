@@ -124,7 +124,7 @@ export async function sendOfficeChatMessage(
     // VIP identity stored for internal audit, but rendered anonymously as "Community Office" to the resident
     senderName: sender.name || (senderIsVip ? 'Community Office' : 'Resident'),
     senderRole: senderIsVip ? 'vip' : 'resident',
-    senderAvatar: senderIsVip ? '' : (sender.avatar_url || sender.avatarUrl || ''),
+    senderAvatar: sender.avatar_url || sender.avatarUrl || '',
     body: body.trim(),
     createdAt: now,
     time: timeFormatted,
