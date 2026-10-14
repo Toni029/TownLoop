@@ -48,7 +48,7 @@ export function UploadEdition({
   const [editionId, setEditionId] = useState(() => newNewsId("newsletters"));
   const [expectedKey] = useState(() => editionKey(current));
   const lock = useRef(false);
-  const bar = useRef(new Animated.Value(0)).current;
+  const [bar] = useState(() => new Animated.Value(0));
   useEffect(() => {
     Animated.timing(bar, {
       toValue: progress,
