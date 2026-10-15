@@ -120,12 +120,7 @@ export default function NewsScreen() {
         setEditor({ type: "highlight", id: newNewsId("community_highlights") });
         break;
       case "rsvp":
-        void perform(
-          () => setRsvp(action.event),
-          action.event.userRsvp
-            ? `RSVP Cancelled for "${action.event.title}".`
-            : `RSVP Confirmed for "${action.event.title}"! Added to your schedule.`,
-        );
+        void perform(() => setRsvp(action.event));
         break;
       case "deleteEvent":
         void perform(
