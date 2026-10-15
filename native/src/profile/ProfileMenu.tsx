@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   cancelAnimation,
   Easing,
-  FadeInRight,
+
   ReduceMotion,
   runOnJS,
   useAnimatedStyle,
@@ -249,6 +249,11 @@ export function ProfileMenu({
   const [mounted, setMounted] = useState(false),
     [closing, setClosing] = useState(false),
     [view, setView] = useState<MenuView>("menu");
+  const history = useRef<MenuView[]>([]);
+  const [direction, setDirection] = useState(1);
+  const [transitioning, setTransitioning] = useState(false);
+  const transitionLock = useRef(false);
+  const scene = useSharedValue(1);
   const [search, setSearch] = useState(""),
     [filter, setFilter] = useState<Category | "all">("all");
   const [person, setPerson] = useState<UserProfile | null>(null),
@@ -298,6 +303,11 @@ export function ProfileMenu({
       // Native Modal needs its own mounted state so exit motion finishes before dismissal.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setView("menu");
+      history.current = [];
+      transitionLock.current = false;
+      setTransitioning(false);
+      cancelAnimation(scene);
+      scene.value = 1;
       setError("");
       setNotice("");
       setDeleting(null);
@@ -307,7 +317,7 @@ export function ProfileMenu({
       shade.value = 0;
       glint.value = -1;
     }
-  }, [open, progress, shade, glint]);
+  }, [open, progress, shade, glint, scene]);
   const openingFrame = useRef<number | null>(null);
   function animateOpen() {
     // Wait until the modal has painted its initial pose before starting the spring.
@@ -355,6 +365,8 @@ export function ProfileMenu({
     if (closing) return;
     if (openingFrame.current !== null)
       cancelAnimationFrame(openingFrame.current);
+    cancelAnimation(scene);
+    transitionLock.current = false;
     setClosing(true);
     afterClose.current = next || null;
     shade.set(
@@ -404,10 +416,43 @@ export function ProfileMenu({
     ],
   }));
   const shadeMotion = useAnimatedStyle(() => ({ opacity: shade.value }));
-  function go(next: MenuView) {
+  const sceneMotion = useAnimatedStyle(() => ({
+    opacity: scene.value,
+    transform: [{ translateX: direction * (1 - scene.value) * 18 },
+      { scale: 0.985 + scene.value * 0.015 }],
+  }));
+  function finishNavigation(next: MenuView, backwards: boolean) {
+    setView(next);
+    setDirection(backwards ? -1 : 1);
     setError("");
     setNotice("");
-    setView(next);
+    setRecipientOpen(false);
+    scene.value = withTiming(1, {
+      duration: reduced ? 0 : 220,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+    });
+    transitionLock.current = false;
+    setTransitioning(false);
+  }
+  function go(next: MenuView, backwards = false) {
+    if (transitionLock.current || closing || next === view) return;
+    transitionLock.current = true;
+    setTransitioning(true);
+    if (!backwards) {
+      const previous = history.current.lastIndexOf(next);
+      if (previous >= 0) {
+        history.current = history.current.slice(0, previous);
+        backwards = true;
+      } else history.current.push(view);
+    }
+    setDirection(backwards ? 1 : -1);
+    scene.value = withTiming(0, { duration: reduced ? 0 : 90 }, (finished) => {
+      if (finished) runOnJS(finishNavigation)(next, backwards);
+    });
+  }
+  function back() {
+    if (transitionLock.current) return;
+    go(history.current.pop() || "menu", true);
   }
   async function act(action: () => Promise<unknown>, success?: string) {
     if (lock.current) return;
@@ -458,7 +503,7 @@ export function ProfileMenu({
         animationType="none"
         onShow={animateOpen}
         onRequestClose={() => {
-          if (view !== "menu") go("menu");
+          if (view !== "menu") back();
           else close();
         }}
         statusBarTranslucent
@@ -591,15 +636,7 @@ export function ProfileMenu({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Back to resident menu"
-                    onPress={() =>
-                      go(
-                        view === "friendDetail"
-                          ? "friends"
-                          : view === "conversation"
-                            ? "inbox"
-                            : "menu",
-                      )
-                    }
+                    onPress={back}
                     style={s.back}
                   >
                     <ChevronLeft size={20} color="#059669" />
@@ -742,17 +779,8 @@ export function ProfileMenu({
                 </View>
               )}
               <Animated.View
-                key={view}
-                entering={
-                  view === "admin"
-                    ? undefined
-                    : FadeInRight.duration(reduced ? 0 : 160).reduceMotion(
-                        ReduceMotion.System,
-                      )
-                }
-                // Exiting flex children remain in layout and push the incoming panel
-                // below the viewport. Unmount the old view immediately instead.
-                style={{ flex: 1 }}
+                pointerEvents={transitioning ? "none" : "auto"}
+                style={[{ flex: 1 }, sceneMotion]}
               >
                 {view === "admin" && canAccessAdminPanel(user) && (
                   <View style={{ flex: 1 }}>
@@ -775,7 +803,7 @@ export function ProfileMenu({
                       dark={dark}
                       onError={setError}
                       onNotice={setNotice}
-                      onBack={() => go("menu")}
+                      onBack={back}
                     />
                   </View>
                 )}
@@ -830,8 +858,9 @@ export function ProfileMenu({
                             {getUserRole(user) || "Resident"}
                           </Text>
                           <Text style={[s.small, { color: muted }]}>
-                            {user.address || "TownLoop Community"}
+                            {user.address || user.unit || "TownLoop Community"}{user.wing ? ` • ${user.wing}` : ""}
                           </Text>
+                          <Text selectable style={[s.small, { color: muted, marginTop: 4 }]}>{user.email}</Text>
                         </View>
                       </View>
                       {canAccessAdminPanel(user) && (
@@ -865,7 +894,7 @@ export function ProfileMenu({
                         onPress={() => go("account")}
                       />
                       <View style={[s.theme, panel]}>
-                        <Text style={[s.rowTitle, { color: ink }]}>Theme</Text>
+                        <Text style={[s.rowTitle, { color: ink }]}>{dark ? "Dark Mode" : "Light Mode"}</Text>
                         <View style={s.segments}>
                           {[false, true].map((value) => (
                             <Pressable
@@ -899,6 +928,7 @@ export function ProfileMenu({
                         tone="#e11d48"
                         onPress={() => go("logoutConfirm")}
                       />
+                      <Text style={[s.small, { color: muted, textAlign: "center", fontSize: 10 }]}>Version 1.0.0 • © 2026 TownLoop • All rights reserved.</Text>
                     </>
                   )}
                   {view === "inbox" && (
