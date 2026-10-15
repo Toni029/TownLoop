@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, TextInput, type TextInputProps } from 'react-native';
+import { MotionPressable as Pressable } from "../motion/Pressable";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View, TextInput, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { PropsWithChildren } from 'react';
 export const colors = { ink: '#0f172a', green: '#059669', cream: '#f7f3ea', muted: '#78716c' };

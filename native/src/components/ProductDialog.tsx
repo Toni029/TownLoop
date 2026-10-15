@@ -1,6 +1,6 @@
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
-import { useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { useEffect, useState, type PropsWithChildren } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -61,7 +61,7 @@ export function ProductDialog({
   const size = useSharedValue(target);
   const progress = useSharedValue(0);
   const drag = useSharedValue(0);
-  const closing = useRef(false);
+  const [closing, setClosing] = useState(false);
   useEffect(() => {
     if (ready) progress.set(withSpring(1, { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }));
     return () => cancelAnimation(progress);
@@ -71,8 +71,8 @@ export function ProductDialog({
     return () => cancelAnimation(size);
   }, [size, target, reduced]);
   const close = () => {
-    if (busy || closing.current) return;
-    closing.current = true;
+    if (busy || closing) return;
+    setClosing(true);
     progress.set(withTiming(0, { duration: reduced ? 0 : 180 }, finished => {
       if (finished) runOnJS(onClose)();
     }));

@@ -1,3 +1,4 @@
+import { MotionPressable as Pressable } from "../motion/Pressable";
 import { useEffect, useState, type PropsWithChildren } from "react";
 import {
   Animated,
@@ -5,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
