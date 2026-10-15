@@ -28,7 +28,7 @@ test('native containers never receive literal text or primitive conditional guar
   const checker = program.getTypeChecker();
   const findings: string[] = [];
   for (const source of program.getSourceFiles()) {
-    if (!source.fileName.includes('/native/src/') || !source.fileName.endsWith('.tsx')) continue;
+    if (!source.fileName.includes('/native/src/') || !source.fileName.endsWith('.tsx') || source.fileName.endsWith('.web.tsx')) continue;
     function visit(node: ts.Node) {
       let parent: ts.Node = node.parent;
       while (parent && ts.isJsxFragment(parent)) parent = parent.parent;

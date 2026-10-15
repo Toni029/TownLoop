@@ -10,6 +10,9 @@ import {
   receiptMessages,
   officeManager,
   messageAvatar,
+  profileInterests,
+  residentSince,
+  matchesNeighbor,
 } from "../src/profile/model.ts";
 import type { UserProfile } from "../../src/types.ts";
 const resident = {
@@ -199,11 +202,6 @@ test("office avatars resolve older messages by sender identity and use current p
   );
 });
 
-import {
-  profileInterests,
-  residentSince,
-  matchesNeighbor,
-} from "../src/profile/model.ts";
 test("directory supports real interests and does not fabricate a membership date", () => {
   const person = {
     ...other,

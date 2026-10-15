@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { createMotionPreferenceStore } from "../motion/preference";
+import { useEffect, useMemo, useReducer, useState, useSyncExternalStore } from "react";
 import { AppState, AccessibilityInfo } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HomeStore } from "./store";
@@ -28,21 +29,13 @@ export function useToday() {
   }, []);
   return today;
 }
+const motionPreference = createMotionPreferenceStore({
+  read: () => AccessibilityInfo.isReduceMotionEnabled(),
+  listen: next => {
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", next);
+    return () => subscription.remove();
+  },
+});
 export function useReducedMotion() {
-  const [reduced, setReduced] = useState(true);
-  useEffect(() => {
-    let active = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((v) => {
-      if (active) setReduced(v);
-    });
-    const sub = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
-      setReduced,
-    );
-    return () => {
-      active = false;
-      sub.remove();
-    };
-  }, []);
-  return reduced;
+  return useSyncExternalStore(motionPreference.subscribe, motionPreference.snapshot, () => true);
 }
