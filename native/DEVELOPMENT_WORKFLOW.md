@@ -13,6 +13,8 @@ TypeScript, all 62 existing tests and Expo dependency compatibility passed. Lint
 
 ## Daily development
 
+On this computer, the executable launcher also finds Codex’s bundled Node runtime: run `./dev web` or `./dev android` from `native/`. These are equivalent to the npm scripts below and avoid requiring a global npm install.
+
 Use Node 22.13+ and npm 10 for this lockfile (cloud-install compatibility checked with npm 10). From the repository's `native/` directory:
 
 ```sh
@@ -125,3 +127,7 @@ Or `npm run eas -- update:rollback` and choose the correct Preview branch/runtim
 - https://docs.expo.dev/eas-update/runtime-versions/
 - https://docs.expo.dev/eas-update/rollbacks/
 - https://docs.expo.dev/eas/environment-variables/usage/
+
+## Reproducible native dependencies
+
+`prepare-native-dependencies.cjs` normalizes masked-view’s Android manifest during postinstall, matching the rewrite its own Gradle script performs. Without this, an already-built workstation and a fresh EAS worker calculate different fingerprints. The safety check caught and rejected that mismatch during setup; it was fixed rather than disabled. Preview and Production both calculated runtime `7a4f52ca67cc7391c6bd746696462930f71df303` at checkpoint `9b5914b`.

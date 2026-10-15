@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+if ! command -v node >/dev/null 2>&1; then
+  runtime_bin="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin"
+  if [[ ! -x "$runtime_bin/node" ]]; then
+    echo 'Install Node 22.13+ first, then run npm ci in native/.' >&2
+    exit 1
+  fi
+  export PATH="$runtime_bin:$PATH"
+fi
+case "${1:-web}" in
+  web) shift "$(( $# > 0 ? 1 : 0 ))"; exec node node_modules/expo/bin/cli start --web --port 8082 --max-workers 1 "$@" ;;
+  android) shift; exec node node_modules/expo/bin/cli start --dev-client --lan --port 8081 --max-workers 1 "$@" ;;
+  *) echo 'Usage: ./dev [web|android]' >&2; exit 1 ;;
+esac
