@@ -26,6 +26,7 @@
     "expo-sharing": "~57.0.23",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-updates": "~57.0.26",
     "expo-video": "~57.0.5",
     "firebase": "^12.19.0",
     "lucide-react-native": "^1.51.0",
@@ -45,6 +46,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eas-cli": "24.14.0",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
@@ -59,7 +61,13 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "postinstall": "node scripts/prepare-pdf-web.cjs",
     "prestart": "node scripts/prepare-pdf-web.cjs",
-    "preweb": "node scripts/prepare-pdf-web.cjs"
+    "preweb": "node scripts/prepare-pdf-web.cjs",
+    "dev:web": "expo start --web --port 8082 --max-workers 1",
+    "dev:android": "expo start --dev-client --lan --port 8081 --max-workers 1",
+    "build:development": "eas build --platform android --profile development",
+    "build:preview": "eas build --platform android --profile preview",
+    "update:preview": "node scripts/publish-preview.cjs",
+    "eas": "eas"
   },
   "private": true
 }

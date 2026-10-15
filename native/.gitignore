@@ -8,3 +8,9 @@ ios/
 
 # Generated from the pinned pdfjs-dist dependency by postinstall.
 public/pdfjs/
+
+# Local signing credentials must never enter Git.
+credentials.json
+credentials/
+*.jks
+*.keystore

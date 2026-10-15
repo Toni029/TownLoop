@@ -1,5 +1,7 @@
 # TownLoop native migration
 
+For the current live-preview, signing and manual OTA workflow, see [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md). Its setup-status section lists the remaining Expo account and phone-verification steps.
+
 The Expo app is the primary TownLoop product. The existing React/Vite application at the repository root is the visual and functional migration reference. This isolated Expo SDK 57 / React Native client uses its own dependencies and lockfile. The web application's only configuration adjustment is excluding `native/` from its TypeScript check.
 
 ## Run

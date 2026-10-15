@@ -54,6 +54,13 @@
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
-    "backgroundColor": "#f7f3ea"
+    "backgroundColor": "#f7f3ea",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
