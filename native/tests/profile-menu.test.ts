@@ -198,3 +198,14 @@ test("office avatars resolve older messages by sender identity and use current p
     "",
   );
 });
+
+import { profileInterests, residentSince, matchesNeighbor } from "../src/profile/model.ts";
+test("directory supports real interests and does not fabricate a membership date", () => {
+  const person = { ...other, unit: "Villa 12", interests: ["Gardening", "Gardening", null, ""], createdAt: "2025-06-01" };
+  assert.deepEqual(profileInterests(person), ["Gardening"]);
+  assert.equal(matchesNeighbor(person, "garden"), true);
+  assert.equal(matchesNeighbor(person, "villa 12"), true);
+  assert.equal(residentSince(person), "2025");
+  assert.equal(residentSince(other), "");
+  assert.equal(residentSince({ ...other, createdAt: "invalid" }), "");
+});

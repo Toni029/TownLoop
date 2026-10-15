@@ -20,6 +20,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   cancelAnimation,
   Easing,
+  FadeIn,
+  FadeOut,
 
   ReduceMotion,
   runOnJS,
@@ -80,6 +82,9 @@ import {
   senderLabel,
   messageIsMine,
   messageAvatar,
+  profileInterests,
+  residentSince,
+  matchesNeighbor,
   type Category,
   type Thread,
 } from "./model";
@@ -285,11 +290,7 @@ export function ProfileMenu({
     );
   }, [view, conversation]);
   const friends = user ? neighbors(data.directory.items, user) : [];
-  const visibleFriends = friends.filter((p) =>
-    `${p.name} ${p.address || ""} ${p.wing || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const visibleFriends = friends.filter((p) => matchesNeighbor(p, search));
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
   const panel = {
@@ -481,7 +482,7 @@ export function ProfileMenu({
     setCategory(target);
     setPerson(recipient || null);
     setSelected(null);
-    setSubject("");
+    setSubject(recipient ? `Hello ${recipient.name.split(" ")[0]}!` : "");
     setBody("");
     go("compose");
   }
@@ -1203,7 +1204,7 @@ export function ProfileMenu({
                         />
                         <TextInput
                           accessibilityLabel="Search friends and neighbors"
-                          placeholder="Search resident name, apt, or wing..."
+                          placeholder="Search name, apt, wing, or interests..."
                           placeholderTextColor={muted}
                           value={search}
                           onChangeText={setSearch}
@@ -1299,35 +1300,33 @@ export function ProfileMenu({
                   )}
                   {view === "friendDetail" && !!person && (
                     <>
-                      <View style={s.profile}>
-                        <Avatar resident={person} size={72} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[s.name, { color: ink }]}>
-                            {person.name}
-                          </Text>
-                          <Text style={[s.small, { color: muted }]}>
-                            {person.address}
-                          </Text>
+                      <View style={[panel, { borderWidth: 1, borderRadius: 24, padding: 20, alignItems: "center", gap: 10 }]}>
+                        <Avatar resident={person} size={width >= 640 ? 112 : 96} />
+                        <Text style={[s.name, { color: ink, textAlign: "center" }]}>{person.name}</Text>
+                        <Text style={[s.role, { textAlign: "center" }]}>{person.address || person.unit || "TownLoop Resident"}{person.wing ? ` • ${person.wing}` : ""}</Text>
+                        {!!residentSince(person) && <Text style={[s.small, { color: muted }]}>TownLoop Resident since {residentSince(person)}</Text>}
+                      </View>
+                      <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }]}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Phone size={20} color="#059669" /><Text style={[s.rowTitle, { color: ink }]}>Phone Number</Text></View>
+                        <Text selectable style={[s.message, { color: ink }]}>{person.phone || "Phone not provided"}</Text>
+                        {!!person.phone && <View style={{ flexDirection: "row", gap: 8 }}>
+                          <Action title="Copy Phone" onPress={() => void act(() => copy(person.phone!))} />
+                          <Action title="Call" onPress={() => void act(() => Linking.openURL(`tel:${person.phone!.replace(/[^+\d]/g, "")}`))} />
+                        </View>}
+                      </View>
+                      <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }]}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Home size={20} color="#059669" /><Text style={[s.rowTitle, { color: ink }]}>Residency Address</Text></View>
+                        <Text selectable style={[s.message, { color: ink }]}>{person.address || person.unit || "Address not provided"}</Text>
+                        {!!(person.address || person.unit) && <Action title="Copy Address" onPress={() => void act(() => copy(person.address || person.unit!))} />}
+                      </View>
+                      <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }]}>
+                        <Text style={[s.rowTitle, { color: ink }]}>Activities & Interests</Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                          {profileInterests(person).map((interest) => <Text key={interest} style={[s.role, { textTransform: "none" }]}>{interest}</Text>)}
+                          {profileInterests(person).length === 0 && <Text style={[s.small, { color: muted }]}>No interests shared yet.</Text>}
                         </View>
                       </View>
-                      {!!person.phone && (
-                        <Row
-                          title={person.phone}
-                          subtitle="Call neighbor"
-                          icon={Phone}
-                          onPress={() =>
-                            void act(() =>
-                              Linking.openURL(
-                                `tel:${person.phone!.replace(/[^+\d]/g, "")}`,
-                              ),
-                            )
-                          }
-                        />
-                      )}
-                      <Action
-                        title="Send Message"
-                        onPress={() => compose("friend", person)}
-                      />
+                      <Action title={`Send ${person.name.split(" ")[0]} a Message`} onPress={() => compose("friend", person)} />
                     </>
                   )}
                   {view === "compose" && (
@@ -1395,6 +1394,7 @@ export function ProfileMenu({
                               <ChevronDown size={18} color={muted} />
                             </Pressable>
                             {recipientOpen && (
+                              <Animated.View entering={FadeIn.duration(reduced ? 0 : 180)} exiting={FadeOut.duration(reduced ? 0 : 100)}>
                               <ScrollView
                                 nestedScrollEnabled
                                 style={{ maxHeight: 180 }}
@@ -1418,6 +1418,7 @@ export function ProfileMenu({
                                     }}
                                     onPress={() => {
                                       setPerson(p);
+                                      if (!subject.trim()) setSubject(`Hello ${p.name.split(" ")[0]}!`);
                                       setRecipientOpen(false);
                                     }}
                                     style={[
@@ -1431,9 +1432,11 @@ export function ProfileMenu({
                                       {p.name}
                                       {p.address ? ` · ${p.address}` : ""}
                                     </Text>
+                                    {person?.id === p.id && <Check size={16} color="#059669" /> }
                                   </Pressable>
                                 ))}
                               </ScrollView>
+                              </Animated.View>
                             )}
                           </View>
                         </>
@@ -1470,6 +1473,7 @@ export function ProfileMenu({
                         title={busy ? "Sending…" : "Send Message"}
                         onPress={() =>
                           void act(async () => {
+                            if (!subject.trim()) throw new Error("Enter a subject for your message.");
                             if (category === "friend" && !person)
                               throw new Error("Select a resident first.");
                             await sendMessage(
