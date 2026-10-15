@@ -1,3 +1,5 @@
+import { selectionFeedback } from "../../motion/haptics";
+import { ScreenMotion } from "../../motion/ScreenMotion";
 import { Tabs, router } from "expo-router";
 import { NewsProvider } from "../../lib/news";
 import { useSession } from "../../lib/session";
@@ -26,7 +28,7 @@ export default function TabLayout() {
       onAccount={() => router.push("/account")}
     >
       <Tabs
-        screenLayout={({ children }) => <BlurScene>{children}</BlurScene>}
+        screenLayout={({ children }) => <ScreenMotion><BlurScene>{children}</BlurScene></ScreenMotion>}
         screenOptions={{
           headerShown: false,
           sceneStyle: { backgroundColor: "transparent" },
@@ -47,7 +49,7 @@ export default function TabLayout() {
                 state.routes[state.index].key !== route.key &&
                 !event.defaultPrevented
               )
-                navigation.navigate(route.name);
+                { selectionFeedback(); navigation.navigate(route.name); }
             }}
             onLongPress={(name) => {
               const route = state.routes.find((r) => r.name === name);

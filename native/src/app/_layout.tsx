@@ -1,3 +1,5 @@
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useReducedMotion } from "../home/hooks";
 import { CommunityProvider, useCommunity } from "../lib/community";
 import { PlusJakartaSans_500Medium } from "@expo-google-fonts/plus-jakarta-sans/500Medium";
 import { Stack } from "expo-router";
@@ -13,6 +15,7 @@ import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sa
 import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
 import { PlayfairDisplay_900Black } from "@expo-google-fonts/playfair-display/900Black";
 function Navigation() {
+  const reduced = useReducedMotion();
   const { user, profile, loading } = useSession();
   const { community, ready } = useCommunity();
   if (loading || !ready) return <Loading />;
@@ -21,6 +24,7 @@ function Navigation() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream },
         headerTintColor: colors.ink,
+        animation: reduced ? "none" : "default",
       }}
     >
       <Stack.Protected guard={!community}>
@@ -56,6 +60,7 @@ export default function Root() {
       </SafeAreaProvider>
     );
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <CommunityProvider>
         <SessionProvider>
@@ -64,5 +69,6 @@ export default function Root() {
         </SessionProvider>
       </CommunityProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
