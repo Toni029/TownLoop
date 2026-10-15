@@ -29,6 +29,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
+import * as Clipboard from "expo-clipboard";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -471,6 +472,10 @@ export function ProfileMenu({
       setBusy(false);
     }
   }
+  async function copy(value: string) {
+    await Clipboard.setStringAsync(value);
+    setNotice("Copied to clipboard");
+  }
   function compose(target: Category, recipient?: UserProfile) {
     setRecipientOpen(false);
     setCategory(target);
@@ -814,7 +819,8 @@ export function ProfileMenu({
                     flex: 1,
                     display: view === "admin" ? "none" : "flex",
                   }}
-                  contentContainerStyle={{ gap: 14, paddingBottom: 16 }}
+                  contentContainerStyle={{ gap: 14, paddingBottom: 16, ...(view === "conversation" ? { flex: 1 } : {}) }}
+                  scrollEnabled={view !== "conversation"}
                 >
                   {!!error && (
                     <Text accessibilityLiveRegion="polite" style={s.error}>
@@ -1484,12 +1490,28 @@ export function ProfileMenu({
                     <>
                       {conversation ? (
                         <>
-                          <Text style={[s.name, { color: ink }]}>
-                            {conversation.name}
-                          </Text>
-                          <Text style={[s.small, { color: muted }]}>
-                            {conversation.subject}
-                          </Text>
+                          <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 }]}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                              <Avatar resident={conversation.recipient} size={36} />
+                              <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text style={[s.rowTitle, { color: ink }]}>{conversation.name}</Text>
+                                <Text style={[s.small, { color: muted }]}>{conversation.category === "maintenance" ? "Maintenance Team" : conversation.category === "office" ? "Community Office" : "Resident Friend"}</Text>
+                              </View>
+                              <Pressable accessibilityRole="button" accessibilityLabel="Delete conversation" onPress={() => { setDeleting(conversation); go("inbox"); }} style={{ padding: 8 }}>
+                                <Trash2 size={18} color={muted} />
+                              </Pressable>
+                            </View>
+                            <Text style={[s.small, { color: muted }]}>{conversation.subject}</Text>
+                            {!!conversation.recipient.phone && (
+                              <Pressable accessibilityRole="button" accessibilityLabel="Copy phone" onPress={() => void act(() => copy(conversation.recipient.phone!))}>
+                                <Text style={[s.small, { color: "#059669" }]}>Tel: {conversation.recipient.phone} · Copy Phone</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                          {data.errors.map((message) => <Text key={message} style={s.error}>{message}</Text>)}
+                          {data.errors.length > 0 && <Action title="Retry messages" onPress={data.retry} />}
+                          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={[panel, { flex: 1, borderRadius: 16 }]} contentContainerStyle={{ padding: 10, gap: 8 }}>
+                          {conversation.messages.length === 0 && <Text style={[s.empty, { color: muted }]}>No messages yet. Start the conversation below.</Text>}
                           {conversation.messages.map((m) => {
                             const mine = messageIsMine(m, user);
                             const avatar = messageAvatar(m, [
@@ -1636,6 +1658,8 @@ export function ProfileMenu({
                               </View>
                             );
                           })}
+                          </ScrollView>
+                          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
                           <TextInput
                             accessibilityLabel="Reply"
                             placeholder="Write a reply…"
@@ -1644,10 +1668,10 @@ export function ProfileMenu({
                             value={body}
                             onChangeText={setBody}
                             maxLength={10000}
-                            style={textInput}
+                            style={[...textInput, { flex: 1, maxHeight: 100 }]}
                           />
                           <Action
-                            title={busy ? "Sending…" : "Send Reply"}
+                            title={busy ? "Sending…" : "Send"}
                             onPress={() =>
                               void act(async () => {
                                 await sendMessage(
@@ -1662,6 +1686,7 @@ export function ProfileMenu({
                               })
                             }
                           />
+                          </View>
                         </>
                       ) : (
                         <Text style={[s.empty, { color: muted }]}>
