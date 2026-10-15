@@ -102,9 +102,9 @@ test('reader refuses stale cached metadata and revokes an open PDF when the admi
 test('special events qualify but recurring activities are excluded even with RSVP',async()=>{
  const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
  process.env.GEMINI_API_KEY='test-only';
- global.__newsletter={monthEdition:'October 2026',events:[event({title:'October Potluck',date:'October 20',rsvpDetails:'RSVP by Friday, October 9th'}),event({title:'Bingo',isRecurring:true,requiresRsvp:true,rsvpDetails:'RSVP to the office'})],highlights:[]};
+ global.__newsletter={monthEdition:'October 2026',events:[event({title:'Autumn Garden Tour',date:'October 20',rsvpDetails:'RSVP by Friday, October 9th'}),event({title:'Bingo',isRecurring:true,requiresRsvp:true,rsvpDetails:'RSVP to the office'})],highlights:[]};
  const out=await extractNewsletterContent({base64Data:'x'.repeat(60)});
- assert.deepEqual(out.events.map(e=>e.title),['October Potluck']);
+ assert.deepEqual(out.events.map(e=>e.title),['Autumn Garden Tour']);
  assert.equal(out.rsvp_events[0].day,'20');
  delete process.env.GEMINI_API_KEY;
 });
@@ -217,4 +217,18 @@ test('visual batches retain successful pages across model fallback and cache onl
  assert.equal(again.highlights.length,3);
  assert.equal(global.__batchCalls.length,4);
  }finally{delete process.env.GEMINI_API_KEY;}
+});
+
+
+test('all Home reminder activities and potluck variants are excluded even if AI labels them non-recurring', async()=>{
+ const {MONTHLY_ACTIVITIES_LIST}=await bundle('src/data/monthlyActivities.ts');
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
+ process.env.GEMINI_API_KEY='test-only';
+ const titles=[...MONTHLY_ACTIVITIES_LIST.map(a=>a.title),'October Potluck','Fried Chicken Potluck','Pot-luck Dinner','Pup Play Date','Coffee Klatch','On Site Dermatology'];
+ global.__newsletter={monthEdition:'October 2026',events:[...titles.map(title=>event({title})),event({title:'Hallo-Wine & Cheese'}),event({title:'Ice Cream Social'}),event()],highlights:[]};
+ try {
+ const out=await extractNewsletterContent({base64Data:'r'.repeat(60)});
+ assert.deepEqual(out.events.map(e=>e.title),['Hallo-Wine & Cheese','Ice Cream Social','Fall Festival']);
+ assert.equal(out.rsvp_events.length,3);
+ } finally {delete process.env.GEMINI_API_KEY;}
 });

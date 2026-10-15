@@ -4,6 +4,7 @@
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
+import { MONTHLY_ACTIVITIES_LIST } from '../src/data/monthlyActivities.ts';
 import { createHash } from 'node:crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import { newsletterPdfImages } from './newsletterPdfImages.ts';
@@ -262,11 +263,12 @@ function parseRobustMonthAndDay(
 
 /**
  * Identifies standard recurring monthly activities (Home tab calendar routines)
- * that occur automatically every month on a specific weekday without requiring RSVP.
+ * that belong in the Home reminders, even when the newsletter requests RSVP.
  */
 export function isRecurringCalendarActivity(title: string): boolean {
   if (!title) return false;
-  const lower = title.toLowerCase().trim();
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const lower = ` ${normalize(title)} `;
 
   const recurringKeywords = [
     'bingo',
@@ -287,8 +289,11 @@ export function isRecurringCalendarActivity(title: string): boolean {
     'curbside pickup',
     'garbage day',
     'trash collection',
+    'pup play date',
     'puppy play date',
     'puppy play',
+    'potluck',
+    'pot luck',
     'potluck dinner',
     'community potluck',
     'total potluck',
@@ -297,7 +302,8 @@ export function isRecurringCalendarActivity(title: string): boolean {
     'dermatology clinic',
   ];
 
-  return recurringKeywords.some((keyword) => lower.includes(keyword));
+  return [...MONTHLY_ACTIVITIES_LIST.map(activity => activity.title), ...recurringKeywords]
+    .some(keyword => lower.includes(` ${normalize(keyword)} `));
 }
 
 /**
@@ -385,6 +391,15 @@ CRITICAL INSTRUCTIONS FOR GETTING DATES 100% ACCURATE:
 1. Locate the Newsletter Edition Month and Year on the front cover or masthead (e.g. "October 2026"). This edition is the anchor for all dates.
 2. In community newsletters, dates appear in calendar grids, boxed announcements, schedules, or article headings (e.g. "Saturday, Oct 17", "Wednesday the 7th", "October 24", "10/15", "Nov 2nd").
 3. For every event found, determine its exact day of the month as a number (1-31).
+
+*** KNOWN TOWNLOOP RECURRING ACTIVITIES — ALWAYS EXCLUDE FROM RSVP ***
+These activities are already managed by the Monthly Activity Reminder:
+${MONTHLY_ACTIVITIES_LIST.map(activity => `- ${activity.title}: ${activity.recurrenceLabel}`).join('\n')}
+Do not extract these as RSVP events even when a flyer gives a specific date,
+a different monthly theme/menu, or an RSVP deadline. "October Potluck", "Potluck",
+and "Fried Chicken Potluck" are the Community Potluck Dinner, not new special events.
+Match equivalent names and spelling variants. Do not move ordinary activity invitations
+into pinned highlights to evade this exclusion; substantive news about them may be a story.
 
 *** RSVP QUALIFICATION ***
 The Home tab already displays routine recurring activities. Exclude recurring daily,
@@ -624,7 +639,7 @@ STRICT ZERO-HALLUCINATION RULES:
         // Filter out standard recurring Home calendar activities from RSVP events
         const validRsvpEvents = rawEvents.filter((ev) =>
           ev && typeof ev.title === 'string' && ev.title.trim() &&
-          ev.isRecurring === false && ev.requiresRsvp === true && typeof ev.rsvpDetails === 'string' && ev.rsvpDetails.trim()
+          !isRecurringCalendarActivity(ev.title) && ev.isRecurring === false && ev.requiresRsvp === true && typeof ev.rsvpDetails === 'string' && ev.rsvpDetails.trim()
         );
 
         // Map to backward-compatible CommunityRsvpEvent structure
