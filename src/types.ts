@@ -117,6 +117,7 @@ export interface RsvpAttendee {
 }
 
 export interface CommunityRsvpEvent {
+  rsvpMembers?: Record<string, boolean>;
   id: number | string;
   title: string;
   month: string;

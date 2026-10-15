@@ -56,6 +56,8 @@ export function rsvpPatch(
     : current.filter((a) => a.userId !== uid && a.id !== uid);
   return {
     attendees,
+    rsvpMembers: { ...(event.rsvpMembers || {}), [uid]: going },
+    rsvpChange: { going, attendee: going ? attendees[0] : current.find((a) => a.userId === uid || a.id === uid)! },
     attendeesCount: attendees.length,
     ...(typeof event.spotsLeft === "number"
       ? { spotsLeft: Math.max(0, event.spotsLeft + (going ? -1 : 1)) }

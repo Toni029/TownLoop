@@ -31,6 +31,7 @@ export function removeAttendeePatch(event: CommunityRsvpEvent, id: string) {
   if (before.length === attendees.length) return null;
   return {
     attendees,
+    rsvpMembers: { ...(event.rsvpMembers || {}), [before.find((a) => a.id === id)?.userId || id]: false },
     attendeesCount: attendees.length,
     ...(typeof event.capacity === "number"
       ? { spotsLeft: Math.max(0, event.capacity - attendees.length) }

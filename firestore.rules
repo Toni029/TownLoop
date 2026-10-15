@@ -110,9 +110,40 @@ service cloud.firestore {
       }
     }
 
+    // A resident can change only their own RSVP, never the event or another attendee.
+    function ownRsvp() {
+      let old = resource.data;
+      let next = request.resource.data;
+      let uid = request.auth.uid;
+      let change = next.rsvpChange;
+      let attendee = change.attendee;
+      let before = old.get('attendees', []);
+      let after = next.attendees;
+      let members = old.get('rsvpMembers', {});
+      let joining = change.going;
+      return next.diff(old).affectedKeys().hasOnly([
+          'attendees', 'attendeesCount', 'spotsLeft', 'updatedAt', 'rsvpMembers', 'rsvpChange'
+        ]) && attendee.id == uid && attendee.get('userId', uid) == uid &&
+        next.rsvpMembers.diff(members).affectedKeys().hasOnly([uid]) &&
+        next.rsvpMembers[uid] == joining &&
+        next.attendeesCount == after.size() &&
+        (joining
+          ? (members.get(uid, false) == false &&
+             attendee.name == currentProfile().name &&
+             attendee.email == currentProfile().email &&
+             attendee.role == currentProfile().role &&
+             after == [attendee].concat(before) &&
+             (!(old.get('spotsLeft', null) is number) || old.spotsLeft > 0))
+          : (before.hasAny([attendee]) && after == before.removeAll([attendee]) &&
+             after.size() == before.size() - 1)) &&
+        (old.get('spotsLeft', null) is number
+          ? next.spotsLeft == old.spotsLeft + (joining ? -1 : 1)
+          : next.get('spotsLeft', null) == old.get('spotsLeft', null));
+    }
     match /community_events/{eventId} {
       allow read: if isApproved();
-      allow write: if isManager();
+      allow create, delete: if isManager();
+      allow update: if isManager() || (isApproved() && ownRsvp());
     }
 
     match /community_highlights/{highlightId} {
