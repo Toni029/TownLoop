@@ -59,7 +59,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "postinstall": "node scripts/prepare-pdf-web.cjs",
+    "postinstall": "node scripts/prepare-native-dependencies.cjs && node scripts/prepare-pdf-web.cjs",
     "prestart": "node scripts/prepare-pdf-web.cjs",
     "preweb": "node scripts/prepare-pdf-web.cjs",
     "dev:web": "expo start --web --port 8082 --max-workers 1",
