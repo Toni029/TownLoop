@@ -1,5 +1,6 @@
 import {
   createContext,
+  useMemo,
   useContext,
   useEffect,
   useRef,
@@ -94,6 +95,7 @@ export function TownLoopShell({
     Playfair: PlayfairDisplay_700Bold,
     PlayfairBlack: PlayfairDisplay_900Black,
   });
+  const presentation = useMemo(() => ({ dark, toggleTheme: () => setDark(v => !v), blurTarget, attachBlurTarget }), [dark, blurTarget, attachBlurTarget]);
   if (!fonts && !fontError)
     return (
       <View
@@ -110,12 +112,7 @@ export function TownLoopShell({
     );
   return (
     <Presentation.Provider
-      value={{
-        dark,
-        toggleTheme: () => setDark((v) => !v),
-        blurTarget,
-        attachBlurTarget,
-      }}
+      value={presentation}
     >
       <LinearGradient
         colors={

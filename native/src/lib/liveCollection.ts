@@ -17,10 +17,12 @@ export function useLiveCollection<T>(
   sortField = "createdAt",
 ) {
   const user = useResident();
+  const uid = user ? String(user.id) : "";
+  const residentOrders = name === "work_orders" && !!user && !canViewAllWorkOrders(user);
   const [attempt, setAttempt] = useState(0);
   const key =
     user && user.approved !== false
-      ? `${user.id}:${user.role}:${name}:${attempt}`
+      ? `${user.id}:${user.role}:${residentOrders}:${name}:${attempt}`
       : "";
   const [owned, setOwned] = useState<{
     key: string;
@@ -30,10 +32,8 @@ export function useLiveCollection<T>(
   }>({ key: "", items: [], loading: true, error: "" });
   useEffect(() => {
     if (!key) return;
-    const residentOrders =
-      name === "work_orders" && user && !canViewAllWorkOrders(user);
     const source = residentOrders
-      ? query(collection(db, name), where("userId", "==", String(user.id)))
+      ? query(collection(db, name), where("userId", "==", uid))
       : sortField
         ? query(collection(db, name), orderBy(sortField, "desc"))
         : collection(db, name);
@@ -63,7 +63,7 @@ export function useLiveCollection<T>(
           error: friendlyError(error),
         })),
     );
-  }, [key, name, read, sortField, attempt, user]);
+  }, [key, name, read, sortField, attempt, uid, residentOrders]);
   return {
     ...(key && owned.key === key
       ? owned

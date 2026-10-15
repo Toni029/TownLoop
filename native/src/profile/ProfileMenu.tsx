@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  FlatList,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -381,7 +382,6 @@ export function ProfileMenu({
     emergencyContact: "",
     dietaryPreference: "",
   });
-  const conversationScroll = useRef<ScrollView>(null);
   const [recipientOpen, setRecipientOpen] = useState(false);
   const [deleting, setDeleting] = useState<Thread | null>(null);
   const lock = useRef(false),
@@ -1960,24 +1960,22 @@ export function ProfileMenu({
                                 onPress={data.retry}
                               />
                             )}
-                            <ScrollView
-                              ref={conversationScroll}
-                              onContentSizeChange={() =>
-                                conversationScroll.current?.scrollToEnd({
-                                  animated: !reduced,
-                                })
-                              }
+                            <FlatList
+                              inverted
+                              data={[...conversation.messages].reverse()}
+                              keyExtractor={message => message.id}
+                              initialNumToRender={15}
+                              maxToRenderPerBatch={10}
+                              windowSize={7}
+                              maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 60 }}
+                              keyboardDismissMode="interactive"
                               nestedScrollEnabled
                               keyboardShouldPersistTaps="handled"
                               style={[panel, { flex: 1, borderRadius: 16 }]}
                               contentContainerStyle={{ padding: 10, gap: 8 }}
-                            >
-                              {conversation.messages.length === 0 && (
-                                <Text style={[s.empty, { color: muted }]}>
-                                  No messages yet. Start the conversation below.
-                                </Text>
-                              )}
-                              {conversation.messages.map((m) => {
+                              ListEmptyComponent={<Text style={[s.empty, { color: muted }]}>No messages yet. Start the conversation below.</Text>}
+                              renderItem={({ item: m }) => {
+
                                 const mine = messageIsMine(m, user);
                                 const avatar = messageAvatar(m, [
                                   user,
@@ -2130,8 +2128,8 @@ export function ProfileMenu({
                                     </View>
                                   </View>
                                 );
-                              })}
-                            </ScrollView>
+                              }}
+                            />
                             <View
                               style={{
                                 flexDirection: "row",

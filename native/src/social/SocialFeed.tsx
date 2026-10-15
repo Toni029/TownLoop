@@ -4,7 +4,7 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
+  FlatList,
   View,
   Share,
   useWindowDimensions,
@@ -208,15 +208,19 @@ export function Comments({
   comments,
   onSubmit,
   busy,
+  draft,
+  onDraftChange,
 }: {
+  draft?: { text: string; id: string };
+  onDraftChange?: (draft: { text: string; id: string }) => void;
   comments: CommentItem[];
   onSubmit: (text: string, id: string) => Promise<boolean>;
   busy: boolean;
 }) {
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
-  const [text, setText] = useState("");
-  const [id, setId] = useState(newSocialId);
+  const [text, setText] = useState(draft?.text || "");
+  const [id, setId] = useState(() => draft?.id || newSocialId());
   const [submitting, setSubmitting] = useState(false);
   async function send() {
     if (submitting || busy || !text.trim()) return;
@@ -224,7 +228,9 @@ export function Comments({
     try {
       if (await onSubmit(text, id)) {
         setText("");
-        setId(newSocialId());
+        const nextId = newSocialId();
+        setId(nextId);
+        onDraftChange?.({ text: "", id: nextId });
       }
     } finally {
       setSubmitting(false);
@@ -265,7 +271,7 @@ export function Comments({
       <Field
         label="Add a comment"
         value={text}
-        onChangeText={setText}
+        onChangeText={value => { setText(value); onDraftChange?.({ text: value, id }); }}
         editable={!busy && !submitting}
         multiline
         placeholder="Write a friendly reply…"
@@ -494,13 +500,275 @@ export function SocialFeed({
   const s = useNewsStyles();
   useNewsFonts();
   const [comments, setComments] = useState<string | null>(null);
+  const [drafts] = useState(() => {
+    const values = new Map<string, { text: string; id: string }>();
+    return { get: (id: string) => values.get(id), set: (id: string, draft: { text: string; id: string }) => values.set(id, draft) };
+  });
   const { width } = useWindowDimensions();
+  const renderPost = (post: Post) => (
+              <View
+                key={post.id}
+                style={[s.card, { borderRadius: 24, padding: 16, gap: 12 }]}
+              >
+                <View style={[s.row, { justifyContent: "space-between" }]}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${post.title}`}
+                    onPress={() => onOpen("post", String(post.id))}
+                    style={[s.row, { flex: 1 }]}
+                  >
+                    <Avatar uri={post.authorAvatar} name={post.author} />
+                    <View style={{ flex: 1 }}>
+                      <Copy weight="bold">{post.author}</Copy>
+                      <Copy
+                        style={{
+                          fontSize: 10,
+                          lineHeight: 15,
+                          color: "#a8a29e",
+                        }}
+                      >
+                        {post.timeAgo}
+                      </Copy>
+                    </View>
+                  </Pressable>
+                  <Pill label={post.tag} />
+                  {(owns(post, user) || canDeleteAnyPost(user)) && (
+                    <DeleteControl
+                      busy={busy}
+                      onDelete={() =>
+                        void onAction("post", String(post.id), "delete")
+                      }
+                    />
+                  )}
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Read ${post.title}`}
+                  onPress={() => onOpen("post", String(post.id))}
+                >
+                  <Copy weight="bold" style={{ fontSize: 14, lineHeight: 20 }}>
+                    {post.title}
+                  </Copy>
+                  <Copy
+                    numberOfLines={3}
+                    style={{ color: "#57534e", lineHeight: 19.5, marginTop: 6 }}
+                  >
+                    {post.content}
+                  </Copy>
+                </Pressable>
+                {mediaFor(post).length > 0 && (
+                  <MediaPreview
+                    media={mediaFor(post)}
+                    title={post.title}
+                    onMedia={onMedia}
+                  />
+                )}
+                <View
+                  style={[
+                    s.row,
+                    {
+                      borderTopWidth: 1,
+                      borderColor: dark ? "#1e293b" : "#f5f5f4",
+                      paddingTop: 8,
+                    },
+                  ]}
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${post.liked ? "Unlike" : "Like"} ${post.title}`}
+                    accessibilityState={{
+                      selected: post.liked,
+                      disabled: busy || !reactionsReady,
+                    }}
+                    disabled={busy || !reactionsReady}
+                    onPress={() =>
+                      void onAction("post", String(post.id), "like", {
+                        liked: !post.liked,
+                      })
+                    }
+                    hitSlop={{ top: 10, bottom: 10 }}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      minHeight: 24,
+                      borderRadius: 12,
+                      backgroundColor: post.liked ? "#fff1f2" : "transparent",
+                    }}
+                  >
+                    <Copy
+                      style={{
+                        color: post.liked ? "#e11d48" : "#78716c",
+                        lineHeight: 16,
+                      }}
+                    >
+                      {post.liked ? "❤️" : "🤍"} {post.likes}
+                    </Copy>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${post.comments.length} Comments for ${post.title}`}
+                    accessibilityState={{
+                      expanded: comments === String(post.id),
+                    }}
+                    onPress={() =>
+                      setComments((v) =>
+                        v === String(post.id) ? null : String(post.id),
+                      )
+                    }
+                    style={[
+                      s.row,
+                      {
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        minHeight: 24,
+                        marginLeft: "auto",
+                        gap: 6,
+                      },
+                    ]}
+                  >
+                    <MessageSquare size={14} color="#78716c" />
+                    <Copy style={{ lineHeight: 16 }}>
+                      {post.comments.length}{" "}
+                      {post.comments.length === 1 ? "Comment" : "Comments"}
+                    </Copy>
+                  </Pressable>
+                </View>
+                <View style={{ marginTop: -12 }}>
+                  <Collapsible open={comments === String(post.id)}>
+                    <Comments
+                      comments={post.comments}
+                      draft={drafts.get(String(post.id))}
+                      onDraftChange={draft => drafts.set(String(post.id), draft)}
+                      busy={busy}
+                      onSubmit={(text, commentId) =>
+                        onAction("post", String(post.id), "comment", {
+                          text,
+                          commentId,
+                        })
+                      }
+                    />
+                  </Collapsible>
+                </View>
+              </View>
+);
+  const renderListing = (item: Listing) => (
+              <View
+                key={item.id}
+                style={[
+                  s.card,
+                  {
+                    borderRadius: 24,
+                    padding: 16,
+                    gap: 12,
+                    backgroundColor: dark
+                      ? "#0f172acc"
+                      : item.sold
+                        ? "#f5f5f4"
+                        : "#fff",
+                    opacity: item.sold ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <View style={[s.row, { justifyContent: "space-between" }]}>
+                  <View style={[s.row, { flex: 1, minWidth: 100 }]}>
+                    <Avatar uri={item.authorAvatar} name={item.author} />
+                    <View style={{ flex: 1 }}>
+                      <Copy weight="bold">{item.author}</Copy>
+                      <Copy
+                        style={{
+                          fontSize: 10,
+                          lineHeight: 15,
+                          color: "#a8a29e",
+                        }}
+                      >
+                        ◷ {item.timeAgo}
+                      </Copy>
+                    </View>
+                  </View>
+                  <Pill
+                    label={item.sold ? "Sold" : "Available"}
+                    tone={item.sold ? "stone" : "green"}
+                  />
+                  <Pill
+                    solid
+                    label={item.price}
+                    tone={
+                      item.sold
+                        ? "stone"
+                        : item.price.toUpperCase() === "FREE"
+                          ? "green"
+                          : "amber"
+                    }
+                  />
+                  {(owns(item, user) || canDeleteAnyPost(user)) && (
+                    <DeleteControl
+                      busy={busy}
+                      onDelete={() =>
+                        void onAction("listing", String(item.id), "delete")
+                      }
+                    />
+                  )}
+                </View>
+                <View
+                  style={[
+                    s.row,
+                    { alignItems: "flex-start", flexWrap: "nowrap", gap: 12 },
+                  ]}
+                >
+                  <MediaPreview
+                    media={mediaFor(item)}
+                    title={item.title}
+                    onMedia={onMedia}
+                    listing
+                    sold={!!item.sold}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`View item ${item.title}`}
+                    onPress={() => onOpen("listing", String(item.id))}
+                    style={{ flex: 1, gap: 4 }}
+                  >
+                    <Copy
+                      weight="bold"
+                      style={{
+                        fontSize: 14,
+                        lineHeight: 19.25,
+                        textDecorationLine: item.sold ? "line-through" : "none",
+                      }}
+                    >
+                      {item.title}
+                    </Copy>
+                    <Copy
+                      numberOfLines={3}
+                      style={{ color: "#57534e", lineHeight: 19.5 }}
+                    >
+                      {item.description}
+                    </Copy>
+                  </Pressable>
+                </View>
+                <ListingActions
+                  item={item}
+                  user={user}
+                  busy={busy}
+                  onAction={onAction}
+                  onMessage={onMessage}
+                />
+              </View>
+);
   return (
     <SafeAreaView
       edges={["left", "right"]}
       style={{ flex: 1, backgroundColor: "transparent" }}
     >
-      <ScrollView
+      <FlatList<Post | Listing>
+        data={view === "post" ? posts : listings}
+        keyExtractor={item => `${view}:${item.id}`}
+        renderItem={({ item }) => view === "post" ? renderPost(item as Post) : renderListing(item as Listing)}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={7}
+        removeClippedSubviews={false}
+        keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           padding: 20,
@@ -508,7 +776,7 @@ export function SocialFeed({
           gap: 16,
           paddingBottom: 128,
         }}
-      >
+        ListHeaderComponent={<View style={{ gap: 16 }}>
         <View
           style={[
             s.row,
@@ -674,256 +942,9 @@ export function SocialFeed({
               </Copy>
             </View>
           )}
-        {view === "post"
-          ? posts.map((post) => (
-              <View
-                key={post.id}
-                style={[s.card, { borderRadius: 24, padding: 16, gap: 12 }]}
-              >
-                <View style={[s.row, { justifyContent: "space-between" }]}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${post.title}`}
-                    onPress={() => onOpen("post", String(post.id))}
-                    style={[s.row, { flex: 1 }]}
-                  >
-                    <Avatar uri={post.authorAvatar} name={post.author} />
-                    <View style={{ flex: 1 }}>
-                      <Copy weight="bold">{post.author}</Copy>
-                      <Copy
-                        style={{
-                          fontSize: 10,
-                          lineHeight: 15,
-                          color: "#a8a29e",
-                        }}
-                      >
-                        {post.timeAgo}
-                      </Copy>
-                    </View>
-                  </Pressable>
-                  <Pill label={post.tag} />
-                  {(owns(post, user) || canDeleteAnyPost(user)) && (
-                    <DeleteControl
-                      busy={busy}
-                      onDelete={() =>
-                        void onAction("post", String(post.id), "delete")
-                      }
-                    />
-                  )}
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Read ${post.title}`}
-                  onPress={() => onOpen("post", String(post.id))}
-                >
-                  <Copy weight="bold" style={{ fontSize: 14, lineHeight: 20 }}>
-                    {post.title}
-                  </Copy>
-                  <Copy
-                    numberOfLines={3}
-                    style={{ color: "#57534e", lineHeight: 19.5, marginTop: 6 }}
-                  >
-                    {post.content}
-                  </Copy>
-                </Pressable>
-                {mediaFor(post).length > 0 && (
-                  <MediaPreview
-                    media={mediaFor(post)}
-                    title={post.title}
-                    onMedia={onMedia}
-                  />
-                )}
-                <View
-                  style={[
-                    s.row,
-                    {
-                      borderTopWidth: 1,
-                      borderColor: dark ? "#1e293b" : "#f5f5f4",
-                      paddingTop: 8,
-                    },
-                  ]}
-                >
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${post.liked ? "Unlike" : "Like"} ${post.title}`}
-                    accessibilityState={{
-                      selected: post.liked,
-                      disabled: busy || !reactionsReady,
-                    }}
-                    disabled={busy || !reactionsReady}
-                    onPress={() =>
-                      void onAction("post", String(post.id), "like", {
-                        liked: !post.liked,
-                      })
-                    }
-                    hitSlop={{ top: 10, bottom: 10 }}
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      minHeight: 24,
-                      borderRadius: 12,
-                      backgroundColor: post.liked ? "#fff1f2" : "transparent",
-                    }}
-                  >
-                    <Copy
-                      style={{
-                        color: post.liked ? "#e11d48" : "#78716c",
-                        lineHeight: 16,
-                      }}
-                    >
-                      {post.liked ? "❤️" : "🤍"} {post.likes}
-                    </Copy>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${post.comments.length} Comments for ${post.title}`}
-                    accessibilityState={{
-                      expanded: comments === String(post.id),
-                    }}
-                    onPress={() =>
-                      setComments((v) =>
-                        v === String(post.id) ? null : String(post.id),
-                      )
-                    }
-                    style={[
-                      s.row,
-                      {
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        minHeight: 24,
-                        marginLeft: "auto",
-                        gap: 6,
-                      },
-                    ]}
-                  >
-                    <MessageSquare size={14} color="#78716c" />
-                    <Copy style={{ lineHeight: 16 }}>
-                      {post.comments.length}{" "}
-                      {post.comments.length === 1 ? "Comment" : "Comments"}
-                    </Copy>
-                  </Pressable>
-                </View>
-                <View style={{ marginTop: -12 }}>
-                  <Collapsible open={comments === String(post.id)}>
-                    <Comments
-                      comments={post.comments}
-                      busy={busy}
-                      onSubmit={(text, commentId) =>
-                        onAction("post", String(post.id), "comment", {
-                          text,
-                          commentId,
-                        })
-                      }
-                    />
-                  </Collapsible>
-                </View>
-              </View>
-            ))
-          : listings.map((item) => (
-              <View
-                key={item.id}
-                style={[
-                  s.card,
-                  {
-                    borderRadius: 24,
-                    padding: 16,
-                    gap: 12,
-                    backgroundColor: dark
-                      ? "#0f172acc"
-                      : item.sold
-                        ? "#f5f5f4"
-                        : "#fff",
-                    opacity: item.sold ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <View style={[s.row, { justifyContent: "space-between" }]}>
-                  <View style={[s.row, { flex: 1, minWidth: 100 }]}>
-                    <Avatar uri={item.authorAvatar} name={item.author} />
-                    <View style={{ flex: 1 }}>
-                      <Copy weight="bold">{item.author}</Copy>
-                      <Copy
-                        style={{
-                          fontSize: 10,
-                          lineHeight: 15,
-                          color: "#a8a29e",
-                        }}
-                      >
-                        ◷ {item.timeAgo}
-                      </Copy>
-                    </View>
-                  </View>
-                  <Pill
-                    label={item.sold ? "Sold" : "Available"}
-                    tone={item.sold ? "stone" : "green"}
-                  />
-                  <Pill
-                    solid
-                    label={item.price}
-                    tone={
-                      item.sold
-                        ? "stone"
-                        : item.price.toUpperCase() === "FREE"
-                          ? "green"
-                          : "amber"
-                    }
-                  />
-                  {(owns(item, user) || canDeleteAnyPost(user)) && (
-                    <DeleteControl
-                      busy={busy}
-                      onDelete={() =>
-                        void onAction("listing", String(item.id), "delete")
-                      }
-                    />
-                  )}
-                </View>
-                <View
-                  style={[
-                    s.row,
-                    { alignItems: "flex-start", flexWrap: "nowrap", gap: 12 },
-                  ]}
-                >
-                  <MediaPreview
-                    media={mediaFor(item)}
-                    title={item.title}
-                    onMedia={onMedia}
-                    listing
-                    sold={!!item.sold}
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`View item ${item.title}`}
-                    onPress={() => onOpen("listing", String(item.id))}
-                    style={{ flex: 1, gap: 4 }}
-                  >
-                    <Copy
-                      weight="bold"
-                      style={{
-                        fontSize: 14,
-                        lineHeight: 19.25,
-                        textDecorationLine: item.sold ? "line-through" : "none",
-                      }}
-                    >
-                      {item.title}
-                    </Copy>
-                    <Copy
-                      numberOfLines={3}
-                      style={{ color: "#57534e", lineHeight: 19.5 }}
-                    >
-                      {item.description}
-                    </Copy>
-                  </Pressable>
-                </View>
-                <ListingActions
-                  item={item}
-                  user={user}
-                  busy={busy}
-                  onAction={onAction}
-                  onMessage={onMessage}
-                />
-              </View>
-            ))}
-      </ScrollView>
+
+        </View>}
+      />
     </SafeAreaView>
   );
 }

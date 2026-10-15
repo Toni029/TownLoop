@@ -1,5 +1,5 @@
 import { usePresentation } from "../shell/TownLoopShell";
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo, useCallback, memo } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -73,7 +73,8 @@ export function WorkOrdersFeed({
   const s = useNewsStyles();
   useNewsFonts();
   const [expanded, setExpanded] = useState<string | null>(null);
-  const visible = orders.filter((o) => canViewWorkOrder(o, user));
+  const visible = useMemo(() => orders.filter(o => canViewWorkOrder(o, user)), [orders, user]);
+  const toggleOrder = useCallback((id: string) => setExpanded(value => value === id ? null : id), []);
   const all = canViewAllWorkOrders(user);
   const mode = isCrew(user)
     ? "Crew Maintenance Mode"
@@ -254,11 +255,7 @@ export function WorkOrdersFeed({
             all={orders}
             user={user}
             expanded={expanded === String(order.id)}
-            toggle={() =>
-              setExpanded((v) =>
-                v === String(order.id) ? null : String(order.id),
-              )
-            }
+            toggle={toggleOrder}
             busy={busy}
             onAction={onAction}
           />
@@ -267,7 +264,7 @@ export function WorkOrdersFeed({
     </SafeAreaView>
   );
 }
-function OrderCard({
+const OrderCard = memo(function OrderCard({
   order,
   all,
   user,
@@ -280,7 +277,7 @@ function OrderCard({
   all: WorkOrder[];
   user: UserProfile | null;
   expanded: boolean;
-  toggle: () => void;
+  toggle: (id: string) => void;
   busy: boolean;
   onAction: (
     id: string,
@@ -291,9 +288,9 @@ function OrderCard({
 }) {
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
-  const q = queueState(order, all);
+  const q = useMemo(() => queueState(order, all), [order, all]);
   const [spanish, setSpanish] = useState(false);
-  const translated = spanish ? translateWorkOrderSync(order) : null;
+  const translated = useMemo(() => spanish ? translateWorkOrderSync(order) : null, [spanish, order]);
   const [confirm, setConfirm] = useState(false);
   const [reply, setReply] = useState("");
   const [photo, setPhoto] = useState("");
@@ -367,7 +364,7 @@ function OrderCard({
           accessibilityRole="button"
           accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${order.code}: ${order.title}`}
           accessibilityState={{ expanded }}
-          onPress={toggle}
+          onPress={() => toggle(String(order.id))}
           style={[
             s.row,
             { flex: 1, flexWrap: "nowrap", minHeight: 40, gap: 6 },
@@ -463,7 +460,7 @@ function OrderCard({
             expanded ? "Collapse" : "Expand work order details"
           }
           accessibilityState={{ expanded }}
-          onPress={toggle}
+          onPress={() => toggle(String(order.id))}
           hitSlop={6}
           style={{
             width: 36,
@@ -807,4 +804,4 @@ function OrderCard({
       )}
     </View>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import {
   collection,
   doc,
@@ -34,14 +34,21 @@ export function readPerson(id: string, data: Record<string, any>): UserProfile {
 export function useProfileData(user: UserProfile | null) {
   const directory = useLiveCollection("users", readPerson, "");
   const [attempt, retry] = useState(0);
-  const key = user ? `${user.id}:${user.email}:${user.role}:${attempt}` : "";
+  const uid = user ? String(user.id) : "";
+  const email = user?.email || "";
+  const role = user?.role || "";
+  const approved = !!user && user.approved !== false;
+  const manager = !!user && officeManager(user);
+  const crew = !!user && isCrew(user);
+  const key = `${uid}:${email}:${role}:${approved}:${manager}:${crew}:${attempt}`;
+  const decode = useEffectEvent((category: Category, id: string, value: Record<string, any>) => user ? readThread(category, id, value, user) : null);
   const [owned, setOwned] = useState<{
     key: string;
     lists: Partial<Record<Category, Thread[]>>;
     errors: Partial<Record<Category, string>>;
   }>({ key: "", lists: {}, errors: {} });
   useEffect(() => {
-    if (!user || user.approved === false) return;
+    if (!uid || !approved) return;
     const stops = (["friend", "office", "maintenance"] as Category[]).map(
       (category) => {
         const base = collection(db, collectionName[category]);
@@ -52,12 +59,12 @@ export function useProfileData(user: UserProfile | null) {
                 where(
                   "participantIds",
                   "array-contains-any",
-                  identifiers(user).slice(0, 30),
+                  identifiers({ id: uid, email }).slice(0, 30),
                 ),
               )
-            : (category === "office" ? officeManager(user) : isCrew(user))
+            : (category === "office" ? manager : crew)
               ? base
-              : doc(base, residentKey(user));
+              : doc(base, residentKey({ id: uid, email }));
         return subscribeSafely<Thread[]>(
           (next, fail) =>
             onSnapshot(
@@ -71,7 +78,7 @@ export function useProfileData(user: UserProfile | null) {
                       : [];
                 next(
                   docs
-                    .map((d: any) => readThread(category, d.id, d.data(), user))
+                    .map((d: any) => decode(category, d.id, d.data()))
                     .filter(Boolean) as Thread[],
                 );
               },
@@ -96,11 +103,9 @@ export function useProfileData(user: UserProfile | null) {
       },
     );
     return () => stops.forEach((stop) => stop());
-  }, [key, attempt, user]);
+  }, [key, uid, email, approved, manager, crew]);
   const state = owned.key === key ? owned : { lists: {}, errors: {} };
-  const threads = Object.values(state.lists)
-    .flat()
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const threads = useMemo(() => Object.values(state.lists).flat().sort((a, b) => b.updatedAt - a.updatedAt), [state.lists]);
   return {
     directory,
     threads,
