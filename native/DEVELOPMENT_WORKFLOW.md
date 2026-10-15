@@ -3,7 +3,7 @@
 ## Setup status (2026-10-15)
 
 Recovery commit: `1d1bdea`; pushed tag `checkpoint/before-eas-workflow-2026-10-15`.
-Linked project: `@seeds4clix/townloop-native`, UUID `9f970d26-beed-44d6-a590-9dcdc00e85de`. EAS Update URL is configured. Separate remote `preview` and `production` channels map to their own branches. Android remote versionCode was initialized to 2 (the prior APK used 1). APK builds and on-phone update verification remain pending. No Preview or Production update has been published.
+Linked project: `@seeds4clix/townloop-native`, UUID `9f970d26-beed-44d6-a590-9dcdc00e85de`. EAS Update URL is configured. Separate remote `preview` and `production` channels map to their own branches. Android remote versionCode was initialized to 2 (the prior APK used 1). Preview and development APKs built successfully. The user explicitly approved the first Preview OTA, which is published; on-phone delivery, Fast Refresh and signed-in feature verification remain pending user confirmation. Production has no updates.
 
 Package remains `com.toni029.townloop`. Firebase client configuration, data, rules, app screens and functionality are unchanged. OTA channels isolate bundles, not Firebase data: both builds use the existing backend. Do not create test records without approval.
 
@@ -91,7 +91,7 @@ npm run update:preview -- "Approved description of the change"
 
 The script requires a clean tree on the correct branch, fetches GitHub and requires HEAD to equal the remote branch. It then requires an interactive `PUBLISH PREVIEW` confirmation. It publishes Android only, explicitly to Preview with the Preview environment. This guard prevents accidental routine publishing; it is not an account-level security boundary. Codex must still obtain the user's approval before invoking it.
 
-There are no added Git hooks, GitHub Actions, EAS Workflows or push-triggered OTA jobs. A Git push alone never invokes this script. Account-side GitHub integrations must also be inspected after login to rule out pre-existing remote automation.
+There are no added Git hooks, GitHub Actions, EAS Workflows or push-triggered OTA jobs. A Git push alone never invokes this script. This EAS project was newly created during setup; no GitHub App integration or cloud workflow was configured. The EAS project and Git repository are linked only through the manual CLI workflow.
 
 ## Verify the first OTA on the phone
 
@@ -113,7 +113,7 @@ Do not rebuild/re-export the JS as part of promotion if the goal is to ship the 
 
 ## Recovery
 
-Keep the original APK and pushed recovery tag. A Git revert alone does not roll back phones. With explicit authorization, republish a known-good compatible update to the affected channel:
+Keep the original APK and pushed recovery tag. If native recovery is needed after versionCode 2 is installed, rebuild the recovery source with the same certificate and a nondecreasing versionCode; Android may reject installing the old versionCode 1 APK as a downgrade. A Git revert alone does not roll back phones. With explicit authorization, republish a known-good compatible update to the affected channel:
 
 ```sh
 npm run eas -- update:republish --group KNOWN_GOOD_GROUP_ID --destination-channel preview --platform android --message "Approved Preview recovery"
@@ -131,3 +131,19 @@ Or `npm run eas -- update:rollback` and choose the correct Preview branch/runtim
 ## Reproducible native dependencies
 
 `prepare-native-dependencies.cjs` normalizes masked-view’s Android manifest during postinstall, matching the rewrite its own Gradle script performs. Without this, an already-built workstation and a fresh EAS worker calculate different fingerprints. The safety check caught and rejected that mismatch during setup; it was fixed rather than disabled. Preview and Production both calculated runtime `7a4f52ca67cc7391c6bd746696462930f71df303` at checkpoint `9b5914b`.
+
+## Built artifacts and approved OTA (2026-10-15)
+
+- Preview build: `2aa5009d-dd74-465d-84ed-8ad7bcb51e48`; `/home/tonio/Downloads/TownLoop-preview-OTA-2026-10-15.apk` (about 131 MiB).
+- Development build: `82df7c94-b6f1-4685-bb14-505cb4d9b7b9`; `/home/tonio/Downloads/TownLoop-development-2026-10-15.apk` (about 280 MiB).
+- Both builds use source checkpoint `9b5914b`, package `com.toni029.townloop`, versionName `0.1.0`, versionCode `2`.
+- Certificate SHA-256 for both and the prior installed-review APK: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`.
+- The actual Preview APK manifest has updates enabled, launch checks enabled with zero blocking wait, the project update URL, and only the `preview` channel header. Its `assets/fingerprint` is `7a4f52ca67cc7391c6bd746696462930f71df303`.
+- Approved Android Preview group: `558d774c-e39b-4347-98c9-df4b70e405a6`.
+- Android update: `01a1415e-ee0c-76b1-920b-dec9dd07e8ef`.
+- Published from clean, pushed checkpoint `be58514`; runtime matches the APK exactly. Later changes in this checkpoint only added the local launcher/documentation; app code matches the built APK.
+- EAS channel inspection confirms Preview points to the Preview branch and this group. Production points to the separate Production branch with zero updates. No production build, OTA publication or Play submission was performed.
+
+These are static APK/configuration and EAS server-record checks, not device execution tests. A direct Python HTTP probe of the update endpoint was rejected by Cloudflare's client-signature policy (403); it was not bypassed or treated as proof of an app update failure. Phone delivery remains the required end-to-end verification.
+
+Install Preview over the existing APK without uninstalling, open online, allow the download, fully close and reopen. Confirm the one-time notice shows update ID beginning `01a1415e`, then confirm existing sign-in/community and key screens/PDF still work. After that, install the development APK over Preview, connect to `./dev android` on the same Wi-Fi, and verify a reversible source edit refreshes on the phone. These two builds share one package and replace each other.
