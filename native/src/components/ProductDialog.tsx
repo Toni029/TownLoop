@@ -1,10 +1,9 @@
-import { useEffect, useState, type PropsWithChildren } from "react";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion } from "react-native-reanimated";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import {
-  Animated,
-  Easing,
   KeyboardAvoidingView,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -59,59 +58,43 @@ export function ProductDialog({
             insets.bottom,
         )
       : Math.min(660, height * 0.72);
-  const [size] = useState(() => new Animated.Value(target));
-  const [open] = useState(() => new Animated.Value(0));
-  const [fade] = useState(() => new Animated.Value(0));
-  const [closing, setClosing] = useState(false);
+  const size = useSharedValue(target);
+  const progress = useSharedValue(0);
+  const drag = useSharedValue(0);
+  const closing = useRef(false);
   useEffect(() => {
-    if (!ready) return;
-    const motion = Animated.parallel([
-      Animated.timing(open, {
-        toValue: 1,
-        duration: reduced ? 0 : 430,
-        easing: Easing.bezier(0.22, 1, 0.36, 1),
-        useNativeDriver: true,
-      }),
-      Animated.timing(fade, {
-        toValue: 1,
-        delay: reduced ? 0 : sheet && serif ? 120 : 185,
-        duration: reduced ? 0 : sheet && serif ? 400 : 570,
-        useNativeDriver: true,
-      }),
-    ]);
-    motion.start();
-    return () => motion.stop();
-  }, [open, fade, reduced, sheet, serif, ready]);
+    if (ready) progress.set(withSpring(1, { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }));
+    return () => cancelAnimation(progress);
+  }, [progress, ready, reduced]);
   useEffect(() => {
-    const motion = Animated.timing(size, {
-      toValue: target,
-      duration: reduced ? 0 : 430,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
-      useNativeDriver: false,
-    });
-    motion.start();
-    return () => motion.stop();
+    size.set(withTiming(target, { duration: reduced ? 0 : 240 }));
+    return () => cancelAnimation(size);
   }, [size, target, reduced]);
   const close = () => {
-    if (busy || closing) return;
-    setClosing(true);
-    Animated.timing(open, {
-      toValue: 0,
-      duration: reduced ? 0 : 200,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) onClose();
-    });
+    if (busy || closing.current) return;
+    closing.current = true;
+    progress.set(withTiming(0, { duration: reduced ? 0 : 180 }, finished => {
+      if (finished) runOnJS(onClose)();
+    }));
   };
-  const pan = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => !busy && Math.abs(g.dy) > 12,
-    onPanResponderRelease: (_, g) => {
-      if (g.dy > 60 || g.vy > 0.25) {
-        if (full) setFull(false);
-        else close();
-      } else if (g.dy < -40 || g.vy < -0.25) setFull(true);
-    },
-  });
+  const pan = Gesture.Pan().enabled(!busy).activeOffsetY([-12, 12]).failOffsetX([-24, 24])
+    .onUpdate(event => { drag.value = reduced ? 0 : Math.max(0, event.translationY); })
+    .onEnd(event => {
+      if (event.translationY > 80 || event.velocityY > 800) {
+        if (full) { runOnJS(setFull)(false); drag.value = withSpring(0); }
+        else runOnJS(close)();
+      } else {
+        if (event.translationY < -60 || event.velocityY < -800) runOnJS(setFull)(true);
+        drag.value = withSpring(0, { damping: 26, stiffness: 280 });
+      }
+    }).onFinalize((_event, success) => { if (!success) drag.value = withSpring(0); });
+  const sizeStyle = useAnimatedStyle(() => ({ height: size.value }));
+  const panelMotion = useAnimatedStyle(() => ({
+    opacity: Math.min(1, progress.value),
+    transform: [{ translateY: (1 - progress.value) * (bottomSheet ? height : 24) + drag.value },
+      { scale: bottomSheet || reduced ? 1 : 0.88 + progress.value * 0.12 }],
+  }));
+  const backdropMotion = useAnimatedStyle(() => ({ opacity: Math.min(1, progress.value) }));
   return (
     <Modal
       statusBarTranslucent
@@ -119,6 +102,7 @@ export function ProductDialog({
       animationType="none"
       onRequestClose={close}
     >
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -133,6 +117,7 @@ export function ProductDialog({
             paddingBottom: bottomSheet && !full ? 0 : insets.bottom,
           }}
         >
+          <Animated.View style={[{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 }, backdropMotion]}>
           {!!presentation?.blurTarget && (
             <BlurView
               blurTarget={presentation.blurTarget}
@@ -159,46 +144,31 @@ export function ProductDialog({
               backgroundColor: "#0c0a09a6",
             }}
           />
+          </Animated.View>
           <Animated.View
-            style={{
-              height: size,
+            style={[sizeStyle, {
               maxWidth: full ? undefined : 512,
               width: "100%",
               alignSelf: "center",
-            }}
+            }]}
           >
             <Animated.View
-              style={{
+              style={[panelMotion, {
                 flex: 1,
                 backgroundColor: dark ? "#0f172a" : "#fff",
                 borderRadius: full ? 0 : bottomSheet ? 0 : 24,
                 borderTopLeftRadius: full ? 0 : bottomSheet ? 32 : 24,
                 borderTopRightRadius: full ? 0 : bottomSheet ? 32 : 24,
                 overflow: "hidden",
-                opacity: open,
-                transform: [
-                  {
-                    translateY: open.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: bottomSheet ? [height, 0] : [24, 0],
-                    }),
-                  },
-                  {
-                    scale: open.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: bottomSheet ? [1, 1] : [0.88, 1],
-                    }),
-                  },
-                ],
-              }}
+              }]}
             >
               <SafeAreaView
                 edges={["left", "right", "bottom"]}
                 style={{ flex: 1 }}
               >
+                <GestureDetector gesture={pan}><View>
                 {bottomSheet && (
                   <View
-                    {...pan.panHandlers}
                     style={{
                       alignItems: "center",
                       paddingTop: 12,
@@ -221,7 +191,6 @@ export function ProductDialog({
                 )}
                 <View
                   onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
-                  {...pan.panHandlers}
                   style={[
                     s.row,
                     {
@@ -299,7 +268,9 @@ export function ProductDialog({
                     <X size={16} color="#78716c" />
                   </Pressable>
                 </View>
+                </View></GestureDetector>
                 <ScrollView
+                  keyboardDismissMode="interactive"
                   keyboardShouldPersistTaps="handled"
                   onContentSizeChange={(_, h) => setBodyHeight(h)}
                   contentContainerStyle={{
@@ -309,7 +280,7 @@ export function ProductDialog({
                 >
                   <Animated.View
                     style={{
-                      opacity: fade,
+
                       gap: sheet ? (serif ? 14 : 12) : 16,
                     }}
                   >
@@ -321,6 +292,7 @@ export function ProductDialog({
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

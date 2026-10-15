@@ -1,3 +1,6 @@
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS, cancelAnimation } from "react-native-reanimated";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import { MotionPressable as Pressable } from "../motion/Pressable";
 import {
   createContext,
   useContext,
@@ -6,13 +9,9 @@ import {
   type PropsWithChildren,
 } from "react";
 import {
-  Animated,
-  Easing,
   KeyboardAvoidingView,
   Modal,
-  PanResponder,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -259,33 +258,31 @@ export function Sheet({
 }>) {
   const p = usePalette();
   const reduced = useReducedMotion();
-  const progress = useState(() => new Animated.Value(0))[0];
+  const progress = useSharedValue(0);
+  const drag = useSharedValue(0);
   const [closing, setClosing] = useState(false);
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: reduced ? 0 : 320,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    progress.set(withTiming(1, { duration: reduced ? 0 : 260 }));
+    return () => cancelAnimation(progress);
   }, [progress, reduced]);
   const close = () => {
     if (closing) return;
     setClosing(true);
-    Animated.timing(progress, {
-      toValue: 0,
-      duration: reduced ? 0 : 220,
-      useNativeDriver: true,
-    }).start(onClose);
+    progress.set(withTiming(0, { duration: reduced ? 0 : 180 }, finished => {
+      if (finished) runOnJS(onClose)();
+    }));
   };
-  const pan = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => g.dy > 8,
-    onPanResponderRelease: (_, g) => {
-      if (g.dy > 60 || g.vy > 0.25) close();
-    },
-  });
+  const pan = Gesture.Pan().activeOffsetY(12).failOffsetX([-24, 24])
+    .onUpdate(event => { drag.value = reduced ? 0 : Math.max(0, event.translationY); })
+    .onEnd(event => {
+      if (event.translationY > 80 || event.velocityY > 800) runOnJS(close)();
+      else drag.value = withSpring(0, { damping: 26, stiffness: 280 });
+    }).onFinalize((_event, success) => { if (!success) drag.value = withSpring(0); });
+  const shade = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const movement = useAnimatedStyle(() => ({ transform: [{ translateY: reduced ? 0 : (1 - progress.value) * (centered ? 24 : 600) + drag.value }], opacity: progress.value }));
   return (
     <Modal transparent visible onRequestClose={close} statusBarTranslucent>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -300,7 +297,7 @@ export function Sheet({
           <Animated.View
             style={[
               StyleSheet.absoluteFill,
-              { backgroundColor: "rgba(12,10,9,.65)", opacity: progress },
+              { backgroundColor: "rgba(12,10,9,.65)" }, shade,
             ]}
           >
             <Pressable
@@ -312,7 +309,7 @@ export function Sheet({
           </Animated.View>
           <Animated.View
             accessibilityViewIsModal
-            style={{
+            style={[movement, {
               maxHeight: "92%",
               width: "100%",
               maxWidth: centered ? 576 : 384,
@@ -322,23 +319,14 @@ export function Sheet({
               borderTopRightRadius: centered ? 24 : 32,
               overflow: "hidden",
               backgroundColor: p.paper,
-              transform: [
-                {
-                  translateY: progress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: centered ? [24, 0] : [600, 0],
-                  }),
-                },
-              ],
-            }}
+            }]}
           >
             <SafeAreaView
               edges={["bottom", "left", "right"]}
               style={{ flexShrink: 1 }}
             >
               {!centered && (
-                <View
-                  {...pan.panHandlers}
+                <GestureDetector gesture={pan}><View
                   style={{ alignItems: "center", padding: 12 }}
                 >
                   <View
@@ -349,7 +337,7 @@ export function Sheet({
                       backgroundColor: p.line,
                     }}
                   />
-                </View>
+                </View></GestureDetector>
               )}
               <Row
                 style={{
@@ -375,6 +363,7 @@ export function Sheet({
                 />
               </Row>
               <ScrollView
+                keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
                 style={{ flexGrow: 0, flexShrink: 1 }}
                 contentContainerStyle={{ padding: 20, gap: 16 }}
@@ -385,6 +374,7 @@ export function Sheet({
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
