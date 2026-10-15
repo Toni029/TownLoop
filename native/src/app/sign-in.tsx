@@ -1,3 +1,4 @@
+import { ScreenSystemBars } from "../components/SystemBars";
 import { ResidentRegistration } from "../components/ResidentRegistration";
 import { googleSignIn } from "../lib/googleSignIn";
 import Svg, { Path } from "react-native-svg";
@@ -96,7 +97,8 @@ export default function SignIn() {
         }
         style={{ flex: 1 }}
       >
-        <SafeAreaView style={{ flex: 1 }}>
+        <ScreenSystemBars dark={dark} />
+      <SafeAreaView style={{ flex: 1 }}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={[s.page, { paddingVertical: wide ? 24 : 0 }]}

@@ -1,3 +1,4 @@
+import { SystemBars } from "./SystemBars";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -72,7 +73,8 @@ export function MediaViewer({
   const [index, setIndex] = useState(initialIndex);
   const item = media[index];
   return (
-    <Modal animationType={reduced ? "none" : "fade"} onRequestClose={onClose}>
+    <Modal statusBarTranslucent navigationBarTranslucent animationType={reduced ? "none" : "fade"} onRequestClose={onClose}>
+      <SystemBars dark />
       <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#0c0a09" }}>
         <View style={[s.row, { padding: 14 }]}>

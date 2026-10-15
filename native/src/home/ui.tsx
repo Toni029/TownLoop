@@ -1,3 +1,4 @@
+import { SystemBars } from "../components/SystemBars";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS, cancelAnimation } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { MotionPressable as Pressable } from "../motion/Pressable";
@@ -21,7 +22,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { X, type LucideIcon } from "lucide-react-native";
 import { useReducedMotion } from "./hooks";
@@ -257,6 +258,8 @@ export function Sheet({
   centered?: boolean;
 }>) {
   const p = usePalette();
+  const insets = useSafeAreaInsets();
+  const dark = useContext(Theme);
   const reduced = useReducedMotion();
   const progress = useSharedValue(0);
   const drag = useSharedValue(0);
@@ -281,7 +284,8 @@ export function Sheet({
   const shade = useAnimatedStyle(() => ({ opacity: progress.value }));
   const movement = useAnimatedStyle(() => ({ transform: [{ translateY: reduced ? 0 : (1 - progress.value) * (centered ? 24 : 600) + drag.value }], opacity: progress.value }));
   return (
-    <Modal transparent visible onRequestClose={close} statusBarTranslucent>
+    <Modal transparent visible onRequestClose={close} statusBarTranslucent navigationBarTranslucent>
+      <SystemBars dark={centered || dark} statusStyle="light" />
       <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -292,6 +296,7 @@ export function Sheet({
             flex: 1,
             justifyContent: centered ? "center" : "flex-end",
             padding: centered ? 12 : 0,
+            paddingTop: Math.max(centered ? 12 : 0, insets.top),
           }}
         >
           <Animated.View

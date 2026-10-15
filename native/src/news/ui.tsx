@@ -1,3 +1,4 @@
+import { SystemBars } from "../components/SystemBars";
 import { MotionPressable as Pressable } from "../motion/Pressable";
 import { useEffect, useState, type PropsWithChildren } from "react";
 import {
@@ -14,7 +15,7 @@ import {
   type TextProps,
   type TextInputProps,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   X,
   ChevronDown,
@@ -411,6 +412,7 @@ export function NewsDialog({
   tone?: "green" | "amber";
   icon?: LucideIcon;
 }>) {
+  const insets = useSafeAreaInsets();
   const dark = !!usePresentation()?.dark;
   const [progress] = useState(() => new Animated.Value(0));
   const reduced = useReducedMotion();
@@ -438,13 +440,14 @@ export function NewsDialog({
     return () => a.stop();
   }, [progress, reduced]);
   return (
-    <Modal
+    <Modal statusBarTranslucent navigationBarTranslucent
       transparent
       animationType="none"
       onRequestClose={() => {
         if (!busy) close();
       }}
     >
+      <SystemBars dark />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -455,6 +458,8 @@ export function NewsDialog({
             backgroundColor: "#0c0a09a6",
             justifyContent: "center",
             padding: 12,
+            paddingTop: Math.max(12, insets.top),
+            paddingBottom: Math.max(12, insets.bottom),
           }}
         >
           <Pressable

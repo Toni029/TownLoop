@@ -3,7 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View, TextInput, type 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { PropsWithChildren } from 'react';
 export const colors = { ink: '#0f172a', green: '#059669', cream: '#f7f3ea', muted: '#78716c' };
-export function Page({ children }: PropsWithChildren) { return <SafeAreaView edges={['left', 'right']} style={s.page}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>{children}</ScrollView></SafeAreaView>; }
+export function Page({ children }: PropsWithChildren) { return <SafeAreaView edges={['left', 'right', 'bottom']} style={s.page}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>{children}</ScrollView></SafeAreaView>; }
 export function Heading({ children }: PropsWithChildren) { return <Text accessibilityRole="header" style={s.heading}>{children}</Text>; }
 export function Body({ children }: PropsWithChildren) { return <Text style={s.body}>{children}</Text>; }
 export function Card({ children }: PropsWithChildren) { return <View style={s.card}>{children}</View>; }

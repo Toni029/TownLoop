@@ -1,3 +1,4 @@
+import { SystemBars } from "../components/SystemBars";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -106,11 +107,12 @@ export function PdfReader({
     }
   }
   return (
-    <Modal
+    <Modal statusBarTranslucent navigationBarTranslucent
       animationType="fade"
       onRequestClose={onClose}
       presentationStyle="fullScreen"
     >
+      <SystemBars dark />
       <SafeAreaView style={{ flex: 1, backgroundColor: "#0c0a09" }}>
         <View
           style={[

@@ -33,11 +33,27 @@
           "cameraPermission": "TownLoop uses the camera to attach pictures to maintenance requests and community posts.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-status-bar",
+        {
+          "style": "dark",
+          "hidden": false
+        }
+      ],
+      [
+        "expo-navigation-bar",
+        {
+          "style": "dark",
+          "hidden": false,
+          "enforceContrast": false
+        }
       ]
     ],
     "web": {
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "backgroundColor": "#f7f3ea"
   }
 }

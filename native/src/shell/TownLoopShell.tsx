@@ -1,3 +1,4 @@
+import { ScreenSystemBars } from "../components/SystemBars";
 import {
   createContext,
   useMemo,
@@ -114,6 +115,7 @@ export function TownLoopShell({
     <Presentation.Provider
       value={presentation}
     >
+      <ScreenSystemBars dark={dark} />
       <LinearGradient
         colors={
           dark ? ["#020617", "#0f172a"] : ["#faf6f0", "#f5ede2", "#e9decb"]
@@ -131,7 +133,7 @@ export function TownLoopShell({
             width: "100%",
             maxWidth: 448,
             alignSelf: "center",
-            borderWidth: 1,
+            borderWidth: Platform.OS === "web" ? 1 : 0,
             borderColor: dark ? "#1e293b" : "#d8cdbc",
             borderRadius: framed ? 44 : 0,
             overflow: "hidden",

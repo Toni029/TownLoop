@@ -3,8 +3,8 @@ import { useReducedMotion } from "../home/hooks";
 import { CommunityProvider, useCommunity } from "../lib/community";
 import { PlusJakartaSans_500Medium } from "@expo-google-fonts/plus-jakarta-sans/500Medium";
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SystemBars } from "../components/SystemBars";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "../lib/session";
 import { Loading, colors } from "../components/ui";
 import { useFonts } from "expo-font";
@@ -24,6 +24,7 @@ function Navigation() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream },
         headerTintColor: colors.ink,
+        contentStyle: { backgroundColor: colors.cream },
         animation: reduced ? "none" : "default",
       }}
     >
@@ -55,16 +56,17 @@ export default function Root() {
   });
   if (!fonts && !error)
     return (
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ backgroundColor: colors.cream }}>
+        <SystemBars />
         <Loading />
       </SafeAreaProvider>
     );
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ backgroundColor: colors.cream }}>
       <CommunityProvider>
         <SessionProvider>
-          <StatusBar style="dark" />
+          <SystemBars />
           <Navigation />
         </SessionProvider>
       </CommunityProvider>

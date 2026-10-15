@@ -1,3 +1,4 @@
+import { SystemBars } from "./SystemBars";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, type PropsWithChildren } from "react";
@@ -44,20 +45,21 @@ export function ProductDialog({
   const ready = !sheet || !!(bodyHeight && headerHeight);
   const [full, setFull] = useState(initiallyFull);
   const { height, width } = useWindowDimensions();
+  const [availableHeight, setAvailableHeight] = useState(height);
   const bottomSheet = sheet && width < 640;
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const target = full
-    ? height - insets.top - insets.bottom
+    ? availableHeight
     : sheet
       ? Math.min(
-          height * 0.92 - insets.top - insets.bottom,
+          availableHeight * 0.92 - insets.top - insets.bottom,
           (bodyHeight || 470) +
             (headerHeight || 100) +
             (bottomSheet ? 28 : 0) +
             insets.bottom,
         )
-      : Math.min(660, height * 0.72);
+      : Math.min(660, availableHeight * 0.72);
   const size = useSharedValue(target);
   const progress = useSharedValue(0);
   const drag = useSharedValue(0);
@@ -97,24 +99,26 @@ export function ProductDialog({
   const backdropMotion = useAnimatedStyle(() => ({ opacity: Math.min(1, progress.value) }));
   return (
     <Modal
-      statusBarTranslucent
+      statusBarTranslucent navigationBarTranslucent
       transparent
       animationType="none"
       onRequestClose={close}
     >
+      <SystemBars dark={full ? dark : !bottomSheet || dark} statusStyle={full ? (dark ? "light" : "dark") : "light"} />
       <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View
+          onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}
           style={{
             flex: 1,
             backgroundColor: "transparent",
             justifyContent: bottomSheet ? "flex-end" : "center",
             padding: full || bottomSheet ? 0 : 12,
-            paddingTop: insets.top,
-            paddingBottom: bottomSheet && !full ? 0 : insets.bottom,
+            paddingTop: full ? 0 : insets.top,
+            paddingBottom: full || bottomSheet ? 0 : insets.bottom,
           }}
         >
           <Animated.View style={[{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 }, backdropMotion]}>
@@ -163,7 +167,7 @@ export function ProductDialog({
               }]}
             >
               <SafeAreaView
-                edges={["left", "right", "bottom"]}
+                edges={full ? ["top", "left", "right", "bottom"] : ["left", "right", "bottom"]}
                 style={{ flex: 1 }}
               >
                 <GestureDetector gesture={pan}><View>

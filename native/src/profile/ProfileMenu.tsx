@@ -1,3 +1,4 @@
+import { SystemBars } from "../components/SystemBars";
 import { AdminMenu } from "./AdminMenu";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
@@ -636,8 +637,9 @@ export function ProfileMenu({
           if (view !== "menu") back();
           else close();
         }}
-        statusBarTranslucent
+        statusBarTranslucent navigationBarTranslucent
       >
+        {mounted && <SystemBars dark />}
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}

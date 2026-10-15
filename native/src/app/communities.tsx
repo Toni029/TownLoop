@@ -1,3 +1,4 @@
+import { ScreenSystemBars } from "../components/SystemBars";
 import { useState } from "react";
 import {
   Image,
@@ -61,6 +62,7 @@ export default function Communities() {
       }
       style={{ flex: 1 }}
     >
+      <ScreenSystemBars dark={dark} />
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={{
