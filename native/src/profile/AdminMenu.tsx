@@ -1,5 +1,6 @@
 import { adminDirectory, removeAttendeePatch } from "./adminModel";
 import { CecilPinesMark } from "../components/CecilPinesMark";
+import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useState } from "react";
 import {
   ScrollView,
@@ -234,333 +235,358 @@ export function AdminMenu({
           );
         })}
       </View>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: 14, padding: 16 }}
+      <Animated.View
+        key={tab}
+        entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
+        style={{ flex: 1 }}
       >
-        {confirm && (
-          <View style={[panel, { borderColor: "#fda4af" }]}>
-            <Text style={font(13, true)}>{confirm.label}</Text>
-            {button("Confirm", () => void act(confirm.run, "Updated."), true)}
-            {button("Cancel", () => setConfirm(null))}
-          </View>
-        )}
-        {busy && <ActivityIndicator color="#059669" />}
-        {tab === "residents" && (
-          <>
-            <View
-              style={{ flexDirection: "row", justifyContent: "space-between" }}
-            >
-              <Text style={font(12, true)}>DIRECTORY ({people.length})</Text>
-              {pending > 0 && (
-                <Text style={{ ...font(11, true), color: "#b45309" }}>
-                  {pending} pending approval
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: 14, padding: 16 }}
+        >
+          {confirm && (
+            <View style={[panel, { borderColor: "#fda4af" }]}>
+              <Text style={font(13, true)}>{confirm.label}</Text>
+              {button("Confirm", () => void act(confirm.run, "Updated."), true)}
+              {button("Cancel", () => setConfirm(null))}
+            </View>
+          )}
+          {busy && <ActivityIndicator color="#059669" />}
+          {tab === "residents" && (
+            <>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Text style={font(12, true)}>DIRECTORY ({people.length})</Text>
+                {pending > 0 && (
+                  <Text style={{ ...font(11, true), color: "#b45309" }}>
+                    {pending} pending approval
+                  </Text>
+                )}
+              </View>
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                {button(`All residents (${people.length})`, () =>
+                  setPendingOnly(false),
+                )}
+                {button(`Pending approvals (${pending})`, () =>
+                  setPendingOnly(true),
+                )}
+              </View>
+              <Text style={{ ...font(12), color: muted }}>
+                {pendingOnly
+                  ? "Showing new signups awaiting approval."
+                  : "New signups appear first. Approve them to give them access as residents."}
+              </Text>
+              {pendingOnly && pending === 0 && (
+                <Text style={font(13)}>No signups awaiting approval.</Text>
+              )}
+              {people.length === 0 && !pendingOnly && (
+                <Text style={{ ...font(13), textAlign: "center", padding: 24 }}>
+                  No residents in directory.
                 </Text>
               )}
-            </View>
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              {button(`All residents (${people.length})`, () =>
-                setPendingOnly(false),
-              )}
-              {button(`Pending approvals (${pending})`, () =>
-                setPendingOnly(true),
-              )}
-            </View>
-            <Text style={{ ...font(12), color: muted }}>
-              {pendingOnly
-                ? "Showing new signups awaiting approval."
-                : "New signups appear first. Approve them to give them access as residents."}
-            </Text>
-            {pendingOnly && pending === 0 && (
-              <Text style={font(13)}>No signups awaiting approval.</Text>
-            )}
-            {people.length === 0 && !pendingOnly && (
-              <Text style={{ ...font(13), textAlign: "center", padding: 24 }}>
-                No residents in directory.
-              </Text>
-            )}
-            {people
-              .filter((p) => !pendingOnly || p.approved === false)
-              .map((p) => {
-                const badge = getRoleBadgeInfo(getUserRole(p));
-                return (
-                  <View key={String(p.id)} style={panel}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        gap: 12,
-                        alignItems: "center",
-                      }}
-                    >
-                      {p.avatarUrl || p.avatar_url ? (
-                        <Image
-                          source={{ uri: p.avatarUrl || p.avatar_url }}
-                          style={{ width: 44, height: 44, borderRadius: 22 }}
-                        />
-                      ) : (
-                        <View
-                          style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 22,
-                            backgroundColor: "#d1fae5",
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Users size={20} color="#047857" />
-                        </View>
-                      )}
-                      <View style={{ flex: 1, gap: 3 }}>
-                        <Text style={font(14, true)}>{p.name}</Text>
-                        <Text style={{ ...font(10, true), color: "#b45309" }}>
-                          {p.approved === false
-                            ? "Pending approval"
-                            : badge.label}
-                        </Text>
-                        <Text style={{ ...font(12), color: muted }}>
-                          {p.email}
-                        </Text>
-                        <Text style={{ ...font(11), color: muted }}>
-                          {p.address || p.unit || "Resident Unit"}
-                        </Text>
-                      </View>
-                      {p.approved === false ? (
-                        button(
-                          "Approve",
-                          () =>
-                            void act(
-                              () =>
-                                manageResident(String(p.id), {
-                                  approved: true,
-                                  ...(!p.role ? { role: "resident" } : {}),
-                                }),
-                              `${p.name} approved.`,
-                            ),
-                        )
-                      ) : (
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            gap: 4,
-                            alignItems: "center",
-                          }}
-                        >
-                          <CheckCircle2 size={16} color="#059669" />
-                          <Text style={{ ...font(12, true), color: "#059669" }}>
-                            Approved
+              {people
+                .filter((p) => !pendingOnly || p.approved === false)
+                .map((p) => {
+                  const badge = getRoleBadgeInfo(getUserRole(p));
+                  return (
+                    <View key={String(p.id)} style={panel}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          gap: 12,
+                          alignItems: "center",
+                        }}
+                      >
+                        {p.avatarUrl || p.avatar_url ? (
+                          <Image
+                            source={{ uri: p.avatarUrl || p.avatar_url }}
+                            style={{ width: 44, height: 44, borderRadius: 22 }}
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 22,
+                              backgroundColor: "#d1fae5",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Users size={20} color="#047857" />
+                          </View>
+                        )}
+                        <View style={{ flex: 1, gap: 3 }}>
+                          <Text style={font(14, true)}>{p.name}</Text>
+                          <Text style={{ ...font(10, true), color: "#b45309" }}>
+                            {p.approved === false
+                              ? "Pending approval"
+                              : badge.label}
+                          </Text>
+                          <Text style={{ ...font(12), color: muted }}>
+                            {p.email}
+                          </Text>
+                          <Text style={{ ...font(11), color: muted }}>
+                            {p.address || p.unit || "Resident Unit"}
                           </Text>
                         </View>
-                      )}
-                    </View>
-                    {String(p.id) !== String(user.id) && (
-                      <>
-                        {button("Role controls", () =>
-                          setRoles(roles === String(p.id) ? "" : String(p.id)),
-                        )}
-                        {roles === String(p.id) && (
+                        {p.approved === false ? (
+                          button(
+                            "Approve",
+                            () =>
+                              void act(
+                                () =>
+                                  manageResident(String(p.id), {
+                                    approved: true,
+                                    ...(!p.role ? { role: "resident" } : {}),
+                                  }),
+                                `${p.name} approved.`,
+                              ),
+                          )
+                        ) : (
                           <View
                             style={{
                               flexDirection: "row",
-                              flexWrap: "wrap",
-                              gap: 6,
+                              gap: 4,
+                              alignItems: "center",
                             }}
                           >
-                            {["resident", "crew", "staff", "vip", "admin"]
-                              .filter((r) => r !== p.role)
-                              .map((role) => (
-                                <View key={role}>
-                                  {button(role, () =>
-                                    setConfirm({
-                                      label: `Change ${p.name} to ${role}? This changes community permissions.`,
-                                      run: () =>
-                                        manageResident(String(p.id), { role }),
-                                    }),
-                                  )}
-                                </View>
-                              ))}
+                            <CheckCircle2 size={16} color="#059669" />
+                            <Text
+                              style={{ ...font(12, true), color: "#059669" }}
+                            >
+                              Approved
+                            </Text>
                           </View>
                         )}
-                      </>
-                    )}
-                  </View>
-                );
-              })}
-          </>
-        )}
-        {tab === "rsvp" && (
-          <>
-            <Text style={font(14, true)}>RSVP Upcoming Events</Text>
-            <Text style={{ ...font(11), color: muted }}>
-              Roster of residents signed up for community events
-            </Text>
-            {events.loading && <ActivityIndicator />}
-            {!!events.error && (
-              <>
-                {
-                  <Text style={{ ...font(12), color: "#e11d48" }}>
-                    {events.error}
-                  </Text>
-                }
-                {button("Retry events", events.retry)}
-              </>
-            )}
-            {!events.loading &&
-              !events.error &&
-              sortedEvents.length === 0 && (
-                <View style={panel}>
-                  <CalendarCheck size={32} color={muted} />
-                  <Text style={font(14, true)}>
-                    No upcoming RSVP events
-                  </Text>
-                  <Text style={{ ...font(12), color: muted }}>
-                    There are currently no upcoming RSVP events listed in the
-                    community.
-                  </Text>
-                </View>
-              )}
-            {sortedEvents.map((e) => (
-              <View key={String(e.id)} style={panel}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ ...font(16, true), lineHeight: 23 }}>{e.title}</Text>
-                    <Text style={{ ...font(12), color: muted }}>
-                      {[[eventDetail(e.month), eventDetail(e.day)].filter(Boolean).join(" "), eventDetail(e.time)].filter(Boolean).join(" • ")}
+                      </View>
+                      {String(p.id) !== String(user.id) && (
+                        <>
+                          {button("Role controls", () =>
+                            setRoles(
+                              roles === String(p.id) ? "" : String(p.id),
+                            ),
+                          )}
+                          {roles === String(p.id) && (
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                flexWrap: "wrap",
+                                gap: 6,
+                              }}
+                            >
+                              {["resident", "crew", "staff", "vip", "admin"]
+                                .filter((r) => r !== p.role)
+                                .map((role) => (
+                                  <View key={role}>
+                                    {button(role, () =>
+                                      setConfirm({
+                                        label: `Change ${p.name} to ${role}? This changes community permissions.`,
+                                        run: () =>
+                                          manageResident(String(p.id), {
+                                            role,
+                                          }),
+                                      }),
+                                    )}
+                                  </View>
+                                ))}
+                            </View>
+                          )}
+                        </>
+                      )}
+                    </View>
+                  );
+                })}
+            </>
+          )}
+          {tab === "rsvp" && (
+            <>
+              <Text style={font(14, true)}>RSVP Upcoming Events</Text>
+              <Text style={{ ...font(11), color: muted }}>
+                Roster of residents signed up for community events
+              </Text>
+              {events.loading && <ActivityIndicator />}
+              {!!events.error && (
+                <>
+                  {
+                    <Text style={{ ...font(12), color: "#e11d48" }}>
+                      {events.error}
                     </Text>
-                    {!!eventDetail(e.location) && (
-                      <Text style={{ ...font(11), color: muted }}>
-                        {eventDetail(e.location)}
+                  }
+                  {button("Retry events", events.retry)}
+                </>
+              )}
+              {!events.loading &&
+                !events.error &&
+                sortedEvents.length === 0 && (
+                  <View style={panel}>
+                    <CalendarCheck size={32} color={muted} />
+                    <Text style={font(14, true)}>No upcoming RSVP events</Text>
+                    <Text style={{ ...font(12), color: muted }}>
+                      There are currently no upcoming RSVP events listed in the
+                      community.
+                    </Text>
+                  </View>
+                )}
+              {sortedEvents.map((e) => (
+                <View key={String(e.id)} style={panel}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ ...font(16, true), lineHeight: 23 }}>
+                        {e.title}
                       </Text>
-                    )}
+                      <Text style={{ ...font(12), color: muted }}>
+                        {[
+                          [eventDetail(e.month), eventDetail(e.day)]
+                            .filter(Boolean)
+                            .join(" "),
+                          eventDetail(e.time),
+                        ]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </Text>
+                      {!!eventDetail(e.location) && (
+                        <Text style={{ ...font(11), color: muted }}>
+                          {eventDetail(e.location)}
+                        </Text>
+                      )}
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${e.title}`}
+                      onPress={() =>
+                        setConfirm({
+                          label: `Delete entire event “${e.title}”?`,
+                          run: () =>
+                            removeNewsItem("community_events", String(e.id)),
+                        })
+                      }
+                    >
+                      <Trash2 size={16} color="#e11d48" />
+                    </Pressable>
                   </View>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Delete ${e.title}`}
+                    accessibilityLabel={`Resident signups for ${e.title}`}
+                    accessibilityState={{ expanded: !!expanded[String(e.id)] }}
                     onPress={() =>
-                      setConfirm({
-                        label: `Delete entire event “${e.title}”?`,
-                        run: () =>
-                          removeNewsItem("community_events", String(e.id)),
+                      setExpanded({
+                        ...expanded,
+                        [String(e.id)]: !expanded[String(e.id)],
                       })
                     }
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      minHeight: 48,
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: dark ? "#065f46" : "#a7f3d0",
+                      backgroundColor: dark ? "#022c22" : "#ecfdf5",
+                    }}
                   >
-                    <Trash2 size={16} color="#e11d48" />
+                    <Users size={16} color="#059669" />
+                    <Text style={{ ...font(13, true), flex: 1, flexShrink: 1 }}>
+                      Resident signups (
+                      {e.attendees?.length ?? e.attendeesCount ?? 0})
+                    </Text>
+                    {expanded[String(e.id)] ? (
+                      <ChevronDown size={16} color={ink} />
+                    ) : (
+                      <ChevronRight size={16} color={ink} />
+                    )}
                   </Pressable>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Resident signups for ${e.title}`}
-                  accessibilityState={{ expanded: !!expanded[String(e.id)] }}
-                  onPress={() =>
-                    setExpanded({
-                      ...expanded,
-                      [String(e.id)]: !expanded[String(e.id)],
-                    })
-                  }
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                    minHeight: 48,
-                    padding: 12,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: dark ? "#065f46" : "#a7f3d0",
-                    backgroundColor: dark ? "#022c22" : "#ecfdf5",
-                  }}
-                >
-                  <Users size={16} color="#059669" />
-                  <Text style={{ ...font(13, true), flex: 1, flexShrink: 1 }}>
-                    Resident signups ({e.attendees?.length ?? e.attendeesCount ?? 0})
-                  </Text>
-                  {expanded[String(e.id)] ? (
-                    <ChevronDown size={16} color={ink} />
-                  ) : (
-                    <ChevronRight size={16} color={ink} />
+                  {expanded[String(e.id)] && !e.attendees?.length && (
+                    <Text style={{ ...font(12), color: muted, padding: 8 }}>
+                      No residents have signed up yet.
+                    </Text>
                   )}
-                </Pressable>
-                {expanded[String(e.id)] && !e.attendees?.length && (
-                  <Text style={{ ...font(12), color: muted, padding: 8 }}>No residents have signed up yet.</Text>
-                )}
-                {expanded[String(e.id)] &&
-                  (e.attendees || []).map((a) => (
-                    <View
-                      key={a.id}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingVertical: 8,
-                        gap: 8,
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={font(12, true)}>{a.name}</Text>
-                        <Text style={{ ...font(11), color: muted }}>
-                          {a.unit || a.email}
-                        </Text>
-                      </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Delete RSVP for ${a.name}`}
-                        onPress={() =>
-                          setConfirm({
-                            label: `Delete RSVP for ${a.name}?`,
-                            run: () => removeAttendee(String(e.id), a.id),
-                          })
-                        }
+                  {expanded[String(e.id)] &&
+                    (e.attendees || []).map((a) => (
+                      <View
+                        key={a.id}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 8,
+                          gap: 8,
+                        }}
                       >
-                        <Trash2 size={14} color="#e11d48" />
-                      </Pressable>
-                    </View>
-                  ))}
+                        <View style={{ flex: 1 }}>
+                          <Text style={font(12, true)}>{a.name}</Text>
+                          <Text style={{ ...font(11), color: muted }}>
+                            {a.unit || a.email}
+                          </Text>
+                        </View>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Delete RSVP for ${a.name}`}
+                          onPress={() =>
+                            setConfirm({
+                              label: `Delete RSVP for ${a.name}?`,
+                              run: () => removeAttendee(String(e.id), a.id),
+                            })
+                          }
+                        >
+                          <Trash2 size={14} color="#e11d48" />
+                        </Pressable>
+                      </View>
+                    ))}
+                </View>
+              ))}
+            </>
+          )}
+          {tab === "database" && privileged && (
+            <>
+              <View style={[panel, { borderColor: "#fcd34d" }]}>
+                <AlertTriangle size={20} color="#d97706" />
+                <Text style={font(14, true)}>
+                  Production Initial State & Purge Utility
+                </Text>
+                <Text style={{ ...font(12), color: muted }}>
+                  Use this tool to purge any leftover mock discussion feeds,
+                  marketplace listings, or demo work orders from Firestore,
+                  leaving a clean, empty initial state ready for real production
+                  usage.
+                </Text>
               </View>
-            ))}
-          </>
-        )}
-        {tab === "database" && privileged && (
-          <>
-            <View style={[panel, { borderColor: "#fcd34d" }]}>
-              <AlertTriangle size={20} color="#d97706" />
-              <Text style={font(14, true)}>
-                Production Initial State & Purge Utility
-              </Text>
-              <Text style={{ ...font(12), color: muted }}>
-                Use this tool to purge any leftover mock discussion feeds,
-                marketplace listings, or demo work orders from Firestore,
-                leaving a clean, empty initial state ready for real production
-                usage.
-              </Text>
-            </View>
-            <View style={panel}>
-              <Text style={font(14, true)}>Purge All Seed & Mock Data</Text>
-              <Text style={{ ...font(12), color: muted }}>
-                Wipes discussion_feed, marketplace_posts, and work_orders
-                collections.
-              </Text>
-              {button(
-                "Reset & Clean Collections",
-                () =>
-                  setConfirm({
-                    label: "Confirm Purge",
-                    run: async () => {
-                      throw Error(
-                        "Mock cleanup requires an explicit allowlist of verified mock document IDs.",
-                      );
-                    },
-                  }),
-                true,
-              )}
-            </View>
-          </>
-        )}
-      </ScrollView>
+              <View style={panel}>
+                <Text style={font(14, true)}>Purge All Seed & Mock Data</Text>
+                <Text style={{ ...font(12), color: muted }}>
+                  Wipes discussion_feed, marketplace_posts, and work_orders
+                  collections.
+                </Text>
+                {button(
+                  "Reset & Clean Collections",
+                  () =>
+                    setConfirm({
+                      label: "Confirm Purge",
+                      run: async () => {
+                        throw Error(
+                          "Mock cleanup requires an explicit allowlist of verified mock document IDs.",
+                        );
+                      },
+                    }),
+                  true,
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }

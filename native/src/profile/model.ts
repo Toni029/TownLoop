@@ -220,7 +220,15 @@ export function messageAvatar(message: Message, people: UserProfile[]): string {
 // Directory extensions are optional; never invent presence, interests or a join date.
 export function profileInterests(person: UserProfile): string[] {
   const value = (person as UserProfile & { interests?: unknown }).interests;
-  return Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === "string" && !!v.trim()).map(v => v.trim()))] : [];
+  return Array.isArray(value)
+    ? [
+        ...new Set(
+          value
+            .filter((v): v is string => typeof v === "string" && !!v.trim())
+            .map((v) => v.trim()),
+        ),
+      ]
+    : [];
 }
 export function residentSince(person: UserProfile): string {
   const value = person.createdAt || person.created_at;
@@ -229,5 +237,15 @@ export function residentSince(person: UserProfile): string {
   return Number.isNaN(date.getTime()) ? "" : String(date.getFullYear());
 }
 export function matchesNeighbor(person: UserProfile, query: string): boolean {
-  return [person.name, person.address, person.unit, person.wing, ...profileInterests(person)].filter(Boolean).join(" ").toLowerCase().includes(query.trim().toLowerCase());
+  return [
+    person.name,
+    person.address,
+    person.unit,
+    person.wing,
+    ...profileInterests(person),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query.trim().toLowerCase());
 }

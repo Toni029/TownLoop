@@ -313,3 +313,30 @@ export async function manageResident(
     throw new Error("Invalid role.");
   await updateDoc(doc(db, "users", id), patch);
 }
+
+export async function updateOwnDetails(input: {
+  phone: string;
+  address: string;
+  wing: string;
+  emergencyContact: string;
+  dietaryPreference: string;
+}) {
+  const user = await approvedUser();
+  if (auth.currentUser?.uid !== String(user.id))
+    throw new Error("Your session changed. Sign in again.");
+  const clean = (value: string) => {
+    if (typeof value !== "string" || value.length > 300)
+      throw new Error("Profile fields must be under 300 characters.");
+    return value.trim();
+  };
+  // Explicit fields prevent role/approval/email mutation; retain both legacy aliases.
+  await updateDoc(doc(db, "users", String(user.id)), {
+    phone: clean(input.phone),
+    address: clean(input.address),
+    wing: clean(input.wing),
+    emergencyContact: clean(input.emergencyContact),
+    emergency_contact: clean(input.emergencyContact),
+    dietaryPreference: clean(input.dietaryPreference),
+    dietary_preference: clean(input.dietaryPreference),
+  });
+}

@@ -155,3 +155,37 @@ test("admin and vip can approve pending residents; residents and crew cannot", a
     assert.equal(actor.writes.length, 0);
   }
 });
+
+test("profile detail edits target the signed-in user and cannot change access fields", async () => {
+  const actor = fixture("resident", {});
+  await actor.actions.updateOwnDetails({
+    phone: " 555-0123 ",
+    address: "Villa 2",
+    wing: "West",
+    emergencyContact: "Pat",
+    dietaryPreference: "Vegetarian",
+    role: "admin",
+    approved: true,
+  });
+  assert.equal(actor.writes[0].ref.id, "resident");
+  assert.deepEqual(actor.writes[0].patch, {
+    phone: "555-0123",
+    address: "Villa 2",
+    wing: "West",
+    emergencyContact: "Pat",
+    emergency_contact: "Pat",
+    dietaryPreference: "Vegetarian",
+    dietary_preference: "Vegetarian",
+  });
+  await assert.rejects(
+    actor.actions.updateOwnDetails({
+      phone: "x".repeat(301),
+      address: "",
+      wing: "",
+      emergencyContact: "",
+      dietaryPreference: "",
+    }),
+    /300/,
+  );
+  assert.equal(actor.writes.length, 1);
+});

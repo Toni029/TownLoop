@@ -22,7 +22,6 @@ import Animated, {
   Easing,
   FadeIn,
   FadeOut,
-
   ReduceMotion,
   runOnJS,
   useAnimatedStyle,
@@ -74,6 +73,7 @@ import {
   markRead,
   sendMessage,
   updatePhoto,
+  updateOwnDetails,
   useProfileData,
 } from "./data";
 import {
@@ -95,6 +95,7 @@ type MenuView =
   | "friendDetail"
   | "compose"
   | "conversation"
+  | "editProfile"
   | "account"
   | "logoutConfirm"
   | "admin";
@@ -273,6 +274,13 @@ export function ProfileMenu({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [details, setDetails] = useState({
+    phone: "",
+    address: "",
+    wing: "",
+    emergencyContact: "",
+    dietaryPreference: "",
+  });
   const [recipientOpen, setRecipientOpen] = useState(false);
   const [deleting, setDeleting] = useState<Thread | null>(null);
   const lock = useRef(false),
@@ -283,6 +291,14 @@ export function ProfileMenu({
   const conversation = data.threads.find(
     (t) => t.id === selected?.id && t.category === selected.category,
   );
+  const contact =
+    conversation &&
+    (conversation.category === "friend" ||
+      (conversation.category === "office"
+        ? user && officeManager(user)
+        : user && isCrew(user)))
+      ? conversation.recipient
+      : null;
   useEffect(() => {
     if (view !== "conversation" || !conversation?.unread) return;
     void markRead(conversation).catch((e) =>
@@ -352,8 +368,9 @@ export function ProfileMenu({
       cancelAnimation(progress);
       cancelAnimation(shade);
       cancelAnimation(glint);
+      cancelAnimation(scene);
     },
-    [progress, shade, glint],
+    [progress, shade, glint, scene],
   );
   function finishClose() {
     setMounted(false);
@@ -420,8 +437,10 @@ export function ProfileMenu({
   const shadeMotion = useAnimatedStyle(() => ({ opacity: shade.value }));
   const sceneMotion = useAnimatedStyle(() => ({
     opacity: scene.value,
-    transform: [{ translateX: direction * (1 - scene.value) * 18 },
-      { scale: 0.985 + scene.value * 0.015 }],
+    transform: [
+      { translateX: direction * (1 - scene.value) * 18 },
+      { scale: 0.985 + scene.value * 0.015 },
+    ],
   }));
   function finishNavigation(next: MenuView, backwards: boolean) {
     setView(next);
@@ -429,10 +448,10 @@ export function ProfileMenu({
     setError("");
     setNotice("");
     setRecipientOpen(false);
-    scene.value = withTiming(1, {
+    scene.set(withTiming(1, {
       duration: reduced ? 0 : 220,
       easing: Easing.bezier(0.16, 1, 0.3, 1),
-    });
+    }));
     transitionLock.current = false;
     setTransitioning(false);
   }
@@ -448,9 +467,9 @@ export function ProfileMenu({
       } else history.current.push(view);
     }
     setDirection(backwards ? 1 : -1);
-    scene.value = withTiming(0, { duration: reduced ? 0 : 90 }, (finished) => {
+    scene.set(withTiming(0, { duration: reduced ? 0 : 90 }, (finished) => {
       if (finished) runOnJS(finishNavigation)(next, backwards);
-    });
+    }));
   }
   function back() {
     if (transitionLock.current) return;
@@ -637,6 +656,10 @@ export function ProfileMenu({
               >
                 <X size={20} color={ink} />
               </Pressable>
+              <Animated.View
+                pointerEvents={transitioning ? "none" : "auto"}
+                style={[{ flex: 1 }, sceneMotion]}
+              >
               {view !== "menu" && view !== "admin" && (
                 <View style={s.subheader}>
                   <Pressable
@@ -647,7 +670,13 @@ export function ProfileMenu({
                   >
                     <ChevronLeft size={20} color="#059669" />
                     <Text style={s.backText}>
-                      {view === "friendDetail" ? "All Residents" : "Back"}
+                      {view === "friendDetail"
+                        ? "All Residents"
+                        : view === "conversation"
+                          ? "All Messages"
+                          : view === "compose"
+                            ? "Cancel"
+                            : "Back"}
                     </Text>
                   </Pressable>
                   <Text
@@ -672,6 +701,7 @@ export function ProfileMenu({
                           compose: "Compose Message",
                           conversation: "Conversation",
                           account: "Resident Account",
+                          editProfile: "Edit Profile",
                           logoutConfirm: "Log Out",
                           admin: "Admin Portal",
                         } as Record<string, string>
@@ -712,6 +742,64 @@ export function ProfileMenu({
                     >
                       {friends.length} neighbors
                     </Text>
+                  )}
+                  {view === "editProfile" && (
+                    <>
+                      <View
+                        style={[
+                          panel,
+                          { padding: 16, borderRadius: 20, gap: 8 },
+                        ]}
+                      >
+                        <Text style={[s.name, { color: ink }]}>
+                          {user.name}
+                        </Text>
+                        <Text style={[s.small, { color: muted }]}>
+                          {user.email}
+                        </Text>
+                      </View>
+                      {(
+                        [
+                          ["phone", "Resident Phone"],
+                          ["address", "Residency Address"],
+                          ["wing", "Wing"],
+                          ["emergencyContact", "Emergency Contact"],
+                          ["dietaryPreference", "Dietary Preference"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <View key={key} style={{ gap: 6 }}>
+                          <Text style={[s.rowTitle, { color: muted }]}>
+                            {label}
+                          </Text>
+                          <TextInput
+                            accessibilityLabel={label}
+                            value={details[key]}
+                            editable={!busy}
+                            maxLength={300}
+                            keyboardType={
+                              key === "phone" ? "phone-pad" : "default"
+                            }
+                            onChangeText={(value) =>
+                              setDetails((current) => ({
+                                ...current,
+                                [key]: value,
+                              }))
+                            }
+                            style={textInput}
+                          />
+                        </View>
+                      ))}
+                      <Action
+                        title={busy ? "Saving…" : "Save Profile"}
+                        onPress={() =>
+                          void act(async () => {
+                            await updateOwnDetails(details);
+                            go("account");
+                          })
+                        }
+                      />
+                      <Action title="Cancel" onPress={back} />
+                    </>
                   )}
                   {view === "account" && (
                     <Text
@@ -784,10 +872,7 @@ export function ProfileMenu({
                   )}
                 </View>
               )}
-              <Animated.View
-                pointerEvents={transitioning ? "none" : "auto"}
-                style={[{ flex: 1 }, sceneMotion]}
-              >
+              <View style={{ flex: 1 }}>
                 {view === "admin" && canAccessAdminPanel(user) && (
                   <View style={{ flex: 1 }}>
                     {!!error && (
@@ -814,13 +899,18 @@ export function ProfileMenu({
                   </View>
                 )}
                 <ScrollView
+                  key={view}
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                   style={{
                     flex: 1,
                     display: view === "admin" ? "none" : "flex",
                   }}
-                  contentContainerStyle={{ gap: 14, paddingBottom: 16, ...(view === "conversation" ? { flex: 1 } : {}) }}
+                  contentContainerStyle={{
+                    gap: 14,
+                    paddingBottom: 16,
+                    ...(view === "conversation" ? { flex: 1 } : {}),
+                  }}
                   scrollEnabled={view !== "conversation"}
                 >
                   {!!error && (
@@ -861,13 +951,40 @@ export function ProfileMenu({
                           <Text style={[s.name, { color: ink }]}>
                             {user.name}
                           </Text>
-                          <Text style={s.role}>
-                            {getUserRole(user) || "Resident"}
-                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            {(officeManager(user) || isCrew(user)) && (
+                              <Image
+                                source={
+                                  isCrew(user)
+                                    ? require("../../assets/crew-badge.png")
+                                    : require("../../assets/vip-badge.png")
+                                }
+                                style={{ width: 22, height: 22 }}
+                                accessibilityLabel={
+                                  isCrew(user) ? "Crew badge" : "Staff badge"
+                                }
+                              />
+                            )}
+                            <Text style={s.role}>
+                              {getUserRole(user) || "Resident"}
+                            </Text>
+                          </View>
                           <Text style={[s.small, { color: muted }]}>
-                            {user.address || user.unit || "TownLoop Community"}{user.wing ? ` • ${user.wing}` : ""}
+                            {user.address || user.unit || "TownLoop Community"}
+                            {user.wing ? ` • ${user.wing}` : ""}
                           </Text>
-                          <Text selectable style={[s.small, { color: muted, marginTop: 4 }]}>{user.email}</Text>
+                          <Text
+                            selectable
+                            style={[s.small, { color: muted, marginTop: 4 }]}
+                          >
+                            {user.email}
+                          </Text>
                         </View>
                       </View>
                       {canAccessAdminPanel(user) && (
@@ -901,7 +1018,9 @@ export function ProfileMenu({
                         onPress={() => go("account")}
                       />
                       <View style={[s.theme, panel]}>
-                        <Text style={[s.rowTitle, { color: ink }]}>{dark ? "Dark Mode" : "Light Mode"}</Text>
+                        <Text style={[s.rowTitle, { color: ink }]}>
+                          {dark ? "Dark Mode" : "Light Mode"}
+                        </Text>
                         <View style={s.segments}>
                           {[false, true].map((value) => (
                             <Pressable
@@ -935,7 +1054,14 @@ export function ProfileMenu({
                         tone="#e11d48"
                         onPress={() => go("logoutConfirm")}
                       />
-                      <Text style={[s.small, { color: muted, textAlign: "center", fontSize: 10 }]}>Version 1.0.0 • © 2026 TownLoop • All rights reserved.</Text>
+                      <Text
+                        style={[
+                          s.small,
+                          { color: muted, textAlign: "center", fontSize: 10 },
+                        ]}
+                      >
+                        Version 1.0.0 • © 2026 TownLoop • All rights reserved.
+                      </Text>
                     </>
                   )}
                   {view === "inbox" && (
@@ -992,89 +1118,120 @@ export function ProfileMenu({
                                 ? Wrench
                                 : Users;
                           return (
-                            <View key={`${t.category}:${t.id}`} style={{ position: "relative" }}>
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={`Open conversation: ${t.name}, ${t.subject}`}
-                              onPress={() => openThread(t)}
-                              style={({ pressed }) => ({
-                                padding: width >= 640 ? 14 : 12,
-                                borderRadius: 16,
-                                borderWidth: 1,
-                                borderLeftWidth: 5,
-                                borderColor: tone + "55",
-                                borderLeftColor: tone,
-                                backgroundColor: dark
-                                  ? tone + "20"
-                                  : tone + (t.unread ? "16" : "0a"),
-                                opacity: pressed ? 0.7 : 1,
-                                gap: 8,
-                              })}
+                            <View
+                              key={`${t.category}:${t.id}`}
+                              style={{ position: "relative" }}
                             >
-                              <View
-                                style={{
-                                  flexDirection: "row",
-                                  gap: 10,
-                                  alignItems: "center",
-                                  paddingRight: 36,
-                                }}
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`Open conversation: ${t.name}, ${t.subject}`}
+                                onPress={() => openThread(t)}
+                                style={({ pressed }) => ({
+                                  padding: width >= 640 ? 14 : 12,
+                                  borderRadius: 16,
+                                  borderWidth: 1,
+                                  borderLeftWidth: 5,
+                                  borderColor: tone + "55",
+                                  borderLeftColor: tone,
+                                  backgroundColor: dark
+                                    ? tone + "20"
+                                    : tone + (t.unread ? "16" : "0a"),
+                                  opacity: pressed ? 0.7 : 1,
+                                  gap: 8,
+                                })}
                               >
                                 <View
                                   style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 12,
-                                    backgroundColor: tone + "20",
-                                    borderWidth: 1,
-                                    borderColor: tone + "33",
+                                    flexDirection: "row",
+                                    gap: 10,
                                     alignItems: "center",
-                                    justifyContent: "center",
+                                    paddingRight: 36,
                                   }}
                                 >
-                                  <Glyph size={16} color={tone} />
-                                </View>
-                                <View style={{ flex: 1 }}>
                                   <View
                                     style={{
-                                      flexDirection: "row",
-                                      gap: 6,
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: 12,
+                                      backgroundColor: tone + "20",
+                                      borderWidth: 1,
+                                      borderColor: tone + "33",
                                       alignItems: "center",
+                                      justifyContent: "center",
                                     }}
                                   >
-                                    <Text
-                                      numberOfLines={1}
+                                    <Glyph size={16} color={tone} />
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <View
                                       style={{
-                                        fontFamily: "JakartaExtra",
-                                        fontSize: width >= 640 ? 14 : 12,
-                                        color: ink,
-                                        flexShrink: 1,
+                                        flexDirection: "row",
+                                        gap: 6,
+                                        alignItems: "center",
                                       }}
                                     >
-                                      {t.name
-                                        .replace(/\s*\([^)]*\)/g, "")
-                                        .trim()}
-                                    </Text>
+                                      <Text
+                                        numberOfLines={1}
+                                        style={{
+                                          fontFamily: "JakartaExtra",
+                                          fontSize: width >= 640 ? 14 : 12,
+                                          color: ink,
+                                          flexShrink: 1,
+                                        }}
+                                      >
+                                        {t.name
+                                          .replace(/\s*\([^)]*\)/g, "")
+                                          .trim()}
+                                      </Text>
+                                      <Text
+                                        style={{
+                                          fontFamily: "JakartaExtra",
+                                          fontSize: 9,
+                                          color: tone,
+                                          backgroundColor: tone + "18",
+                                          paddingHorizontal: 6,
+                                          paddingVertical: 2,
+                                          borderWidth: 1,
+                                          borderColor: tone + "33",
+                                          borderRadius: 6,
+                                          textTransform: "uppercase",
+                                        }}
+                                      >
+                                        {t.category === "friend"
+                                          ? "Friend"
+                                          : t.category === "office"
+                                            ? "Office"
+                                            : "Crew"}
+                                      </Text>
+                                    </View>
                                     <Text
                                       style={{
-                                        fontFamily: "JakartaExtra",
-                                        fontSize: 9,
-                                        color: tone,
-                                        backgroundColor: tone + "18",
-                                        paddingHorizontal: 6,
-                                        paddingVertical: 2,
-                                        borderWidth: 1,
-                                        borderColor: tone + "33",
-                                        borderRadius: 6,
-                                        textTransform: "uppercase",
+                                        fontFamily: "Jakarta",
+                                        fontSize: 11,
+                                        color: muted,
                                       }}
                                     >
                                       {t.category === "friend"
-                                        ? "Friend"
+                                        ? "Resident"
                                         : t.category === "office"
-                                          ? "Office"
-                                          : "Crew"}
+                                          ? officeManager(user)
+                                            ? "Resident"
+                                            : "Community Office"
+                                          : isCrew(user)
+                                            ? "Resident"
+                                            : "Maintenance Crew"}
                                     </Text>
                                   </View>
+                                  {t.unread && (
+                                    <View
+                                      style={{
+                                        width: 8,
+                                        height: 8,
+                                        borderRadius: 4,
+                                        backgroundColor: tone,
+                                      }}
+                                    />
+                                  )}
                                   <Text
                                     style={{
                                       fontFamily: "Jakarta",
@@ -1082,85 +1239,58 @@ export function ProfileMenu({
                                       color: muted,
                                     }}
                                   >
-                                    {t.category === "friend"
-                                      ? "Resident"
-                                      : t.category === "office"
-                                        ? officeManager(user)
-                                          ? "Resident"
-                                          : "Community Office"
-                                        : isCrew(user)
-                                          ? "Resident"
-                                          : "Maintenance Crew"}
+                                    {t.updatedAt
+                                      ? new Date(
+                                          t.updatedAt,
+                                        ).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "numeric",
+                                        })
+                                      : "Recent"}
                                   </Text>
                                 </View>
-                                {t.unread && (
-                                  <View
-                                    style={{
-                                      width: 8,
-                                      height: 8,
-                                      borderRadius: 4,
-                                      backgroundColor: tone,
-                                    }}
-                                  />
-                                )}
                                 <Text
-                                  style={{
-                                    fontFamily: "Jakarta",
-                                    fontSize: 11,
-                                    color: muted,
-                                  }}
+                                  numberOfLines={1}
+                                  style={[
+                                    s.rowTitle,
+                                    {
+                                      color: ink,
+                                      fontSize: width >= 640 ? 14 : 12,
+                                    },
+                                  ]}
                                 >
-                                  {t.updatedAt
-                                    ? new Date(t.updatedAt).toLocaleDateString(
-                                        "en-US",
-                                        { month: "short", day: "numeric" },
-                                      )
-                                    : "Recent"}
+                                  {t.subject}
                                 </Text>
-
-                              </View>
-                              <Text
-                                numberOfLines={1}
-                                style={[
-                                  s.rowTitle,
-                                  {
-                                    color: ink,
-                                    fontSize: width >= 640 ? 14 : 12,
-                                  },
-                                ]}
-                              >
-                                {t.subject}
-                              </Text>
-                              <Text
-                                numberOfLines={2}
-                                style={[
-                                  s.small,
-                                  {
-                                    color: muted,
-                                    fontSize: width >= 640 ? 12 : 11,
-                                  },
-                                ]}
-                              >
-                                {t.messages.at(-1)?.body || "Conversation"}
-                              </Text>
-                            </Pressable>
-                                <Pressable
-                                  accessibilityRole="button"
-                                  accessibilityLabel="Delete conversation"
-                                  hitSlop={6}
-                                  onPress={() => setDeleting(t)}
-                                  style={{
-                                    position: "absolute",
-                                    right: 8,
-                                    top: 8,
-                                    width: 40,
-                                    height: 40,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
+                                <Text
+                                  numberOfLines={2}
+                                  style={[
+                                    s.small,
+                                    {
+                                      color: muted,
+                                      fontSize: width >= 640 ? 12 : 11,
+                                    },
+                                  ]}
                                 >
-                                  <Trash2 size={14} color={muted} />
-                                </Pressable>
+                                  {t.messages.at(-1)?.body || "Conversation"}
+                                </Text>
+                              </Pressable>
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Delete conversation"
+                                hitSlop={6}
+                                onPress={() => setDeleting(t)}
+                                style={{
+                                  position: "absolute",
+                                  right: 8,
+                                  top: 8,
+                                  width: 40,
+                                  height: 40,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Trash2 size={14} color={muted} />
+                              </Pressable>
                             </View>
                           );
                         })}
@@ -1244,37 +1374,46 @@ export function ProfileMenu({
                       )}
                       {visibleFriends.map((p) => (
                         <View key={String(p.id)} style={[s.row, panel]}>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`View ${p.name}`}
-                          onPress={() => {
-                            setPerson(p);
-                            go("friendDetail");
-                          }}
-                          style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 }}
-                        >
-                          <Avatar resident={p} size={width >= 640 ? 56 : 48} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={[s.rowTitle, { color: ink }]}>
-                              {p.name}
-                            </Text>
-                            <Text style={[s.small, { color: muted }]}>
-                              {p.address || p.unit || "Resident Unit"}
-                              {p.wing ? ` • ${p.wing}` : ""}
-                            </Text>
-                            <Text
-                              style={{
-                                fontFamily: "JakartaBold",
-                                fontSize: 12,
-                                color: dark ? "#34d399" : "#065f46",
-                                marginTop: 2,
-                              }}
-                            >
-                              {p.phone || "Phone not provided"}
-                            </Text>
-                          </View>
-                          <ChevronRight size={18} color={muted} />
-                        </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`View ${p.name}`}
+                            onPress={() => {
+                              setPerson(p);
+                              go("friendDetail");
+                            }}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 10,
+                            }}
+                          >
+                            <Avatar
+                              resident={p}
+                              size={width >= 640 ? 56 : 48}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[s.rowTitle, { color: ink }]}>
+                                {p.name}
+                              </Text>
+                              <Text style={[s.small, { color: muted }]}>
+                                {p.address || p.unit || "Resident Unit"}
+                                {p.wing ? ` • ${p.wing}` : ""}
+                              </Text>
+                              <Text
+                                style={{
+                                  fontFamily: "JakartaBold",
+                                  fontSize: 12,
+                                  color: dark ? "#34d399" : "#065f46",
+                                  marginTop: 2,
+                                }}
+                              >
+                                {p.phone || "Phone not provided"}
+                              </Text>
+                            </View>
+                            <ChevronRight size={18} color={muted} />
+                          </Pressable>
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={`Message ${p.name}`}
@@ -1300,33 +1439,163 @@ export function ProfileMenu({
                   )}
                   {view === "friendDetail" && !!person && (
                     <>
-                      <View style={[panel, { borderWidth: 1, borderRadius: 24, padding: 20, alignItems: "center", gap: 10 }]}>
-                        <Avatar resident={person} size={width >= 640 ? 112 : 96} />
-                        <Text style={[s.name, { color: ink, textAlign: "center" }]}>{person.name}</Text>
-                        <Text style={[s.role, { textAlign: "center" }]}>{person.address || person.unit || "TownLoop Resident"}{person.wing ? ` • ${person.wing}` : ""}</Text>
-                        {!!residentSince(person) && <Text style={[s.small, { color: muted }]}>TownLoop Resident since {residentSince(person)}</Text>}
+                      <View
+                        style={[
+                          panel,
+                          {
+                            borderWidth: 1,
+                            borderRadius: 24,
+                            padding: 20,
+                            alignItems: "center",
+                            gap: 10,
+                          },
+                        ]}
+                      >
+                        <Avatar
+                          resident={person}
+                          size={width >= 640 ? 112 : 96}
+                        />
+                        <Text
+                          style={[s.name, { color: ink, textAlign: "center" }]}
+                        >
+                          {person.name}
+                        </Text>
+                        <Text style={[s.role, { textAlign: "center" }]}>
+                          {person.address || person.unit || "TownLoop Resident"}
+                          {person.wing ? ` • ${person.wing}` : ""}
+                        </Text>
+                        {!!residentSince(person) && (
+                          <Text style={[s.small, { color: muted }]}>
+                            TownLoop Resident since {residentSince(person)}
+                          </Text>
+                        )}
                       </View>
-                      <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }]}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Phone size={20} color="#059669" /><Text style={[s.rowTitle, { color: ink }]}>Phone Number</Text></View>
-                        <Text selectable style={[s.message, { color: ink }]}>{person.phone || "Phone not provided"}</Text>
-                        {!!person.phone && <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Action title="Copy Phone" onPress={() => void act(() => copy(person.phone!))} />
-                          <Action title="Call" onPress={() => void act(() => Linking.openURL(`tel:${person.phone!.replace(/[^+\d]/g, "")}`))} />
-                        </View>}
+                      <View
+                        style={[
+                          panel,
+                          {
+                            borderWidth: 1,
+                            borderRadius: 16,
+                            padding: 16,
+                            gap: 10,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <Phone size={20} color="#059669" />
+                          <Text style={[s.rowTitle, { color: ink }]}>
+                            Phone Number
+                          </Text>
+                        </View>
+                        <Text selectable style={[s.message, { color: ink }]}>
+                          {person.phone || "Phone not provided"}
+                        </Text>
+                        {!!person.phone && (
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <Action
+                              title="Copy Phone"
+                              onPress={() =>
+                                void act(() => copy(person.phone!))
+                              }
+                            />
+                            <Action
+                              title="Call"
+                              onPress={() =>
+                                void act(() =>
+                                  Linking.openURL(
+                                    `tel:${person.phone!.replace(/[^+\d]/g, "")}`,
+                                  ),
+                                )
+                              }
+                            />
+                          </View>
+                        )}
                       </View>
-                      <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }]}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Home size={20} color="#059669" /><Text style={[s.rowTitle, { color: ink }]}>Residency Address</Text></View>
-                        <Text selectable style={[s.message, { color: ink }]}>{person.address || person.unit || "Address not provided"}</Text>
-                        {!!(person.address || person.unit) && <Action title="Copy Address" onPress={() => void act(() => copy(person.address || person.unit!))} />}
+                      <View
+                        style={[
+                          panel,
+                          {
+                            borderWidth: 1,
+                            borderRadius: 16,
+                            padding: 16,
+                            gap: 10,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <Home size={20} color="#059669" />
+                          <Text style={[s.rowTitle, { color: ink }]}>
+                            Residency Address
+                          </Text>
+                        </View>
+                        <Text selectable style={[s.message, { color: ink }]}>
+                          {person.address ||
+                            person.unit ||
+                            "Address not provided"}
+                        </Text>
+                        {!!(person.address || person.unit) && (
+                          <Action
+                            title="Copy Address"
+                            onPress={() =>
+                              void act(() =>
+                                copy(person.address || person.unit!),
+                              )
+                            }
+                          />
+                        )}
                       </View>
-                      <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }]}>
-                        <Text style={[s.rowTitle, { color: ink }]}>Activities & Interests</Text>
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                          {profileInterests(person).map((interest) => <Text key={interest} style={[s.role, { textTransform: "none" }]}>{interest}</Text>)}
-                          {profileInterests(person).length === 0 && <Text style={[s.small, { color: muted }]}>No interests shared yet.</Text>}
+                      <View
+                        style={[
+                          panel,
+                          {
+                            borderWidth: 1,
+                            borderRadius: 16,
+                            padding: 16,
+                            gap: 10,
+                          },
+                        ]}
+                      >
+                        <Text style={[s.rowTitle, { color: ink }]}>
+                          Activities & Interests
+                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: 8,
+                          }}
+                        >
+                          {profileInterests(person).map((interest) => (
+                            <Text
+                              key={interest}
+                              style={[s.role, { textTransform: "none" }]}
+                            >
+                              {interest}
+                            </Text>
+                          ))}
+                          {profileInterests(person).length === 0 && (
+                            <Text style={[s.small, { color: muted }]}>
+                              No interests shared yet.
+                            </Text>
+                          )}
                         </View>
                       </View>
-                      <Action title={`Send ${person.name.split(" ")[0]} a Message`} onPress={() => compose("friend", person)} />
+                      <Action
+                        title={`Send ${person.name.split(" ")[0]} a Message`}
+                        onPress={() => compose("friend", person)}
+                      />
                     </>
                   )}
                   {view === "compose" && (
@@ -1394,48 +1663,56 @@ export function ProfileMenu({
                               <ChevronDown size={18} color={muted} />
                             </Pressable>
                             {recipientOpen && (
-                              <Animated.View entering={FadeIn.duration(reduced ? 0 : 180)} exiting={FadeOut.duration(reduced ? 0 : 100)}>
-                              <ScrollView
-                                nestedScrollEnabled
-                                style={{ maxHeight: 180 }}
+                              <Animated.View
+                                entering={FadeIn.duration(reduced ? 0 : 180)}
+                                exiting={FadeOut.duration(reduced ? 0 : 100)}
                               >
-                                {friends.length === 0 && (
-                                  <Text
-                                    style={[
-                                      s.small,
-                                      { color: muted, padding: 16 },
-                                    ]}
-                                  >
-                                    No residents available.
-                                  </Text>
-                                )}
-                                {friends.map((p) => (
-                                  <Pressable
-                                    key={String(p.id)}
-                                    accessibilityRole="button"
-                                    accessibilityState={{
-                                      selected: person?.id === p.id,
-                                    }}
-                                    onPress={() => {
-                                      setPerson(p);
-                                      if (!subject.trim()) setSubject(`Hello ${p.name.split(" ")[0]}!`);
-                                      setRecipientOpen(false);
-                                    }}
-                                    style={[
-                                      s.recipientChoice,
-                                      person?.id === p.id && {
-                                        backgroundColor: "#05966920",
-                                      },
-                                    ]}
-                                  >
-                                    <Text style={[s.small, { color: ink }]}>
-                                      {p.name}
-                                      {p.address ? ` · ${p.address}` : ""}
+                                <ScrollView
+                                  nestedScrollEnabled
+                                  style={{ maxHeight: 180 }}
+                                >
+                                  {friends.length === 0 && (
+                                    <Text
+                                      style={[
+                                        s.small,
+                                        { color: muted, padding: 16 },
+                                      ]}
+                                    >
+                                      No residents available.
                                     </Text>
-                                    {person?.id === p.id && <Check size={16} color="#059669" /> }
-                                  </Pressable>
-                                ))}
-                              </ScrollView>
+                                  )}
+                                  {friends.map((p) => (
+                                    <Pressable
+                                      key={String(p.id)}
+                                      accessibilityRole="button"
+                                      accessibilityState={{
+                                        selected: person?.id === p.id,
+                                      }}
+                                      onPress={() => {
+                                        setPerson(p);
+                                        if (!subject.trim())
+                                          setSubject(
+                                            `Hello ${p.name.split(" ")[0]}!`,
+                                          );
+                                        setRecipientOpen(false);
+                                      }}
+                                      style={[
+                                        s.recipientChoice,
+                                        person?.id === p.id && {
+                                          backgroundColor: "#05966920",
+                                        },
+                                      ]}
+                                    >
+                                      <Text style={[s.small, { color: ink }]}>
+                                        {p.name}
+                                        {p.address ? ` · ${p.address}` : ""}
+                                      </Text>
+                                      {person?.id === p.id && (
+                                        <Check size={16} color="#059669" />
+                                      )}
+                                    </Pressable>
+                                  ))}
+                                </ScrollView>
                               </Animated.View>
                             )}
                           </View>
@@ -1473,7 +1750,10 @@ export function ProfileMenu({
                         title={busy ? "Sending…" : "Send Message"}
                         onPress={() =>
                           void act(async () => {
-                            if (!subject.trim()) throw new Error("Enter a subject for your message.");
+                            if (!subject.trim())
+                              throw new Error(
+                                "Enter a subject for your message.",
+                              );
                             if (category === "friend" && !person)
                               throw new Error("Select a resident first.");
                             await sendMessage(
@@ -1494,202 +1774,282 @@ export function ProfileMenu({
                     <>
                       {conversation ? (
                         <>
-                          <View style={[panel, { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 }]}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                              <Avatar resident={conversation.recipient} size={36} />
+                          <View
+                            style={[
+                              panel,
+                              {
+                                borderWidth: 1,
+                                borderRadius: 16,
+                                padding: 12,
+                                gap: 8,
+                              },
+                            ]}
+                          >
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 10,
+                              }}
+                            >
+                              {contact ? (
+                                <Avatar resident={contact} size={36} />
+                              ) : conversation.category === "office" ? (
+                                <Building2 size={28} color="#2563eb" />
+                              ) : (
+                                <Image
+                                  source={require("../../assets/crew-badge.png")}
+                                  style={{ width: 36, height: 36 }}
+                                />
+                              )}
                               <View style={{ flex: 1, minWidth: 0 }}>
-                                <Text style={[s.rowTitle, { color: ink }]}>{conversation.name}</Text>
-                                <Text style={[s.small, { color: muted }]}>{conversation.category === "maintenance" ? "Maintenance Team" : conversation.category === "office" ? "Community Office" : "Resident Friend"}</Text>
+                                <Text style={[s.rowTitle, { color: ink }]}>
+                                  {conversation.name}
+                                </Text>
+                                <Text style={[s.small, { color: muted }]}>
+                                  {conversation.category === "maintenance"
+                                    ? "Maintenance Team"
+                                    : conversation.category === "office"
+                                      ? "Community Office"
+                                      : "Resident Friend"}
+                                </Text>
                               </View>
-                              <Pressable accessibilityRole="button" accessibilityLabel="Delete conversation" onPress={() => { setDeleting(conversation); go("inbox"); }} style={{ padding: 8 }}>
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Delete conversation"
+                                onPress={() => {
+                                  setDeleting(conversation);
+                                  go("inbox");
+                                }}
+                                style={{ padding: 8 }}
+                              >
                                 <Trash2 size={18} color={muted} />
                               </Pressable>
                             </View>
-                            <Text style={[s.small, { color: muted }]}>{conversation.subject}</Text>
-                            {!!conversation.recipient.phone && (
-                              <Pressable accessibilityRole="button" accessibilityLabel="Copy phone" onPress={() => void act(() => copy(conversation.recipient.phone!))}>
-                                <Text style={[s.small, { color: "#059669" }]}>Tel: {conversation.recipient.phone} · Copy Phone</Text>
+                            <Text style={[s.small, { color: muted }]}>
+                              {conversation.subject}
+                            </Text>
+                            {!!contact?.phone && (
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Copy phone"
+                                onPress={() =>
+                                  void act(() => copy(contact.phone!))
+                                }
+                              >
+                                <Text style={[s.small, { color: "#059669" }]}>
+                                  Tel: {contact.phone} · Copy Phone
+                                </Text>
                               </Pressable>
                             )}
                           </View>
-                          {data.errors.map((message) => <Text key={message} style={s.error}>{message}</Text>)}
-                          {data.errors.length > 0 && <Action title="Retry messages" onPress={data.retry} />}
-                          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={[panel, { flex: 1, borderRadius: 16 }]} contentContainerStyle={{ padding: 10, gap: 8 }}>
-                          {conversation.messages.length === 0 && <Text style={[s.empty, { color: muted }]}>No messages yet. Start the conversation below.</Text>}
-                          {conversation.messages.map((m) => {
-                            const mine = messageIsMine(m, user);
-                            const avatar = messageAvatar(m, [
-                              user,
-                              ...data.directory.items,
-                            ]);
-                            const read = (m.readBy?.length || 0) > 0;
-                            const role = m.senderRole;
-                            const badge =
-                              role === "crew"
-                                ? require("../../assets/crew-badge.png")
-                                : role === "admin" || role === "vip"
-                                  ? require("../../assets/vip-badge.png")
-                                  : null;
-                            const label = mine
-                              ? "You"
-                              : senderLabel(m, conversation.category, user);
-                            return (
-                              <View
-                                key={m.id}
-                                style={{
-                                  flexDirection: mine ? "row-reverse" : "row",
-                                  alignItems: "flex-end",
-                                  gap: 9,
-                                  marginVertical: 3,
-                                }}
-                              >
-                                <View style={{ width: 36, height: 40 }}>
-                                  <View
-                                    style={{
-                                      width: 36,
-                                      height: 36,
-                                      borderRadius: 18,
-                                      backgroundColor: dark
-                                        ? "#334155"
-                                        : "#e7e5e4",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      overflow: "hidden",
-                                    }}
-                                  >
-                                    {avatar ? (
-                                      <Image
-                                        source={{ uri: avatar }}
-                                        style={{ width: 36, height: 36 }}
-                                      />
-                                    ) : (
-                                      <Text style={[s.small, { color: ink }]}>
-                                        {label.slice(0, 1).toUpperCase()}
-                                      </Text>
-                                    )}
-                                  </View>
-                                  {badge && (
-                                    <Image
-                                      accessibilityLabel={
-                                        role === "crew"
-                                          ? "Crew badge"
-                                          : "Staff badge"
-                                      }
-                                      source={badge}
-                                      style={{
-                                        position: "absolute",
-                                        left: -2,
-                                        bottom: -2,
-                                        width: 24,
-                                        height: 24,
-                                      }}
-                                    />
-                                  )}
-                                </View>
+                          {data.errors.map((message) => (
+                            <Text key={message} style={s.error}>
+                              {message}
+                            </Text>
+                          ))}
+                          {data.errors.length > 0 && (
+                            <Action
+                              title="Retry messages"
+                              onPress={data.retry}
+                            />
+                          )}
+                          <ScrollView
+                            nestedScrollEnabled
+                            keyboardShouldPersistTaps="handled"
+                            style={[panel, { flex: 1, borderRadius: 16 }]}
+                            contentContainerStyle={{ padding: 10, gap: 8 }}
+                          >
+                            {conversation.messages.length === 0 && (
+                              <Text style={[s.empty, { color: muted }]}>
+                                No messages yet. Start the conversation below.
+                              </Text>
+                            )}
+                            {conversation.messages.map((m) => {
+                              const mine = messageIsMine(m, user);
+                              const avatar = messageAvatar(m, [
+                                user,
+                                ...data.directory.items,
+                              ]);
+                              const read = (m.readBy?.length || 0) > 0;
+                              const role = m.senderRole;
+                              const badge =
+                                role === "crew"
+                                  ? require("../../assets/crew-badge.png")
+                                  : role === "admin" || role === "vip"
+                                    ? require("../../assets/vip-badge.png")
+                                    : null;
+                              const label = mine
+                                ? "You"
+                                : senderLabel(m, conversation.category, user);
+                              return (
                                 <View
+                                  key={m.id}
                                   style={{
-                                    maxWidth: "80%",
-                                    padding: 13,
-                                    gap: 6,
-                                    borderRadius: 18,
-                                    borderBottomRightRadius: mine ? 4 : 18,
-                                    borderBottomLeftRadius: mine ? 18 : 4,
-                                    backgroundColor: mine
-                                      ? dark
-                                        ? "#064e3b"
-                                        : "#d1fae5"
-                                      : dark
-                                        ? "#334155"
-                                        : "#fff",
-                                    borderWidth: 1,
-                                    borderColor: mine
-                                      ? "#05966940"
-                                      : "#78716c25",
+                                    flexDirection: mine ? "row-reverse" : "row",
+                                    alignItems: "flex-end",
+                                    gap: 9,
+                                    marginVertical: 3,
                                   }}
                                 >
-                                  <Text
-                                    style={[
-                                      s.small,
-                                      {
-                                        color: mine
-                                          ? dark
-                                            ? "#6ee7b7"
-                                            : "#047857"
-                                          : muted,
-                                        fontFamily: "JakartaBold",
-                                      },
-                                    ]}
-                                  >
-                                    {label}
-                                  </Text>
-                                  <Text style={[s.message, { color: ink }]}>
-                                    {m.body}
-                                  </Text>
+                                  <View style={{ width: 36, height: 40 }}>
+                                    <View
+                                      style={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 18,
+                                        backgroundColor: dark
+                                          ? "#334155"
+                                          : "#e7e5e4",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        overflow: "hidden",
+                                      }}
+                                    >
+                                      {avatar ? (
+                                        <Image
+                                          source={{ uri: avatar }}
+                                          style={{ width: 36, height: 36 }}
+                                        />
+                                      ) : (
+                                        <Text style={[s.small, { color: ink }]}>
+                                          {label.slice(0, 1).toUpperCase()}
+                                        </Text>
+                                      )}
+                                    </View>
+                                    {badge && (
+                                      <Image
+                                        accessibilityLabel={
+                                          role === "crew"
+                                            ? "Crew badge"
+                                            : "Staff badge"
+                                        }
+                                        source={badge}
+                                        style={{
+                                          position: "absolute",
+                                          left: -2,
+                                          bottom: -2,
+                                          width: 24,
+                                          height: 24,
+                                        }}
+                                      />
+                                    )}
+                                  </View>
                                   <View
                                     style={{
-                                      flexDirection: "row",
-                                      alignItems: "center",
-                                      justifyContent: "flex-end",
-                                      gap: 5,
+                                      maxWidth: "80%",
+                                      padding: 13,
+                                      gap: 6,
+                                      borderRadius: 18,
+                                      borderBottomRightRadius: mine ? 4 : 18,
+                                      borderBottomLeftRadius: mine ? 18 : 4,
+                                      backgroundColor: mine
+                                        ? dark
+                                          ? "#064e3b"
+                                          : "#d1fae5"
+                                        : dark
+                                          ? "#334155"
+                                          : "#fff",
+                                      borderWidth: 1,
+                                      borderColor: mine
+                                        ? "#05966940"
+                                        : "#78716c25",
                                     }}
                                   >
                                     <Text
-                                      style={{ color: muted, fontSize: 10 }}
+                                      style={[
+                                        s.small,
+                                        {
+                                          color: mine
+                                            ? dark
+                                              ? "#6ee7b7"
+                                              : "#047857"
+                                            : muted,
+                                          fontFamily: "JakartaBold",
+                                        },
+                                      ]}
                                     >
-                                      {new Date(m.createdAt).toLocaleTimeString(
-                                        [],
-                                        { hour: "numeric", minute: "2-digit" },
-                                      )}
+                                      {label}
                                     </Text>
-                                    {mine && (
-                                      <View
-                                        accessibilityLabel={
-                                          read ? "Read by recipient" : "Sent"
-                                        }
+                                    <Text style={[s.message, { color: ink }]}>
+                                      {m.body}
+                                    </Text>
+                                    <View
+                                      style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        justifyContent: "flex-end",
+                                        gap: 5,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{ color: muted, fontSize: 10 }}
                                       >
-                                        {read ? (
-                                          <CheckCheck
-                                            size={16}
-                                            color="#0284c7"
-                                          />
-                                        ) : (
-                                          <Check size={16} color={muted} />
-                                        )}
-                                      </View>
-                                    )}
+                                        {new Date(
+                                          m.createdAt,
+                                        ).toLocaleTimeString([], {
+                                          hour: "numeric",
+                                          minute: "2-digit",
+                                        })}
+                                      </Text>
+                                      {mine && (
+                                        <View
+                                          accessibilityLabel={
+                                            read ? "Read by recipient" : "Sent"
+                                          }
+                                        >
+                                          {read ? (
+                                            <CheckCheck
+                                              size={16}
+                                              color="#0284c7"
+                                            />
+                                          ) : (
+                                            <Check size={16} color={muted} />
+                                          )}
+                                        </View>
+                                      )}
+                                    </View>
                                   </View>
                                 </View>
-                              </View>
-                            );
-                          })}
+                              );
+                            })}
                           </ScrollView>
-                          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
-                          <TextInput
-                            accessibilityLabel="Reply"
-                            placeholder="Write a reply…"
-                            placeholderTextColor={muted}
-                            multiline
-                            value={body}
-                            onChangeText={setBody}
-                            maxLength={10000}
-                            style={[...textInput, { flex: 1, maxHeight: 100 }]}
-                          />
-                          <Action
-                            title={busy ? "Sending…" : "Send"}
-                            onPress={() =>
-                              void act(async () => {
-                                await sendMessage(
-                                  conversation.category,
-                                  conversation.recipient,
-                                  conversation.subject,
-                                  body,
-                                  conversation,
-                                );
-                                setBody("");
-                                setNotice("Reply sent.");
-                              })
-                            }
-                          />
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "flex-end",
+                              gap: 8,
+                            }}
+                          >
+                            <TextInput
+                              accessibilityLabel="Reply"
+                              placeholder="Write a reply…"
+                              placeholderTextColor={muted}
+                              multiline
+                              value={body}
+                              onChangeText={setBody}
+                              maxLength={10000}
+                              style={[
+                                ...textInput,
+                                { flex: 1, maxHeight: 100 },
+                              ]}
+                            />
+                            <Action
+                              title={busy ? "Sending…" : "Send"}
+                              onPress={() =>
+                                void act(async () => {
+                                  await sendMessage(
+                                    conversation.category,
+                                    conversation.recipient,
+                                    conversation.subject,
+                                    body,
+                                    conversation,
+                                  );
+                                  setBody("");
+                                  setNotice("Reply sent.");
+                                })
+                              }
+                            />
                           </View>
                         </>
                       ) : (
@@ -1734,7 +2094,7 @@ export function ProfileMenu({
                           ],
                           [
                             "Safety Check-In",
-                            "Enrolled (Daily 9:00 AM)",
+                            "Contact the office for enrollment",
                             Shield,
                             "#f59e0b",
                           ],
@@ -1789,6 +2149,25 @@ export function ProfileMenu({
                           </Text>
                         </View>
                       ))}
+                      <Action
+                        title="Edit Profile"
+                        onPress={() => {
+                          setDetails({
+                            phone: user.phone || "",
+                            address: user.address || user.unit || "",
+                            wing: user.wing || "",
+                            emergencyContact:
+                              user.emergencyContact ||
+                              user.emergency_contact ||
+                              "",
+                            dietaryPreference:
+                              user.dietaryPreference ||
+                              user.dietary_preference ||
+                              "",
+                          });
+                          go("editProfile");
+                        }}
+                      />
                       <Pressable
                         accessibilityRole="button"
                         onPress={() => {
@@ -1839,7 +2218,15 @@ export function ProfileMenu({
                         paddingVertical: 28,
                       }}
                     >
-                      <LogOut size={48} color="#e11d48" />
+                      <View
+                        style={{
+                          padding: 18,
+                          borderRadius: 24,
+                          backgroundColor: dark ? "#4c0519" : "#ffe4e6",
+                        }}
+                      >
+                        <LogOut size={40} color="#e11d48" />
+                      </View>
                       <Text
                         style={[s.name, { color: ink, textAlign: "center" }]}
                       >
@@ -1922,6 +2309,7 @@ export function ProfileMenu({
                     ))}
                   </View>
                 )}
+              </View>
               </Animated.View>
             </Animated.View>
           </View>
