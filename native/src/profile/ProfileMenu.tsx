@@ -955,9 +955,10 @@ export function ProfileMenu({
                                 ? Wrench
                                 : Users;
                           return (
+                            <View key={`${t.category}:${t.id}`} style={{ position: "relative" }}>
                             <Pressable
-                              key={`${t.category}:${t.id}`}
                               accessibilityRole="button"
+                              accessibilityLabel={`Open conversation: ${t.name}, ${t.subject}`}
                               onPress={() => openThread(t)}
                               style={({ pressed }) => ({
                                 padding: width >= 640 ? 14 : 12,
@@ -978,6 +979,7 @@ export function ProfileMenu({
                                   flexDirection: "row",
                                   gap: 10,
                                   alignItems: "center",
+                                  paddingRight: 36,
                                 }}
                               >
                                 <View
@@ -1078,23 +1080,7 @@ export function ProfileMenu({
                                       )
                                     : "Recent"}
                                 </Text>
-                                <Pressable
-                                  accessibilityRole="button"
-                                  accessibilityLabel="Delete conversation"
-                                  hitSlop={6}
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    setDeleting(t);
-                                  }}
-                                  style={{
-                                    width: 28,
-                                    height: 28,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  <Trash2 size={14} color={muted} />
-                                </Pressable>
+
                               </View>
                               <Text
                                 numberOfLines={1}
@@ -1121,6 +1107,24 @@ export function ProfileMenu({
                                 {t.messages.at(-1)?.body || "Conversation"}
                               </Text>
                             </Pressable>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel="Delete conversation"
+                                  hitSlop={6}
+                                  onPress={() => setDeleting(t)}
+                                  style={{
+                                    position: "absolute",
+                                    right: 8,
+                                    top: 8,
+                                    width: 40,
+                                    height: 40,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Trash2 size={14} color={muted} />
+                                </Pressable>
+                            </View>
                           );
                         })}
                       {!data.loading &&
@@ -1202,14 +1206,15 @@ export function ProfileMenu({
                         </>
                       )}
                       {visibleFriends.map((p) => (
+                        <View key={String(p.id)} style={[s.row, panel]}>
                         <Pressable
                           accessibilityRole="button"
-                          key={String(p.id)}
+                          accessibilityLabel={`View ${p.name}`}
                           onPress={() => {
                             setPerson(p);
                             go("friendDetail");
                           }}
-                          style={[s.row, panel]}
+                          style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 }}
                         >
                           <Avatar resident={p} size={width >= 640 ? 56 : 48} />
                           <View style={{ flex: 1 }}>
@@ -1231,13 +1236,12 @@ export function ProfileMenu({
                               {p.phone || "Phone not provided"}
                             </Text>
                           </View>
+                          <ChevronRight size={18} color={muted} />
+                        </Pressable>
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={`Message ${p.name}`}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              compose("friend", p);
-                            }}
+                            onPress={() => compose("friend", p)}
                             style={{
                               padding: 10,
                               borderRadius: 12,
@@ -1246,8 +1250,7 @@ export function ProfileMenu({
                           >
                             <Mail size={16} color="#047857" />
                           </Pressable>
-                          <ChevronRight size={18} color={muted} />
-                        </Pressable>
+                        </View>
                       ))}
                       {!data.directory.loading &&
                         visibleFriends.length === 0 && (
