@@ -3,13 +3,13 @@
 ## Setup status (2026-10-15)
 
 Recovery commit: `1d1bdea`; pushed tag `checkpoint/before-eas-workflow-2026-10-15`.
-Local workflow preparation is implemented. **EAS account login, real project ID/update URL, remote channel/branch creation, new APK builds and on-phone update verification are pending. This is not yet a working OTA deployment.** No Preview or Production update has been published.
+Linked project: `@seeds4clix/townloop-native`, UUID `9f970d26-beed-44d6-a590-9dcdc00e85de`. EAS Update URL is configured. Separate remote `preview` and `production` channels map to their own branches. Android remote versionCode was initialized to 2 (the prior APK used 1). APK builds and on-phone update verification remain pending. No Preview or Production update has been published.
 
 Package remains `com.toni029.townloop`. Firebase client configuration, data, rules, app screens and functionality are unchanged. OTA channels isolate bundles, not Firebase data: both builds use the existing backend. Do not create test records without approval.
 
 ## Local verification
 
-TypeScript, all 62 existing tests and Expo dependency compatibility passed. Lint has zero errors and one pre-existing unused-variable warning. Both Metro servers started on their assigned ports. Browser-tool inspection was blocked by its URL policy; visual review and device Fast Refresh/OTA delivery have not been verified. Web export status is recorded separately below when finished.
+TypeScript, all 62 existing tests and Expo dependency compatibility passed. Lint has zero errors and one pre-existing unused-variable warning. Both Metro servers started on their assigned ports. Browser-tool inspection was blocked by its URL policy; visual review and device Fast Refresh/OTA delivery have not been verified. Web production export also passed.
 
 ## Daily development
 
@@ -48,8 +48,8 @@ npm run eas -- branch:list
 # Only if absent:
 npm run eas -- branch:create preview
 npm run eas -- branch:create production
-npm run eas -- channel:create preview --branch preview
-npm run eas -- channel:create production --branch production
+npm run eas -- channel:create preview
+npm run eas -- channel:create production
 ```
 
 Preview must map only to the preview branch; Production only to production. Git branches and EAS branches are independent. Do not repoint an existing production channel or publish to it during setup.

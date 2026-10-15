@@ -17,7 +17,17 @@
     "android": {
       "package": "com.toni029.townloop",
       "predictiveBackGestureEnabled": true,
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -60,7 +70,24 @@
     },
     "updates": {
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
-    }
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/9f970d26-beed-44d6-a590-9dcdc00e85de"
+    },
+    "extra": {
+      "router": {},
+      "expo-status-bar": {
+        "style": "dark",
+        "hidden": false
+      },
+      "expo-navigation-bar": {
+        "enforceContrast": false,
+        "style": "dark",
+        "hidden": false
+      },
+      "eas": {
+        "projectId": "9f970d26-beed-44d6-a590-9dcdc00e85de"
+      }
+    },
+    "owner": "seeds4clix"
   }
 }
