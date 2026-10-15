@@ -13,7 +13,7 @@ TypeScript, all 62 existing tests and Expo dependency compatibility passed. Lint
 
 ## Daily development
 
-Use Node 22.13+ and npm. From the repository's `native/` directory:
+Use Node 22.13+ and npm 10 for this lockfile (cloud-install compatibility checked with npm 10). From the repository's `native/` directory:
 
 ```sh
 npm ci
@@ -93,9 +93,9 @@ There are no added Git hooks, GitHub Actions, EAS Workflows or push-triggered OT
 
 ## Verify the first OTA on the phone
 
-After the new Preview APK is installed, verify the embedded build first. Prepare a harmless, reversible visual change and describe it to the user, then obtain approval before publishing it. Record the update group ID, runtime fingerprint and source commit. Open the app online to download the update, close it completely and reopen to apply it. Launch checks use ON_LOAD with zero blocking wait, so an update may appear on the next launch. Do not force a reload while someone is typing.
+After the new Preview APK is installed, verify the embedded build first. The app includes a one-time Preview-only “Preview update received” notice with the actual update ID/runtime. It is silent for embedded APK launches, development clients, web and Production. Obtain approval to publish the unchanged reviewed bundle as the harmless first OTA test. Record the update group ID, runtime fingerprint and source commit. Open the app online to download the update, close it completely and reopen to apply it. Launch checks use ON_LOAD with zero blocking wait, so an update may appear on the next launch. Do not force a reload while someone is typing.
 
-Ask the phone owner to confirm the visible marker, sign-in persistence, community selection, navigation and existing PDF/media functionality. Revert the marker in source and publish its removal only with approval. Server-side publication success is not proof the phone downloaded or ran it. Record the phone result before calling the setup complete. Fast Refresh also requires an actual development-client connection and an observed source edit on that device.
+Ask the phone owner to confirm the Preview notice and its update ID, sign-in persistence, community selection, navigation and existing PDF/media functionality. The notice is acknowledged once per update using a separate local diagnostic key; it does not change account/community storage. Server-side publication success is not proof the phone downloaded or ran it. Record the phone result before calling the setup complete. Fast Refresh also requires an actual development-client connection and an observed source edit on that device.
 
 ## Compatibility and production promotion — NOT executed during setup
 
