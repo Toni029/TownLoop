@@ -44,7 +44,7 @@ import { Collapsible } from "../components/Collapsible";
 import { MediaViewer } from "../components/MediaViewer";
 import { pickAndUpload } from "../components/media";
 import { queueState, type WorkOrder } from "./model";
-import { translateWorkOrderSync } from "./translator";
+import { translateWorkOrder, type TranslatedContent } from "./translator";
 import { Ticket } from "./Ticket";
 export type OrderAction = "delete" | "reopen" | "complete" | "note";
 export function WorkOrdersFeed({
@@ -292,7 +292,26 @@ const OrderCard = memo(function OrderCard({
   const s = useNewsStyles();
   const q = useMemo(() => queueState(order, all), [order, all]);
   const [spanish, setSpanish] = useState(false);
-  const translated = useMemo(() => spanish && canTranslateWorkOrder(user) ? translateWorkOrderSync(order) : null, [spanish, order, user]);
+  const sourceKey = JSON.stringify([order.title, order.description, order.comments]);
+  const [translation, setTranslation] = useState<{ key: string; value: TranslatedContent } | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState('');
+  const translationLock = useRef(false);
+  const translated = spanish && canTranslateWorkOrder(user) && translation?.key === sourceKey ? translation.value : null;
+  async function toggleTranslation() {
+    if (!canTranslateWorkOrder(user) || translationLock.current) return;
+    if (translated) { setSpanish(false); return; }
+    if (translation?.key === sourceKey) { setSpanish(true); return; }
+    translationLock.current = true;
+    setTranslating(true);
+    setTranslationError('');
+    try {
+      const value = await translateWorkOrder(order);
+      setTranslation({ key: sourceKey, value });
+      setSpanish(true);
+    } catch (e) { setTranslationError(e instanceof Error ? e.message : 'Unable to translate. Please retry.'); }
+    finally { translationLock.current = false; setTranslating(false); }
+  }
   const [confirm, setConfirm] = useState(false);
   const [reply, setReply] = useState("");
   const [photo, setPhoto] = useState("");
@@ -435,7 +454,8 @@ const OrderCard = memo(function OrderCard({
             accessibilityLabel={
               spanish ? "Show original English" : "Translate to Spanish"
             }
-            onPress={() => setSpanish((v) => !v)}
+            disabled={translating}
+            onPress={() => void toggleTranslation()}
             hitSlop={10}
             style={{
               width: 28,
@@ -448,7 +468,7 @@ const OrderCard = memo(function OrderCard({
               backgroundColor: dark ? "#1e293be6" : "#f5f5f4e6",
             }}
           >
-            {spanish ? (
+            {translating ? <ActivityIndicator size="small" /> : translated ? (
               <Copy weight="extra">ES</Copy>
             ) : (
               <Languages size={14} color="#78716c" />
@@ -498,6 +518,7 @@ const OrderCard = memo(function OrderCard({
           />
         </Pressable>
       </View>
+      {!!translationError && canTranslateWorkOrder(user) && <ErrorNotice message={translationError} />}
       <Collapsible open={expanded}>
         <View
           style={[
@@ -562,7 +583,8 @@ const OrderCard = memo(function OrderCard({
             accessibilityLabel={
               spanish ? "Show original English" : "Translate to Spanish"
             }
-            onPress={() => setSpanish((v) => !v)}
+            disabled={translating}
+            onPress={() => void toggleTranslation()}
             hitSlop={8}
             style={[
               s.row,
@@ -582,7 +604,7 @@ const OrderCard = memo(function OrderCard({
               weight="bold"
               style={{ lineHeight: 16, color: dark ? "#93c5fd" : "#1d4ed8" }}
             >
-              {spanish ? "English" : "Translate"}
+              {translating ? "Translating…" : translated ? "English" : "Translate"}
             </Copy>
           </Pressable>}
           {canDeleteWorkOrder(order, user) &&

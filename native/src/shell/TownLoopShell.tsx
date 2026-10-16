@@ -1,3 +1,6 @@
+import { useInboxPush } from '../notifications/InboxPush';
+import type { InboxTarget } from '../notifications/context';
+import { useSession } from '../lib/session';
 import { dockBubble } from "./dockGeometry";
 import { PreviewUpdateNotice } from "../development/PreviewUpdateNotice";
 import { ScreenSystemBars } from "../components/SystemBars";
@@ -182,6 +185,19 @@ export function PortalHeader({
   const presentation = usePresentation();
   const dark = presentation?.dark ?? false;
   const [menu, setMenu] = useState(false);
+  const [inboxTarget, setInboxTarget] = useState<InboxTarget | null>(null);
+  const { target: pendingInbox, consume: consumeInbox } = useInboxPush();
+  const session = useSession();
+  useEffect(() => {
+    if (!pendingInbox || !session.user || !session.profile?.approved) return;
+    if (pendingInbox.recipientId === session.user.uid) {
+      // An external notification tap opens the existing menu after authentication.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInboxTarget(pendingInbox);
+      setMenu(true);
+    }
+    consumeInbox();
+  }, [pendingInbox, consumeInbox, session.user, session.profile?.approved]);
   const [unread, setUnread] = useState(0);
   const [avatarHovered, setAvatarHovered] = useState(false);
   const reducedAvatarMotion = useReducedMotion();
@@ -374,7 +390,7 @@ export function PortalHeader({
             accessibilityRole="button"
             accessibilityLabel={`Open Resident Profile & Menu${unread ? `, ${unread} unread messages` : ""}`}
             hitSlop={8}
-            onPress={() => setMenu(true)}
+            onPress={() => { setInboxTarget(null); setMenu(true); }}
             style={{
               width: 64,
               height: 64,
@@ -511,6 +527,7 @@ export function PortalHeader({
       </View>
       <ProfileMenu
         open={menu}
+        initialConversation={inboxTarget}
         onClose={() => setMenu(false)}
         onAccount={onAccount}
         onUnread={setUnread}

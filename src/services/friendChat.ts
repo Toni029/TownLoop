@@ -6,6 +6,9 @@
  */
 import {
   collection,
+  query,
+  where,
+  runTransaction,
   doc,
   setDoc,
   getDoc,
@@ -122,14 +125,15 @@ export function subscribeToFriendChats(
   // 1. Immediately deliver cached chats so UI renders with 0ms latency on reload or switch
   const allLocal = loadLocalChats();
   const cached = allLocal.filter(chat => isUserInChat(user, chat));
-  onUpdate(cached.length > 0 ? cached : allLocal);
+  onUpdate(user ? cached : []);
 
-  if (!isFirebaseConfigured() || !db) {
+  if (!isFirebaseConfigured() || !db || !user) {
     return () => {};
   }
 
   try {
-    const chatsCol = collection(db, 'resident_chats');
+    const ids = getAllParticipantIdentifiers({ id: user.id, email: user.email });
+    const chatsCol = query(collection(db, 'resident_chats'), where('participantIds', 'array-contains-any', ids));
     const unsubscribe = onSnapshot(
       chatsCol,
       (snapshot) => {
@@ -177,14 +181,14 @@ export function subscribeToFriendChats(
         saveLocalChats(mergedAll);
 
         const filtered = mergedAll.filter(chat => isUserInChat(user, chat));
-        onUpdate(filtered.length > 0 ? filtered : mergedAll);
+        onUpdate(filtered);
       },
       (err) => {
         console.warn('Unable to subscribe to resident_chats Firestore collection:', err);
         // On error, deliver all stored local chats so user never loses messages
         const fallback = loadLocalChats();
         const filtered = fallback.filter(c => isUserInChat(user, c));
-        onUpdate(filtered.length > 0 ? filtered : fallback);
+        onUpdate(filtered);
       }
     );
     return unsubscribe;
@@ -285,27 +289,19 @@ export async function sendFriendChatMessage(
   if (isFirebaseConfigured() && db) {
     try {
       const docRef = doc(db, 'resident_chats', docId);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const cloudData = snap.data() as ResidentChat;
-        const msgMap = new Map<string, ResidentChatMessage>();
-        (cloudData.messages || []).forEach(m => msgMap.set(m.id, m));
-        updatedMessages.forEach(m => msgMap.set(m.id, m));
-        const mergedMessages = Array.from(msgMap.values());
-        mergedMessages.sort((a, b) => a.createdAt - b.createdAt);
-
-        await setDoc(
-          docRef,
-          {
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(docRef);
+        if (snap.exists()) {
+          const cloud = snap.data() as ResidentChat;
+          tx.set(docRef, {
             ...updatedChat,
-            messages: mergedMessages,
-            participantIds: Array.from(new Set([...(cloudData.participantIds || []), ...participantIds])),
-          },
-          { merge: true }
-        );
-      } else {
-        await setDoc(docRef, updatedChat);
-      }
+            // Preserve membership and append atomically; never re-upload cached history.
+            participants: cloud.participants,
+            participantIds: cloud.participantIds,
+            messages: [...(cloud.messages || []), newMessage],
+          }, { merge: true });
+        } else tx.set(docRef, { ...updatedChat, messages: [newMessage] });
+      });
     } catch (error) {
       console.warn('Unable to sync resident chat to Firestore (cached locally):', error);
     }

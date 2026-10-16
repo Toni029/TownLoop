@@ -27,3 +27,6 @@ exports.cleanupCompletedWorkOrders = onSchedule({ schedule: 'every 60 minutes', 
   }
   logger.info('Work order retention completed', { deleted });
 });
+
+// Prepared locally; deploy only after notification credentials and rules review.
+Object.assign(exports, require('./inbox.cjs'));

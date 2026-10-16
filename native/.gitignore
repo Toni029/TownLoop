@@ -14,3 +14,6 @@ credentials.json
 credentials/
 *.jks
 *.keystore
+
+# Supplied via EAS file environment, never a service-account private key.
+google-services.json

@@ -1,3 +1,7 @@
+import { Platform } from 'react-native';
+import { auth } from '../lib/firebase';
+import { approvedUser } from '../news/actions';
+import { canTranslateWorkOrder } from '../../../src/utils/permissions';
 import type { WorkOrderItem } from '../../../src/types';
 
 export interface TranslatedContent {
@@ -317,3 +321,33 @@ export function translateWorkOrderSync(workOrder: WorkOrderItem): TranslatedCont
   };
 }
 
+
+/** Full translation is server-only; never write translations back to the ticket. */
+export async function translateWorkOrder(order: WorkOrderItem): Promise<TranslatedContent> {
+  const user = await approvedUser();
+  if (!canTranslateWorkOrder(user)) throw Error('Translation is available to Admin, VIP and Crew only.');
+  const local = Platform.OS === 'web' && typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname);
+  const base = process.env.EXPO_PUBLIC_TOWNLOOP_API_URL || (local ? `${location.protocol}//${location.hostname}:3000` : '');
+  if (!base) throw Error('The secure translation service is not connected yet. Please contact the office.');
+  const url = new URL(base);
+  if (url.protocol !== 'https:' && !(local && ['localhost', '127.0.0.1'].includes(url.hostname))) throw Error('Translation requires a secure HTTPS service.');
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw Error('Please sign in again.');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 65000);
+  const comments = order.comments || [];
+  try {
+    const response = await fetch(`${base.replace(/\/$/, '')}/api/translate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title: order.title, description: order.description || '', comments: comments.map(c => c.text), targetLang: 'es' }),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result || result.source === 'fallback') throw Error(result?.error || 'Full translation is unavailable. Please try again.');
+    if (typeof result.title !== 'string' || typeof result.description !== 'string' || !Array.isArray(result.comments) || result.comments.length !== comments.length || result.comments.some((c: unknown) => typeof c !== 'string')) throw Error('Translation returned an incomplete result. Please retry.');
+    return { title: result.title, description: result.description, comments: Object.fromEntries(comments.map((c, i) => [c.id, result.comments[i]])), isSpanish: true };
+  } catch (error) {
+    if (controller.signal.aborted) throw Error('Translation took too long. Please retry.');
+    throw error;
+  } finally { clearTimeout(timer); }
+}

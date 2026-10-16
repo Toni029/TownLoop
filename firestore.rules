@@ -213,16 +213,67 @@ service cloud.firestore {
       allow write: if isManager();
     }
 
+    // Push tokens and delivery claims are accessible only to authenticated server code.
+    match /notification_devices/{deviceId} { allow read, write: if false; }
+    match /notification_deliveries/{deliveryId} { allow read, write: if false; }
+    function chatIdentities() {
+      let email = request.auth.token.get('email', '').lower();
+      let uid = request.auth.uid.lower();
+      return [uid, uid.replace('[^a-zA-Z0-9_-]', '_'), email,
+        email.replace('[^a-zA-Z0-9_-]', '_')];
+    }
+    function chatResident(data) {
+      return data.get('residentId', '') == request.auth.uid ||
+        (request.auth.token.get('email', '') != '' &&
+         data.get('residentEmail', '').lower() == request.auth.token.email.lower());
+    }
+    function chatAccess(kind, data) {
+      return isApproved() && (kind == 'friend'
+        ? data.get('participantIds', []).hasAny(chatIdentities())
+        : (chatResident(data) || (kind == 'office' ? isManager() : currentProfile().role == 'crew')));
+    }
+    function validAppend(before, after) {
+      let last = after[after.size() - 1];
+      return after.size() == before.size() + 1 &&
+        after.removeAll([last]) == before &&
+        last.id is string && last.id.size() > 0 &&
+        last.body is string && last.body.size() > 0 && last.body.size() <= 10000 &&
+        last.senderId.lower() in chatIdentities();
+    }
+    function chatUpdate(kind) {
+      let old = resource.data;
+      let next = request.resource.data;
+      let before = old.get('messages', []);
+      let after = next.get('messages', []);
+      return chatAccess(kind, old) && chatAccess(kind, next) &&
+        next.get('residentId', '') == old.get('residentId', '') &&
+        next.get('residentEmail', '') == old.get('residentEmail', '') &&
+        next.get('participants', []) == old.get('participants', []) &&
+        next.get('participantIds', []) == old.get('participantIds', []) &&
+        (validAppend(before, after) ||
+          (after.size() == before.size() &&
+           next.diff(old).affectedKeys().hasOnly(['messages', 'unreadBy', 'unreadByResident', 'unreadByVip', 'unreadByCrew'])));
+    }
     match /maintenance_chats/{chatId} {
-      allow read, write: if true;
+      allow get: if isApproved() && (chatId == request.auth.token.get('email', request.auth.uid).lower().replace('[^a-zA-Z0-9_-]', '_') || chatAccess('maintenance', resource.data));
+      allow list: if chatAccess('maintenance', resource.data);
+      allow create: if chatAccess('maintenance', request.resource.data) && validAppend([], request.resource.data.messages);
+      allow update: if chatUpdate('maintenance');
+      allow delete: if chatAccess('maintenance', resource.data);
     }
-
     match /office_chats/{chatId} {
-      allow read, write: if true;
+      allow get: if isApproved() && (chatId == request.auth.token.get('email', request.auth.uid).lower().replace('[^a-zA-Z0-9_-]', '_') || chatAccess('office', resource.data));
+      allow list: if chatAccess('office', resource.data);
+      allow create: if chatAccess('office', request.resource.data) && validAppend([], request.resource.data.messages);
+      allow update: if chatUpdate('office');
+      allow delete: if chatAccess('office', resource.data);
     }
-
     match /resident_chats/{chatId} {
-      allow read, write: if true;
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/resident_chats/$(chatId)) || chatAccess('friend', resource.data));
+      allow list: if chatAccess('friend', resource.data);
+      allow create: if chatAccess('friend', request.resource.data) && validAppend([], request.resource.data.messages);
+      allow update: if chatUpdate('friend');
+      allow delete: if chatAccess('friend', resource.data);
     }
 
     match /marketplace_chats/{chatId} {
