@@ -1,0 +1,5 @@
+# These optional install scripts are unnecessary for the server runtime.
+# Explicit decisions keep pnpm's strict cloud-build policy enabled.
+allowBuilds:
+  '@firebase/util': false
+  protobufjs: false
