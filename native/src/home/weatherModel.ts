@@ -10,6 +10,8 @@ export type WeatherConditionType =
   | "cloudSun"; // Partly Cloudy: Sun with drifting cumulus clouds
 
 export interface HourlyForecast {
+  weatherCode?: number;
+  windSpeed?: number;
   time: string;
   temp: string;
   condition: string;
@@ -283,6 +285,8 @@ export function parseWeather(data: WeatherResponse) {
         condition: `${currentMapped.label} • ${currentHumidity}% Humidity`,
         shortForecast: currentMapped.label,
         icon: currentMapped.icon,
+        weatherCode: currentCode,
+        windSpeed: currentWind,
         pop: popVal && popVal > 0 ? `${popVal}%` : undefined,
       });
     } else {
@@ -299,6 +303,8 @@ export function parseWeather(data: WeatherResponse) {
         shortForecast:
           hPop && hPop > 30 ? `${hMapped.label} ${hPop}%` : hMapped.label,
         icon: hMapped.icon,
+        weatherCode: data.hourly.weather_code[hIdx],
+        windSpeed: data.hourly.wind_speed_10m?.[hIdx],
         pop: hPop && hPop > 0 ? `${hPop}%` : undefined,
       });
     }
@@ -385,6 +391,8 @@ export function parseWeather(data: WeatherResponse) {
           shortForecast:
             hPop && hPop > 30 ? `${hMapped.label} ${hPop}%` : hMapped.label,
           icon: hMapped.icon,
+          weatherCode: data.hourly.weather_code[hIdx],
+          windSpeed: data.hourly.wind_speed_10m?.[hIdx],
           pop: hPop && hPop > 0 ? `${hPop}%` : undefined,
         });
       });

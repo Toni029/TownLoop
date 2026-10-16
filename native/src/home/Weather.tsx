@@ -2,23 +2,12 @@ import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   AppState,
   Pressable,
 
-  StyleSheet,
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, {
-  Path,
-  Circle,
-  Line,
-  RadialGradient,
-  Defs,
-  LinearGradient as SvgGradient,
-  Stop,
-} from "react-native-svg";
 import {
   MapPin,
   Sun,
@@ -35,7 +24,7 @@ import {
   ChevronRight,
 } from "lucide-react-native";
 import { Action, Box, Row, Txt, Theme } from "./ui";
-import { useReducedMotion } from "./hooks";
+import { WeatherAtmosphere } from "./WeatherAtmosphere";
 import {
   OPEN_METEO_API_URL,
   parseWeather,
@@ -231,16 +220,7 @@ export function Weather() {
             boxShadow: "0px 10px 15px -3px rgba(0,0,0,0.1)",
           }}
         >
-          {h.icon === "sun" && (
-            <LinearGradient
-              pointerEvents="none"
-              colors={["#fde68a4d", "#fef08a26", "#fef08a00"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-          )}
-          <WeatherAtmosphere condition={h.icon} />
+          <WeatherAtmosphere hour={h} />
           <Row
             style={{
               alignItems: "flex-start",
@@ -558,149 +538,6 @@ export function Weather() {
           </View>
         </LinearGradient>
       )}
-    </View>
-  );
-}
-
-function WeatherAtmosphere({ condition }: { condition: WeatherConditionType }) {
-  const reduced = useReducedMotion(),
-    v = useState(() => new Animated.Value(0))[0];
-  useEffect(() => {
-    v.setValue(0);
-    if (reduced) return;
-    const motion = Animated.loop(
-      Animated.sequence([
-        Animated.timing(v, {
-          toValue: 1,
-          duration:
-            condition === "rain" || condition === "storm"
-              ? 1500
-              : condition === "wind"
-                ? 4000
-                : 12000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(v, {
-          toValue: 0,
-          duration: condition === "rain" || condition === "storm" ? 0 : 12000,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    motion.start();
-    return () => motion.stop();
-  }, [v, reduced, condition]);
-  return (
-    <View
-      pointerEvents="none"
-      accessible={false}
-      style={StyleSheet.absoluteFill}
-    >
-      {(condition === "sun" || condition === "cloudSun") && (
-        <Animated.View
-          style={{
-            position: "absolute",
-            right: -125,
-            top: -140,
-            width: 400,
-            height: 400,
-            borderRadius: 200,
-            opacity: v.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.85, 1],
-            }),
-            transform: [
-              {
-                scale: v.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.15],
-                }),
-              },
-            ],
-          }}
-        >
-          <Svg width={400} height={400} viewBox="0 0 200 200">
-            <Defs>
-              <RadialGradient id="sunGlow">
-                <Stop offset="0" stopColor="#fff7cc" />
-                <Stop offset="0.4" stopColor="#fde68a" stopOpacity={0.6} />
-                <Stop offset="1" stopColor="#fde68a" stopOpacity={0} />
-              </RadialGradient>
-            </Defs>
-            <Circle cx={100} cy={100} r={100} fill="url(#sunGlow)" />
-            {Array.from({ length: 28 }, (_, i) => (
-              <Line
-                key={i}
-                x1={100 + 22 * Math.cos((i * Math.PI) / 14)}
-                y1={100 + 22 * Math.sin((i * Math.PI) / 14)}
-                x2={100 + 130 * Math.cos((i * Math.PI) / 14)}
-                y2={100 + 130 * Math.sin((i * Math.PI) / 14)}
-                stroke="#fff7cc"
-                strokeOpacity={0.32}
-                strokeWidth={0.9}
-              />
-            ))}
-          </Svg>
-        </Animated.View>
-      )}
-      {condition !== "sun" && (
-        <Animated.View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: -50,
-            right: -50,
-            opacity: 0.3,
-            transform: [
-              {
-                translateX: v.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-35, 35],
-                }),
-              },
-            ],
-          }}
-        >
-          <Svg height={190} width="100%" viewBox="0 0 360 140">
-            <Defs>
-              <SvgGradient id="cloud" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#e2e8f0" />
-                <Stop offset="1" stopColor="#64748b" stopOpacity={0} />
-              </SvgGradient>
-            </Defs>
-            <Path
-              fill="url(#cloud)"
-              d="M0 110 C35 65 85 55 135 70 C180 30 245 25 285 55 C310 45 335 65 360 95 L360 140 L0 140 Z"
-            />
-          </Svg>
-        </Animated.View>
-      )}
-      {(condition === "rain" ||
-        condition === "storm" ||
-        condition === "snow") &&
-        Array.from({ length: 14 }, (_, i) => (
-          <Animated.View
-            key={i}
-            style={{
-              position: "absolute",
-              left: `${i * 7}%`,
-              top: (i % 3) * 40,
-              width: condition === "snow" ? 5 : 1,
-              height: condition === "snow" ? 5 : 22,
-              borderRadius: 4,
-              backgroundColor: "#e0f2fe",
-              opacity: 0.25,
-              transform: [
-                {
-                  translateY: v.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 220],
-                  }),
-                },
-              ],
-            }}
-          />
-        ))}
     </View>
   );
 }
