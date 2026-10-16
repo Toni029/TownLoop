@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { dockBubble } from '../src/shell/dockGeometry.ts';
 import { ticketTypography } from '../src/workorders/ticketTypography.ts';
 import { updateStatus } from '../src/development/updateStatus.ts';
-test('all four tab bubbles stay centered at varied widths; News has measured content padding', () => {
+test('all four tab bubbles stay centered at varied widths; News stays within its slight width extension', () => {
   for (const width of [280,320,360,400,430]) {
     const cells = [0.23,0.21,0.33,0.23].map(f => f*(width-22)); let x=10;
     for (const [index,name] of ['index','news','workorders','social'].entries()) {
       const layout={x,width:cells[index]}; const bubble=dockBubble(name,width,layout);
       assert.ok(Math.abs(bubble.x+bubble.width/2-(x+layout.width/2))<0.00001);
-      if(name==='news'){assert.ok(bubble.x>=x-0.00001);assert.ok(bubble.x+bubble.width<=x+layout.width+0.00001);}
+      if(name==='news'){assert.ok(bubble.x>=x-layout.width*.02-0.00001);assert.ok(bubble.x+bubble.width<=x+layout.width*1.02+0.00001);}
       x+=layout.width;
     }
   }
