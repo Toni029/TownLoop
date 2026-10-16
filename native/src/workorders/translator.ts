@@ -348,6 +348,7 @@ export async function translateWorkOrder(order: WorkOrderItem): Promise<Translat
     return { title: result.title, description: result.description, comments: Object.fromEntries(comments.map((c, i) => [c.id, result.comments[i]])), isSpanish: true };
   } catch (error) {
     if (controller.signal.aborted) throw Error('Translation took too long. Please retry.');
+    if (error instanceof TypeError) throw Error('Cannot reach the secure translation service. Check your connection and try again.');
     throw error;
   } finally { clearTimeout(timer); }
 }

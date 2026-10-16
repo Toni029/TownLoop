@@ -38,8 +38,8 @@ export const WeatherAtmosphere = memo(function WeatherAtmosphere({ hour }: { hou
     <Animated.View key={key} entering={reduced ? undefined : FadeIn.duration(650)} exiting={reduced ? undefined : FadeOut.duration(450)} style={StyleSheet.absoluteFill}>
       <SceneLayer scene={scene} active={active} width={size.width} height={size.height} />
     </Animated.View>
-    {/* Stable text scrim: atmosphere never washes out the temperature or controls. */}
-    <LinearGradient colors={['#06152633', '#0717281a', '#06182d99']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
+    {/* Very light contrast veil keeps the weather visible beneath the controls. */}
+    <LinearGradient colors={['#06152600', '#07172800', '#06182d24']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
   </View>;
 });
 function SceneLayer({ scene, active, width, height }: { scene: Scene; active: boolean; width: number; height: number }) {
@@ -77,7 +77,17 @@ function SceneLayer({ scene, active, width, height }: { scene: Scene; active: bo
       <Svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
         <Defs>
           <RadialGradient id={`${id}air`}><Stop offset="0" stopColor="#fff4cb" stopOpacity={0.32} /><Stop offset="1" stopColor="#ffebbc" stopOpacity={0} /></RadialGradient>
+          <RadialGradient id={`${id}lensRay`}><Stop offset="0" stopColor="#ffffff" stopOpacity={0.88} /><Stop offset="0.12" stopColor="#fff5d0" stopOpacity={0.48} /><Stop offset="0.48" stopColor="#ffe5ab" stopOpacity={0.16} /><Stop offset="1" stopColor="#ffe5ab" stopOpacity={0} /></RadialGradient>
+          <RadialGradient id={`${id}lensGhost`}><Stop offset="0" stopColor="#b9f6ef" stopOpacity={0.03} /><Stop offset="0.65" stopColor="#b9f6ef" stopOpacity={0.05} /><Stop offset="0.86" stopColor="#d8fff3" stopOpacity={0.15} /><Stop offset="1" stopColor="#d8fff3" stopOpacity={0} /></RadialGradient>
         </Defs>
+        {/* Optical diffraction streaks and faint lens reflections, beneath clouds and text. */}
+        {[{ angle: -24, length: 0.82, thickness: 0.014 }, { angle: 36, length: 0.58, thickness: 0.008 }, { angle: 91, length: 0.36, thickness: 0.006 }].map(ray =>
+          <Ellipse key={ray.angle} cx={width * 0.77} cy={height * 0.23}
+            rx={width * ray.length} ry={width * ray.thickness}
+            transform={`rotate(${ray.angle} ${width * 0.77} ${height * 0.23})`}
+            fill={`url(#${id}lensRay)`} />)}
+        {[{ x: 0.58, y: 0.40, r: 0.035 }, { x: 0.39, y: 0.57, r: 0.07 }, { x: 0.16, y: 0.78, r: 0.13 }].map(ghost =>
+          <Circle key={ghost.x} cx={width * ghost.x} cy={height * ghost.y} r={width * ghost.r} fill={`url(#${id}lensGhost)`} />)}
         <Ellipse cx={width * 0.78} cy={height * 0.23} rx={width * 0.92} ry={height * 0.8} fill={`url(#${id}air)`} />
         {[0, 1, 2, 3, 4].map(i => <Path key={i} d={`M${width * 0.77} ${height * 0.23} L${width * (-0.4 + i * 0.35)} ${height * 0.92} L${width * (-0.33 + i * 0.35)} ${height * 0.92} Z`} fill={`url(#${id}air)`} opacity={0.14} />)}
       </Svg>

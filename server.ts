@@ -54,7 +54,7 @@ function limitAiRequests(req: Request, res: Response, next: () => void) {
 }
 
 // Allow the local Expo preview and explicitly configured deployed web clients.
-app.use('/api/newsletter/extract-content', (req, res, next) => {
+app.use(['/api/newsletter/extract-content', '/api/translate'], (req, res, next) => {
   const origin = req.headers.origin;
   const allowed = new Set((process.env.TOWNLOOP_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean));
   if (process.env.NODE_ENV !== 'production') {
