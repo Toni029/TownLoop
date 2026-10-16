@@ -1,5 +1,7 @@
 # Work order permissions, retention, dock, and keyboard review
 
+**Release status (2026-10-16):** After user approval, the Firebase rules, index, and scheduled cleanup were deployed and verified. The Android Preview OTA was published. See [release record](RELEASE_2026_10_16.md). The review-stage deployment notes below describe the pre-approval state.
+
 Recovery: `checkpoint/before-workorder-permissions-keyboard-2026-10-16` → `77535f8`.
 
 ## App changes
