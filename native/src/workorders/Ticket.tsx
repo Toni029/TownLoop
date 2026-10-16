@@ -13,7 +13,7 @@ export function Ticket({ code, done }: { code: string; done: boolean }) {
   return (
     <View
       accessibilityLabel={`Work Order Ticket ${code}`}
-      style={{ width: 102, height: 36 }}
+      style={{ width: 102, height: 36, flexShrink: 0 }}
     >
       <Svg viewBox="0 0 200 90" width="102" height="36">
         <Path
@@ -42,9 +42,11 @@ export function Ticket({ code, done }: { code: string; done: boolean }) {
       <View
         style={{
           position: "absolute",
-          left: 0,
-          right: "15%",
-          paddingHorizontal: 4,
+          // The 200×90 SVG is centered in 102×36 (scale .4, x inset 11).
+          // Keep text inside x=20..154, clear of the cutouts and barcode.
+          left: 19,
+          width: 53.6,
+          overflow: "hidden",
           top: 0,
           bottom: 0,
           justifyContent: "center",
@@ -54,12 +56,19 @@ export function Ticket({ code, done }: { code: string; done: boolean }) {
         <Text
           numberOfLines={1}
           adjustsFontSizeToFit
-          minimumFontScale={0.6}
+          minimumFontScale={0.3}
+          ellipsizeMode="middle"
+          maxFontSizeMultiplier={1}
           style={{
             fontFamily: "TicketDotrice",
-            fontWeight: "700",
-            fontSize: 14,
-            letterSpacing: 0.7,
+            // Use the bundled bold face directly; no synthetic platform bold.
+            // Dotrice has a 720/1000-em advance for every glyph. Reserve
+            // 2px of breathing room; very long legacy IDs ellipsize.
+            fontSize: Math.max(6, Math.min(14, 51.6 / (0.72 * Math.max(1, code.length)))),
+            width: "100%",
+            textAlign: "center",
+            includeFontPadding: false,
+            textAlignVertical: "center",
             color: ink,
             textDecorationLine: done ? "line-through" : "none",
           }}

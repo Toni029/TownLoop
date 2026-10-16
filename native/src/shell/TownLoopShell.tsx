@@ -90,7 +90,7 @@ export function TownLoopShell({
     NewsSerif: PlayfairDisplay_700Bold,
     Jakarta: PlusJakartaSans_400Regular,
     JakartaBold: PlusJakartaSans_700Bold,
-    TicketDotrice: require("../../assets/fonts/DotGothic16-Regular.ttf"),
+    TicketDotrice: require("../../assets/fonts/Dotrice-Bold.otf"),
     JakartaSemi: PlusJakartaSans_600SemiBold,
     JakartaExtra: PlusJakartaSans_800ExtraBold,
     Playfair: PlayfairDisplay_700Bold,
@@ -559,21 +559,29 @@ export function FloatingDock({
   const p = usePresentation();
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
-  const index = townLoopTabs.findIndex((t) => t.name === active);
-  const [position] = useState(() => new Animated.Value(index));
+  const [tabLayouts, setTabLayouts] = useState<Partial<Record<TabName, { x: number; width: number }>>>({});
+  // Preserve the bubble's dimensions, but center it on the actual Yoga layout.
+  const bubbleWidth = (width - 20) / 4 + (active === "workorders" ? 20 : 8);
+  const selectedLayout = tabLayouts[active];
+  const targetX = selectedLayout
+    ? selectedLayout.x + selectedLayout.width / 2 - bubbleWidth / 2
+    : null;
+  const positioned = useRef(false);
+  const [position] = useState(() => new Animated.Value(0));
   useEffect(() => {
+    if (targetX === null) return;
     const motion = Animated.spring(position, {
-      toValue: index,
+      toValue: targetX,
       stiffness: 420,
       damping: 30,
       mass: 1,
       useNativeDriver: true,
     });
-    if (reduced) position.setValue(index);
+    if (reduced || !positioned.current) position.setValue(targetX);
     else motion.start();
+    positioned.current = true;
     return () => motion.stop();
-  }, [index, position, reduced]);
-  const cell = (width - 20) / 4;
+  }, [targetX, position, reduced]);
   const dark = p?.dark;
   if (keyboard) return null;
   return (
@@ -668,21 +676,21 @@ export function FloatingDock({
               flexDirection: "row",
             }}
           >
-            {width > 0 && (
+            {width > 0 && selectedLayout && (
               <Animated.View
                 pointerEvents="none"
                 style={{
                   position: "absolute",
-                  left: active === "workorders" ? 0 : 6,
+                  left: 0,
                   top: 4,
                   bottom: 4,
-                  width: cell + (active === "workorders" ? 20 : 8),
+                  width: bubbleWidth,
                   borderRadius: 99,
                   borderWidth: 1,
                   borderColor: dark ? "#ffffff2e" : "#ffffff59",
                   overflow: "hidden",
                   transform: [
-                    { translateX: Animated.multiply(position, cell) },
+                    { translateX: position },
                   ],
                   boxShadow: "0px 4px 14px -2px rgba(0,0,0,0.1)",
                 }}
@@ -700,6 +708,13 @@ export function FloatingDock({
             {townLoopTabs.map(({ name, label, icon: Icon }) => (
               <Pressable
                 key={name}
+                onLayout={({ nativeEvent: { layout } }) => {
+                  setTabLayouts(previous => {
+                    const old = previous[name];
+                    if (old?.x === layout.x && old.width === layout.width) return previous;
+                    return { ...previous, [name]: { x: layout.x, width: layout.width } };
+                  });
+                }}
                 accessibilityRole="tab"
                 accessibilityLabel={`${label} tab`}
                 accessibilityState={{ selected: active === name }}

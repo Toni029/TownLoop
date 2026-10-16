@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Platform, Pressable, ScrollView, View } from "react-native";
 import { Check, ChevronDown } from "lucide-react-native";
 import Animated, {
   Easing,
@@ -19,6 +19,7 @@ export function CategoryPicker({
   disabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const Options = Platform.OS === "web" ? ScrollView : View;
   const dark = !!usePresentation()?.dark;
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
@@ -83,10 +84,10 @@ export function CategoryPicker({
             },
           }).duration(180)}
           style={{
-            position: "absolute",
+            position: Platform.OS === "web" ? "absolute" : "relative",
             left: 0,
             right: 0,
-            top: 70,
+            top: Platform.OS === "web" ? 70 : undefined,
             borderRadius: 16,
             borderWidth: 1,
             borderColor: dark ? "#334155" : "#e7e5e4",
@@ -97,11 +98,13 @@ export function CategoryPicker({
             zIndex: 50,
           }}
         >
-          <ScrollView
-            style={{ maxHeight: 244 }}
-            nestedScrollEnabled
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ gap: 4 }}
+          <Options
+            // Native uses the form's single scroll surface so all nine options
+            // remain reachable without a clipped nested dropdown.
+            style={{ maxHeight: Platform.OS === "web" ? 244 : undefined, gap: 4 }}
+            {...(Platform.OS === "web"
+              ? { keyboardShouldPersistTaps: "handled" as const, contentContainerStyle: { gap: 4 } }
+              : {})}
           >
             {WORK_ORDER_CATEGORIES.map((c) => {
               const active = c.name === value;
@@ -109,7 +112,8 @@ export function CategoryPicker({
                 <Pressable
                   key={c.id}
                   accessibilityRole="radio"
-                  accessibilityState={{ checked: active }}
+                  accessibilityState={{ checked: active, disabled }}
+                  disabled={disabled}
                   onPress={() => {
                     onChange(c.name);
                     setOpen(false);
@@ -157,7 +161,6 @@ export function CategoryPicker({
                   <View style={{ flex: 1 }}>
                     <Copy
                       weight="bold"
-                      numberOfLines={1}
                       style={{ fontSize: 14, color: ink }}
                     >
                       {c.name}
@@ -173,7 +176,7 @@ export function CategoryPicker({
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </Options>
         </Animated.View>
       )}
     </View>

@@ -29,3 +29,17 @@ test('existing Firestore status, timestamps, resident identity and legacy photos
   assert.deepEqual(existing.photos,['legacy.jpg']);assert.equal(existing.createdAt,123);
   assert.equal(existing.completedAt,'time');
 });
+
+
+test('all original categories are unique and survive Firestore decoding for ticket views', async () => {
+  const { WORK_ORDER_CATEGORIES } = await import('../../src/data/workOrderCategories.ts');
+  assert.equal(WORK_ORDER_CATEGORIES.length, 9);
+  assert.equal(new Set(WORK_ORDER_CATEGORIES.map(c => c.id)).size, 9);
+  for (const category of WORK_ORDER_CATEGORIES) {
+    const restored = readWorkOrder('saved-ticket', { category: category.name });
+    assert.equal(restored.category, category.name);
+    assert.equal(restored.categoryEmoji, category.emoji);
+    assert.equal(readWorkOrder('legacy-ticket', { category: category.id }).categoryEmoji, category.emoji);
+  }
+  assert.equal(readWorkOrder('legacy', { category: 'General Maintenance' }).category, 'General Maintenance');
+});
