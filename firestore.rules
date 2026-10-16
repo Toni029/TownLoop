@@ -89,10 +89,51 @@ service cloud.firestore {
       allow update: if validCounterTicket() && request.resource.data.lastNumber == resource.data.lastNumber + 1;
     }
 
+    // Four-digit allocator: initialized only by the audited administrative migration.
+    function fourDigitTicket(orderId, number) {
+      let ticket = getAfter(/databases/$(database)/documents/work_orders/$(orderId)).data;
+      return !exists(/databases/$(database)/documents/work_orders/$(orderId)) &&
+        ticket.userId == request.auth.uid && ticket.ticketNumber == number && ticket.code == string(number);
+    }
+    match /counters/work_orders_four_digit {
+      allow read: if isApproved();
+      allow update: if isApproved() && resource.data.ready == true &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastNumber', 'orderId']) &&
+        request.resource.data.lastNumber == resource.data.lastNumber + 1 &&
+        request.resource.data.lastNumber >= 1000 && request.resource.data.lastNumber <= 9999 &&
+        ((request.resource.data.orderId == '' &&
+          exists(/databases/$(database)/documents/work_order_numbers/$(string(request.resource.data.lastNumber)))) ||
+         (request.resource.data.orderId is string && request.resource.data.orderId != '' &&
+          !exists(/databases/$(database)/documents/work_order_numbers/$(string(request.resource.data.lastNumber))) &&
+          getAfter(/databases/$(database)/documents/work_order_numbers/$(string(request.resource.data.lastNumber))).data.orderId == request.resource.data.orderId &&
+          fourDigitTicket(request.resource.data.orderId, request.resource.data.lastNumber)));
+    }
+    match /work_order_numbers/{number} {
+      allow read: if isApproved();
+      allow create: if isApproved() && number.matches('^[1-9][0-9]{3}$') &&
+        request.resource.data.keys().hasOnly(['orderId']) && request.resource.data.orderId is string &&
+        getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.orderId == request.resource.data.orderId &&
+        string(getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.lastNumber) == number &&
+        fourDigitTicket(request.resource.data.orderId, getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.lastNumber);
+      // Reservations are permanent, even after a ticket is removed.
+    }
+    function allocatedTicket(orderId) {
+      let number = request.resource.data.ticketNumber;
+      return number is int &&
+        ((number >= 1000 && number <= 9999 && request.resource.data.code == string(number) &&
+          getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.orderId == orderId &&
+          getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.lastNumber == number &&
+          !exists(/databases/$(database)/documents/work_order_numbers/$(string(number))) &&
+          getAfter(/databases/$(database)/documents/work_order_numbers/$(string(number))).data.orderId == orderId) ||
+         (number >= 10000 && request.resource.data.code == 'WO-' + string(number) &&
+          getAfter(/databases/$(database)/documents/counters/work_orders).data.orderId == orderId &&
+          getAfter(/databases/$(database)/documents/counters/work_orders).data.lastNumber == number));
+    }
+
     match /work_orders/{orderId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/work_orders/$(orderId)) || isCrewOrManager() || resource.data.userId == request.auth.uid);
       allow list: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid);
-      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid && allocatedTicket(orderId);
       allow update: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber']);
       allow delete: if isManager() ||

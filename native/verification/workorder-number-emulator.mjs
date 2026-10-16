@@ -20,7 +20,7 @@ const env = await initializeTestEnvironment({
     rules: readFileSync(path.join(root, "firestore.rules"), "utf8"),
   },
 });
-let checks = 0;
+
 function actionsFor(uid, folder) {
   const db = env.authenticatedContext(uid).firestore();
   const cache = new Map();
@@ -67,15 +67,17 @@ function actionsFor(uid, folder) {
 try {
  await env.clearFirestore();
  await env.withSecurityRulesDisabled(async ctx => {
+  await fb.setDoc(fb.doc(ctx.firestore(),'counters','work_orders_four_digit'),{lastNumber:999,orderId:'',ready:true});
+  await fb.setDoc(fb.doc(ctx.firestore(),'work_order_numbers','1001'),{historical:true});
   for (const role of ['resident', 'other', 'crew']) await fb.setDoc(fb.doc(ctx.firestore(),'users',role), {name:role, email:role+'@example.invalid',approved:true,role:role==='other'?'resident':role});
  });
  const resident=actionsFor('resident','workorders'), other=actionsFor('other','workorders'), crew=actionsFor('crew','workorders');
  const draft={title:'Counter test',description:'Local emulator only',category:'General Maintenance',photos:[]};
  await Promise.all([resident.actions.submitWorkOrder('one',draft),other.actions.submitWorkOrder('two',draft)]);
  const tickets=await fb.getDocs(fb.collection(crew.db,'work_orders'));
- assert.deepEqual(tickets.docs.map(d=>d.data().ticketNumber).sort(),[10000,10001]);
+ assert.deepEqual(tickets.docs.map(d=>d.data().ticketNumber).sort(),[1000,1002]);
  await resident.actions.submitWorkOrder('one',draft);
- assert.equal((await fb.getDoc(fb.doc(crew.db,'counters','work_orders'))).data().lastNumber,10001);
+ assert.equal((await fb.getDoc(fb.doc(crew.db,'counters','work_orders_four_digit'))).data().lastNumber,1002);
  await assertFails(fb.getDoc(fb.doc(resident.db,'work_orders','two')));
  await assertFails(fb.getDocs(fb.collection(resident.db,'work_orders')));
  const own=await fb.getDocs(fb.query(fb.collection(resident.db,'work_orders'),fb.where('userId','==','resident')));
@@ -84,5 +86,22 @@ try {
  await assertFails(fb.updateDoc(fb.doc(resident.db,'work_orders','one'),{code:'WO-99999'}));
  await assertFails(fb.updateDoc(fb.doc(crew.db,'work_orders','one'),{ticketNumber:99999}));
  await fb.updateDoc(fb.doc(crew.db,'work_orders','one'),{status:'In Progress'});
+ await assertFails(fb.setDoc(fb.doc(resident.db,'work_orders','forged'),{userId:'resident',ticketNumber:1003,code:'1003'}));
+ await assertFails(fb.setDoc(fb.doc(resident.db,'work_order_numbers','1003'),{orderId:'forged'}));
+ await assertFails(fb.deleteDoc(fb.doc(resident.db,'work_order_numbers','1000')));
+ await assertFails(fb.updateDoc(fb.doc(resident.db,'counters','work_orders_four_digit'),{lastNumber:1004,orderId:''}));
+ await env.withSecurityRulesDisabled(async ctx => {
+   await fb.updateDoc(fb.doc(ctx.firestore(),'counters','work_orders_four_digit'),{lastNumber:9998});
+ });
+ await resident.actions.submitWorkOrder('last',draft);
+ assert.equal((await fb.getDoc(fb.doc(resident.db,'work_orders','last'))).data().code,'9999');
+ await assert.rejects(other.actions.submitWorkOrder('exhausted',draft), /used/);
+ assert.equal((await fb.getDoc(fb.doc(other.db,'work_orders','exhausted'))).exists(),false);
+ // Previously published five-digit clients still submit atomically during rollout.
+ await fb.runTransaction(resident.db,async tx => {
+   await tx.get(fb.doc(resident.db,'counters','work_orders'));
+   tx.set(fb.doc(resident.db,'counters','work_orders'),{lastNumber:10000,orderId:'legacy-client'});
+   tx.set(fb.doc(resident.db,'work_orders','legacy-client'),{userId:'resident',ticketNumber:10000,code:'WO-10000'});
+ });
  console.log('PASS: concurrent sequence, idempotent retry, resident isolation, crew visibility, counter tamper protection');
 } finally {await env.cleanup();}

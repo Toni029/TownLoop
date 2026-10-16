@@ -1,3 +1,5 @@
+import { dockBubble } from "./dockGeometry";
+import { PreviewUpdateNotice } from "../development/PreviewUpdateNotice";
 import { ScreenSystemBars } from "../components/SystemBars";
 import {
   createContext,
@@ -116,6 +118,7 @@ export function TownLoopShell({
       value={presentation}
     >
       <ScreenSystemBars dark={dark} />
+      <PreviewUpdateNotice dark={dark} />
       <LinearGradient
         colors={
           dark ? ["#020617", "#0f172a"] : ["#faf6f0", "#f5ede2", "#e9decb"]
@@ -560,12 +563,10 @@ export function FloatingDock({
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
   const [tabLayouts, setTabLayouts] = useState<Partial<Record<TabName, { x: number; width: number }>>>({});
-  // Preserve the bubble's dimensions, but center it on the actual Yoga layout.
-  const bubbleWidth = (width - 20) / 4 + (active === "workorders" ? 20 : 8);
   const selectedLayout = tabLayouts[active];
-  const targetX = selectedLayout
-    ? selectedLayout.x + selectedLayout.width / 2 - bubbleWidth / 2
-    : null;
+  const bubble = selectedLayout ? dockBubble(active, width, selectedLayout) : null;
+  const bubbleWidth = bubble?.width || 0;
+  const targetX = bubble?.x ?? null;
   const positioned = useRef(false);
   const [position] = useState(() => new Animated.Value(0));
   useEffect(() => {

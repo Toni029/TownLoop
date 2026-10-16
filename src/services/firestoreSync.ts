@@ -1,4 +1,4 @@
-import { nextWorkOrderNumber, workOrderCode } from "../data/workOrderNumber";
+import { allocateWorkOrder } from "../data/allocateWorkOrder";
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -6,7 +6,6 @@ import { nextWorkOrderNumber, workOrderCode } from "../data/workOrderNumber";
  * via any medium, is strictly prohibited.
  */
 import {
-  runTransaction,
   collection,
   addDoc,
   doc,
@@ -220,15 +219,17 @@ export async function saveWorkOrderToFirestore(
     userEmail: currentUser?.email || auth?.currentUser?.email || '',
   };
 
-  if (params.id != null) return saveDocument('work_orders', params, docPayload);
-  const reference = doc(collection(db, 'work_orders'));
-  const counter = doc(db, 'counters', 'work_orders');
-  await runTransaction(db, async transaction => {
-    const snapshot = await transaction.get(counter);
-    const ticketNumber = nextWorkOrderNumber(snapshot.data()?.lastNumber);
-    transaction.set(counter, { lastNumber: ticketNumber, orderId: reference.id });
-    transaction.set(reference, { ...docPayload, ticketNumber, code: workOrderCode(ticketNumber) });
-  });
+  if (params.id != null) {
+    // Updating a historical ticket must preserve its assigned number and code.
+    const existing = await getDoc(doc(db, 'work_orders', String(params.id)));
+    if (existing.exists()) {
+      const { code: _code, ...updates } = docPayload;
+      await updateDoc(existing.ref, updates);
+      return existing.id;
+    }
+  }
+  const reference = params.id != null ? doc(db, 'work_orders', String(params.id)) : doc(collection(db, 'work_orders'));
+  await allocateWorkOrder(db, reference, docPayload);
   return reference.id;
 }
 

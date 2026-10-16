@@ -1,7 +1,4 @@
-import {
-  nextWorkOrderNumber,
-  workOrderCode,
-} from "../../../src/data/workOrderNumber";
+import { allocateWorkOrder } from "../../../src/data/allocateWorkOrder";
 import {
   doc,
   collection,
@@ -39,15 +36,7 @@ export async function submitWorkOrder(
     if (!canCreateWorkOrder(user))
       throw new Error("This role cannot submit maintenance requests.");
     const reference = doc(db, "work_orders", id);
-    await runTransaction(db, async (tx) => {
-      if ((await tx.get(reference)).exists()) return;
-      const counter = doc(db, "counters", "work_orders");
-      const counterSnapshot = await tx.get(counter);
-      const ticketNumber = nextWorkOrderNumber(
-        counterSnapshot.data()?.lastNumber,
-      );
-      tx.set(counter, { lastNumber: ticketNumber, orderId: id });
-      tx.set(reference, {
+    await allocateWorkOrder(db, reference, {
         title: draft.title.trim(),
         description: draft.description.trim(),
         category: draft.category,
@@ -59,8 +48,6 @@ export async function submitWorkOrder(
         userId: String(user.id),
         userName: user.name,
         userEmail: user.email,
-        ticketNumber,
-        code: workOrderCode(ticketNumber),
         status: "Queued",
         statusNote: "Queued for maintenance technician",
         placeInLine: 1,
@@ -68,7 +55,6 @@ export async function submitWorkOrder(
         comments: [],
         createdAt: serverTimestamp(),
         timeAgo: "Just now",
-      });
     });
   });
 }

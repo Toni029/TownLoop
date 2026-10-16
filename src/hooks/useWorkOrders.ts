@@ -193,12 +193,6 @@ export function useWorkOrders(
         userEmail: currentUser?.email || '',
       };
 
-      setWorkOrders((prev) => [newOrder, ...prev]);
-      setNewWoTitle('');
-      setNewWoDescription('');
-      setNewWoPhotos([]);
-      setIsWorkOrderModalOpen(false);
-
       try {
         const firestoreId = await saveWorkOrderToFirestore(
           {
@@ -218,16 +212,17 @@ export function useWorkOrders(
           },
           currentUser
         );
-        if (firestoreId) {
-          setWorkOrders((prev) =>
-            prev.map((wo) => (wo.id === tempId ? { ...wo, id: firestoreId } : wo))
-          );
-        }
+        if (!firestoreId) throw new Error('Work order could not be saved. Please try again.');
+        setNewWoTitle('');
+        setNewWoDescription('');
+        setNewWoPhotos([]);
+        setIsWorkOrderModalOpen(false);
+        showToast?.('Work order request submitted!');
       } catch (err) {
         console.warn('Error syncing work order to Firestore:', err);
+        showToast?.(err instanceof Error ? err.message : 'Work order was not saved. Please retry.');
       }
 
-      showToast?.('Work order request submitted!');
     },
     [newWoTitle, newWoDescription, newWoCategory, newWoPhotos, currentUser, workOrders, showToast]
   );

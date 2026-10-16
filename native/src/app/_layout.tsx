@@ -1,4 +1,3 @@
-import { PreviewUpdateNotice } from "../development/PreviewUpdateNotice";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useReducedMotion } from "../home/hooks";
 import { CommunityProvider, useCommunity } from "../lib/community";
@@ -69,7 +68,6 @@ export default function Root() {
         <SessionProvider>
           <SystemBars />
           <Navigation />
-          <PreviewUpdateNotice />
         </SessionProvider>
       </CommunityProvider>
     </SafeAreaProvider>

@@ -1,7 +1,9 @@
+import { ticketTypography } from "./ticketTypography";
 import { View, Text } from "react-native";
 import { usePresentation } from "../shell/TownLoopShell";
 import Svg, { Path, Line, Rect } from "react-native-svg";
 export function Ticket({ code, done }: { code: string; done: boolean }) {
+  const typography = ticketTypography(code);
   const dark = !!usePresentation()?.dark;
   const ink = dark
     ? done
@@ -64,7 +66,9 @@ export function Ticket({ code, done }: { code: string; done: boolean }) {
             // Use the bundled bold face directly; no synthetic platform bold.
             // Dotrice has a 720/1000-em advance for every glyph. Reserve
             // 2px of breathing room; very long legacy IDs ellipsize.
-            fontSize: Math.max(6, Math.min(14, 51.6 / (0.72 * Math.max(1, code.length)))),
+            fontSize: typography.fontSize,
+            lineHeight: typography.lineHeight,
+            transform: [{ scaleY: typography.scaleY }],
             width: "100%",
             textAlign: "center",
             includeFontPadding: false,
@@ -73,7 +77,7 @@ export function Ticket({ code, done }: { code: string; done: boolean }) {
             textDecorationLine: done ? "line-through" : "none",
           }}
         >
-          {code}
+          {typography.text}
         </Text>
       </View>
     </View>
