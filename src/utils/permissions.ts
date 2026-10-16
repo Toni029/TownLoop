@@ -162,14 +162,7 @@ export function canViewWorkOrder(
   return isWorkOrderCreator(workOrder, user);
 }
 
-/**
- * Work Order Deletion Rules:
- * 1. Admin and VIP roles: Can delete ANY work order, without proof of anything.
- * 2. Crew role: Can mark as done (with required comment and photo). Once the work order is marked as Done,
- *    the trashcan icon is displayed and they can delete the work order. ONLY when marked as Done can crew delete it.
- * 3. Resident role: Can delete their own work order without proof or requirement.
- *    IF the work order is marked as Done (greyed out), they NO LONGER have the trashcan icon and CANNOT delete it.
- */
+/** Managers may delete any ticket; residents only their own unfinished tickets. */
 export function canDeleteWorkOrder(
   workOrder: {
     status?: string;
@@ -180,26 +173,10 @@ export function canDeleteWorkOrder(
   } | null | undefined,
   user: UserProfile | null | undefined
 ): boolean {
-  if (!user) return false;
-
-  // 1. Admin and VIP roles can delete ANY work order without proof
-  if (isAdmin(user) || isVip(user)) {
-    return true;
-  }
-
-  // 2. Crew role: ONLY when the work order is marked as Done, they can delete it
-  if (isCrew(user)) {
-    return workOrder?.status === 'Done';
-  }
-
-  // 3. Resident role:
-  // If the work order is marked as Done (greyed out), they cannot delete it and have no trashcan icon
-  if (workOrder?.status === 'Done') {
-    return false;
-  }
-
-  // If not marked as Done, resident can delete their own work order post without proof
-  return isWorkOrderCreator(workOrder, user);
+  if (!user || !workOrder) return false;
+  const role = user.role;
+  if (role === 'admin' || role === 'vip') return true;
+  return role === 'resident' && workOrder.status !== 'Done' && isWorkOrderCreator(workOrder, user);
 }
 
 /**
@@ -307,4 +284,8 @@ export function getRoleBadgeInfo(role: UserRole) {
         dot: 'bg-emerald-500',
       };
   }
+}
+
+export function canTranslateWorkOrder(user: UserProfile | null | undefined): boolean {
+  return !!user && user.approved !== false && ['admin', 'vip', 'crew'].includes(user.role || '');
 }

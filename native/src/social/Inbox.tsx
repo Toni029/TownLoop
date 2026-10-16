@@ -1,6 +1,7 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable,  View } from "react-native";
 import { ChevronLeft, Trash2, Send } from "lucide-react-native";
 import type { UserProfile } from "../../../src/types";
 import { Action, Copy, Field, ErrorNotice, useNewsStyles } from "../news/ui";

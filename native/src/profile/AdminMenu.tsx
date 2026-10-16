@@ -1,9 +1,10 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { adminDirectory, removeAttendeePatch } from "./adminModel";
 import { CecilPinesMark } from "../components/CecilPinesMark";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useState } from "react";
 import {
-  ScrollView,
+
   ActivityIndicator,
   Image,
   Pressable,

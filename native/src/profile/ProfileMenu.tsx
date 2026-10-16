@@ -1,3 +1,4 @@
+import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { AdminMenu } from "./AdminMenu";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
@@ -10,10 +11,10 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
+
   StyleSheet,
   Text,
-  TextInput,
+
   useWindowDimensions,
   View,
   type ViewStyle,
@@ -642,7 +643,7 @@ export function ProfileMenu({
         {mounted && <SystemBars dark />}
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View
             style={[
@@ -688,6 +689,9 @@ export function ProfileMenu({
               style={[
                 s.window,
                 {
+                  // Bound the fixed shell to the keyboard-resized stage.
+                  maxHeight: "100%",
+                  flexShrink: 1,
                   // Every subview shares the same shell; only the contents scroll.
                   width: Math.min(width - 24, width >= 640 ? 540 : 500),
                   height: Math.min(

@@ -562,9 +562,9 @@ export function FloatingDock({
   const p = usePresentation();
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
-  const [tabLayouts, setTabLayouts] = useState<Partial<Record<TabName, { x: number; width: number }>>>({});
+  const [tabLayouts, setTabLayouts] = useState<Partial<Record<TabName, { x: number; width: number; contentWidth?: number }>>>({});
   const selectedLayout = tabLayouts[active];
-  const bubble = selectedLayout ? dockBubble(active, width, selectedLayout) : null;
+  const bubble = selectedLayout ? dockBubble(active, width, selectedLayout, Object.entries(tabLayouts).filter(([name]) => name !== active).map(([, layout]) => layout!)) : null;
   const bubbleWidth = bubble?.width || 0;
   const targetX = bubble?.x ?? null;
   const positioned = useRef(false);
@@ -713,7 +713,7 @@ export function FloatingDock({
                   setTabLayouts(previous => {
                     const old = previous[name];
                     if (old?.x === layout.x && old.width === layout.width) return previous;
-                    return { ...previous, [name]: { x: layout.x, width: layout.width } };
+                    return { ...previous, [name]: { ...old, x: layout.x, width: layout.width } };
                   });
                 }}
                 accessibilityRole="tab"
@@ -745,6 +745,11 @@ export function FloatingDock({
                   }
                 />
                 <Text
+                  onLayout={({ nativeEvent: { layout } }) => setTabLayouts(previous => {
+                    const old = previous[name];
+                    const contentWidth = Math.max(20, layout.width) * 1.05;
+                    return !old || old.contentWidth === contentWidth ? previous : { ...previous, [name]: { ...old, contentWidth } };
+                  })}
                   numberOfLines={1}
                   style={{
                     fontFamily: "JakartaExtra",

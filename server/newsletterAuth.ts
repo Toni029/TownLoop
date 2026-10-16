@@ -1,10 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { UserProfile } from '../src/types';
 import firebaseConfig from '../firebase-applet-config.json';
-import { canManageNewsletter } from '../src/utils/permissions';
+import { canManageNewsletter, canTranslateWorkOrder } from '../src/utils/permissions';
 
 /** Authenticate with Firebase, then check the same saved profile used by the UI. */
-export async function requireNewsletterManager(req: Request, res: Response, next: NextFunction) {
+async function requireRole(req: Request, res: Response, next: NextFunction, translation = false) {
   const token = req.headers.authorization?.match(/^Bearer ([^\s]+)$/)?.[1];
   if (!token) {
     res.status(401).json({ error: 'Please sign in before analyzing a newsletter.' });
@@ -30,8 +30,8 @@ export async function requireNewsletterManager(req: Request, res: Response, next
     const fields = profileResponse.ok ? (await profileResponse.json()).fields : null;
     const profile = fields ? Object.fromEntries(Object.entries(fields).map(([key, value]: [string, any]) =>
       [key, value.stringValue ?? value.booleanValue])) : null;
-    if (!profile || profile.approved === false || !canManageNewsletter(profile as UserProfile)) {
-      res.status(403).json({ error: 'Newsletter analysis requires an approved newsletter manager account.' });
+    if (!profile || profile.approved === false || !(translation ? canTranslateWorkOrder(profile as UserProfile) : canManageNewsletter(profile as UserProfile))) {
+      res.status(403).json({ error: translation ? 'Translation requires an approved Admin, VIP, or Crew account.' : 'Newsletter analysis requires an approved newsletter manager account.' });
       return;
     }
     next();
@@ -39,3 +39,6 @@ export async function requireNewsletterManager(req: Request, res: Response, next
     res.status(503).json({ error: 'Could not verify your account. Please try again shortly.' });
   }
 }
+
+export const requireNewsletterManager = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next);
+export const requireWorkOrderTranslator = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next, true);

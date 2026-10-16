@@ -17,5 +17,16 @@
         "destination": "/index.html"
       }
     ]
-  }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "work-order-retention",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.test.cjs"
+      ]
+    }
+  ]
 }

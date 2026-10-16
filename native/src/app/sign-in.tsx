@@ -1,3 +1,4 @@
+import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { ScreenSystemBars } from "../components/SystemBars";
 import { ResidentRegistration } from "../components/ResidentRegistration";
 import { googleSignIn } from "../lib/googleSignIn";
@@ -10,9 +11,9 @@ import {
   Pressable,
   Text,
   View,
-  ScrollView,
+
   StyleSheet,
-  TextInput,
+
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";

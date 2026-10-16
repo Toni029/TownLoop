@@ -1,9 +1,10 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { ScreenSystemBars } from "../components/SystemBars";
 import { useState } from "react";
 import {
   Image,
   Pressable,
-  ScrollView,
+
   Text,
   View,
   useWindowDimensions,

@@ -1,3 +1,5 @@
+import { reopenWorkOrderInFirestore } from '../services/firestoreSync';
+import { displayWorkOrderCode } from '../data/workOrderNumber';
 import { canViewAllWorkOrders } from "../utils/permissions";
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
@@ -118,7 +120,7 @@ export function useWorkOrders(
             const data = doc.data();
             return {
               id: doc.id,
-              code: data.code || `WO-${doc.id.slice(-4)}`,
+              code: displayWorkOrderCode(data.code || `WO-${doc.id.slice(-4)}`),
               title: data.title || 'Work Order',
               description: data.description || '',
               category: data.category || 'General Maintenance',
@@ -129,7 +131,7 @@ export function useWorkOrders(
               status: data.status || 'Queued',
               statusNote: data.statusNote || 'Pending review',
               timeAgo: data.timeAgo || 'Recent',
-              completedAt: data.completedAt,
+              completedAt: typeof data.completedAt?.toDate === 'function' ? data.completedAt.toDate().toISOString() : data.completedAt,
               completedBy: data.completedBy,
               photoUrl: data.photoUrl,
               photos: data.photos || (data.photoUrl ? [data.photoUrl] : []),
@@ -227,112 +229,27 @@ export function useWorkOrders(
     [newWoTitle, newWoDescription, newWoCategory, newWoPhotos, currentUser, workOrders, showToast]
   );
 
-  const handleMarkAsDone = useCallback(
-    (id: number | string) => {
-      setWorkOrders((prev) =>
-        prev.map((wo) =>
-          String(wo.id) === String(id)
-            ? {
-                ...wo,
-                status: 'Done',
-                statusNote: `Completed by ${currentUser?.name || 'Maintenance Crew'}`,
-                completedAt: new Date().toISOString(),
-                completedBy: currentUser?.name || 'Maintenance Crew',
-              }
-            : wo
-        )
-      );
-      updateFirestoreDocument('work_orders', id, {
-        status: 'Done',
-        statusNote: `Completed by ${currentUser?.name || 'Maintenance Crew'}`,
-        completedAt: new Date().toISOString(),
-        completedBy: currentUser?.name || 'Maintenance Crew',
-      });
-      showToast?.('Work order marked as done!');
-    },
-    [currentUser, showToast]
-  );
+  const handleMarkAsDone = useCallback((_id: number | string) => {
+    showToast?.('Enter a resolution note and submit your reply to complete this ticket.');
+  }, [showToast]);
 
-  const handleCompleteWithReply = useCallback(
-    async (id: number | string, text: string, photoUrl?: string) => {
-      const resolutionComment: WorkOrderComment = {
-        id: `c-${Date.now()}`,
-        author: currentUser?.name || 'Maintenance Crew',
-        role: currentUser?.role === 'crew' ? 'Maintenance Crew' : 'Staff',
-        text: text.trim(),
-        timestamp: 'Just now',
-        photoUrl: photoUrl || '',
-      };
+  const handleCompleteWithReply = useCallback(async (id: number | string, text: string, photoUrl?: string) => {
+    if (currentUser?.role !== 'crew' || !text.trim()) {
+      showToast?.('A crew resolution note is required.'); return;
+    }
+    const saved = await saveWorkOrderResolutionToFirestore({ woId: id, replyText: text, photoDownloadUrl: photoUrl || '', crewUser: currentUser });
+    showToast?.(saved ? 'Work order completed' : 'Work order was not completed. Please retry.');
+  }, [currentUser, showToast]);
 
-      setWorkOrders((prev) =>
-        prev.map((wo) =>
-          String(wo.id) === String(id)
-            ? {
-                ...wo,
-                status: 'Done',
-                statusNote: `Completed by ${currentUser?.name || 'Maintenance Crew'}`,
-                completedAt: new Date().toISOString(),
-                completedBy: currentUser?.name || 'Maintenance Crew',
-                comments: [...(wo.comments || []), resolutionComment],
-              }
-            : wo
-        )
-      );
+  const handleReopenWorkOrder = useCallback(async (id: number | string) => {
+    try { await reopenWorkOrderInFirestore(id); showToast?.('Work order reopened'); }
+    catch { showToast?.('Work order could not be reopened.'); }
+  }, [showToast]);
 
-      if (photoUrl) {
-        await saveWorkOrderResolutionToFirestore({
-          woId: id,
-          replyText: text,
-          photoDownloadUrl: photoUrl,
-          crewUser: currentUser,
-        });
-      } else {
-        updateFirestoreDocument('work_orders', id, {
-          status: 'Done',
-          statusNote: `Completed by ${currentUser?.name || 'Maintenance Crew'}`,
-          completedAt: new Date().toISOString(),
-          completedBy: currentUser?.name || 'Maintenance Crew',
-          comments: resolutionComment,
-        });
-      }
-
-      showToast?.('Work order resolved with verification photo!');
-    },
-    [currentUser, showToast]
-  );
-
-  const handleReopenWorkOrder = useCallback(
-    (id: number | string) => {
-      setWorkOrders((prev) =>
-        prev.map((wo) =>
-          String(wo.id) === String(id)
-            ? {
-                ...wo,
-                status: 'In Progress',
-                statusNote: 'Reopened for maintenance inspection',
-                completedAt: undefined,
-                completedBy: undefined,
-              }
-            : wo
-        )
-      );
-      updateFirestoreDocument('work_orders', id, {
-        status: 'In Progress',
-        statusNote: 'Reopened for maintenance inspection',
-      });
-      showToast?.('Work order reopened');
-    },
-    [showToast]
-  );
-
-  const handleDeleteWorkOrder = useCallback(
-    (id: number | string) => {
-      setWorkOrders((prev) => prev.filter((wo) => String(wo.id) !== String(id)));
-      deleteWorkOrderFromFirestore(id);
-      showToast?.('Work order deleted');
-    },
-    [showToast]
-  );
+  const handleDeleteWorkOrder = useCallback(async (id: number | string) => {
+    const deleted = await deleteWorkOrderFromFirestore(id);
+    showToast?.(deleted ? 'Work order deleted' : 'Work order could not be deleted.');
+  }, [showToast]);
 
   const handleAddWorkOrderComment = useCallback(
     (woId: number | string, text: string, photoUrl?: string) => {

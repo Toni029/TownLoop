@@ -1,5 +1,6 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { useState } from "react";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { Platform, Pressable,  View } from "react-native";
 import { Check, ChevronDown } from "lucide-react-native";
 import Animated, {
   Easing,

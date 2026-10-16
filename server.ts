@@ -11,7 +11,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { translateWorkOrderContent } from './server/translation.ts';
 import { extractNewsletterContent } from './server/newsletterExtractor.ts';
-import { requireNewsletterManager } from './server/newsletterAuth.ts';
+import { requireNewsletterManager, requireWorkOrderTranslator } from './server/newsletterAuth.ts';
 
 dotenv.config();
 
@@ -316,7 +316,7 @@ app.delete('/api/newsletter/current', requireNewsletterManager, (req: Request, r
 });
 
 // Translation endpoint for crew members using Google Cloud Translation API (Basic v2)
-app.post('/api/translate', async (req: Request, res: Response) => {
+app.post('/api/translate', requireWorkOrderTranslator, async (req: Request, res: Response) => {
   try {
     const { title, description, comments, targetLang } = req.body;
     if (!title && !description && (!comments || comments.length === 0)) {

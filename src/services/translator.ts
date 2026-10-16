@@ -1,3 +1,4 @@
+import { auth } from '../firebase';
 import { WorkOrderItem } from '../types';
 
 export interface TranslatedContent {
@@ -320,74 +321,6 @@ export function translateWorkOrderSync(workOrder: WorkOrderItem): TranslatedCont
 }
 
 /**
- * Secure placeholder for Google Translate API Key in client/config environments
- * Priority: process.env.REACT_APP_GOOGLE_TRANSLATE_API_KEY -> process.env.GOOGLE_TRANSLATE_API_KEY -> VITE_GOOGLE_TRANSLATE_API_KEY
- */
-export const GOOGLE_TRANSLATE_API_KEY =
-  (typeof process !== 'undefined' && process.env
-    ? process.env.REACT_APP_GOOGLE_TRANSLATE_API_KEY || process.env.GOOGLE_TRANSLATE_API_KEY
-    : '') ||
-  (typeof import.meta !== 'undefined' && (import.meta as any).env
-    ? (import.meta as any).env.VITE_GOOGLE_TRANSLATE_API_KEY
-    : '') ||
-  '';
-
-/**
- * Decodes HTML entities returned by Google Translate API v2
- */
-export function decodeHtmlEntities(text: string): string {
-  if (!text) return '';
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&#039;|&apos;|&#x27;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ');
-}
-
-/**
- * Directly calls Google Cloud Translation API (Basic v2 endpoint) using standard fetch
- * Batches an array of query strings in a single POST request.
- */
-export async function callGoogleCloudTranslationApiV2(
-  texts: string[],
-  targetLang: string = 'es',
-  apiKey: string = GOOGLE_TRANSLATE_API_KEY
-): Promise<string[]> {
-  if (!texts || texts.length === 0) return [];
-  if (!apiKey) {
-    return texts.map(instantTranslateToSpanish);
-  }
-
-  const endpoint = `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify({
-      q: texts,
-      target: targetLang,
-      format: 'text',
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Google Cloud Translation API error: ${response.status}`);
-  }
-
-  const json = await response.json();
-  const translations = json?.data?.translations;
-  if (!Array.isArray(translations)) {
-    throw new Error('Invalid response structure from Google Cloud Translation API');
-  }
-
-  return translations.map((t: any) => decodeHtmlEntities(t.translatedText || ''));
-}
-
-/**
  * Translates work order title, description, notes, and comments simultaneously
  * using the official Google Cloud Translation API (Basic v2 endpoint) via a single batch call.
  * If the network drops or the request fails, it fails gracefully so the UI never breaks.
@@ -413,6 +346,7 @@ export async function translateWorkOrder(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${await auth?.currentUser?.getIdToken() || ''}`,
       },
       body: JSON.stringify({
         title: workOrder.title,
@@ -434,37 +368,6 @@ export async function translateWorkOrder(
       const result: TranslatedContent = {
         title: data.title || workOrder.title,
         description: data.description !== undefined ? data.description : workOrder.description || '',
-        comments: commentMap,
-        isSpanish: true,
-      };
-
-      translationCache.set(woKey, result);
-      return result;
-    }
-
-    // If server returned non-OK, try direct client call if client API key placeholder is provided
-    if (GOOGLE_TRANSLATE_API_KEY) {
-      const batchQueries: string[] = [workOrder.title];
-      if (workOrder.description) batchQueries.push(workOrder.description);
-      commentsList.forEach((c) => batchQueries.push(c.text));
-
-      const translatedBatch = await callGoogleCloudTranslationApiV2(
-        batchQueries,
-        'es',
-        GOOGLE_TRANSLATE_API_KEY
-      );
-
-      let ptr = 0;
-      const translatedTitle = translatedBatch[ptr++] || workOrder.title;
-      const translatedDesc = workOrder.description ? translatedBatch[ptr++] || '' : '';
-      const commentMap: Record<string | number, string> = {};
-      commentsList.forEach((c) => {
-        commentMap[c.id] = translatedBatch[ptr++] || c.text;
-      });
-
-      const result: TranslatedContent = {
-        title: translatedTitle,
-        description: translatedDesc,
         comments: commentMap,
         isSpanish: true,
       };

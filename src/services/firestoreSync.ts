@@ -7,6 +7,8 @@ import { allocateWorkOrder } from "../data/allocateWorkOrder";
  */
 import {
   collection,
+  runTransaction,
+  deleteField,
   addDoc,
   doc,
   setDoc,
@@ -299,19 +301,19 @@ export async function saveWorkOrderResolutionToFirestore({
 
   try {
     const woDocRef = doc(db, 'work_orders', String(woId || woCode));
-    await updateDoc(
-      woDocRef,
-      {
-        status: 'Done',
-        statusNote: `Completed by ${crewUser?.name || 'Maintenance Crew'}`,
-        completedAt: new Date().toISOString(),
-        completedBy: crewUser?.name || 'Maintenance Crew',
-        photoUrl: photoDownloadUrl,
-        latestResolutionPhoto: photoDownloadUrl,
-        comments: arrayUnion(resolutionComment),
-        updatedAt: serverTimestamp(),
-      }
-    );
+    if (crewUser?.role !== 'crew' || !replyText.trim()) throw new Error('A crew resolution note is required.');
+    await runTransaction(db, async tx => {
+      const snapshot = await tx.get(woDocRef);
+      if (!snapshot.exists()) throw new Error('Work order no longer exists.');
+      if (snapshot.data().status === 'Done') return;
+      tx.update(woDocRef, {
+        status: 'Done', statusNote: `Completed by ${crewUser.name}`,
+        completedAt: serverTimestamp(), completedBy: crewUser.name,
+        retentionVersion: 1, resolutionNote: replyText.trim(),
+        ...(photoDownloadUrl ? { photoUrl: photoDownloadUrl, latestResolutionPhoto: photoDownloadUrl } : {}),
+        comments: [...(snapshot.data().comments || []), resolutionComment], updatedAt: serverTimestamp(),
+      });
+    });
     return true;
   } catch (error) {
     console.warn('Notice: Updating work order resolution in Firestore:', error);
@@ -823,3 +825,14 @@ export async function deleteNewsletterPdfChunksFromFirestore(
 }
 
 
+
+export async function reopenWorkOrderInFirestore(id: string | number) {
+  if (!db) throw new Error('Firebase is unavailable.');
+  const reference = doc(db, 'work_orders', String(id));
+  await runTransaction(db, async tx => {
+    const snapshot = await tx.get(reference);
+    if (!snapshot.exists() || snapshot.data().status !== 'Done') return;
+    tx.update(reference, { status: 'In Progress', statusNote: 'Reopened for maintenance inspection',
+      completedAt: deleteField(), completedBy: deleteField(), retentionVersion: deleteField(), resolutionNote: deleteField(), updatedAt: serverTimestamp() });
+  });
+}

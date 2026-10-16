@@ -1,10 +1,11 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState, useMemo, useCallback, memo } from "react";
 import {
   ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
+
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,6 +23,7 @@ import {
 import type { UserProfile } from "../../../src/types";
 import {
   canCreateWorkOrder,
+  canTranslateWorkOrder,
   canViewWorkOrder,
   canViewAllWorkOrders,
   canDeleteWorkOrder,
@@ -290,7 +292,7 @@ const OrderCard = memo(function OrderCard({
   const s = useNewsStyles();
   const q = useMemo(() => queueState(order, all), [order, all]);
   const [spanish, setSpanish] = useState(false);
-  const translated = useMemo(() => spanish ? translateWorkOrderSync(order) : null, [spanish, order]);
+  const translated = useMemo(() => spanish && canTranslateWorkOrder(user) ? translateWorkOrderSync(order) : null, [spanish, order, user]);
   const [confirm, setConfirm] = useState(false);
   const [reply, setReply] = useState("");
   const [photo, setPhoto] = useState("");
@@ -331,7 +333,6 @@ const OrderCard = memo(function OrderCard({
       lock.current = false;
     }
   }
-  const verified = order.comments?.some((c) => c.photoUrl && c.text.trim());
   const disabled = busy || uploading;
   return (
     <View
@@ -428,7 +429,7 @@ const OrderCard = memo(function OrderCard({
             </Copy>
           </View>
         </Pressable>
-        {!expanded && (
+        {!expanded && canTranslateWorkOrder(user) && (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
@@ -556,7 +557,7 @@ const OrderCard = memo(function OrderCard({
                   : `Queued #${q.place}`}
             </Copy>
           </View>
-          <Pressable
+          {canTranslateWorkOrder(user) && <Pressable
             accessibilityRole="button"
             accessibilityLabel={
               spanish ? "Show original English" : "Translate to Spanish"
@@ -583,7 +584,7 @@ const OrderCard = memo(function OrderCard({
             >
               {spanish ? "English" : "Translate"}
             </Copy>
-          </Pressable>
+          </Pressable>}
           {canDeleteWorkOrder(order, user) &&
             (confirm ? (
               <View style={s.row}>
@@ -728,17 +729,9 @@ const OrderCard = memo(function OrderCard({
               </View>
             ) : (
               <>
-                {verified && (
-                  <Action
-                    label="Mark as Done (Photo Verified ✓)"
-                    icon={CheckCircle2}
-                    disabled={disabled}
-                    onPress={() => void act("complete")}
-                  />
-                )}
                 <View style={[s.card, { backgroundColor: "#fafaf9" }]}>
                   <Copy weight="bold">
-                    Reply with a picture before marking as done
+                    Describe the completed work; a picture is optional
                   </Copy>
                   <Field
                     label="Resolution Note / Description *"
@@ -771,9 +764,9 @@ const OrderCard = memo(function OrderCard({
                   )}
                   {!!error && <ErrorNotice message={error} />}
                   <Action
-                    label="Submit Reply & Mark as Done"
+                    label="Submit a Reply & Mark as Done"
                     icon={CheckCircle2}
-                    disabled={disabled}
+                    disabled={disabled || !reply.trim()}
                     onPress={() => void act("complete", reply, photo)}
                   />
                 </View>

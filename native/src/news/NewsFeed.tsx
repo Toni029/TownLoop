@@ -1,3 +1,4 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
 import { hasUploadedNewsletter } from "./model";
 import { useReducedMotion } from "../home/hooks";
@@ -6,7 +7,7 @@ import {
   Animated,
   ActivityIndicator,
   Pressable,
-  ScrollView,
+
   View,
 } from "react-native";
 import Svg, { Defs, RadialGradient, Stop, Circle } from "react-native-svg";

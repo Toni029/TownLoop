@@ -12,3 +12,8 @@ export function workOrderCode(number: number): string {
     throw new Error('Invalid four-digit ticket number.');
   return String(number);
 }
+
+/** Display-only normalization; never rewrites historical assignments. */
+export function displayWorkOrderCode(code: string) {
+  return /^(?:WO-)?\d+$/i.test(code) ? `WO-${code.replace(/^WO-/i, '')}` : code;
+}

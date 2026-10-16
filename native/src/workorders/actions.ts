@@ -89,6 +89,8 @@ export async function changeWorkOrder(
           status: "In Progress",
           statusNote: "Reopened for maintenance inspection",
           completedAt: deleteField(),
+          retentionVersion: deleteField(),
+          resolutionNote: deleteField(),
           completedBy: deleteField(),
           updatedAt: serverTimestamp(),
         });
@@ -112,7 +114,7 @@ export async function changeWorkOrder(
           new Date().toISOString(),
         );
         if (patch)
-          tx.update(reference, { ...patch, updatedAt: serverTimestamp() });
+          tx.update(reference, { ...patch, completedAt: serverTimestamp(), retentionVersion: 1, updatedAt: serverTimestamp() });
       } else {
         if (order.status === "Done")
           throw new Error("Reopen this order before adding a note.");

@@ -69,7 +69,7 @@ try {
  await env.withSecurityRulesDisabled(async ctx => {
   await fb.setDoc(fb.doc(ctx.firestore(),'counters','work_orders_four_digit'),{lastNumber:999,orderId:'',ready:true});
   await fb.setDoc(fb.doc(ctx.firestore(),'work_order_numbers','1001'),{historical:true});
-  for (const role of ['resident', 'other', 'crew']) await fb.setDoc(fb.doc(ctx.firestore(),'users',role), {name:role, email:role+'@example.invalid',approved:true,role:role==='other'?'resident':role});
+  for (const role of ['resident', 'other', 'crew', 'admin', 'vip']) await fb.setDoc(fb.doc(ctx.firestore(),'users',role), {name:role, email:role+'@example.invalid',approved:true,role:role==='other'?'resident':role});
  });
  const resident=actionsFor('resident','workorders'), other=actionsFor('other','workorders'), crew=actionsFor('crew','workorders');
  const draft={title:'Counter test',description:'Local emulator only',category:'General Maintenance',photos:[]};
@@ -101,7 +101,28 @@ try {
  await fb.runTransaction(resident.db,async tx => {
    await tx.get(fb.doc(resident.db,'counters','work_orders'));
    tx.set(fb.doc(resident.db,'counters','work_orders'),{lastNumber:10000,orderId:'legacy-client'});
-   tx.set(fb.doc(resident.db,'work_orders','legacy-client'),{userId:'resident',ticketNumber:10000,code:'WO-10000'});
+   tx.set(fb.doc(resident.db,'work_orders','legacy-client'),{userId:'resident',ticketNumber:10000,code:'WO-10000',status:'Queued',comments:[]});
  });
+
+ const admin=actionsFor('admin','workorders'), vip=actionsFor('vip','workorders');
+ await assertFails(fb.deleteDoc(fb.doc(crew.db,'work_orders','one')));
+ await assertFails(fb.deleteDoc(fb.doc(other.db,'work_orders','one')));
+ await assertFails(fb.updateDoc(fb.doc(resident.db,'work_orders','one'), {status:'Done', completedAt:fb.serverTimestamp()}));
+ await assert.rejects(crew.actions.changeWorkOrder('one','complete','   '));
+ await crew.actions.changeWorkOrder('one','complete','Repaired safely');
+ const done = (await fb.getDoc(fb.doc(crew.db,'work_orders','one'))).data();
+ assert.equal(done.status,'Done'); assert.equal(done.resolutionNote,'Repaired safely');
+ assert.equal(typeof done.completedAt.toMillis,'function'); assert.equal(done.retentionVersion,1);
+ await assertFails(fb.deleteDoc(fb.doc(crew.db,'work_orders','one')));
+ await assertFails(fb.deleteDoc(fb.doc(resident.db,'work_orders','one')));
+ await assertFails(fb.updateDoc(fb.doc(resident.db,'work_orders','one'), {status:'Queued'}));
+ await assertFails(fb.updateDoc(fb.doc(crew.db,'work_orders','one'), {completedAt:fb.Timestamp.fromMillis(0)}));
+ await crew.actions.changeWorkOrder('one','reopen');
+ assert.equal((await fb.getDoc(fb.doc(crew.db,'work_orders','one'))).data().retentionVersion,undefined);
+ await crew.actions.changeWorkOrder('one','complete','Fixed again');
+ await admin.actions.changeWorkOrder('one','delete');
+ await vip.actions.changeWorkOrder('two','delete');
+ await resident.actions.changeWorkOrder('last','delete');
+ console.log('PASS: role deletion rules, trusted completion, optional photos, reopening and immutable reservations');
  console.log('PASS: concurrent sequence, idempotent retry, resident isolation, crew visibility, counter tamper protection');
 } finally {await env.cleanup();}

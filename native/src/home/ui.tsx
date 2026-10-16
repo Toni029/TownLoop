@@ -1,3 +1,4 @@
+import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS, cancelAnimation } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -13,10 +14,10 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
+
   StyleSheet,
   Text,
-  TextInput,
+
   View,
   type TextProps,
   type TextInputProps,

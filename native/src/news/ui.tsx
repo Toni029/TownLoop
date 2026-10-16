@@ -1,3 +1,4 @@
+import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { MotionPressable as Pressable } from "../motion/Pressable";
 import { useEffect, useState, type PropsWithChildren } from "react";
@@ -7,10 +8,10 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
+
   StyleSheet,
   Text,
-  TextInput,
+
   View,
   type TextProps,
   type TextInputProps,
@@ -450,7 +451,7 @@ export function NewsDialog({
       <SystemBars dark />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View
           style={{

@@ -35,6 +35,7 @@ import {
   isWorkOrderCreator,
   canCreateWorkOrder,
   isCrew,
+  canTranslateWorkOrder,
   isAdmin,
   isVip,
 } from '../utils/permissions';
@@ -106,7 +107,7 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
   const allowCreate = canCreateWorkOrder(currentUser);
   const allowComment = canCommentOnWorkOrder(currentUser);
   // Translation feature enabled for all users (both residents and maintenance staff)
-  const canTranslate = true;
+  const canTranslate = canTranslateWorkOrder(currentUser);
 
   // Filter visible work orders: Admin, VIP, and Crew see all; regular residents only see their own
   const visibleWorkOrders = workOrders.filter((wo) => canViewWorkOrder(wo, currentUser));
@@ -211,10 +212,10 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
     const text = (crewReplyText[String(woId)] || '').trim();
     const photo = (crewReplyPhoto[String(woId)] || '').trim();
 
-    if (!text || !photo) {
+    if (!text) {
       setCrewReplyError((prev) => ({
         ...prev,
-        [String(woId)]: '⚠️ Both a reply note and a picture are required before marking as done.',
+        [String(woId)]: '⚠️ A resolution note is required before marking as done.',
       }));
       return;
     }
@@ -810,11 +811,11 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                           )}
                         </div>
 
-                        {/* Reply with a picture before marking as done box (when not done) */}
+                        {/* Describe the completed work; a picture is optional box (when not done) */}
                         {!isDone && (
                           <div className="bg-stone-50 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-stone-200 dark:border-slate-700 space-y-3">
                             <p className="text-xs font-bold text-stone-700 dark:text-slate-200">
-                              Reply with a picture before marking as done
+                              Describe the completed work; a picture is optional
                             </p>
 
                             {/* Error message if validation fails */}

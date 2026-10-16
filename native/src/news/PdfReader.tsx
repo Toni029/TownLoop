@@ -1,11 +1,14 @@
+import { TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
-  TextInput,
+
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -113,6 +116,7 @@ export function PdfReader({
       presentationStyle="fullScreen"
     >
       <SystemBars dark />
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: "#0c0a09" }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "#0c0a09" }}>
         <View
           style={[
@@ -284,6 +288,7 @@ export function PdfReader({
           </View>
         )}
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

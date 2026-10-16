@@ -1,10 +1,11 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   AppState,
   Pressable,
-  ScrollView,
+
   StyleSheet,
   View,
 } from "react-native";

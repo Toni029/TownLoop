@@ -12,7 +12,7 @@ test('queue uses the full newest-first live list and removes completed tickets f
   assert.equal(queueState({...order,placeInLine:1},[]).inProgress,true);
   assert.equal(queueState(done,[done,order]).inProgress,false);
 });
-test('crew resolution requires note and photo, is atomic with its comment, and is idempotent',()=>{
+test('crew resolution requires a note with optional photo, is atomic with its comment, and is idempotent',()=>{
   const crew={id:'crew',role:'crew',name:'Crew',email:'crew@example.invalid'} as const;
   assert.throws(()=>resolutionPatch(order,crew,null,'now'));
   assert.throws(()=>resolutionPatch(order,{...crew,role:'resident'},null,'now'));
@@ -21,7 +21,8 @@ test('crew resolution requires note and photo, is atomic with its comment, and i
   assert.equal(patch.status,'Done');assert.equal(patch.comments.length,1);
   assert.equal(patch.completedBy,'Crew');assert.equal(patch.photoUrl,comment.photoUrl);
   assert.equal(resolutionPatch({...order,...patch},crew,comment,'later'),null);
-  assert.equal(resolutionPatch({...order,comments:[comment]},crew,null,'now')?.comments.length,1);
+  assert.throws(()=>resolutionPatch({...order,comments:[comment]},crew,null,'now'));
+  assert.equal(resolutionPatch(order,crew,{...comment,photoUrl:''},'now')?.resolutionNote,'Fixed sink');
 });
 test('existing Firestore status, timestamps, resident identity and legacy photos remain intact',()=>{
   const existing=readWorkOrder('live',{status:'In Progress',userId:'resident',photoUrl:'legacy.jpg',completedAt:'time',createdAt:{toMillis:()=>123}});
@@ -42,4 +43,8 @@ test('all original categories are unique and survive Firestore decoding for tick
     assert.equal(readWorkOrder('legacy-ticket', { category: category.id }).categoryEmoji, category.emoji);
   }
   assert.equal(readWorkOrder('legacy', { category: 'General Maintenance' }).category, 'General Maintenance');
+});
+
+test('trusted completion timestamps render as dates', () => {
+  assert.equal(readWorkOrder('done', {completedAt:{toDate:()=>new Date('2026-10-16T12:00:00Z')}}).completedAt,'2026-10-16T12:00:00.000Z');
 });

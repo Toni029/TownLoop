@@ -1,9 +1,10 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { Component, useEffect, useState, type PropsWithChildren } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
-  ScrollView,
+
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";

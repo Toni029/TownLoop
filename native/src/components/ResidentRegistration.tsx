@@ -1,5 +1,6 @@
+import { TextInput } from '../keyboard/KeyboardScrollView';
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text,  View } from "react-native";
 import {
   ArrowRight,
   Eye,

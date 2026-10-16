@@ -1,3 +1,4 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "./SystemBars";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -7,7 +8,7 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
+
   View,
   useWindowDimensions,
 } from "react-native";
@@ -108,7 +109,7 @@ export function ProductDialog({
       <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View
           onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}

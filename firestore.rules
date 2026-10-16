@@ -130,15 +130,36 @@ service cloud.firestore {
           getAfter(/databases/$(database)/documents/counters/work_orders).data.lastNumber == number));
     }
 
+    function validWorkOrderTransition() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let protected = ['status', 'completedAt', 'completedBy', 'retentionVersion', 'resolutionNote'];
+      return (!changed.hasAny(protected)) ||
+        (currentProfile().role == 'crew' && (
+          (resource.data.status != 'Done' && request.resource.data.status in ['Queued', 'In Progress'] &&
+            !changed.hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote'])) ||
+          (resource.data.status != 'Done' && request.resource.data.status == 'Done' &&
+            request.resource.data.completedAt == request.time && request.resource.data.retentionVersion == 1 &&
+            request.resource.data.completedBy == currentProfile().name &&
+            request.resource.data.resolutionNote is string && request.resource.data.resolutionNote.matches('.*[^\\s].*') &&
+            request.resource.data.comments.size() == resource.data.comments.size() + 1 &&
+            request.resource.data.comments[request.resource.data.comments.size() - 1].text == request.resource.data.resolutionNote) ||
+          (resource.data.status == 'Done' && request.resource.data.status == 'In Progress' &&
+            !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote']))
+        ));
+    }
+
     match /work_orders/{orderId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/work_orders/$(orderId)) || isCrewOrManager() || resource.data.userId == request.auth.uid);
       allow list: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid);
-      allow create: if isApproved() && request.resource.data.userId == request.auth.uid && allocatedTicket(orderId);
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid && allocatedTicket(orderId) &&
+        request.resource.data.status == 'Queued' &&
+        !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote']);
       allow update: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber']);
-      allow delete: if isManager() ||
-        (resource.data.userId == request.auth.uid && resource.data.status != 'Done') ||
-        (currentProfile().role == 'crew' && resource.data.status == 'Done');
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber']) &&
+        validWorkOrderTransition();
+      allow delete: if isApproved() && (isManager() ||
+        (currentProfile().role == 'resident' && resource.data.userId == request.auth.uid && resource.data.status != 'Done'));
+
     }
 
     match /newsletters/{newsletterId} {
