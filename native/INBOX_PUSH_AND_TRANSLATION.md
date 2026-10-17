@@ -35,3 +35,14 @@ The existing server uses Google Translation when configured, otherwise server-on
 ## Local verification
 
 Focused authorization and routing tests; disposable Firestore emulator checks of creation, staff reads/replies, friend queries, receipts, forgery/ownership rejection, token protection and deletion; synthetic live Gemini translation. Native TypeScript and focused lint results are in the final report. No live Firebase writes or physical-device push tests. No builds requested or run.
+
+## Deferred for compatible Preview OTA
+
+The push-notification client integration is preserved at Git tag
+`recovery/push-preparation-f31dc54` (implementation commit `59fbd12`).
+Its native dependency, plugin, and client wiring were removed from the active
+branch so weather updates can reach the existing Preview APK. Backend setup
+remains prepared only, not deployed. Restore the client portion of `59fbd12`
+when the user authorizes the next native build; do not override runtime hashes.
+Translation still needs a deployed HTTPS service URL for physical phones;
+the local localhost:3000 service is for browser development only.

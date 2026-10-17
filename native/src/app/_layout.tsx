@@ -1,4 +1,3 @@
-import { InboxPushProvider } from '../notifications/InboxPush';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useReducedMotion } from "../home/hooks";
 import { CommunityProvider, useCommunity } from "../lib/community";
@@ -67,10 +66,8 @@ export default function Root() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ backgroundColor: colors.cream }}>
       <CommunityProvider>
         <SessionProvider>
-          <InboxPushProvider>
           <SystemBars />
           <Navigation />
-          </InboxPushProvider>
         </SessionProvider>
       </CommunityProvider>
     </SafeAreaProvider>

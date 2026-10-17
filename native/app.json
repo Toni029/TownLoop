@@ -58,13 +58,6 @@
           "hidden": false,
           "enforceContrast": false
         }
-      ],
-      [
-        "expo-notifications",
-        {
-          "defaultChannel": "inbox",
-          "color": "#059669"
-        }
       ]
     ],
     "web": {

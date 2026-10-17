@@ -1,6 +1,3 @@
-import { useInboxPush } from '../notifications/InboxPush';
-import type { InboxTarget } from '../notifications/context';
-import { signOutSafely } from '../notifications/signOut';
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { AdminMenu } from "./AdminMenu";
@@ -64,6 +61,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react-native";
+import { signOut } from "firebase/auth";
 import type { UserProfile } from "../../../src/types";
 import {
   canAccessAdminPanel,
@@ -71,6 +69,7 @@ import {
   getRoleBadgeInfo,
   isCrew,
 } from "../../../src/utils/permissions";
+import { auth } from "../lib/firebase";
 import { useResident } from "../lib/resident";
 import { usePresentation } from "../shell/TownLoopShell";
 import { useReducedMotion } from "../home/hooks";
@@ -344,15 +343,12 @@ export function ProfileMenu({
   onClose,
   onAccount,
   onUnread,
-  initialConversation,
 }: {
-  initialConversation?: InboxTarget | null;
   open: boolean;
   onClose: () => void;
   onAccount: () => void;
   onUnread: (count: number) => void;
 }) {
-  const push = useInboxPush();
   const user = useResident(),
     presentation = usePresentation(),
     reduced = useReducedMotion();
@@ -427,8 +423,7 @@ export function ProfileMenu({
     if (open) {
       // Native Modal needs its own mounted state so exit motion finishes before dismissal.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setView(initialConversation ? "conversation" : "menu");
-      setSelected(initialConversation ? { category: initialConversation.category, id: initialConversation.id } : null);
+      setView("menu");
       history.current = [];
       transitionLock.current = false;
       setTransitioning(false);
@@ -443,7 +438,7 @@ export function ProfileMenu({
       shade.value = 0;
       glint.value = -1;
     }
-  }, [open, initialConversation, progress, shade, glint, scene]);
+  }, [open, progress, shade, glint, scene]);
   const openingFrame = useRef<number | null>(null);
   function animateOpen() {
     // Wait until the modal has painted its initial pose before starting the spring.
@@ -2181,14 +2176,14 @@ export function ProfileMenu({
                           </>
                         ) : (
                           <Text style={[s.empty, { color: muted }]}>
-                            {data.loading ? 'Loading conversation…' : 'This conversation is unavailable. Return to the inbox and retry.'}
+                            This conversation is unavailable. Return to the
+                            inbox and retry.
                           </Text>
                         )}
                       </>
                     )}
                     {view === "account" && (
                       <>
-                        {!!push.status && <Action title={push.status} onPress={() => void push.enable()} />}
                         {(
                           [
                             [
@@ -2374,7 +2369,7 @@ export function ProfileMenu({
                           danger
                           onPress={() =>
                             void act(async () => {
-                              await signOutSafely();
+                              await signOut(auth);
                               close();
                             })
                           }
