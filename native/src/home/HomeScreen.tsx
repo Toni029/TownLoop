@@ -8,10 +8,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFonts } from "expo-font";
-import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
-import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
-import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
 import { Moon, Sun, User } from "lucide-react-native";
 import { usePresentation } from "../shell/TownLoopShell";
 import { Theme, Action, Box, Row, Txt, usePalette } from "./ui";
@@ -35,20 +31,6 @@ export function HomeScreen({
   const presentation = usePresentation();
   const [localDark, setDark] = useState(false);
   const dark = presentation?.dark ?? localDark;
-  const [fonts, fontError] = useFonts({
-    Jakarta: PlusJakartaSans_400Regular,
-    JakartaBold: PlusJakartaSans_700Bold,
-    Playfair: PlayfairDisplay_700Bold,
-  });
-  if (!fonts && !fontError)
-    return (
-      <SafeAreaView
-        style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-      >
-        <ActivityIndicator />
-        <Txt>Loading Home…</Txt>
-      </SafeAreaView>
-    );
   return (
     <Theme.Provider value={dark}>
       <HomeContent

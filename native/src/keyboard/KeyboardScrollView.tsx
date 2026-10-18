@@ -42,7 +42,7 @@ export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps>(function
       if (typeof forwardedRef === 'function') forwardedRef(node);
       else if (forwardedRef) forwardedRef.current = node;
     }} keyboardShouldPersistTaps={props.keyboardShouldPersistTaps ?? 'handled'} keyboardDismissMode={props.keyboardDismissMode ?? 'none'}
-      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} scrollEventThrottle={16}
+      automaticallyAdjustKeyboardInsets={props.automaticallyAdjustKeyboardInsets ?? Platform.OS === 'ios'} scrollEventThrottle={16}
       onScroll={event => { offset.current = event.nativeEvent.contentOffset.y; props.onScroll?.(event); }}
       onLayout={event => { props.onLayout?.(event); schedule(); }} />
   </Focus.Provider>;

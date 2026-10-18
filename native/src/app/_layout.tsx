@@ -1,3 +1,5 @@
+import { StartupLoading } from "../components/StartupLoading";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useReducedMotion } from "../home/hooks";
 import { CommunityProvider, useCommunity } from "../lib/community";
@@ -6,7 +8,7 @@ import { Stack } from "expo-router";
 import { SystemBars } from "../components/SystemBars";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "../lib/session";
-import { Loading, colors } from "../components/ui";
+import { colors } from "../components/ui";
 import { useFonts } from "expo-font";
 import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
 import { PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans/600SemiBold";
@@ -14,12 +16,13 @@ import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/70
 import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
 import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
 import { PlayfairDisplay_900Black } from "@expo-google-fonts/playfair-display/900Black";
-function Navigation() {
+function Navigation({ fontsReady }: { fontsReady: boolean }) {
   const reduced = useReducedMotion();
   const { user, profile, loading } = useSession();
   const { community, ready } = useCommunity();
-  if (loading || !ready) return <Loading />;
+  if (loading || !ready || !fontsReady) return <StartupLoading />;
   return (
+    <Animated.View entering={reduced ? undefined : FadeIn.duration(220)} style={{ flex: 1 }}>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream },
@@ -42,10 +45,17 @@ function Navigation() {
         <Stack.Screen name="account" options={{ title: "Account" }} />
       </Stack.Protected>
     </Stack>
+    </Animated.View>
   );
 }
 export default function Root() {
   const [fonts, error] = useFonts({
+    NewsRegular: PlusJakartaSans_400Regular,
+    NewsSemi: PlusJakartaSans_600SemiBold,
+    NewsBold: PlusJakartaSans_700Bold,
+    NewsExtra: PlusJakartaSans_800ExtraBold,
+    NewsSerif: PlayfairDisplay_700Bold,
+    TicketDotrice: require("../../assets/fonts/Dotrice-Bold.otf"),
     Jakarta: PlusJakartaSans_400Regular,
     JakartaMedium: PlusJakartaSans_500Medium,
     JakartaSemi: PlusJakartaSans_600SemiBold,
@@ -54,20 +64,13 @@ export default function Root() {
     Playfair: PlayfairDisplay_700Bold,
     PlayfairBlack: PlayfairDisplay_900Black,
   });
-  if (!fonts && !error)
-    return (
-      <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ backgroundColor: colors.cream }}>
-        <SystemBars />
-        <Loading />
-      </SafeAreaProvider>
-    );
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider initialMetrics={initialWindowMetrics} style={{ backgroundColor: colors.cream }}>
       <CommunityProvider>
         <SessionProvider>
           <SystemBars />
-          <Navigation />
+          <Navigation fontsReady={fonts || !!error} />
         </SessionProvider>
       </CommunityProvider>
     </SafeAreaProvider>

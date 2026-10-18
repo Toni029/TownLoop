@@ -69,6 +69,7 @@ export function RequestEditor({
   return (
     <ProductDialog
       sheet
+      responsiveResize
       title="🛠️ New Work Order Request"
       subtitle="Submit an issue to the maintenance crew"
       busy={busy}

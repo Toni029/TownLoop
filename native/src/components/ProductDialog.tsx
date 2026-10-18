@@ -30,6 +30,7 @@ export function ProductDialog({
   initiallyFull = false,
   sheet = false,
   serif = false,
+  responsiveResize = false,
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
@@ -38,6 +39,7 @@ export function ProductDialog({
   initiallyFull?: boolean;
   sheet?: boolean;
   serif?: boolean;
+  responsiveResize?: boolean;
 }>) {
   const presentation = usePresentation();
   const dark = !!presentation?.dark;
@@ -70,9 +72,9 @@ export function ProductDialog({
     return () => cancelAnimation(progress);
   }, [progress, ready, reduced]);
   useEffect(() => {
-    size.set(withTiming(target, { duration: reduced ? 0 : 240 }));
+    size.set(responsiveResize ? withSpring(target, { damping: 26, stiffness: 280, mass: 0.8, overshootClamping: true, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }) : withTiming(target, { duration: reduced ? 0 : 240 }));
     return () => cancelAnimation(size);
-  }, [size, target, reduced]);
+  }, [size, target, reduced, responsiveResize]);
   const close = () => {
     if (busy || closing) return;
     setClosing(true);
@@ -84,13 +86,13 @@ export function ProductDialog({
     .onUpdate(event => { drag.value = reduced ? 0 : Math.max(0, event.translationY); })
     .onEnd(event => {
       if (event.translationY > 80 || event.velocityY > 800) {
-        if (full) { runOnJS(setFull)(false); drag.value = withSpring(0); }
+        if (full) { runOnJS(setFull)(false); drag.value = withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined); }
         else runOnJS(close)();
       } else {
         if (event.translationY < -60 || event.velocityY < -800) runOnJS(setFull)(true);
         drag.value = withSpring(0, { damping: 26, stiffness: 280 });
       }
-    }).onFinalize((_event, success) => { if (!success) drag.value = withSpring(0); });
+    }).onFinalize((_event, success) => { if (!success) drag.value = withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined); });
   const sizeStyle = useAnimatedStyle(() => ({ height: size.value }));
   const panelMotion = useAnimatedStyle(() => ({
     opacity: Math.min(1, progress.value),

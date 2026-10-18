@@ -12,7 +12,6 @@ import {
   type RefObject,
 } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Image,
   Keyboard,
@@ -32,13 +31,6 @@ import { BlurTargetView, BlurView } from "expo-blur";
 import { Home, FileText, Wrench, Users } from "lucide-react-native";
 import { useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback } from "react";
-import { useFonts } from "expo-font";
-import { PlusJakartaSans_400Regular } from "@expo-google-fonts/plus-jakarta-sans/400Regular";
-import { PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans/600SemiBold";
-import { PlusJakartaSans_700Bold } from "@expo-google-fonts/plus-jakarta-sans/700Bold";
-import { PlusJakartaSans_800ExtraBold } from "@expo-google-fonts/plus-jakarta-sans/800ExtraBold";
-import { PlayfairDisplay_700Bold } from "@expo-google-fonts/playfair-display/700Bold";
-import { PlayfairDisplay_900Black } from "@expo-google-fonts/playfair-display/900Black";
 import Motion, {
   useSharedValue,
   useAnimatedStyle,
@@ -84,35 +76,7 @@ export function TownLoopShell({
     return () =>
       setBlurTarget((current) => (current === target ? undefined : current));
   }, []);
-  const [fonts, fontError] = useFonts({
-    NewsRegular: PlusJakartaSans_400Regular,
-    NewsSemi: PlusJakartaSans_600SemiBold,
-    NewsBold: PlusJakartaSans_700Bold,
-    NewsExtra: PlusJakartaSans_800ExtraBold,
-    NewsSerif: PlayfairDisplay_700Bold,
-    Jakarta: PlusJakartaSans_400Regular,
-    JakartaBold: PlusJakartaSans_700Bold,
-    TicketDotrice: require("../../assets/fonts/Dotrice-Bold.otf"),
-    JakartaSemi: PlusJakartaSans_600SemiBold,
-    JakartaExtra: PlusJakartaSans_800ExtraBold,
-    Playfair: PlayfairDisplay_700Bold,
-    PlayfairBlack: PlayfairDisplay_900Black,
-  });
   const presentation = useMemo(() => ({ dark, toggleTheme: () => setDark(v => !v), blurTarget, attachBlurTarget }), [dark, blurTarget, attachBlurTarget]);
-  if (!fonts && !fontError)
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#f7f3ea",
-        }}
-      >
-        <ActivityIndicator color="#047857" />
-        <Text>Loading TownLoop…</Text>
-      </View>
-    );
   return (
     <Presentation.Provider
       value={presentation}

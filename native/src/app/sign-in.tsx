@@ -90,7 +90,7 @@ export default function SignIn() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <LinearGradient
         colors={
@@ -102,6 +102,8 @@ export default function SignIn() {
       <SafeAreaView style={{ flex: 1 }}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
+            style={{ flex: 1 }}
+            automaticallyAdjustKeyboardInsets={false}
             contentContainerStyle={[s.page, { paddingVertical: wide ? 24 : 0 }]}
           >
             <LinearGradient
@@ -386,10 +388,10 @@ export default function SignIn() {
                         Resident Email Address
                       </Text>
                       <View style={s.inputWrap}>
-                        <Mail size={20} color={muted} style={s.inputIcon} />
+                        <Mail size={20} color={muted} style={[s.inputIcon, { opacity: focused === "email" || email ? 0 : 1 }]} />
                         <TextInput
                           accessibilityLabel="Resident Email Address"
-                          placeholder="e.g. resident@cecilpines.com"
+                          placeholder={focused === "email" ? "" : "e.g. resident@cecilpines.com"}
                           placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
                           onFocus={() => setFocused("email")}
                           onBlur={() => setFocused("")}
@@ -441,10 +443,10 @@ export default function SignIn() {
                         </Pressable>
                       </View>
                       <View style={s.inputWrap}>
-                        <Lock size={20} color={muted} style={s.inputIcon} />
+                        <Lock size={20} color={muted} style={[s.inputIcon, { opacity: focused === "password" || password ? 0 : 1 }]} />
                         <TextInput
                           accessibilityLabel="Password"
-                          placeholder="Enter your password"
+                          placeholder={focused === "password" ? "" : "Enter your password"}
                           placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
                           onFocus={() => setFocused("password")}
                           onBlur={() => setFocused("")}

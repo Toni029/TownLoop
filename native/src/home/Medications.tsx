@@ -1,3 +1,4 @@
+import { TextInput } from "../keyboard/KeyboardScrollView";
 import { useContext, useState } from "react";
 import { LayoutAnimation, Linking, View, Pressable } from "react-native";
 import Svg, { Rect, Path, Line } from "react-native-svg";
@@ -18,11 +19,11 @@ import {
   Moon,
   Pill,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react-native";
 import {
   Action,
   Box,
-  Input,
   Row,
   Sheet,
   Tile,
@@ -205,6 +206,19 @@ export function Medications({
           onPress={() => setEditor("new")}
         />
       </Row>
+      {!expanded && items.length > 0 && (
+        <View style={{ marginHorizontal: 18, paddingHorizontal: 16, paddingVertical: 10,
+          borderRadius: 16, borderWidth: 1, borderColor: dark ? p.line : '#dce9f2',
+          backgroundColor: dark ? '#1e293b' : '#f4f8fb', gap: 8 }}>
+          {[...items]
+            .sort((a, b) => slots.findIndex(s => s.id === a.timeSlot) - slots.findIndex(s => s.id === b.timeSlot))
+            .map(m => <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Pill size={15} color={p.blue} />
+              <Txt numberOfLines={1} ellipsizeMode="tail" accessibilityLabel={m.name}
+                style={{ flex: 1, fontFamily: 'JakartaSemi', fontSize: 13, lineHeight: 21, color: p.ink }}>{m.name}</Txt>
+            </View>)}
+        </View>
+      )}
       {expanded && (
         <View style={{ gap: 14 }}>
           {items.length === 0 ? (
@@ -232,17 +246,20 @@ export function Medications({
                     key={m.id}
                     style={{
                       borderWidth: 2,
-                      borderColor: done ? "#6ee7b7" : p.line,
+                      borderColor: done ? "#6ee7b7" : "#00bfff",
+                      borderRadius: 20, padding: 24, gap: 16,
                     }}
                   >
-                    <Row>
-                      <Bottle />
-                      <Txt bold style={{ fontSize: 17, flex: 1 }}>
+                    <Row style={{ flexWrap: 'nowrap', gap: 14 }}>
+                      <View style={{ width: 58, height: 58, borderRadius: 20, backgroundColor: dark ? '#422006' : '#fff3da', borderWidth: 1, borderColor: '#ffd18a', alignItems: 'center', justifyContent: 'center' }}><Bottle /></View>
+                      <Txt bold style={{ fontSize: 21, lineHeight: 28, flex: 1 }}>
                         {m.name}
                       </Txt>
                       <Action
                         icon={Pencil}
                         iconOnly
+                        borderless
+                        color="#8da2c0"
                         label={`Edit ${m.name}`}
                         disabled={busy}
                         onPress={() => setEditor(m)}
@@ -250,6 +267,8 @@ export function Medications({
                       <Action
                         icon={Trash2}
                         iconOnly
+                        borderless
+                        color="#8da2c0"
                         label={`Delete ${m.name}`}
                         disabled={busy}
                         onPress={async () => {
@@ -267,81 +286,29 @@ export function Medications({
                         ✓ Taken {m.lastTakenTime || "Today"}
                       </Txt>
                     )}
-                    <Row>
-                      <Pill size={18} color={p.blue} />
-                      <Txt bold>
-                        Take {m.doseCount}{" "}
-                        {m.doseCount === 1 ? "pill" : "pills"}
-                      </Txt>
-                      <Bottle />
-                      <Txt
-                        bold
-                        style={{
-                          color: m.bottleCount <= 5 ? "#e11d48" : p.ink,
-                        }}
-                      >
-                        {m.bottleCount} left in bottle
-                      </Txt>
-                    </Row>
-                    <Box>
-                      <Row>
-                        <FileText size={18} color={p.blue} />
-                        <Txt bold style={{ flex: 1 }}>
-                          Doctor&apos;s Directions & Instructions
-                        </Txt>
-                      </Row>
-                      <Row>
-                        <Icon color={p.blue} size={16} />
-                        <Txt bold>
-                          {slot.title} ({slot.sub})
-                        </Txt>
-                      </Row>
-                      <Action
-                        icon={Pencil}
-                        label={m.instructions ? "Edit Notes" : "+ Add Notes"}
-                        disabled={busy}
-                        onPress={() => setEditor(m)}
-                      />
-                      <Txt style={{ color: m.instructions ? p.ink : p.muted }}>
-                        {m.instructions ||
-                          'No special instructions entered. Tap "Edit Notes" to add meal, water, or timing directions.'}
-                      </Txt>
-                    </Box>
-                    <Txt style={{ color: done ? p.green : p.muted }}>
-                      {done
-                        ? `Dose recorded for today at ${m.lastTakenTime || "Recorded"}`
-                        : `Scheduled for ${slot.title} (${slot.sub})`}
-                    </Txt>
-                    <Row>
-                      <Action
-                        icon={done ? RotateCcw : Check}
-                        label={done ? "Undo Dose" : "Take Now"}
-                        active={!done}
-                        disabled={busy}
-                        onPress={() =>
-                          update(
-                            m.id,
-                            (x) =>
-                              done ? undoDose(x, today) : takeDose(x, today),
-                            done
-                              ? `Undid ${m.name}. Restored dose to bottle.`
-                              : `✓ Marked ${m.name} as taken.`,
-                          )
-                        }
-                      />
-                      <Action
-                        icon={PlusCircle}
-                        label="+30 Refill"
-                        disabled={busy}
-                        onPress={() =>
-                          update(
-                            m.id,
-                            (x) => ({ ...x, bottleCount: x.bottleCount + 30 }),
-                            "Added +30 pills to prescription bottle.",
-                          )
-                        }
-                      />
-                    </Row>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      <View style={{ flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 15, padding: 12, borderWidth: 1, borderColor: p.line, backgroundColor: dark ? '#1e293b' : '#f0f5fa' }}>
+                        <Pill size={20} color="#009be8" /><Txt bold style={{ fontSize: 12, flexShrink: 1 }}>Take {m.doseCount} {m.doseCount === 1 ? 'pill' : 'pills'}</Txt>
+                      </View>
+                      <View style={{ flex: 1, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 15, padding: 10, borderWidth: 1, borderColor: '#fcd34d', backgroundColor: dark ? '#422006' : '#fffbeb' }}>
+                        <Bottle /><Txt bold style={{ fontSize: 12, flexShrink: 1, color: m.bottleCount <= 5 ? '#e11d48' : dark ? '#fcd34d' : '#92400e' }}>{m.bottleCount} left in bottle</Txt>
+                      </View>
+                    </View>
+                    <View style={{ padding: 20, borderRadius: 22, borderWidth: 1, borderColor: p.line, backgroundColor: dark ? '#1e293b' : '#f7f9fb', gap: 12 }}>
+                      <Row style={{ flexWrap: 'nowrap' }}><FileText size={19} color="#009be8" /><Txt bold style={{ flex: 1, fontSize: 13 }}>Doctor&apos;s Directions & Instructions</Txt></Row>
+                      <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 3, borderWidth: 1, borderColor: '#fbbf24', backgroundColor: dark ? '#422006' : '#fff5cc' }}>
+                        <Icon color={dark ? '#fcd34d' : '#92400e'} size={16} /><Txt bold style={{ color: dark ? '#fcd34d' : '#92400e', flexShrink: 1 }}>{slot.title} ({slot.sub})</Txt>
+                      </View>
+                      <View style={{ alignSelf: 'flex-end' }}><Action borderless icon={Pencil} color={p.blue} label={m.instructions ? 'Edit Notes' : '+ Add Notes'} disabled={busy} onPress={() => setEditor(m)} /></View>
+                      <Txt style={{ borderLeftWidth: 2, borderLeftColor: '#00aeef', paddingLeft: 24, fontSize: 18, lineHeight: 27, color: m.instructions ? p.ink : p.muted }}>{m.instructions || 'No special instructions entered. Tap "Edit Notes" to add meal, water, or timing directions.'}</Txt>
+                    </View>
+                    <View style={{ borderTopWidth: 1, borderTopColor: p.line, paddingTop: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                      <Txt style={{ flexGrow: 1, flexBasis: 80, color: done ? p.green : p.muted }}>{done ? `Dose recorded for today at ${m.lastTakenTime || 'Recorded'}` : `Scheduled for ${slot.title} (${slot.sub})`}</Txt>
+                      <Pressable accessibilityRole="button" disabled={busy} onPress={() => update(m.id, x => done ? undoDose(x, today) : takeDose(x, today), done ? `Undid ${m.name}. Restored dose to bottle.` : `✓ Marked ${m.name} as taken.`)} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#008261', borderRadius: 15, paddingHorizontal: 22, minHeight: 46, opacity: busy ? 0.5 : 1 }}>
+                        {done ? <RotateCcw size={23} color="#fff" /> : <Check size={25} color="#fff" />}<Txt bold style={{ color: '#fff', fontSize: 18 }}>{done ? 'Undo Dose' : 'Take Now'}</Txt>
+                      </Pressable>
+                      <Action large icon={PlusCircle} label="+30 Refill" disabled={busy} onPress={() => update(m.id, x => ({ ...x, bottleCount: x.bottleCount + 30 }), 'Added +30 pills to prescription bottle.')} />
+                    </View>
                     {m.bottleCount <= 5 && (
                       <Box style={{ borderColor: "#fda4af" }}>
                         <Row>
@@ -424,78 +391,81 @@ function MedicationEditor({
     [notes, setNotes] = useState(initial?.instructions || ""),
     [phone, setPhone] = useState(initial?.pharmacyPhone || ""),
     [error, setError] = useState("");
+  const dark = useContext(Theme);
+  const hint = dark ? '#94a3b8' : '#8da2c0';
+  const fieldStyle = { fontFamily: 'Jakarta', fontSize: 18, color: p.ink, backgroundColor: dark ? '#1e293b' : '#f7f9fb', borderWidth: 1, borderColor: dark ? p.line : '#c9d6ea', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, minHeight: 58 };
+  const panelStyle = { backgroundColor: dark ? '#1e293b' : '#f8fafc', borderWidth: 1, borderColor: p.line, borderRadius: 22 };
+  const stepStyle = { width: 38, height: 46, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: p.paper, borderWidth: 1, borderColor: dark ? p.line : '#c9d6ea', borderRadius: 14 };
   return (
     <Sheet
       centered
       title={initial ? "Edit Medication" : "Add Medication Reminder"}
       onClose={onClose}
     >
-      <Input
-        label="Medication / Supplement Name"
-        value={name}
-        onChangeText={setName}
-        placeholder="Medication name"
-      />
-      <Txt bold>Dose Quantity</Txt>
-      <Row>
-        <Action label="−" onPress={() => setDose(Math.max(1, dose - 1))} />
-        <Txt bold>
-          {dose} {dose === 1 ? "pill" : "pills"}
-        </Txt>
-        <Action label="+" onPress={() => setDose(dose + 1)} />
-      </Row>
-      <Txt bold>Time of Day</Txt>
-      <Row>
-        {slots.map((s) => (
-          <Action
-            key={s.id}
-            label={`${s.title} (${s.sub})`}
-            active={slot === s.id}
-            color={p.blue}
-            onPress={() => setSlot(s.id)}
-          />
-        ))}
-      </Row>
-      <Input
-        label="Pills Left in Bottle"
-        keyboardType="number-pad"
-        value={count}
-        onChangeText={setCount}
-      />
-      <Input
-        label="Doctor's Directions & Instructions"
-        multiline
-        value={notes}
-        onChangeText={setNotes}
-      />
-      <Row>
-        {suggestions.map((s) => (
-          <Action
-            key={s}
-            label={s}
-            onPress={() =>
-              setNotes((n) =>
-                n.includes(s) ? n : n.trim() ? `${n.trim()}. ${s}` : s,
-              )
-            }
-          />
-        ))}
-      </Row>
-      <Input
-        label="Pharmacy Phone Number"
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={setPhone}
-      />
+      <View style={{ gap: 8 }}>
+        <Txt bold style={{ fontSize: 16 }}>Medication / Supplement Name <Txt style={{ color: '#f43f5e' }}>*</Txt></Txt>
+        <TextInput accessibilityLabel="Medication / Supplement Name" value={name} onChangeText={setName}
+          placeholder="e.g., Lisinopril (10 mg), Metformin, Calcium" placeholderTextColor={hint} style={fieldStyle} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 18 }}>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Txt bold style={{ fontSize: 16 }}>Dose Amount</Txt>
+          <View style={{ ...panelStyle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, gap: 6 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Decrease dose" disabled={busy || dose <= 1} onPress={() => setDose(Math.max(1, dose - 1))} style={stepStyle}><Txt style={{ fontSize: 24 }}>−</Txt></Pressable>
+            <View style={{ flex: 1, alignItems: 'center' }}><Txt bold style={{ fontSize: 24, lineHeight: 30 }}>{dose}</Txt><Txt style={{ fontSize: 10, lineHeight: 14, textAlign: 'center', color: p.muted }}>{dose === 1 ? 'pill per' : 'pills per'}{'\n'}dose</Txt></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Increase dose" disabled={busy} onPress={() => setDose(dose + 1)} style={stepStyle}><Txt style={{ fontSize: 24 }}>+</Txt></Pressable>
+          </View>
+        </View>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Txt bold style={{ fontSize: 16 }}>Pills in Bottle</Txt>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <TextInput accessibilityLabel="Pills in Bottle" keyboardType="number-pad" value={count} onChangeText={setCount} style={[fieldStyle, { flexGrow: 1, minWidth: 58, textAlign: 'center', fontFamily: 'JakartaBold', fontSize: 22 }]} />
+            {[30, 60, 90].map(n => <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} pills`} accessibilityState={{ selected: count === String(n) }} disabled={busy} onPress={() => setCount(String(n))} style={{ borderWidth: 1, borderColor: count === String(n) ? '#65cfff' : p.line, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 4, backgroundColor: count === String(n) ? (dark ? '#164e63' : '#e0f4ff') : p.paper }}><Txt bold style={{ fontSize: 13, color: count === String(n) ? p.blue : p.ink }}>{n}</Txt><Txt style={{ fontSize: 9, lineHeight: 12 }}>pills</Txt></Pressable>)}
+          </View>
+        </View>
+      </View>
+      <View style={{ gap: 8 }}>
+        <Txt bold style={{ fontSize: 16 }}>Daily Schedule Slot</Txt>
+        <View style={{ flexDirection: 'row', gap: 7 }}>
+          {slots.map(item => { const Icon = slotIcons[item.id]; const selected = slot === item.id;
+            return <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected }} disabled={busy} onPress={() => setSlot(item.id)} style={{ flex: 1, minWidth: 0, borderRadius: 19, borderWidth: 1, borderColor: selected ? '#7dd3fc' : p.line, backgroundColor: selected ? '#026fa9' : p.paper, paddingVertical: 12, paddingHorizontal: 5, alignItems: 'center', gap: 3 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 4 }}><Icon size={14} color={selected ? '#fff' : '#009be8'} /><Txt bold style={{ fontSize: 12, color: selected ? '#fff' : p.ink }}>{item.title}</Txt></View>
+              <Txt style={{ fontSize: 9, lineHeight: 13, color: selected ? '#fff' : hint, textAlign: 'center' }}>{item.id === 'morning' ? 'With Breakfast' : item.id === 'noon' ? 'Lunchtime' : item.id === 'evening' ? 'With Dinner' : 'Before Sleep'}</Txt>
+            </Pressable>;
+          })}
+        </View>
+      </View>
+      <View style={{ ...panelStyle, padding: 18, gap: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <FileText size={18} color="#009be8" /><Txt bold style={{ flex: 1, fontSize: 16, lineHeight: 23 }}>Special Instructions & Doctor Notes</Txt><Txt style={{ width: 68, fontSize: 10, lineHeight: 15, color: hint }}>Optional Directions</Txt>
+        </View>
+        <TextInput accessibilityLabel="Special Instructions & Doctor Notes" multiline value={notes} onChangeText={setNotes}
+          placeholder="e.g., Take with breakfast & full glass of water. Do not lie down for 30 minutes after taking. Avoid grapefruit." placeholderTextColor={hint}
+          style={[fieldStyle, { backgroundColor: p.paper, minHeight: 118, textAlignVertical: 'top', fontSize: 16, lineHeight: 25 }]} />
+        <View style={{ gap: 8 }}>
+          <Row><Sparkles size={15} color="#f59e0b" /><Txt style={{ fontSize: 10, color: p.muted }}>Quick-Add Common Directions:</Txt></Row>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
+            {suggestions.map(direction => <Pressable key={direction} accessibilityRole="button" disabled={busy} onPress={() => setNotes(n => n.includes(direction) ? n : n.trim() ? `${n.trim()}. ${direction}` : direction)} style={{ borderWidth: 1, borderColor: p.line, backgroundColor: p.paper, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 6 }}><Txt style={{ fontSize: 10, lineHeight: 15 }}>{direction}</Txt></Pressable>)}
+          </View>
+        </View>
+      </View>
+      <View style={{ gap: 8 }}>
+        <Txt bold style={{ fontSize: 16 }}>Pharmacy Refill Phone</Txt>
+        <View style={{ justifyContent: 'center' }}>
+          <TextInput accessibilityLabel="Pharmacy Refill Phone" keyboardType="phone-pad" value={phone} onChangeText={setPhone} placeholder="(904) 555-0199" placeholderTextColor={hint} style={[fieldStyle, { paddingLeft: 46 }]} />
+          <View pointerEvents="none" style={{ position: 'absolute', left: 16 }}><Phone size={20} color={hint} /></View>
+        </View>
+      </View>
       {!!error && (
         <Txt accessibilityRole="alert" style={{ color: "#e11d48" }}>
           {error}
         </Txt>
       )}
-      <Action
-        active
-        color={p.blue}
-        label={initial ? "Save Changes" : "Add Medication Reminder"}
+      <View style={{ flexDirection: "row", gap: 12 }}>
+      <Pressable accessibilityRole="button" disabled={busy} onPress={onClose} style={{ flex: 1, minHeight: 56, borderRadius: 20, borderWidth: 1, borderColor: p.line, justifyContent: "center", alignItems: "center" }}><Txt bold style={{ fontSize: 16 }}>Cancel</Txt></Pressable>
+      <Pressable
+        accessibilityRole="button"
+        style={{ flex: 1, minHeight: 56, borderRadius: 20, backgroundColor: "#026fa9", flexDirection: "row", gap: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", opacity: busy ? 0.5 : 1 }}
         disabled={busy}
         onPress={async () => {
           if (!name.trim()) {
@@ -524,7 +494,8 @@ function MedicationEditor({
           else
             setError("Your medication could not be saved. Please try again.");
         }}
-      />
+      ><Pill size={20} color="#fff" /><Txt bold style={{ color: "#fff", fontSize: 16, flexShrink: 1, textAlign: "center" }}>{busy ? "Saving…" : initial ? "Save Changes" : "Save Medication"}</Txt></Pressable>
+      </View>
     </Sheet>
   );
 }

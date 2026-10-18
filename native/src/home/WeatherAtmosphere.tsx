@@ -38,8 +38,6 @@ export const WeatherAtmosphere = memo(function WeatherAtmosphere({ hour }: { hou
     <Animated.View key={key} entering={reduced ? undefined : FadeIn.duration(650)} exiting={reduced ? undefined : FadeOut.duration(450)} style={StyleSheet.absoluteFill}>
       <SceneLayer scene={scene} active={active} width={size.width} height={size.height} />
     </Animated.View>
-    {/* Very light contrast veil keeps the weather visible beneath the controls. */}
-    <LinearGradient colors={['#06152600', '#07172800', '#06182d24']} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
   </View>;
 });
 function SceneLayer({ scene, active, width, height }: { scene: Scene; active: boolean; width: number; height: number }) {
@@ -107,7 +105,6 @@ function SceneLayer({ scene, active, width, height }: { scene: Scene; active: bo
     {(fog || scene.wet || scene.snow || scene.windy) && <Animated.View style={[styles.mist, haze]}>
       <Image source={require('../../assets/weather/cumulus.png')} resizeMode="stretch" fadeDuration={0} style={[StyleSheet.absoluteFill, { opacity: fog ? 0.55 : scene.snow ? 0.15 : 0.09 }]} />
     </Animated.View>}
-    {scene.storm && <LinearGradient colors={['#02081955', '#07182700', '#020c2040']} style={StyleSheet.absoluteFill} />}
     {scene.particles > 0 && <><Precipitation scene={scene} active={active} width={width} height={height} far /><Precipitation scene={scene} active={active} width={width} height={height} /></>}
     {scene.storm && <Animated.View style={[styles.lightning, discharge]}>
       <Image source={require('../../assets/weather/lightning.png')} resizeMode="contain" fadeDuration={0} style={StyleSheet.absoluteFill} />
