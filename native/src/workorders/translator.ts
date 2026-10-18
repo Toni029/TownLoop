@@ -327,9 +327,9 @@ export async function translateWorkOrder(order: WorkOrderItem): Promise<Translat
   const user = await approvedUser();
   if (!canTranslateWorkOrder(user)) throw Error('Translation is available to Admin, VIP and Crew only.');
   const local = Platform.OS === 'web' && typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname);
-  const base = process.env.EXPO_PUBLIC_TOWNLOOP_API_URL || (local ? `${location.protocol}//${location.hostname}:3000` : '');
-  if (!base) throw Error('The secure translation service is not connected yet. Please contact the office.');
-  const url = new URL(base);
+  const endpoint = process.env.EXPO_PUBLIC_TOWNLOOP_TRANSLATION_URL ||
+    'https://us-central1-cc-livingcommunity-app.cloudfunctions.net/translateWorkOrder';
+  const url = new URL(endpoint);
   if (url.protocol !== 'https:' && !(local && ['localhost', '127.0.0.1'].includes(url.hostname))) throw Error('Translation requires a secure HTTPS service.');
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw Error('Please sign in again.');
@@ -337,7 +337,7 @@ export async function translateWorkOrder(order: WorkOrderItem): Promise<Translat
   const timer = setTimeout(() => controller.abort(), 65000);
   const comments = order.comments || [];
   try {
-    const response = await fetch(`${base.replace(/\/$/, '')}/api/translate`, {
+    const response = await fetch(endpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ title: order.title, description: order.description || '', comments: comments.map(c => c.text), targetLang: 'es' }),
       signal: controller.signal,

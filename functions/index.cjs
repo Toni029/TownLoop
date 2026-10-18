@@ -30,3 +30,5 @@ exports.cleanupCompletedWorkOrders = onSchedule({ schedule: 'every 60 minutes', 
 
 // Prepared locally; deploy only after notification credentials and rules review.
 Object.assign(exports, require('./inbox.cjs'));
+
+Object.assign(exports, require("./translation.cjs"));

@@ -46,3 +46,16 @@ remains prepared only, not deployed. Restore the client portion of `59fbd12`
 when the user authorizes the next native build; do not override runtime hashes.
 Translation still needs a deployed HTTPS service URL for physical phones;
 the local localhost:3000 service is for browser development only.
+
+## Hosted Google Translation (October 17, 2026)
+
+The native client now defaults to the HTTPS Firebase `translateWorkOrder` endpoint
+in `cc-livingcommunity-app`, region `us-central1`. It sends the current Firebase ID
+token; the function checks revocation and reads the existing user role before
+calling Google Cloud Translation. Admin, VIP and Crew are allowed; residents are
+denied. No ticket writes occur. The API key is stored in Secret Manager as
+`TOWNLOOP_GOOGLE_TRANSLATE_KEY`, never in the bundle. Optional endpoint override:
+`EXPO_PUBLIC_TOWNLOOP_TRANSLATION_URL` (not an API key).
+
+Only this function is deployed for translation. Push-notification functions remain
+deferred. The client change is OTA-compatible with the existing Preview APK.
