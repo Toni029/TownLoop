@@ -1,16 +1,18 @@
 import { revealOffset } from './geometry';
-import { createContext, forwardRef, useCallback, useContext, useEffect, useRef } from 'react';
-import { Keyboard, Platform, ScrollView as NativeScrollView, TextInput as NativeTextInput, type ScrollViewProps, type TextInputProps } from 'react-native';
+import { createContext, forwardRef, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Keyboard, Platform, StyleSheet, ScrollView as NativeScrollView, TextInput as NativeTextInput, type ScrollViewProps, type TextInputProps } from 'react-native';
 
 const Focus = createContext<(input: NativeTextInput) => void>(() => {});
 export type ScrollView = NativeScrollView;
 export type TextInput = NativeTextInput;
 
 /** Scroll only enough to reveal the focused field inside the actual visible viewport. */
-export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps>(function KeyboardScrollView(props, forwardedRef) {
+export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps & { extraKeyboardSpace?: boolean }>(function KeyboardScrollView(props, forwardedRef) {
+  const { extraKeyboardSpace, ...scrollProps } = props;
   const scroll = useRef<NativeScrollView | null>(null);
   const focused = useRef<NativeTextInput | null>(null);
   const offset = useRef(0);
+  const [keyboardSpace, setKeyboardSpace] = useState(0);
   const keyboardTop = useRef(Infinity);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const reveal = useCallback(() => {
@@ -29,15 +31,15 @@ export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps>(function
   }, [reveal]);
   useEffect(() => {
     if (props.horizontal) return;
-    const show = Keyboard.addListener('keyboardDidShow', e => { keyboardTop.current = e.endCoordinates.screenY; schedule(); });
-    const change = Keyboard.addListener('keyboardDidChangeFrame', e => { keyboardTop.current = e.endCoordinates.screenY; schedule(); });
-    const hide = Keyboard.addListener('keyboardDidHide', () => { keyboardTop.current = Infinity; });
+    const show = Keyboard.addListener('keyboardDidShow', e => { keyboardTop.current = e.endCoordinates.screenY; setKeyboardSpace(24); schedule(); });
+    const change = Keyboard.addListener('keyboardDidChangeFrame', e => { keyboardTop.current = e.endCoordinates.screenY; setKeyboardSpace(24); schedule(); });
+    const hide = Keyboard.addListener('keyboardDidHide', () => { keyboardTop.current = Infinity; setKeyboardSpace(0); });
     return () => { show.remove(); change.remove(); hide.remove(); clearTimeout(timer.current); };
   }, [schedule, props.horizontal]);
   const register = useCallback((input: NativeTextInput) => { focused.current = input; schedule(); }, [schedule]);
   const parent = useContext(Focus);
   return <Focus.Provider value={props.horizontal ? parent : register}>
-    <NativeScrollView {...props} ref={node => {
+    <NativeScrollView {...scrollProps} contentContainerStyle={[props.contentContainerStyle, extraKeyboardSpace && keyboardSpace > 0 && { paddingBottom: Number(StyleSheet.flatten(props.contentContainerStyle)?.paddingBottom || 0) + keyboardSpace + 24 }]} onContentSizeChange={(w, h) => { props.onContentSizeChange?.(w, h); schedule(); }} ref={node => {
       scroll.current = node;
       if (typeof forwardedRef === 'function') forwardedRef(node);
       else if (forwardedRef) forwardedRef.current = node;

@@ -15,6 +15,6 @@ export function atmosphereFor(hour: HourlyForecast) {
     wind,
     // Actual condition, not precipitation probability, controls particle density.
     particles: snow ? (code === 71 || code === 85 ? 16 : 28) : wet ? (drizzle ? 18 : heavy || storm ? 54 : 34) : 0,
-    colors: (storm ? ['#080f20', '#26394e', '#172b42'] : wet ? (drizzle ? ['#293f52', '#527184', '#314d66'] : ['#142639', '#344d65', '#203e59']) : hour.icon === 'fog' ? ['#394d5e', '#718592', '#47657b'] : hour.icon === 'snow' ? ['#314b65', '#7896a9', '#466984'] : hour.icon === 'cloud' ? ['#293e54', '#668196', '#3b5e7c'] : hour.icon === 'cloudSun' ? ['#1a537e', '#7497ae', '#417da6'] : ['#165bb8', '#388bd0', '#5ea7f7']) as [string, string, string],
+    colors: (storm ? ['#456681', '#7093ad', '#8eafc5'] : wet ? ['#638ea9', '#8cb7cc', '#b3d7e4'] : hour.icon === 'fog' ? ['#a3bfce', '#d0e1e8', '#bbd5e2'] : hour.icon === 'snow' ? ['#84bbda', '#c3e4f1', '#a5d4ea'] : hour.icon === 'cloud' ? ['#6bafda', '#a3d3ed', '#c3e5f5'] : hour.icon === 'cloudSun' ? ['#329ee3', '#84c9f0', '#b5e2fa'] : ['#168fe5', '#49b7f3', '#9edfff']) as [string, string, string],
   };
 }

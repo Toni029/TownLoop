@@ -67,7 +67,7 @@ function SceneLayer({ scene, active, width, height }: { scene: Scene; active: bo
   const dense = !sunny && scene.condition !== 'wind';
   return <>
     <LinearGradient colors={scene.colors} style={StyleSheet.absoluteFill} />
-    {dense && <Animated.View style={[StyleSheet.absoluteFill, skyMotion, { opacity: fog ? 0.36 : scene.snow ? 0.62 : 0.96 }]}>
+    {dense && <Animated.View style={[StyleSheet.absoluteFill, skyMotion, { opacity: fog ? 0.12 : scene.storm ? 0.40 : scene.wet ? 0.22 : 0.14 }]}>
       <Image source={require('../../assets/weather/storm-sky.jpg')} resizeMode="cover" fadeDuration={0} style={StyleSheet.absoluteFill} />
     </Animated.View>}
     {(fog || scene.snow || scene.condition === 'cloud' || scene.drizzle) && <LinearGradient colors={fog ? ['#9cabbc80', '#b3c2cb90', '#8298aa80'] : scene.snow ? ['#b9d7e94d', '#a4c6df66', '#668aa64d'] : ['#b2c3d833', '#8cabc03d', '#557a9840']} style={StyleSheet.absoluteFill} />}

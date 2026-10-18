@@ -4,7 +4,7 @@ import { ResidentRegistration } from "../components/ResidentRegistration";
 import { googleSignIn } from "../lib/googleSignIn";
 import Svg, { Path } from "react-native-svg";
 import { useCommunity } from "../lib/community";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -38,6 +38,7 @@ import { auth } from "../lib/firebase";
 import { friendlyError } from "../lib/profile";
 import { CecilPinesMark } from "../components/CecilPinesMark";
 export default function SignIn() {
+  const passwordInput = useRef<TextInput | null>(null);
   const [focused, setFocused] = useState("");
   const [googleHovered, setGoogleHovered] = useState(false);
   const [mode, setMode] = useState<"signin" | "register">("signin");
@@ -101,6 +102,7 @@ export default function SignIn() {
         <ScreenSystemBars dark={dark} />
       <SafeAreaView style={{ flex: 1 }}>
           <ScrollView
+            extraKeyboardSpace
             keyboardShouldPersistTaps="handled"
             style={{ flex: 1 }}
             automaticallyAdjustKeyboardInsets={false}
@@ -388,13 +390,16 @@ export default function SignIn() {
                         Resident Email Address
                       </Text>
                       <View style={s.inputWrap}>
-                        <Mail size={20} color={muted} style={[s.inputIcon, { opacity: focused === "email" || email ? 0 : 1 }]} />
+                        <Mail pointerEvents="none" size={20} color={muted} style={[s.inputIcon, { opacity: focused === "email" || email ? 0 : 1 }]} />
                         <TextInput
                           accessibilityLabel="Resident Email Address"
+                          returnKeyType="next"
+                          submitBehavior="submit"
+                          onSubmitEditing={() => passwordInput.current?.focus()}
                           placeholder={focused === "email" ? "" : "e.g. resident@cecilpines.com"}
                           placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
                           onFocus={() => setFocused("email")}
-                          onBlur={() => setFocused("")}
+                          onBlur={() => setFocused(current => current === "email" ? "" : current)}
                           value={email}
                           onChangeText={setEmail}
                           keyboardType="email-address"
@@ -443,13 +448,15 @@ export default function SignIn() {
                         </Pressable>
                       </View>
                       <View style={s.inputWrap}>
-                        <Lock size={20} color={muted} style={[s.inputIcon, { opacity: focused === "password" || password ? 0 : 1 }]} />
+                        <Lock pointerEvents="none" size={20} color={muted} style={[s.inputIcon, { opacity: focused === "password" || password ? 0 : 1 }]} />
                         <TextInput
                           accessibilityLabel="Password"
+                          ref={passwordInput}
+                          returnKeyType="done"
                           placeholder={focused === "password" ? "" : "Enter your password"}
                           placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
                           onFocus={() => setFocused("password")}
-                          onBlur={() => setFocused("")}
+                          onBlur={() => setFocused(current => current === "password" ? "" : current)}
                           value={password}
                           onChangeText={setPassword}
                           secureTextEntry={!showPassword}
