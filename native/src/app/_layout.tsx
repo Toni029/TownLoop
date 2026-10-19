@@ -1,5 +1,4 @@
 import { StartupLoading } from "../components/StartupLoading";
-import Animated, { FadeIn } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useReducedMotion } from "../home/hooks";
 import { CommunityProvider, useCommunity } from "../lib/community";
@@ -20,9 +19,8 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
   const reduced = useReducedMotion();
   const { user, profile, loading } = useSession();
   const { community, ready } = useCommunity();
-  if (loading || !ready || !fontsReady) return <StartupLoading />;
   return (
-    <Animated.View entering={reduced ? undefined : FadeIn.duration(220)} style={{ flex: 1 }}>
+    <StartupLoading ready={!loading && ready && fontsReady}>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream },
@@ -45,7 +43,7 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="account" options={{ title: "Account" }} />
       </Stack.Protected>
     </Stack>
-    </Animated.View>
+    </StartupLoading>
   );
 }
 export default function Root() {

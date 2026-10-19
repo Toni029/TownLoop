@@ -14,3 +14,6 @@ credentials.json
 credentials/
 *.jks
 *.keystore
+
+# Local TypeScript incremental cache.
+*.tsbuildinfo
