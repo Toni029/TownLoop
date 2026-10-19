@@ -130,21 +130,68 @@ service cloud.firestore {
           getAfter(/databases/$(database)/documents/counters/work_orders).data.lastNumber == number));
     }
 
+    // A revision replaces only the original crew member's resolution, retaining prior text.
+    function validResolutionRevision() {
+      let i = resource.data.resolutionCommentIndex;
+      let before = resource.data.comments[i];
+      let after = request.resource.data.comments[i];
+      return resource.data.resolutionAuthorId == request.auth.uid &&
+        request.resource.data.resolutionAuthorId == resource.data.resolutionAuthorId &&
+        request.resource.data.resolutionCommentId == resource.data.resolutionCommentId &&
+        request.resource.data.resolutionCommentIndex == i &&
+        before.id == resource.data.resolutionCommentId && after.id == before.id &&
+        before.get('authorId', request.auth.uid) == request.auth.uid &&
+        after.diff(before).affectedKeys().hasOnly(['text', 'photoUrl', 'editedAt', 'revisions']) &&
+        after.text == request.resource.data.resolutionNote &&
+        request.resource.data.comments.size() == resource.data.comments.size() &&
+        request.resource.data.comments.removeAll([after]) == resource.data.comments.removeAll([before]) &&
+        after.revisions == before.get('revisions', []).concat([{
+          'text': before.text, 'photoUrl': before.get('photoUrl', ''),
+          'timestamp': before.timestamp, 'editedAt': before.get('editedAt', '')
+        }]);
+    }
+    function validNewResolution() {
+      let comments = request.resource.data.comments;
+      let i = comments.size() - 1;
+      let added = comments[i];
+      return comments.size() == resource.data.comments.size() + 1 &&
+        comments.removeAll([added]) == resource.data.comments &&
+        added.text == request.resource.data.resolutionNote &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) ||
+          (request.resource.data.resolutionCommentId == added.id && request.resource.data.resolutionCommentIndex == i &&
+           request.resource.data.resolutionAuthorId == request.auth.uid && added.authorId == request.auth.uid));
+    }
+    function validReopenedResolution() {
+      let data = request.resource.data;
+      let changed = data.diff(resource.data).affectedKeys();
+      return !changed.hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) ||
+        !data.keys().hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) ||
+        (data.resolutionAuthorId == request.auth.uid && data.comments == resource.data.comments &&
+         data.resolutionCommentIndex == resource.data.comments.size() - 1 &&
+         data.comments[data.resolutionCommentIndex].id == data.resolutionCommentId &&
+         data.comments[data.resolutionCommentIndex].get('authorId', request.auth.uid) == request.auth.uid &&
+         data.comments[data.resolutionCommentIndex].author == currentProfile().name &&
+         data.comments[data.resolutionCommentIndex].text == resource.data.resolutionNote &&
+         resource.data.completedBy == currentProfile().name);
+    }
+
     function validWorkOrderTransition() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      let protected = ['status', 'completedAt', 'completedBy', 'retentionVersion', 'resolutionNote'];
+      let protected = ['status', 'completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId', 'comments'];
       return (!changed.hasAny(protected)) ||
         (currentProfile().role == 'crew' && (
           (resource.data.status != 'Done' && request.resource.data.status in ['Queued', 'In Progress'] &&
-            !changed.hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote'])) ||
+            !changed.hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) &&
+            (!changed.hasAny(['comments']) || (request.resource.data.comments.size() == resource.data.comments.size() + 1 &&
+              request.resource.data.comments.removeAll([request.resource.data.comments[request.resource.data.comments.size() - 1]]) == resource.data.comments &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].author == currentProfile().name))) ||
           (resource.data.status != 'Done' && request.resource.data.status == 'Done' &&
             request.resource.data.completedAt == request.time && request.resource.data.retentionVersion == 1 &&
             request.resource.data.completedBy == currentProfile().name &&
             request.resource.data.resolutionNote is string && request.resource.data.resolutionNote.matches('.*[^\\s].*') &&
-            request.resource.data.comments.size() == resource.data.comments.size() + 1 &&
-            request.resource.data.comments[request.resource.data.comments.size() - 1].text == request.resource.data.resolutionNote) ||
+            (validNewResolution() || validResolutionRevision())) ||
           (resource.data.status == 'Done' && request.resource.data.status == 'In Progress' &&
-            !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote']))
+            !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote']) && request.resource.data.comments == resource.data.comments && validReopenedResolution())
         ));
     }
 
@@ -153,7 +200,7 @@ service cloud.firestore {
       allow list: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid);
       allow create: if isApproved() && request.resource.data.userId == request.auth.uid && allocatedTicket(orderId) &&
         request.resource.data.status == 'Queued' &&
-        !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote']);
+        !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']);
       allow update: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber']) &&
         validWorkOrderTransition();

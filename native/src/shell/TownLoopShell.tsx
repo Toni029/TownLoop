@@ -1,3 +1,4 @@
+import { tabSelectionFeedback } from "../motion/haptics";
 import { dockBubble } from "./dockGeometry";
 import { PreviewUpdateNotice } from "../development/PreviewUpdateNotice";
 import { ScreenSystemBars } from "../components/SystemBars";
@@ -509,6 +510,13 @@ export function FloatingDock({
   onSelect: (name: TabName) => void;
   onLongPress?: (name: TabName) => void;
 }) {
+  const previousTab = useRef(active);
+  useEffect(() => {
+    if (previousTab.current !== active) {
+      previousTab.current = active;
+      tabSelectionFeedback();
+    }
+  }, [active]);
   const insets = useSafeAreaInsets();
   const [keyboard, setKeyboard] = useState(false);
   useEffect(() => {

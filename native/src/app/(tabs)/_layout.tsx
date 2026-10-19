@@ -1,4 +1,3 @@
-import { selectionFeedback } from "../../motion/haptics";
 import { ScreenMotion } from "../../motion/ScreenMotion";
 import { Tabs, router } from "expo-router";
 import { NewsProvider } from "../../lib/news";
@@ -49,7 +48,7 @@ export default function TabLayout() {
                 state.routes[state.index].key !== route.key &&
                 !event.defaultPrevented
               )
-                { selectionFeedback(); navigation.navigate(route.name); }
+                { navigation.navigate(route.name); }
             }}
             onLongPress={(name) => {
               const route = state.routes.find((r) => r.name === name);

@@ -3,6 +3,7 @@ import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState, useMemo, useCallback, memo } from "react";
 import {
   ActivityIndicator,
+  RefreshControl,
   Image,
   Pressable,
 
@@ -43,7 +44,7 @@ import {
 import { Collapsible } from "../components/Collapsible";
 import { MediaViewer } from "../components/MediaViewer";
 import { pickAndUpload } from "../components/media";
-import { queueState, type WorkOrder } from "./model";
+import { queueState, sortWorkOrders, editableResolution, type WorkOrder } from "./model";
 import { translateWorkOrder, type TranslatedContent } from "./translator";
 import { Ticket } from "./Ticket";
 export type OrderAction = "delete" | "reopen" | "complete" | "note";
@@ -53,6 +54,8 @@ export function WorkOrdersFeed({
   loading,
   error,
   retry,
+  refreshing,
+  onRefresh,
   busy,
   onCreate,
   onAction,
@@ -62,6 +65,8 @@ export function WorkOrdersFeed({
   loading: boolean;
   error: string;
   retry: () => void;
+  refreshing: boolean;
+  onRefresh: () => Promise<void>;
   busy: boolean;
   onCreate: () => void;
   onAction: (
@@ -75,7 +80,7 @@ export function WorkOrdersFeed({
   const s = useNewsStyles();
   useNewsFonts();
   const [expanded, setExpanded] = useState<string | null>(null);
-  const visible = useMemo(() => orders.filter(o => canViewWorkOrder(o, user)), [orders, user]);
+  const visible = useMemo(() => sortWorkOrders(orders.filter(o => canViewWorkOrder(o, user))), [orders, user]);
   const toggleOrder = useCallback((id: string) => setExpanded(value => value === id ? null : id), []);
   const all = canViewAllWorkOrders(user);
   const mode = isCrew(user)
@@ -91,6 +96,7 @@ export function WorkOrdersFeed({
       style={{ flex: 1, backgroundColor: "transparent" }}
     >
       <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor="#047857" colors={["#047857"]} progressBackgroundColor={dark ? "#1e293b" : "#fff"} />}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           padding: 20,
@@ -313,9 +319,13 @@ const OrderCard = memo(function OrderCard({
     finally { translationLock.current = false; setTranslating(false); }
   }
   const [confirm, setConfirm] = useState(false);
-  const [reply, setReply] = useState("");
-  const [photo, setPhoto] = useState("");
-  const [note, setNote] = useState("");
+  const previousResolution = editableResolution(order, user);
+  const editorKey = JSON.stringify([order.status, previousResolution?.id, previousResolution?.text, previousResolution?.photoUrl]);
+  const [draft, setDraft] = useState<{ key: string; reply: string; photo: string } | null>(null);
+  const reply = draft?.key === editorKey ? draft.reply : previousResolution?.text || '';
+  const photo = draft?.key === editorKey ? draft.photo : previousResolution?.photoUrl || '';
+  const setReply = (text: string) => setDraft({ key: editorKey, reply: text, photo });
+  const setPhoto = (uri: string) => setDraft({ key: editorKey, reply, photo: uri });
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
@@ -323,13 +333,13 @@ const OrderCard = memo(function OrderCard({
     null,
   );
   const lock = useRef(false);
-  async function upload(camera = false) {
+  async function upload() {
     if (lock.current || busy) return;
     lock.current = true;
     setUploading(true);
     setError("");
     try {
-      const photos = await pickAndUpload("work_orders", setProgress, camera);
+      const photos = await pickAndUpload("work_orders", setProgress, false);
       if (photos[0]) setPhoto(photos[0].url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to upload photo.");
@@ -343,9 +353,7 @@ const OrderCard = memo(function OrderCard({
     lock.current = true;
     try {
       if (await onAction(String(order.id), action, text, proof)) {
-        setReply("");
-        setNote("");
-        setPhoto("");
+        setDraft(null);
         setConfirm(false);
       }
     } finally {
@@ -764,18 +772,11 @@ const OrderCard = memo(function OrderCard({
                     placeholder="e.g. Replaced faulty washer, pressure tested at 45 PSI, tested lines."
                   />
                   <Action
-                    label="Upload Verification Picture"
+                    label="Upload Photo"
                     icon={Camera}
                     tone="light"
                     disabled={disabled}
                     onPress={() => void upload()}
-                  />
-                  <Action
-                    label="Take Verification Picture"
-                    icon={Camera}
-                    tone="light"
-                    disabled={disabled}
-                    onPress={() => void upload(true)}
                   />
                   {uploading && <Copy>Uploading photo… {progress}%</Copy>}
                   {!!photo && (
@@ -792,18 +793,6 @@ const OrderCard = memo(function OrderCard({
                     onPress={() => void act("complete", reply, photo)}
                   />
                 </View>
-                <Field
-                  label="General maintenance note"
-                  value={note}
-                  onChangeText={setNote}
-                  editable={!disabled}
-                  placeholder="Add general maintenance note…"
-                />
-                <Action
-                  label="Log Note"
-                  disabled={disabled || !note.trim()}
-                  onPress={() => void act("note", note)}
-                />
               </>
             )}
           </View>

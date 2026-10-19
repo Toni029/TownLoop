@@ -1,8 +1,9 @@
 import { canViewAllWorkOrders } from "../../../src/utils/permissions";
 import { subscribeSafely } from "./subscription";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   collection,
+  getDocsFromServer,
   onSnapshot,
   orderBy,
   query,
@@ -22,7 +23,7 @@ export function useLiveCollection<T>(
   const [attempt, setAttempt] = useState(0);
   const key =
     user && user.approved !== false
-      ? `${user.id}:${user.role}:${residentOrders}:${name}:${attempt}`
+      ? `${user.id}:${user.role}:${residentOrders}:${name}`
       : "";
   const [owned, setOwned] = useState<{
     key: string;
@@ -30,13 +31,36 @@ export function useLiveCollection<T>(
     loading: boolean;
     error: string;
   }>({ key: "", items: [], loading: true, error: "" });
+  const source = useMemo(() => residentOrders
+    ? query(collection(db, name), where("userId", "==", uid))
+    : sortField ? query(collection(db, name), orderBy(sortField, "desc")) : collection(db, name),
+    [residentOrders, name, uid, sortField]);
+  const activeKey = useRef(key);
+  const refreshingRef = useRef(false);
+  const [refreshKey, setRefreshKey] = useState('');
+  useEffect(() => { activeKey.current = key; return () => { activeKey.current = ''; }; }, [key]);
+  const refresh = useCallback(async () => {
+    if (!key || refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshKey(key);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        getDocsFromServer(source),
+        new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Refresh timed out. Please check your connection and try again.')), 12000); }),
+      ]);
+      // Keep the listener as the sole data writer; an older refresh response cannot overwrite a newer snapshot.
+      if (activeKey.current === key) setAttempt(n => n + 1);
+    } catch (error) {
+      if (activeKey.current === key) setOwned(state => ({ ...state, key, items: state.key === key ? state.items : [], loading: false, error: friendlyError(error) }));
+    } finally {
+      clearTimeout(timeout);
+      refreshingRef.current = false;
+      if (activeKey.current) setRefreshKey('');
+    }
+  }, [key, source]);
   useEffect(() => {
     if (!key) return;
-    const source = residentOrders
-      ? query(collection(db, name), where("userId", "==", uid))
-      : sortField
-        ? query(collection(db, name), orderBy(sortField, "desc"))
-        : collection(db, name);
     return subscribeSafely(
       (next, fail) =>
         onSnapshot(
@@ -50,7 +74,7 @@ export function useLiveCollection<T>(
                       (a.data().createdAt?.toMillis?.() || 0),
                   )
                 : snapshot.docs
-              ).map((d) => read(d.id, d.data())),
+              ).map((d) => read(d.id, d.data({ serverTimestamps: "estimate" }))),
             ),
           fail,
         ),
@@ -63,11 +87,13 @@ export function useLiveCollection<T>(
           error: friendlyError(error),
         })),
     );
-  }, [key, name, read, sortField, attempt, uid, residentOrders]);
+  }, [key, source, read, attempt, residentOrders]);
   return {
     ...(key && owned.key === key
       ? owned
       : { items: [] as T[], loading: !!key, error: "" }),
     retry: () => setAttempt((n) => n + 1),
+    refresh,
+    refreshing: !!key && refreshKey === key,
   };
 }

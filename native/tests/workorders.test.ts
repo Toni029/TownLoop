@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readWorkOrder, queueState, resolutionPatch } from '../src/workorders/model.ts';
 const order=readWorkOrder('one',{title:'Sink',status:'Queued',placeInLine:9});
-test('queue uses the full newest-first live list and removes completed tickets from positions',()=>{
+test('queue uses the displayed pending list and removes completed tickets from positions',()=>{
   const other=readWorkOrder('other',{status:'Submitted'});
   const done=readWorkOrder('done',{status:'Done'});
   assert.deepEqual(queueState(order,[done,other,order]),{done:false,inProgress:false,place:2,ahead:1});
@@ -47,4 +47,27 @@ test('all original categories are unique and survive Firestore decoding for tick
 
 test('trusted completion timestamps render as dates', () => {
   assert.equal(readWorkOrder('done', {completedAt:{toDate:()=>new Date('2026-10-16T12:00:00Z')}}).completedAt,'2026-10-16T12:00:00.000Z');
+});
+
+test('open tickets sort oldest first, completed last, and reopen uses original submission time', async () => {
+  const { sortWorkOrders } = await import('../src/workorders/model.ts');
+  const entries = [readWorkOrder('new', { createdAt: 30 }), readWorkOrder('done', { createdAt: 5, status: 'Done' }), readWorkOrder('old', { createdAt: 10 })];
+  assert.deepEqual(sortWorkOrders(entries).map(o => o.id), ['old', 'new', 'done']);
+  assert.deepEqual(sortWorkOrders(entries.map(o => o.id === 'done' ? { ...o, status: 'In Progress' as const } : o)).map(o => o.id), ['done', 'old', 'new']);
+  assert.equal(readWorkOrder('iso', {createdAt:'2026-10-19T12:00:00Z'}).createdAt, Date.parse('2026-10-19T12:00:00Z'));
+});
+
+test('recompletion revises the same owned resolution and retains its previous text', async () => {
+  const { editableResolution } = await import('../src/workorders/model.ts');
+  const crew = {id:'crew',name:'Crew',role:'crew',email:'crew@example.invalid'} as const;
+  const original = {id:'resolution',author:'Crew',authorId:'crew',role:'Maintenance Crew',text:'Fixed sink',timestamp:'Yesterday',photoUrl:'proof.jpg'};
+  const reopened = {...order,comments:[original],resolutionCommentId:'resolution',resolutionAuthorId:'crew',resolutionCommentIndex:0};
+  assert.equal(editableResolution(reopened,crew)?.id,'resolution');
+  assert.equal(editableResolution(reopened,{...crew,id:'other',name:'Other'}),null);
+  const patch = resolutionPatch(reopened,crew,{...original,id:'new-attempt',text:'Replaced washer'},'2026-10-19T12:00:00Z')!;
+  assert.equal(patch.comments.length,1);
+  assert.equal(patch.comments[0].id,'resolution');
+  assert.equal(patch.comments[0].text,'Replaced washer');
+  assert.equal(patch.comments[0].revisions?.[0].text,'Fixed sink');
+  assert.equal(reopened.comments[0].text,'Fixed sink');
 });

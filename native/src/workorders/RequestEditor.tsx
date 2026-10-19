@@ -33,14 +33,14 @@ export function RequestEditor({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
   const lock = useRef(false);
-  async function upload(camera = false) {
+  async function upload() {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     setError("");
     setProgress(0);
     try {
-      const files = await pickAndUpload("work_orders", setProgress, camera);
+      const files = await pickAndUpload("work_orders", setProgress, false);
       setPhotos((p) => [...p, ...files.map((f) => f.url)]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to attach photos.");
@@ -116,10 +116,9 @@ export function RequestEditor({
           <Copy style={{ color: "#78716c" }}>Photos Only • No Videos</Copy>
         </View>
         <UploadTarget
-          label="Upload Photos"
+          label="Upload Photo"
           disabled={busy}
           onUpload={() => void upload()}
-          onCamera={() => void upload(true)}
         />
         {progress !== null && (
           <Copy accessibilityLiveRegion="polite">

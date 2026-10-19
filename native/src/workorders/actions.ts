@@ -17,7 +17,7 @@ import type { WorkOrderComment } from "../../../src/types";
 import { db } from "../lib/firebase";
 import { approvedUser } from "../news/actions";
 import { singleFlight } from "../news/model";
-import { readWorkOrder, resolutionPatch } from "./model";
+import { readWorkOrder, resolutionPatch, editableResolution } from "./model";
 export const runWorkOrder = singleFlight();
 export const newOrderId = () => doc(collection(db, "work_orders")).id;
 export async function submitWorkOrder(
@@ -85,7 +85,9 @@ export async function changeWorkOrder(
         throw new Error("Only maintenance crew can service work orders.");
       if (action === "reopen") {
         if (order.status !== "Done") return;
+        const previous = editableResolution(order, user);
         tx.update(reference, {
+          ...(previous ? { resolutionCommentId: previous.id, resolutionCommentIndex: order.comments!.findIndex(c => c.id === previous.id), resolutionAuthorId: String(user.id) } : { resolutionCommentId: deleteField(), resolutionCommentIndex: deleteField(), resolutionAuthorId: deleteField() }),
           status: "In Progress",
           statusNote: "Reopened for maintenance inspection",
           completedAt: deleteField(),

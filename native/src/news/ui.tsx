@@ -650,7 +650,7 @@ export function UploadTarget({
   note?: string;
   disabled: boolean;
   onUpload: () => void;
-  onCamera: () => void;
+  onCamera?: () => void;
 }) {
   const dark = !!usePresentation()?.dark;
   return (
@@ -687,6 +687,7 @@ export function UploadTarget({
         >
           <Upload size={20} color={dark ? "#a7f3d0" : "#047857"} />
         </View>
+        {!note && !onCamera && <Copy weight="bold">{label}</Copy>}
         {!!note && (
           <>
             <Copy weight="bold">{label}</Copy>
@@ -696,7 +697,7 @@ export function UploadTarget({
           </>
         )}
       </Pressable>
-      <Pressable
+      {!!onCamera && (<Pressable
         accessibilityRole="button"
         accessibilityLabel="Take Picture"
         accessibilityState={{ disabled }}
@@ -716,7 +717,7 @@ export function UploadTarget({
         }}
       >
         <Camera size={16} color={dark ? "#cbd5e1" : "#78716c"} />
-      </Pressable>
+      </Pressable>)}
     </View>
   );
 }
