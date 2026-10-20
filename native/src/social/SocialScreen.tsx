@@ -22,6 +22,7 @@ import {
   orderedChats,
   chatSide,
   withAvatar,
+  avatarResolver,
   type Listing,
 } from "./model";
 import { LikeStore } from "./likes";
@@ -37,7 +38,7 @@ export default function SocialScreen() {
   const inbox = useLiveCollection("marketplace_chats", readChat, "");
   const uid = String(user?.id || "");
   const likes = useMemo(() => new LikeStore(uid, AsyncStorage), [uid]);
-  const [, render] = useReducer((n) => n + 1, 0);
+  const [likesRevision, render] = useReducer((n) => n + 1, 0);
   useEffect(() => {
     const stop = likes.subscribe(render);
     void likes.load();
@@ -62,14 +63,17 @@ export default function SocialScreen() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const lock = useRef(false);
-  const resolvedPosts = posts.items.map((p) => ({
-    ...withAvatar(p, directory.items, user),
-    liked: likes.values.has(String(p.id)),
-  }));
-  const resolvedListings = listings.items.map((p) =>
-    withAvatar(p, directory.items, user),
-  );
-  const chats = orderedChats(inbox.items, uid);
+  // LikeStore mutates its Set in place; its subscription revision invalidates this snapshot.
+  const likedIds = useMemo(() => { void likesRevision; return new Set(likes.values); }, [likes, likesRevision]);
+  const resolveAvatar = useMemo(() => avatarResolver(directory.items, user), [directory.items, user]);
+  const resolvedPosts = useMemo(() => posts.items.map((p) => ({
+    ...withAvatar(p, directory.items, user, resolveAvatar),
+    liked: likedIds.has(String(p.id)),
+  })), [posts.items, directory.items, user, resolveAvatar, likedIds]);
+  const resolvedListings = useMemo(() => listings.items.map((p) =>
+    withAvatar(p, directory.items, user, resolveAvatar),
+  ), [listings.items, directory.items, user, resolveAvatar]);
+  const chats = useMemo(() => orderedChats(inbox.items, uid), [inbox.items, uid]);
   const unread = chats.filter((c) =>
     chatSide(c, uid) === "seller" ? c.unreadForSeller : c.unreadForBuyer,
   ).length;

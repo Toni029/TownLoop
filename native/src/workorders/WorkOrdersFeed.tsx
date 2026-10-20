@@ -44,7 +44,7 @@ import {
 import { Collapsible } from "../components/Collapsible";
 import { MediaViewer } from "../components/MediaViewer";
 import { pickAndUpload } from "../components/media";
-import { queueState, sortWorkOrders, editableResolution, type WorkOrder } from "./model";
+import { sortWorkOrders, editableResolution, type WorkOrder } from "./model";
 import { translateWorkOrder, type TranslatedContent } from "./translator";
 import { Ticket } from "./Ticket";
 export type OrderAction = "delete" | "reopen" | "complete" | "note";
@@ -81,6 +81,11 @@ export function WorkOrdersFeed({
   useNewsFonts();
   const [expanded, setExpanded] = useState<string | null>(null);
   const visible = useMemo(() => sortWorkOrders(orders.filter(o => canViewWorkOrder(o, user))), [orders, user]);
+  const positions = useMemo(() => {
+    const result = new Map<string, number>();
+    for (const order of orders) if (order.status !== 'Done') result.set(String(order.id), result.size + 1);
+    return result;
+  }, [orders]);
   const toggleOrder = useCallback((id: string) => setExpanded(value => value === id ? null : id), []);
   const all = canViewAllWorkOrders(user);
   const mode = isCrew(user)
@@ -260,7 +265,7 @@ export function WorkOrdersFeed({
           <OrderCard
             key={order.id}
             order={order}
-            all={orders}
+            position={positions.get(String(order.id)) || 0}
             user={user}
             expanded={expanded === String(order.id)}
             toggle={toggleOrder}
@@ -274,7 +279,7 @@ export function WorkOrdersFeed({
 }
 const OrderCard = memo(function OrderCard({
   order,
-  all,
+  position,
   user,
   expanded,
   toggle,
@@ -282,7 +287,7 @@ const OrderCard = memo(function OrderCard({
   onAction,
 }: {
   order: WorkOrder;
-  all: WorkOrder[];
+  position: number;
   user: UserProfile | null;
   expanded: boolean;
   toggle: (id: string) => void;
@@ -296,7 +301,7 @@ const OrderCard = memo(function OrderCard({
 }) {
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
-  const q = useMemo(() => queueState(order, all), [order, all]);
+  const q = { done: order.status === 'Done', inProgress: order.status !== 'Done' && position === 1, place: position || order.placeInLine || 1, ahead: Math.max(0, (position || order.placeInLine || 1) - 1) };
   const [spanish, setSpanish] = useState(false);
   const sourceKey = JSON.stringify([order.title, order.description, order.comments]);
   const [translation, setTranslation] = useState<{ key: string; value: TranslatedContent } | null>(null);

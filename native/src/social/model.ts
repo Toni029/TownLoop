@@ -140,6 +140,21 @@ export function owns(
 ) {
   return !!user && String(item.authorId) === String(user.id);
 }
+type AvatarRecord = { authorId?: string | number; authorEmail?: string; authorAvatar?: string };
+/** Build once per directory change, preserving first-match and signed-in-user precedence. */
+export function avatarResolver(people: UserProfile[], user: UserProfile | null) {
+  const byId = new Map<string, UserProfile>();
+  const byEmail = new Map<string, UserProfile>();
+  for (const person of [...(user ? [user] : []), ...people]) {
+    const id = String(person.id), email = person.email?.toLowerCase();
+    if (!byId.has(id)) byId.set(id, person);
+    if (email && !byEmail.has(email)) byEmail.set(email, person);
+  }
+  return (record: AvatarRecord) => {
+    const person = record.authorId ? byId.get(String(record.authorId)) : byEmail.get(record.authorEmail?.toLowerCase() || '');
+    return person?.avatarUrl || person?.avatar_url || person?.avatar || record.authorAvatar || '';
+  };
+}
 export function withAvatar<
   T extends {
     authorId?: string | number;
@@ -147,26 +162,7 @@ export function withAvatar<
     authorAvatar?: string;
     comments?: CommentItem[];
   },
->(item: T, people: UserProfile[], user: UserProfile | null): T {
-  const resolve = (record: {
-    authorId?: string | number;
-    authorEmail?: string;
-    authorAvatar?: string;
-  }) => {
-    const found = [...(user ? [user] : []), ...people].find((p) =>
-      record.authorId
-        ? String(p.id) === String(record.authorId)
-        : !!record.authorEmail &&
-          p.email?.toLowerCase() === record.authorEmail.toLowerCase(),
-    );
-    return (
-      found?.avatarUrl ||
-      found?.avatar_url ||
-      found?.avatar ||
-      record.authorAvatar ||
-      ""
-    );
-  };
+>(item: T, people: UserProfile[], user: UserProfile | null, resolve = avatarResolver(people, user)): T {
   return {
     ...item,
     authorAvatar: resolve(item),

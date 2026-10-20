@@ -61,11 +61,17 @@ export function useLiveCollection<T>(
   }, [key, source]);
   useEffect(() => {
     if (!key) return;
+    // Subscription-local cache: unchanged documents keep their object identity.
+    const decoded = new Map<string, T>();
     return subscribeSafely(
       (next, fail) =>
         onSnapshot(
           source,
-          (snapshot) =>
+          (snapshot) => {
+            for (const change of snapshot.docChanges()) {
+              if (change.type === 'removed') decoded.delete(change.doc.id);
+              else decoded.set(change.doc.id, read(change.doc.id, change.doc.data({ serverTimestamps: "estimate" })));
+            }
             next(
               (residentOrders
                 ? [...snapshot.docs].sort(
@@ -74,8 +80,9 @@ export function useLiveCollection<T>(
                       (a.data().createdAt?.toMillis?.() || 0),
                   )
                 : snapshot.docs
-              ).map((d) => read(d.id, d.data({ serverTimestamps: "estimate" }))),
-            ),
+              ).map((d) => decoded.get(d.id)!),
+            );
+          },
           fail,
         ),
       (items: T[]) => setOwned({ key, items, loading: false, error: "" }),

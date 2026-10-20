@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { View, Animated } from "react-native";
 import { useReducedMotion } from "../home/hooks";
 import { CheckCircle2 } from "lucide-react-native";
@@ -213,6 +213,7 @@ function NewsToast({
   message: string;
   onDone: () => void;
 }) {
+  const finish = useEffectEvent(onDone);
   const [progress] = useState(() => new Animated.Value(0));
   const reduced = useReducedMotion();
   useEffect(() => {
@@ -225,12 +226,12 @@ function NewsToast({
         mass: 0.35,
         useNativeDriver: true,
       }).start();
-    const timer = setTimeout(onDone, 4000);
+    const timer = setTimeout(() => finish(), 4000);
     return () => {
       clearTimeout(timer);
       progress.stopAnimation();
     };
-  }, [message, onDone, progress, reduced]);
+  }, [message, progress, reduced]);
   return (
     <Animated.View
       accessibilityRole="alert"

@@ -1,7 +1,7 @@
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { AdminMenu } from "./AdminMenu";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -408,8 +408,8 @@ export function ProfileMenu({
       setError(e.message || "Unable to mark messages read."),
     );
   }, [view, conversation]);
-  const friends = user ? neighbors(data.directory.items, user) : [];
-  const visibleFriends = friends.filter((p) => matchesNeighbor(p, search));
+  const friends = useMemo(() => user ? neighbors(data.directory.items, user) : [], [data.directory.items, user]);
+  const visibleFriends = useMemo(() => friends.filter((p) => matchesNeighbor(p, search)), [friends, search]);
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
   const panel = {

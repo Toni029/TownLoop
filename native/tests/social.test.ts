@@ -175,3 +175,15 @@ test("inbox ordering preserves legacy chats without timestamps and hides other r
   );
   assert.equal(chats[0].id, "legacy");
 });
+
+test('indexed avatars preserve current-user precedence, email fallback and historical photos', async () => {
+  const { avatarResolver } = await import('../src/social/model.ts');
+  const person = {id:'one',name:'Neighbor',email:'Neighbor@example.invalid',role:'resident' as const,avatarUrl:'directory.jpg'};
+  const current = {...person,avatarUrl:'current.jpg'};
+  const resolve = avatarResolver([person,{...person,avatarUrl:'duplicate.jpg'}],current);
+  assert.equal(resolve({authorId:'one'}),'current.jpg');
+  assert.equal(resolve({authorEmail:'NEIGHBOR@example.invalid'}),'current.jpg');
+  assert.equal(resolve({authorId:'unknown',authorEmail:person.email,authorAvatar:'historic.jpg'}),'historic.jpg');
+  const record = {authorId:'one',comments:[{id:'c',author:'Neighbor',authorId:'one',text:'Hello',timestamp:'Now'}]};
+  assert.deepEqual(withAvatar(record,[person],current,resolve),withAvatar(record,[person],current));
+});

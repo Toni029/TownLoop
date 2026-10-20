@@ -27,6 +27,7 @@ export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps & { extra
   }, [props.horizontal]);
   const schedule = useCallback(() => {
     clearTimeout(timer.current);
+    if (Platform.OS === 'web' || !focused.current?.isFocused()) return;
     timer.current = setTimeout(reveal, 80);
   }, [reveal]);
   useEffect(() => {
