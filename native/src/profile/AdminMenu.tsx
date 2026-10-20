@@ -253,7 +253,7 @@ export function AdminMenu({
         entering={(tabDirection > 0 ? FadeInRight : FadeInLeft).duration(190).reduceMotion(ReduceMotion.System)
           // Callback runs after UI-thread animation, not during React render.
           // eslint-disable-next-line react-hooks/refs
-          .withCallback(finished => { if (finished) runOnJS(finishTabTransition)(); })}
+          .withCallback(finished => { 'worklet'; if (finished) runOnJS(finishTabTransition)(); })}
         style={{ flex: 1 }}
       >
         <ScrollView
