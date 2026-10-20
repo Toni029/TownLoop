@@ -1,8 +1,8 @@
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "./SystemBars";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion, Easing } from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
-import { useEffect, useState, useRef, type PropsWithChildren } from "react";
+import { useEffect, useState, type PropsWithChildren } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -30,6 +30,7 @@ export function ProductDialog({
   initiallyFull = false,
   sheet = false,
   serif = false,
+  responsiveResize = false,
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
@@ -44,8 +45,7 @@ export function ProductDialog({
   const dark = !!presentation?.dark;
   const [bodyHeight, setBodyHeight] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
-  const [layoutReady, setLayoutReady] = useState(false);
-  const ready = layoutReady && (!sheet || !!(bodyHeight && headerHeight));
+  const ready = !sheet || !!(bodyHeight && headerHeight);
   const [full, setFull] = useState(initiallyFull);
   const { height, width } = useWindowDimensions();
   const [availableHeight, setAvailableHeight] = useState(height);
@@ -55,45 +55,26 @@ export function ProductDialog({
   const target = full
     ? availableHeight
     : sheet
-      ? Math.max(1, Math.min(
+      ? Math.min(
           availableHeight * 0.92 - insets.top - insets.bottom,
           (bodyHeight || 470) +
             (headerHeight || 100) +
             (bottomSheet ? 28 : 0) +
             insets.bottom,
-        ))
+        )
       : Math.min(660, availableHeight * 0.72);
   const size = useSharedValue(target);
   const progress = useSharedValue(0);
   const drag = useSharedValue(0);
   const [closing, setClosing] = useState(false);
-  const opened = useRef(false);
-  const lastTarget = useSharedValue(target);
-  const spring = { damping: 30, stiffness: 320, mass: 0.8, overshootClamping: true, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System };
   useEffect(() => {
-    if (!ready || closing) return;
-    if (!opened.current) {
-      opened.current = true;
-      lastTarget.set(target);
-      // Measure once offscreen, then slide a settled panel in. No simultaneous height tween.
-      size.set(target);
-      progress.set(withTiming(1, { duration: reduced ? 0 : 280, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System }));
-    } else if (lastTarget.get() !== target) {
-      lastTarget.set(target);
-      size.set(withSpring(target, { damping: 30, stiffness: 320, mass: 0.8, overshootClamping: true, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }));
-    }
-  }, [ready, closing, target, reduced, size, progress, lastTarget]);
-  useEffect(() => () => { cancelAnimation(size); cancelAnimation(progress); cancelAnimation(drag); }, [size, progress, drag]);
-  const compactTarget = sheet
-    ? Math.max(1, Math.min(availableHeight * 0.92 - insets.top - insets.bottom, (bodyHeight || 470) + (headerHeight || 100) + (bottomSheet ? 28 : 0) + insets.bottom))
-    : Math.min(660, availableHeight * 0.72);
-  const settle = (nextFull: boolean, velocity = 0) => {
-    const next = nextFull ? availableHeight : compactTarget;
-    lastTarget.set(next);
-    setFull(nextFull);
-    drag.set(withTiming(0, { duration: reduced ? 0 : 160 }));
-    size.set(withSpring(next, { ...spring, velocity: -velocity }));
-  };
+    if (ready) progress.set(withSpring(1, { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }));
+    return () => cancelAnimation(progress);
+  }, [progress, ready, reduced]);
+  useEffect(() => {
+    size.set(responsiveResize ? withSpring(target, { damping: 26, stiffness: 280, mass: 0.8, overshootClamping: true, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }) : withTiming(target, { duration: reduced ? 0 : 240 }));
+    return () => cancelAnimation(size);
+  }, [size, target, reduced, responsiveResize]);
   const close = () => {
     if (busy || closing) return;
     setClosing(true);
@@ -101,24 +82,17 @@ export function ProductDialog({
       if (finished) runOnJS(onClose)();
     }));
   };
-  const gestureStart = useSharedValue(target);
-  const pan = Gesture.Pan().enabled(!busy && !closing && ready).activeOffsetY([-12, 12]).failOffsetX([-24, 24])
-    .onStart(() => { cancelAnimation(size); cancelAnimation(drag); gestureStart.set(size.get()); })
-    .onUpdate(event => {
-      if (reduced) return;
-      if (full || event.translationY < 0) {
-        // Resize directly with the finger; don't add a second translation spring.
-        size.set(Math.max(compactTarget, Math.min(availableHeight, gestureStart.get() - event.translationY)));
-        drag.set(0);
-      } else drag.set(Math.max(0, event.translationY));
-    })
+  const pan = Gesture.Pan().enabled(!busy).activeOffsetY([-12, 12]).failOffsetX([-24, 24])
+    .onUpdate(event => { drag.value = reduced ? 0 : Math.max(0, event.translationY); })
     .onEnd(event => {
       if (event.translationY > 80 || event.velocityY > 800) {
-        if (full) runOnJS(settle)(false, event.velocityY);
+        if (full) { runOnJS(setFull)(false); drag.value = withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined); }
         else runOnJS(close)();
-      } else if (event.translationY < -60 || event.velocityY < -800) runOnJS(settle)(true, event.velocityY);
-      else runOnJS(settle)(full, event.velocityY);
-    }).onFinalize((_event, success) => { if (!success) runOnJS(settle)(full); });
+      } else {
+        if (event.translationY < -60 || event.velocityY < -800) runOnJS(setFull)(true);
+        drag.value = withSpring(0, { damping: 26, stiffness: 280 });
+      }
+    }).onFinalize((_event, success) => { if (!success) drag.value = withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined); });
   const sizeStyle = useAnimatedStyle(() => ({ height: size.value }));
   const panelMotion = useAnimatedStyle(() => ({
     opacity: Math.min(1, progress.value),
@@ -140,7 +114,7 @@ export function ProductDialog({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View
-          onLayout={event => { setAvailableHeight(event.nativeEvent.layout.height); setLayoutReady(true); }}
+          onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}
           style={{
             flex: 1,
             backgroundColor: "transparent",
@@ -223,7 +197,7 @@ export function ProductDialog({
                   </View>
                 )}
                 <View
-                  onLayout={(e) => setHeaderHeight(previous => previous || e.nativeEvent.layout.height)}
+                  onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
                   style={[
                     s.row,
                     {
@@ -266,7 +240,7 @@ export function ProductDialog({
                       full ? "Exit full screen" : "Expand to full screen"
                     }
                     disabled={busy}
-                    onPress={() => settle(!full)}
+                    onPress={() => setFull((v) => !v)}
                     hitSlop={8}
                     style={{
                       width: 32,
@@ -305,7 +279,7 @@ export function ProductDialog({
                 <ScrollView
                   keyboardDismissMode="interactive"
                   keyboardShouldPersistTaps="handled"
-                  onContentSizeChange={(_, h) => setBodyHeight(previous => previous || h)}
+                  onContentSizeChange={(_, h) => setBodyHeight(h)}
                   contentContainerStyle={{
                     padding: 20,
                     paddingTop: sheet ? 6 : 16,
