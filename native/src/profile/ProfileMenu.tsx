@@ -360,7 +360,9 @@ export function ProfileMenu({
     [closing, setClosing] = useState(false),
     [view, setView] = useState<MenuView>("menu");
   const history = useRef<MenuView[]>([]);
-  const [direction, setDirection] = useState(1);
+  const direction = useSharedValue(1);
+  const navigationEpoch = useRef(0);
+  const pendingEntrance = useRef<number | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const transitionLock = useRef(false);
   const scene = useSharedValue(1);
@@ -425,6 +427,8 @@ export function ProfileMenu({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setView("menu");
       history.current = [];
+      navigationEpoch.current += 1;
+      pendingEntrance.current = null;
       transitionLock.current = false;
       setTransitioning(false);
       cancelAnimation(scene);
@@ -488,6 +492,8 @@ export function ProfileMenu({
     if (openingFrame.current !== null)
       cancelAnimationFrame(openingFrame.current);
     cancelAnimation(scene);
+    navigationEpoch.current += 1;
+    pendingEntrance.current = null;
     transitionLock.current = false;
     setClosing(true);
     afterClose.current = next || null;
@@ -541,22 +547,31 @@ export function ProfileMenu({
   const sceneMotion = useAnimatedStyle(() => ({
     opacity: scene.value,
     transform: [
-      { translateX: direction * (1 - scene.value) * 18 },
+      { translateX: direction.value * (1 - scene.value) * 18 },
       { scale: 0.985 + scene.value * 0.015 },
     ],
   }));
-  function finishNavigation(next: MenuView, backwards: boolean) {
-    setView(next);
-    setDirection(backwards ? -1 : 1);
-    setRecipientOpen(false);
-    scene.set(
-      withTiming(1, {
-        duration: reduced ? 0 : 220,
-        easing: Easing.bezier(0.16, 1, 0.3, 1),
-      }),
-    );
+  function unlockNavigation(epoch: number) {
+    if (epoch !== navigationEpoch.current) return;
     transitionLock.current = false;
     setTransitioning(false);
+  }
+  function enterNavigation() {
+    const epoch = pendingEntrance.current;
+    if (epoch === null || closing) return;
+    pendingEntrance.current = null;
+    // The new keyed panel has now completed native layout. Start only this entrance.
+    scene.set(withTiming(1, {
+      duration: reduced ? 0 : 190,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+    }, finished => { if (finished) runOnJS(unlockNavigation)(epoch); }));
+  }
+  function finishNavigation(next: MenuView, backwards: boolean, epoch: number) {
+    if (epoch !== navigationEpoch.current) return;
+    direction.set(backwards ? -1 : 1);
+    pendingEntrance.current = epoch;
+    setRecipientOpen(false);
+    setView(next);
   }
   function go(next: MenuView, backwards = false) {
     if (transitionLock.current || closing || next === view) return;
@@ -571,15 +586,16 @@ export function ProfileMenu({
         backwards = true;
       } else history.current.push(view);
     }
-    setDirection(backwards ? 1 : -1);
+    const epoch = ++navigationEpoch.current;
+    direction.set(backwards ? 1 : -1);
     scene.set(
-      withTiming(0, { duration: reduced ? 0 : 90 }, (finished) => {
-        if (finished) runOnJS(finishNavigation)(next, backwards);
+      withTiming(0, { duration: reduced ? 0 : 70 }, (finished) => {
+        if (finished) runOnJS(finishNavigation)(next, backwards, epoch);
       }),
     );
   }
   function back() {
-    if (transitionLock.current) return;
+    if (transitionLock.current || closing) return;
     go(history.current.pop() || "menu", true);
   }
   async function act(action: () => Promise<unknown>, success?: string) {
@@ -768,6 +784,8 @@ export function ProfileMenu({
                 <X size={20} color={ink} />
               </Pressable>
               <Animated.View
+                key={view}
+                onLayout={enterNavigation}
                 pointerEvents={transitioning ? "none" : "auto"}
                 style={[{ flex: 1 }, sceneMotion]}
               >

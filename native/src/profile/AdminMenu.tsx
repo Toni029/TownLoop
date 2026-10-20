@@ -1,8 +1,8 @@
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { adminDirectory, removeAttendeePatch } from "./adminModel";
 import { CecilPinesMark } from "../components/CecilPinesMark";
-import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
-import { useState } from "react";
+import Animated, { FadeInLeft, FadeInRight, ReduceMotion, runOnJS } from "react-native-reanimated";
+import { useRef, useState } from "react";
 import {
 
   ActivityIndicator,
@@ -62,6 +62,18 @@ export function AdminMenu({
       run: () => Promise<unknown>;
     } | null>(null),
     [roles, setRoles] = useState("");
+  const tabLock = useRef(false);
+  const activeTab = useRef("residents");
+  const [tabDirection, setTabDirection] = useState(1);
+  function finishTabTransition() { if (activeTab.current === tab) tabLock.current = false; }
+  function changeTab(next: string) {
+    if (next === tab || tabLock.current || busy) return;
+    const order = ['residents', 'rsvp', 'database'];
+    tabLock.current = true;
+    activeTab.current = next;
+    setTabDirection(order.indexOf(next) > order.indexOf(tab) ? 1 : -1);
+    setTab(next);
+  }
   const [pendingOnly, setPendingOnly] = useState(false);
   const events = useLiveCollection("community_events", readNewsEvent);
   const ink = dark ? "#f1f5f9" : "#1c1917",
@@ -203,7 +215,7 @@ export function AdminMenu({
               key={String(id)}
               accessibilityRole="tab"
               accessibilityState={{ selected: tab === id }}
-              onPress={() => setTab(String(id))}
+              onPress={() => changeTab(String(id))}
               style={{
                 flex: 1,
                 alignItems: "center",
@@ -238,7 +250,10 @@ export function AdminMenu({
       </View>
       <Animated.View
         key={tab}
-        entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
+        entering={(tabDirection > 0 ? FadeInRight : FadeInLeft).duration(190).reduceMotion(ReduceMotion.System)
+          // Callback runs after UI-thread animation, not during React render.
+          // eslint-disable-next-line react-hooks/refs
+          .withCallback(finished => { if (finished) runOnJS(finishTabTransition)(); })}
         style={{ flex: 1 }}
       >
         <ScrollView
