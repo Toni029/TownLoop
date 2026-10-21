@@ -25,6 +25,8 @@ import {
   readThread,
   officeManager,
   receiptMessages,
+  profileRequestText,
+  type ProfileDetails,
   type Category,
   type Thread,
 } from "./model";
@@ -167,14 +169,18 @@ export async function sendMessage(
   subject: string,
   body: string,
   thread?: Thread,
+  options: {officeDirect?: boolean; officeRequest?: boolean} = {},
 ) {
   const user = await approvedUser();
   if (!body.trim() || body.length > 10000)
     throw new Error("Enter a message of up to 10,000 characters.");
-  const manager =
+  if (options.officeDirect && (category !== "friend" || !officeManager(recipient) || recipient.approved === false))
+    throw new Error("Select an approved Admin or VIP recipient.");
+  if (options.officeRequest && category !== "office") throw new Error("Profile requests must go to the community office.");
+  const manager = !options.officeRequest && (
     category === "office"
       ? officeManager(user)
-      : category === "maintenance" && isCrew(user);
+      : category === "maintenance" && isCrew(user));
   const target = category === "friend" || manager ? recipient : user;
   if (
     !target.id ||
@@ -191,7 +197,7 @@ export async function sendMessage(
       id: `msg_${now}_${Math.random().toString(36).slice(2, 9)}`,
       senderId: category === "friend" ? participantKey(user) : String(user.id),
       senderName: user.name,
-      senderRole:
+      senderRole: options.officeRequest ? user.role :
         category === "friend"
           ? user.role
           : category === "office" && manager
@@ -225,6 +231,7 @@ export async function sendMessage(
         subject.trim().slice(0, 160) || existing.subject || "Conversation",
     };
     if (category === "friend") {
+      if (options.officeDirect) patch.officeDirect = true;
       patch.participantIds = [
         ...new Set([
           ...(existing.participantIds || []),
@@ -241,6 +248,7 @@ export async function sendMessage(
           avatar: p.avatar_url || p.avatarUrl || "",
           phone: p.phone || "",
           apt: p.address || "",
+          role: p.role,
         }));
       patch.unreadBy = [
         ...new Set([
@@ -319,6 +327,12 @@ export async function manageResident(
   await updateDoc(doc(db, "users", id), patch);
 }
 
+/** Submit for office review; never write the user's profile here. */
+export async function requestProfileUpdate(input: ProfileDetails) {
+  const user = await approvedUser();
+  const message = profileRequestText(user, input);
+  await sendMessage('office', user, 'Profile update request', message, undefined, {officeRequest:true});
+}
 export async function updateOwnDetails(input: {
   phone: string;
   address: string;

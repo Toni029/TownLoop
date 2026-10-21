@@ -2,7 +2,7 @@
 export function sheetStops(height: number, topInset: number) {
   const viewport = Math.max(1, height);
   const full = Math.min(Math.max(0, topInset), Math.max(0, viewport - 1));
-  return { full, half: Math.max(full, viewport * 0.46), hidden: viewport + 24 };
+  return { full, half: Math.max(full, viewport * 0.24), hidden: viewport + 24 };
 }
 export function sheetDestination(y: number, velocity: number, full: number, half: number) {
   'worklet';

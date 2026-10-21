@@ -104,7 +104,7 @@ export function readThread(
     recipient = {
       ...other,
       address: other.apt || other.address || "",
-      role: "resident",
+      role: other.role || "resident",
     };
     unread = (data.unreadBy || []).some((v: string) =>
       mine.includes(v.toLowerCase()),
@@ -248,4 +248,17 @@ export function matchesNeighbor(person: UserProfile, query: string): boolean {
     .join(" ")
     .toLowerCase()
     .includes(query.trim().toLowerCase());
+}
+
+export type ProfileDetails = {phone:string;address:string;wing:string;emergencyContact:string;dietaryPreference:string};
+export function profileRequestText(user: UserProfile, input: ProfileDetails) {
+  const labels = {phone:'Resident Phone',address:'Residency Address',wing:'Wing',emergencyContact:'Emergency Contact',dietaryPreference:'Dietary Preference'};
+  const current = {phone:user.phone || '',address:user.address || user.unit || '',wing:user.wing || '',emergencyContact:user.emergencyContact || user.emergency_contact || '',dietaryPreference:user.dietaryPreference || user.dietary_preference || ''};
+  const changes = (Object.keys(labels) as (keyof ProfileDetails)[]).flatMap(key => {
+    if(typeof input[key] !== 'string' || input[key].length > 300) throw new Error('Profile fields must be under 300 characters.');
+    const next=input[key].trim();
+    return next === current[key].trim() ? [] : [`${labels[key]}: ${current[key] || '(not provided)'} → ${next || '(remove)'}`];
+  });
+  if(!changes.length) throw new Error('Change at least one field before requesting an update.');
+  return `Profile update request from ${user.name} (${user.email || user.id})\n\n${changes.join('\n')}\n\nPlease review these changes before updating my profile.`;
 }

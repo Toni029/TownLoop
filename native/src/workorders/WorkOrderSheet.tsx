@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState, type PropsWithChildren } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode, type PropsWithChildren } from 'react';
 import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming, ReduceMotion } from 'react-native-reanimated';
@@ -13,8 +13,8 @@ import { Copy, s } from '../news/ui';
 import { sheetStops, sheetDestination } from './sheetGeometry';
 
 /** Work Orders only. One UI-thread position drives both movement and visible scroll bounds. */
-export function WorkOrderSheet({ title, subtitle, children, busy = false, dismissRequested = false, onClose }: PropsWithChildren<{
-  title: string; subtitle?: string; busy?: boolean; dismissRequested?: boolean; onClose: () => void;
+export function WorkOrderSheet({ title, subtitle, children, footer, busy = false, dismissRequested = false, onClose }: PropsWithChildren<{
+  title: string; subtitle?: string; footer?: ReactNode; busy?: boolean; dismissRequested?: boolean; onClose: () => void;
 }>) {
   const presentation = usePresentation(), dark = !!presentation?.dark;
   const { height, width } = useWindowDimensions(), insets = useSafeAreaInsets();
@@ -108,7 +108,8 @@ export function WorkOrderSheet({ title, subtitle, children, busy = false, dismis
                   <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={busy} onPress={close} hitSlop={8} style={{width:32,height:32,alignItems:'center',justifyContent:'center',borderRadius:16,backgroundColor:dark?'#1e293b':'#f5f5f4'}}><X size={16} color="#78716c"/></Pressable>
                 </View>
               </View></GestureDetector>
-              <ScrollView keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" extraKeyboardSpace contentContainerStyle={{padding:20,paddingTop:6,gap:12}}>{children}</ScrollView>
+              <ScrollView style={{flex:1}} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" extraKeyboardSpace contentContainerStyle={{padding:20,paddingTop:6,gap:12}}>{children}</ScrollView>
+              {!!footer && <View style={{paddingHorizontal:20,paddingTop:10,paddingBottom:16,gap:10}}>{footer}</View>}
             </SafeAreaView>
           </Animated.View>
         </View>

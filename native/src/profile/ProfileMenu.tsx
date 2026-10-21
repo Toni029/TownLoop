@@ -78,7 +78,7 @@ import {
   markRead,
   sendMessage,
   updatePhoto,
-  updateOwnDetails,
+  requestProfileUpdate,
   useProfileData,
 } from "./data";
 import {
@@ -411,6 +411,8 @@ export function ProfileMenu({
     );
   }, [view, conversation]);
   const friends = useMemo(() => user ? neighbors(data.directory.items, user) : [], [data.directory.items, user]);
+  const officeRecipients = useMemo(() => data.directory.items.filter(p => p.approved !== false && officeManager(p) && String(p.id) !== String(user?.id)), [data.directory.items, user?.id]);
+  const composeRecipients = category === "office" ? officeRecipients : friends;
   const visibleFriends = useMemo(() => friends.filter((p) => matchesNeighbor(p, search)), [friends, search]);
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
@@ -618,6 +620,15 @@ export function ProfileMenu({
   async function copy(value: string) {
     await Clipboard.setStringAsync(value);
     setNotice("Copied to clipboard");
+  }
+  function editProfile() {
+    if (!user) return;
+    setDetails({
+      phone: user.phone || '', address: user.address || user.unit || '', wing: user.wing || '',
+      emergencyContact: user.emergencyContact || user.emergency_contact || '',
+      dietaryPreference: user.dietaryPreference || user.dietary_preference || '',
+    });
+    go('editProfile');
   }
   function compose(target: Category, recipient?: UserProfile) {
     setRecipientOpen(false);
@@ -872,64 +883,6 @@ export function ProfileMenu({
                         {friends.length} neighbors
                       </Text>
                     )}
-                    {view === "editProfile" && (
-                      <>
-                        <View
-                          style={[
-                            panel,
-                            { padding: 16, borderRadius: 20, gap: 8 },
-                          ]}
-                        >
-                          <Text style={[s.name, { color: ink }]}>
-                            {user.name}
-                          </Text>
-                          <Text style={[s.small, { color: muted }]}>
-                            {user.email}
-                          </Text>
-                        </View>
-                        {(
-                          [
-                            ["phone", "Resident Phone"],
-                            ["address", "Residency Address"],
-                            ["wing", "Wing"],
-                            ["emergencyContact", "Emergency Contact"],
-                            ["dietaryPreference", "Dietary Preference"],
-                          ] as const
-                        ).map(([key, label]) => (
-                          <View key={key} style={{ gap: 6 }}>
-                            <Text style={[s.rowTitle, { color: muted }]}>
-                              {label}
-                            </Text>
-                            <TextInput
-                              accessibilityLabel={label}
-                              value={details[key]}
-                              editable={!busy}
-                              maxLength={300}
-                              keyboardType={
-                                key === "phone" ? "phone-pad" : "default"
-                              }
-                              onChangeText={(value) =>
-                                setDetails((current) => ({
-                                  ...current,
-                                  [key]: value,
-                                }))
-                              }
-                              style={textInput}
-                            />
-                          </View>
-                        ))}
-                        <Action
-                          title={busy ? "Saving…" : "Save Profile"}
-                          onPress={() =>
-                            void act(async () => {
-                              await updateOwnDetails(details);
-                              go("account");
-                            })
-                          }
-                        />
-                        <Action title="Cancel" onPress={back} />
-                      </>
-                    )}
                     {view === "account" && (
                       <Text
                         style={{
@@ -1061,6 +1014,65 @@ export function ProfileMenu({
                       <Text accessibilityLiveRegion="polite" style={s.notice}>
                         {notice}
                       </Text>
+                    )}
+                    {view === "editProfile" && (
+                      <>
+                        <View
+                          style={[
+                            panel,
+                            { padding: 16, borderRadius: 20, gap: 8 },
+                          ]}
+                        >
+                          <Text style={[s.name, { color: ink }]}>
+                            {user.name}
+                          </Text>
+                          <Text style={[s.small, { color: muted }]}>
+                            {user.email}
+                          </Text>
+                        </View>
+                        {(
+                          [
+                            ["phone", "Resident Phone"],
+                            ["address", "Residency Address"],
+                            ["wing", "Wing"],
+                            ["emergencyContact", "Emergency Contact"],
+                            ["dietaryPreference", "Dietary Preference"],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <View key={key} style={{ gap: 6 }}>
+                            <Text style={[s.rowTitle, { color: muted }]}>
+                              {label}
+                            </Text>
+                            <TextInput
+                              accessibilityLabel={label}
+                              value={details[key]}
+                              editable={!busy}
+                              maxLength={300}
+                              keyboardType={
+                                key === "phone" ? "phone-pad" : "default"
+                              }
+                              onChangeText={(value) =>
+                                setDetails((current) => ({
+                                  ...current,
+                                  [key]: value,
+                                }))
+                              }
+                              style={textInput}
+                            />
+                          </View>
+                        ))}
+                        <Action
+                          title={busy ? "Sending Request…" : "Request Profile Update"}
+                          onPress={() =>
+                            void act(async () => {
+                              await requestProfileUpdate(details);
+                              go("account");
+                              setNotice("Profile update requested. The office will review your changes.");
+                            })
+                          }
+                        />
+                        <Action title="Cancel" onPress={back} />
+                      </>
                     )}
                     {view === "menu" && (
                       <>
@@ -1271,17 +1283,17 @@ export function ProfileMenu({
                         )}
                         {data.threads
                           .filter(
-                            (t) => filter === "all" || t.category === filter,
+                            (t) => filter === "all" || (t.data.officeDirect ? "office" : t.category) === filter,
                           )
                           .map((t) => {
                             const tone =
-                              t.category === "office"
+                              (t.category === "office" || t.data.officeDirect)
                                 ? "#2563eb"
                                 : t.category === "maintenance"
                                   ? "#d97706"
                                   : "#059669";
                             const Glyph =
-                              t.category === "office"
+                              (t.category === "office" || t.data.officeDirect)
                                 ? Building2
                                 : t.category === "maintenance"
                                   ? Wrench
@@ -1366,9 +1378,9 @@ export function ProfileMenu({
                                             textTransform: "uppercase",
                                           }}
                                         >
-                                          {t.category === "friend"
+                                          {t.data.officeDirect ? "Office" : t.category === "friend"
                                             ? "Friend"
-                                            : t.category === "office"
+                                            : (t.category === "office" || t.data.officeDirect)
                                               ? "Office"
                                               : "Crew"}
                                         </Text>
@@ -1380,9 +1392,9 @@ export function ProfileMenu({
                                           color: muted,
                                         }}
                                       >
-                                        {t.category === "friend"
+                                        {t.data.officeDirect ? "Private office message" : t.category === "friend"
                                           ? "Resident"
-                                          : t.category === "office"
+                                          : (t.category === "office" || t.data.officeDirect)
                                             ? officeManager(user)
                                               ? "Resident"
                                               : "Community Office"
@@ -1466,7 +1478,7 @@ export function ProfileMenu({
                         {!data.loading &&
                           data.errors.length === 0 &&
                           !data.threads.some(
-                            (t) => filter === "all" || t.category === filter,
+                            (t) => filter === "all" || (t.data.officeDirect ? "office" : t.category) === filter,
                           ) && (
                             <View
                               style={{
@@ -1750,13 +1762,13 @@ export function ProfileMenu({
                             ]}
                           >
                             {category === "office"
-                              ? "Contact your community office in one private conversation."
+                              ? "Choose an Admin or VIP for a private conversation."
                               : category === "maintenance"
                                 ? "Your maintenance team can respond in this shared conversation."
                                 : "Choose a resident to start a private conversation."}
                           </Text>
                         </View>
-                        {category === "friend" && (
+                        {(category === "friend" || category === "office") && (
                           <>
                             {data.directory.loading && (
                               <ActivityIndicator color="#059669" />
@@ -1788,7 +1800,7 @@ export function ProfileMenu({
                                 >
                                   {person
                                     ? `${person.name}${person.address ? ` · ${person.address}` : ""}`
-                                    : "Select a resident…"}
+                                    : category === "office" ? "Select an Admin or VIP…" : "Select a resident…"}
                                 </Text>
                                 <ChevronDown size={18} color={muted} />
                               </Pressable>
@@ -1801,17 +1813,17 @@ export function ProfileMenu({
                                     nestedScrollEnabled
                                     style={{ maxHeight: 180 }}
                                   >
-                                    {friends.length === 0 && (
+                                    {composeRecipients.length === 0 && (
                                       <Text
                                         style={[
                                           s.small,
                                           { color: muted, padding: 16 },
                                         ]}
                                       >
-                                        No residents available.
+                                        {category === "office" ? "No Admin or VIP recipients available." : "No residents available."}
                                       </Text>
                                     )}
-                                    {friends.map((p) => (
+                                    {composeRecipients.map((p) => (
                                       <Pressable
                                         key={String(p.id)}
                                         accessibilityRole="button"
@@ -1884,13 +1896,15 @@ export function ProfileMenu({
                                 throw new Error(
                                   "Enter a subject for your message.",
                                 );
-                              if (category === "friend" && !person)
-                                throw new Error("Select a resident first.");
+                              if ((category === "friend" || category === "office") && !person)
+                                throw new Error("Select a recipient first.");
                               await sendMessage(
-                                category,
+                                category === "office" ? "friend" : category,
                                 person || user,
                                 subject,
                                 body,
+                                undefined,
+                                category === "office" ? {officeDirect: true} : undefined,
                               );
                               setBody("");
                               go("inbox");
@@ -2291,29 +2305,11 @@ export function ProfileMenu({
                         ))}
                         <Action
                           title="Edit Profile"
-                          onPress={() => {
-                            setDetails({
-                              phone: user.phone || "",
-                              address: user.address || user.unit || "",
-                              wing: user.wing || "",
-                              emergencyContact:
-                                user.emergencyContact ||
-                                user.emergency_contact ||
-                                "",
-                              dietaryPreference:
-                                user.dietaryPreference ||
-                                user.dietary_preference ||
-                                "",
-                            });
-                            go("editProfile");
-                          }}
+                          onPress={editProfile}
                         />
                         <Pressable
                           accessibilityRole="button"
-                          onPress={() => {
-                            compose("office");
-                            setSubject("Profile update request");
-                          }}
+                          onPress={editProfile}
                           style={({ pressed }) => ({
                             paddingVertical: 12,
                             borderRadius: 16,

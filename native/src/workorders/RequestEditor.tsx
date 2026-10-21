@@ -74,6 +74,22 @@ export function RequestEditor({
       busy={busy}
       onClose={onClose}
       dismissRequested={dismissRequested}
+      footer={<>
+      {!!error && <ErrorNotice message={error} />}
+      <Action
+        size="large"
+        radius={16}
+        label={
+          busy
+            ? progress !== null
+              ? `Uploading Photos (${progress}%)…`
+              : "Submitting Request…"
+            : "Submit Work Order"
+        }
+        disabled={busy}
+        onPress={() => void submit()}
+      />
+      </>}
     >
       <CategoryPicker value={category} onChange={setCategory} disabled={busy} />
       <Copy style={{ color: "#a8a29e", fontSize: 11, marginTop: -6 }}>
@@ -147,20 +163,7 @@ export function RequestEditor({
           ))}
         </View>
       </View>
-      {!!error && <ErrorNotice message={error} />}
-      <Action
-        size="large"
-        radius={16}
-        label={
-          busy
-            ? progress !== null
-              ? `Uploading Photos (${progress}%)…`
-              : "Submitting Request…"
-            : "Submit Work Order"
-        }
-        disabled={busy}
-        onPress={() => void submit()}
-      />
+
     </WorkOrderSheet>
   );
 }

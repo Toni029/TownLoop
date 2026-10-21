@@ -11,6 +11,7 @@ function fixture(
   uid: string,
   data: Record<string, unknown>,
   role = "resident",
+  existing = true,
 ) {
   const writes: { kind: string; ref: any; patch?: any }[] = [];
   const user = {
@@ -42,7 +43,7 @@ function fixture(
           }),
           runTransaction: async (_db: any, fn: any) =>
             fn({
-              get: async () => ({ exists: () => true, data: () => data }),
+              get: async () => ({ exists: () => existing, data: () => data }),
               set: (ref: any, patch: any) =>
                 writes.push({ kind: "set", ref, patch }),
               delete: (ref: any) => writes.push({ kind: "delete", ref }),
@@ -188,4 +189,27 @@ test("profile detail edits target the signed-in user and cannot change access fi
     /300/,
   );
   assert.equal(actor.writes.length, 1);
+});
+
+test("Office selection sends a participant-restricted direct message to the selected VIP", async () => {
+  const f=fixture('alice',{},'resident',false);
+  const vip={id:'vip',name:'VIP',email:'vip@example.invalid',role:'vip',approved:true};
+  await f.actions.sendMessage('friend',vip,'Office question','Private message',undefined,{officeDirect:true});
+  assert.equal(f.writes.length,1);
+  const w=f.writes[0];assert.equal(w.ref.collection,'resident_chats');assert.equal(w.patch.officeDirect,true);
+  assert.ok(w.patch.participantIds.includes('alice') && w.patch.participantIds.includes('vip'));
+  assert.equal(w.patch.participants.length,2);assert.equal(w.patch.participants[1].role,'vip');
+  assert.equal(w.patch.unreadByVip,undefined);
+  const other=fixture('alice',{},'resident',false);
+  await assert.rejects(other.actions.sendMessage('friend',{...vip,role:'crew'},'Question','Body',undefined,{officeDirect:true}),/Admin or VIP/);
+  assert.equal(other.writes.length,0);
+});
+test("profile edit requests go to the Office team without updating the user profile", async () => {
+  for(const role of ['resident','admin']){
+    const f=fixture('alice',{residentId:'alice',residentEmail:'alice@example.invalid',messages:[]},role);
+    await f.actions.requestProfileUpdate({phone:'123',address:'',wing:'',emergencyContact:'',dietaryPreference:''});
+    assert.equal(f.writes.length,1);const w=f.writes[0];
+    assert.equal(w.kind,'set');assert.equal(w.ref.collection,'office_chats');assert.equal(w.patch.unreadByVip,true);
+    assert.match(w.patch.messages[0].body,/Resident Phone.*123/);assert.equal(w.patch.messages[0].senderRole,role);
+  }
 });
