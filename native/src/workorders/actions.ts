@@ -17,7 +17,7 @@ import type { WorkOrderComment } from "../../../src/types";
 import { db } from "../lib/firebase";
 import { approvedUser } from "../news/actions";
 import { singleFlight } from "../news/model";
-import { readWorkOrder, resolutionPatch, editableResolution } from "./model";
+import { readWorkOrder, resolutionPatch, editableResolution, removeResolutionComment } from "./model";
 export const runWorkOrder = singleFlight();
 export const newOrderId = () => doc(collection(db, "work_orders")).id;
 export async function submitWorkOrder(
@@ -60,7 +60,7 @@ export async function submitWorkOrder(
 }
 export async function changeWorkOrder(
   id: string,
-  action: "delete" | "reopen" | "complete" | "note",
+  action: "delete" | "reopen" | "complete" | "note" | "deleteComment",
   text = "",
   photo = "",
   commentId = doc(collection(db, "work_orders")).id,
@@ -79,6 +79,21 @@ export async function changeWorkOrder(
         if (!canDeleteWorkOrder(order, user))
           throw new Error("You cannot delete this work order.");
         tx.delete(reference);
+        return;
+      }
+      if (action === "deleteComment") {
+        const patch = removeResolutionComment(order, user, text, new Date().toISOString());
+        if (!patch) return;
+        const audit = Array.isArray(snap.data().resolutionCommentDeletions) ? snap.data().resolutionCommentDeletions : [];
+        tx.update(reference, {
+          comments: patch.comments,
+          resolutionCommentDeletions: [...audit, patch.audit],
+          lastResolutionCommentDeletedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          ...(patch.activeIndex < 0 ? {
+            resolutionCommentId: deleteField(), resolutionCommentIndex: deleteField(), resolutionAuthorId: deleteField(),
+          } : { resolutionCommentIndex: patch.activeIndex }),
+        });
         return;
       }
       if (!isCrew(user))

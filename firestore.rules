@@ -175,11 +175,37 @@ service cloud.firestore {
          resource.data.completedBy == currentProfile().name);
     }
 
+    // Managers may remove exactly one resolution, with an append-only audit record.
+    function validResolutionCommentDeletion() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let audit = after.resolutionCommentDeletions;
+      let entry = audit[audit.size() - 1];
+      let removed = entry.comment;
+      let oldId = before.get('resolutionCommentId', '');
+      let hasPointer = after.keys().hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']);
+      return isManager() &&
+        after.diff(before).affectedKeys().hasOnly(['comments', 'resolutionCommentDeletions', 'lastResolutionCommentDeletedAt', 'updatedAt', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) &&
+        removed.role == 'Maintenance Crew' &&
+        (removed.get('kind', '') == 'resolution' || removed.id == oldId ||
+          (before.status == 'Done' && removed.text == before.get('resolutionNote', '') && removed.author == before.get('completedBy', ''))) &&
+        before.comments.hasAny([removed]) && after.comments == before.comments.removeAll([removed]) &&
+        after.comments.size() == before.comments.size() - 1 &&
+        audit == before.get('resolutionCommentDeletions', []).concat([entry]) &&
+        entry.keys().hasOnly(['comment', 'deletedBy', 'deletedAt']) && entry.deletedBy == request.auth.uid && entry.deletedAt is string &&
+        after.lastResolutionCommentDeletedAt == request.time && after.updatedAt == request.time &&
+        ((oldId == '' || removed.id == oldId) ? !hasPointer :
+          (after.resolutionCommentId == oldId && after.resolutionAuthorId == before.resolutionAuthorId &&
+           after.resolutionCommentIndex is int && after.resolutionCommentIndex >= 0 &&
+           after.resolutionCommentIndex < after.comments.size() &&
+           after.comments[after.resolutionCommentIndex] == before.comments[before.resolutionCommentIndex]));
+    }
+
     function validWorkOrderTransition() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      let protected = ['status', 'completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId', 'comments'];
-      return (!changed.hasAny(protected)) ||
-        (currentProfile().role == 'crew' && (
+      let protected = ['status', 'completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId', 'comments', 'resolutionCommentDeletions', 'lastResolutionCommentDeletedAt'];
+      return (!changed.hasAny(protected)) || (isManager() && validResolutionCommentDeletion()) ||
+        (!changed.hasAny(['resolutionCommentDeletions', 'lastResolutionCommentDeletedAt']) && currentProfile().role == 'crew' && (
           (resource.data.status != 'Done' && request.resource.data.status in ['Queued', 'In Progress'] &&
             !changed.hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) &&
             (!changed.hasAny(['comments']) || (request.resource.data.comments.size() == resource.data.comments.size() + 1 &&
@@ -200,7 +226,7 @@ service cloud.firestore {
       allow list: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid);
       allow create: if isApproved() && request.resource.data.userId == request.auth.uid && allocatedTicket(orderId) &&
         request.resource.data.status == 'Queued' &&
-        !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']);
+        !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId', 'resolutionCommentDeletions', 'lastResolutionCommentDeletedAt']);
       allow update: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber']) &&
         validWorkOrderTransition();

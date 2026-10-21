@@ -16,6 +16,7 @@ export interface ActivityEvent {
 export type UserRole = 'admin' | 'staff' | 'vip' | 'crew' | 'resident' | '';
 
 export interface WorkOrderComment {
+  kind?: "resolution";
   authorId?: string;
   editedAt?: string;
   revisions?: { text: string; photoUrl: string; timestamp: string; editedAt: string }[];

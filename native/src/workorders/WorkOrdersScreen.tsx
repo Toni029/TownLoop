@@ -13,7 +13,7 @@ export default function WorkOrdersScreen() {
   const [create,setCreate]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [message,setMessage]=useState('');const lock=useRef(false);
   const act = useCallback(async (id:string,action:OrderAction,text='',photo='') => {
     if(lock.current)return false;lock.current=true;setBusy(true);
-    try {await changeWorkOrder(id,action,text,photo);setMessage(action==='delete'?'Work order deleted':action==='complete'?'Work order completed':action==='reopen'?'Work order reopened':'Comment added');return true;}
+    try {await changeWorkOrder(id,action,text,photo);setMessage(action==='deleteComment'?'Resolution comment deleted':action==='delete'?'Work order deleted':action==='complete'?'Work order completed':action==='reopen'?'Work order reopened':'Comment added');return true;}
     catch(e){setError(e instanceof Error ? e.message : 'Unable to update work order.');return false;}
     finally{lock.current=false;setBusy(false);}
   }, []);

@@ -12,7 +12,7 @@ import {
   UploadTarget,
   useNewsStyles,
 } from "../news/ui";
-import { ProductDialog } from "../components/ProductDialog";
+import { WorkOrderSheet } from "./WorkOrderSheet";
 import { pickAndUpload } from "../components/media";
 import { newOrderId, submitWorkOrder } from "./actions";
 export function RequestEditor({
@@ -26,6 +26,7 @@ export function RequestEditor({
   const dark = !!usePresentation()?.dark;
   const [id] = useState(newOrderId);
   const [category, setCategory] = useState(WORK_ORDER_CATEGORIES[0].name);
+  const [dismissRequested, setDismissRequested] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
@@ -58,7 +59,7 @@ export function RequestEditor({
     try {
       await submitWorkOrder(id, { title, description, category, photos });
       onSaved();
-      onClose();
+      setDismissRequested(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to submit request.");
     } finally {
@@ -67,13 +68,12 @@ export function RequestEditor({
     }
   }
   return (
-    <ProductDialog
-      sheet
-      responsiveResize
+    <WorkOrderSheet
       title="🛠️ New Work Order Request"
       subtitle="Submit an issue to the maintenance crew"
       busy={busy}
       onClose={onClose}
+      dismissRequested={dismissRequested}
     >
       <CategoryPicker value={category} onChange={setCategory} disabled={busy} />
       <Copy style={{ color: "#a8a29e", fontSize: 11, marginTop: -6 }}>
@@ -161,6 +161,6 @@ export function RequestEditor({
         disabled={busy}
         onPress={() => void submit()}
       />
-    </ProductDialog>
+    </WorkOrderSheet>
   );
 }

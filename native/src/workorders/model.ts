@@ -46,9 +46,26 @@ export function resolutionPatch(order:WorkOrderItem,user:UserProfile,comment:Wor
   const next: WorkOrderComment = existing ? {
     ...existing, text: comment.text.trim(), photoUrl: comment.photoUrl || existing.photoUrl || '', editedAt: now,
     revisions: [...(existing.revisions || []), {text:existing.text,photoUrl:existing.photoUrl || '',timestamp:existing.timestamp,editedAt:existing.editedAt || ''}],
-  } : {...comment, text:comment.text.trim(),authorId:String(user.id)};
+  } : {...comment, kind:'resolution' as const, text:comment.text.trim(),authorId:String(user.id)};
   if (existing) comments[index] = next; else comments.push(next);
   return {status:'Done' as const,statusNote:`Completed by ${user.name}`,completedAt:now,completedBy:user.name,resolutionNote:next.text,
     resolutionCommentId:next.id,resolutionCommentIndex:index,resolutionAuthorId:String(user.id),
     ...(next.photoUrl ? {photoUrl:next.photoUrl,latestResolutionPhoto:next.photoUrl} : {}),comments};
+}
+
+/** Only explicitly tagged resolutions or the authoritative legacy completion are eligible. */
+export function isResolutionComment(order: WorkOrderItem, comment: WorkOrderComment): boolean {
+  return comment.role === 'Maintenance Crew' && (comment.kind === 'resolution' || comment.id === order.resolutionCommentId ||
+    (order.status === 'Done' && comment.text === order.resolutionNote && comment.author === order.completedBy));
+}
+export function removeResolutionComment(order: WorkOrderItem, user: UserProfile, id: string, now: string) {
+  if (user.role !== 'admin' && user.role !== 'vip') throw new Error('Only Admin and VIP can delete resolution comments.');
+  const comments = order.comments || [];
+  const index = comments.findIndex(c => String(c.id) === id);
+  if (index < 0) return null;
+  if (!isResolutionComment(order, comments[index])) throw new Error('This is not a crew resolution comment.');
+  const remaining = comments.filter((_, i) => i !== index);
+  const activeIndex = remaining.findIndex(c => c.id === order.resolutionCommentId);
+  return { comments: remaining, removed: comments[index], activeIndex,
+    audit: {comment:comments[index],deletedBy:String(user.id),deletedAt:now} };
 }

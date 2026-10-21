@@ -44,10 +44,10 @@ import {
 import { Collapsible } from "../components/Collapsible";
 import { MediaViewer } from "../components/MediaViewer";
 import { pickAndUpload } from "../components/media";
-import { sortWorkOrders, editableResolution, type WorkOrder } from "./model";
+import { sortWorkOrders, editableResolution, isResolutionComment, type WorkOrder } from "./model";
 import { translateWorkOrder, type TranslatedContent } from "./translator";
 import { Ticket } from "./Ticket";
-export type OrderAction = "delete" | "reopen" | "complete" | "note";
+export type OrderAction = "delete" | "reopen" | "complete" | "note" | "deleteComment";
 export function WorkOrdersFeed({
   orders,
   user,
@@ -324,6 +324,7 @@ const OrderCard = memo(function OrderCard({
     finally { translationLock.current = false; setTranslating(false); }
   }
   const [confirm, setConfirm] = useState(false);
+  const [deleteComment, setDeleteComment] = useState<string | null>(null);
   const previousResolution = editableResolution(order, user);
   const editorKey = JSON.stringify([order.status, previousResolution?.id, previousResolution?.text, previousResolution?.photoUrl]);
   const [draft, setDraft] = useState<{ key: string; reply: string; photo: string } | null>(null);
@@ -360,6 +361,7 @@ const OrderCard = memo(function OrderCard({
       if (await onAction(String(order.id), action, text, proof)) {
         setDraft(null);
         setConfirm(false);
+        setDeleteComment(null);
       }
     } finally {
       lock.current = false;
@@ -722,6 +724,17 @@ const OrderCard = memo(function OrderCard({
                   {c.author} • {c.role} <Copy>{c.timestamp}</Copy>
                 </Copy>
                 <Copy>{translated?.comments[c.id] || c.text}</Copy>
+                {(isAdmin(user) || isVip(user)) && isResolutionComment(order, c) && (
+                  deleteComment === String(c.id) ? <View style={{gap:8}}>
+                    <Copy>Delete this crew resolution comment? The ticket status will stay unchanged.</Copy>
+                    <View style={{flexDirection:'row',gap:8,flexWrap:'wrap'}}>
+                      <Action label="Confirm Delete" disabled={disabled} onPress={() => void act('deleteComment', String(c.id))} />
+                      <Action label="Cancel" disabled={disabled} onPress={() => setDeleteComment(null)} />
+                    </View>
+                  </View> : <Pressable accessibilityRole="button" accessibilityLabel="Delete Comment" disabled={disabled} onPress={() => setDeleteComment(String(c.id))} style={{flexDirection:'row',alignItems:'center',gap:6,paddingVertical:8}}>
+                    <Trash2 size={16} color="#b91c1c"/><Copy style={{color:'#b91c1c'}}>Delete Comment</Copy>
+                  </Pressable>
+                )}
                 {!!c.photoUrl && (
                   <Pressable
                     accessibilityRole="button"
