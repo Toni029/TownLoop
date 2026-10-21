@@ -8,7 +8,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
-  Send,
   ShoppingBag,
   Trash2,
   ChevronLeft,
@@ -24,10 +23,11 @@ import {
 import { UserProfile } from '../../types';
 import {
   MarketplaceChat,
-  sendMarketplaceReply,
   markMarketplaceChatRead,
   deleteMarketplaceChat,
 } from '../../services/marketplaceChat';
+import { marketLeft } from '../../services/marketplaceChatIdentity';
+import { MarketplaceReplyComposer } from './MarketplaceReplyComposer';
 
 interface MarketplaceChatModalProps {
   isOpen: boolean;
@@ -51,16 +51,22 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
   onViewItem,
 }) => {
   const [selectedChat, setSelectedChat] = useState<MarketplaceChat | null>(null);
-  const [replyText, setReplyText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // A mounted modal may outlive a sign-out/account change. Never retain another account's thread.
+  useEffect(() => {
+    setSelectedChat(previous => previous && currentUser &&
+      (previous.sellerId === String(currentUser.id) || previous.buyerId === String(currentUser.id))
+      ? previous : null);
+  }, [currentUser?.id]);
 
   // Keep selected chat state in sync with activeChatId or chat array updates
   useEffect(() => {
     if (activeChatId) {
       const found = chats.find((c) => c.id === activeChatId);
-      if (found) setSelectedChat(found);
+      if (found && currentUser && (found.sellerId === String(currentUser.id) || found.buyerId === String(currentUser.id))) setSelectedChat(found);
     } else if (selectedChat) {
       const updated = chats.find((c) => c.id === selectedChat.id);
       if (updated) setSelectedChat(updated);
@@ -77,10 +83,8 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
   // Mark chat as read when opened
   useEffect(() => {
     if (selectedChat && currentUser) {
-      const isSeller =
-        String(currentUser.id).toLowerCase() === String(selectedChat.sellerId).toLowerCase() ||
-        currentUser.name.toLowerCase() === selectedChat.sellerName.toLowerCase();
-      markMarketplaceChatRead(selectedChat.id, isSeller);
+      const isSeller = String(currentUser.id) === selectedChat.sellerId;
+      void markMarketplaceChatRead(selectedChat.id, isSeller).catch(() => console.warn("Unable to mark Marketplace conversation read."));
     }
   }, [selectedChat, currentUser]);
 
@@ -96,32 +100,6 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
   const handleBackToList = () => {
     setSelectedChat(null);
     onSelectChat?.(null);
-  };
-
-  const handleSendReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!replyText.trim() || !selectedChat) return;
-
-    const textToSend = replyText.trim();
-    setReplyText('');
-
-    const effectiveSender = currentUser || {
-      id: 'resident',
-      name: 'Resident',
-      email: '',
-      role: 'resident',
-    };
-
-    try {
-      const updated = await sendMarketplaceReply({
-        chat: selectedChat,
-        sender: effectiveSender,
-        text: textToSend,
-      });
-      setSelectedChat(updated);
-    } catch (err) {
-      console.warn('Unable to send reply:', err);
-    }
   };
 
   const executeDeleteChat = async (chatId: string) => {
@@ -140,8 +118,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
 
   const selectedIsSeller =
     selectedChat && currentUser
-      ? String(currentUser.id).toLowerCase() === String(selectedChat.sellerId).toLowerCase() ||
-        currentUser.name.toLowerCase() === selectedChat.sellerName.toLowerCase()
+      ? String(currentUser.id) === selectedChat.sellerId
       : false;
 
   const selectedOtherPartyName = selectedChat
@@ -157,9 +134,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
     : '';
 
   const selectedOtherPartyHasLeft = selectedChat
-    ? selectedIsSeller
-      ? Boolean(selectedChat.buyerLeft || selectedChat.deletedByBuyer || selectedChat.deletedBy?.includes('buyer'))
-      : Boolean(selectedChat.sellerLeft || selectedChat.deletedBySeller || selectedChat.deletedBy?.includes('seller'))
+    ? marketLeft(selectedChat, selectedIsSeller ? 'buyer' : 'seller')
     : false;
 
   const isUnreadForOtherParty = selectedChat
@@ -175,8 +150,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
   const isLastMessageMine = Boolean(
     lastMsg &&
       currentUser &&
-      (String(lastMsg.senderId).toLowerCase() === String(currentUser.id).toLowerCase() ||
-        lastMsg.senderName.toLowerCase() === currentUser.name.toLowerCase())
+      String(lastMsg.senderId) === String(currentUser.id)
   );
 
   const filteredChats = chats.filter((c) => {
@@ -386,15 +360,12 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
                     filteredChats.map((chat) => {
                       const isSeller =
                         currentUser &&
-                        (String(currentUser.id).toLowerCase() === String(chat.sellerId).toLowerCase() ||
-                          currentUser.name.toLowerCase() === chat.sellerName.toLowerCase());
+                        String(currentUser.id) === chat.sellerId;
 
                       const otherPartyName = isSeller ? chat.buyerName : chat.sellerName;
                       const roleBadge = isSeller ? 'Buyer' : 'Seller';
                       const hasUnread = isSeller ? chat.unreadForSeller : chat.unreadForBuyer;
-                      const otherPartyHasLeft = isSeller
-                        ? Boolean(chat.buyerLeft || chat.deletedByBuyer || chat.deletedBy?.includes('buyer'))
-                        : Boolean(chat.sellerLeft || chat.deletedBySeller || chat.deletedBy?.includes('seller'));
+                      const otherPartyHasLeft = marketLeft(chat, isSeller ? 'buyer' : 'seller');
 
                       return (
                         <div
@@ -654,8 +625,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
 
                     const isMe =
                       currentUser &&
-                      (String(m.senderId).toLowerCase() === String(currentUser.id).toLowerCase() ||
-                        m.senderName.toLowerCase() === currentUser.name.toLowerCase());
+                      String(m.senderId) === String(currentUser.id);
 
                     return (
                       <div
@@ -719,25 +689,11 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <form
-                    onSubmit={handleSendReply}
-                    className="pt-2 border-t border-stone-200/80 dark:border-slate-800/80 flex items-center gap-2 shrink-0"
-                  >
-                    <input
-                      type="text"
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Type a message to buyer/seller..."
-                      className="flex-1 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm bg-stone-100/90 dark:bg-slate-800/90 text-stone-900 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 border border-stone-200/80 dark:border-slate-700/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!replyText.trim()}
-                      className="p-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white transition cursor-pointer shrink-0 shadow-2xs flex items-center justify-center"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </form>
+                  currentUser && <MarketplaceReplyComposer
+                    key={`${currentUser.id}:${selectedChat.id}`}
+                    chat={selectedChat} user={currentUser}
+                    onSent={updated => setSelectedChat(current => current?.id === updated.id ? updated : current)}
+                  />
                 )}
               </div>
             )}

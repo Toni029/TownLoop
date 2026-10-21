@@ -9,12 +9,13 @@ import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { X, Send, User, MapPin, Tag, CheckCircle2 } from 'lucide-react';
 import { MarketItem, UserProfile } from '../types';
 import { UserAvatar } from './UserAvatar';
+import { readMarketDraft, writeMarketDraft, clearMarketDraft, type MarketDraft } from '../services/marketplaceChatRecovery';
 
 interface MessageSellerModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: MarketItem | null;
-  onSendMessage: (item: MarketItem, messageText: string) => void | boolean | Promise<void | boolean>;
+  onSendMessage: (item: MarketItem, messageText: string, messageId?: string) => void | boolean | Promise<void | boolean>;
   currentUser?: UserProfile | null;
 }
 
@@ -29,6 +30,9 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
   const [includePhone, setIncludePhone] = useState(true);
   const [isSent, setIsSent] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [sending, setSending] = useState(false);
+  const draftRef = useRef<MarketDraft | null>(null);
   const submittingRef = useRef(false);
   const dragControls = useDragControls();
 
@@ -36,12 +40,31 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
     if (isOpen && item) {
       setIsClosing(false);
       const firstName = item.author.split(' ')[0] || 'Neighbor';
-      setMessage(
-        `Hi ${firstName}, I saw your listing for "${item.title}" and would love to arrange porch pickup! Is it still available?`
-      );
+      let next: MarketDraft = { text: `Hi ${firstName}, I saw your listing for "${item.title}" and would love to arrange porch pickup! Is it still available?`,
+        operationId: `mmsg_${crypto.randomUUID()}`, includePhone: true };
+      setNotice('');
+      if (currentUser) {
+        try { next = readMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`) || next; }
+        catch { setNotice('Saved draft could not be opened. Existing local data has not been changed.'); }
+      }
+      draftRef.current = next;
+      setMessage(next.text);
+      setIncludePhone(next.includePhone ?? true);
       setIsSent(false);
     }
-  }, [isOpen, item]);
+  }, [isOpen, item?.id, currentUser?.id]);
+
+  const updateDraft = (text: string, phone: boolean) => {
+    const draft = { text, operationId: `mmsg_${crypto.randomUUID()}`, includePhone: phone };
+    draftRef.current = draft;
+    setMessage(text);
+    setIncludePhone(phone);
+    try {
+      if (!item || !currentUser || !writeMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`, draft))
+        throw Error('Storage unavailable');
+      setNotice('');
+    } catch { setNotice('Draft could not be saved locally. Keep this window open until your message is sent.'); }
+  };
 
   const handleClose = () => {
     if (isClosing) return;
@@ -53,8 +76,15 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submittingRef.current || !message.trim() || !item) return;
+    if (submittingRef.current || !message.trim() || !item || !currentUser || !draftRef.current) return;
     submittingRef.current = true;
+    setSending(true);
+    const attempt = draftRef.current;
+    // Persist before the network request, including a stable ID for ambiguous failures/retries.
+    try {
+      if (!writeMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`, attempt))
+        setNotice('Local draft storage is unavailable. Keep this window open until sending finishes.');
+    } catch { setNotice('Local draft storage is unavailable. Keep this window open until sending finishes.'); }
 
     let finalMessage = message.trim();
     if (includePhone) {
@@ -68,15 +98,21 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
     }
 
     try {
-      if (await onSendMessage(item, finalMessage) === false) return;
+      if (await onSendMessage(item, finalMessage, attempt.operationId) === false) {
+        setNotice('Message was not confirmed. Your draft is kept; please retry.');
+        return;
+      }
+      try { clearMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`, attempt); }
+      catch { /* Keep the stable ID so reopening/retrying cannot duplicate the message. */ }
       setIsSent(true);
       setTimeout(() => {
         onClose();
       }, 1200);
     } catch (error) {
-      console.warn('Could not send inquiry:', error);
+      setNotice('Message was not confirmed. Your draft is kept; please retry.');
     } finally {
       submittingRef.current = false;
+      setSending(false);
     }
   };
 
@@ -226,7 +262,8 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
                 required
                 rows={4}
                 value={message}
-                onChange={e => setMessage(e.target.value)}
+                disabled={sending}
+                onChange={e => updateDraft(e.target.value, includePhone)}
                 placeholder="Write your note to the neighbor..."
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 text-xs focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 leading-relaxed"
               />
@@ -237,7 +274,8 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               <input
                 type="checkbox"
                 checked={includePhone}
-                onChange={e => setIncludePhone(e.target.checked)}
+                disabled={sending}
+                onChange={e => updateDraft(message, e.target.checked)}
                 className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
               />
               <span className="text-[11px] leading-tight">
@@ -256,6 +294,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               </span>
             </label>
 
+            {notice && <p role="status" className="text-[11px] text-stone-500 dark:text-slate-400">{notice}</p>}
             {/* Buttons */}
             <div className="flex gap-2 pt-1">
               <button
@@ -268,7 +307,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
               <button
                 id="submit-message-to-seller-btn"
                 type="submit"
-                disabled={!message.trim()}
+                disabled={sending || !message.trim()}
                 className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />

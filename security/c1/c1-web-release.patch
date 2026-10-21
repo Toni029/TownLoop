@@ -1,0 +1,1533 @@
+diff --git a/src/components/MessageSellerModal.tsx b/src/components/MessageSellerModal.tsx
+index a170d1d..efc7667 100644
+--- a/src/components/MessageSellerModal.tsx
++++ b/src/components/MessageSellerModal.tsx
+@@ -9,12 +9,13 @@ import { motion, AnimatePresence, useDragControls } from 'motion/react';
+ import { X, Send, User, MapPin, Tag, CheckCircle2 } from 'lucide-react';
+ import { MarketItem, UserProfile } from '../types';
+ import { UserAvatar } from './UserAvatar';
++import { readMarketDraft, writeMarketDraft, clearMarketDraft, type MarketDraft } from '../services/marketplaceChatRecovery';
+ 
+ interface MessageSellerModalProps {
+   isOpen: boolean;
+   onClose: () => void;
+   item: MarketItem | null;
+-  onSendMessage: (item: MarketItem, messageText: string) => void | boolean | Promise<void | boolean>;
++  onSendMessage: (item: MarketItem, messageText: string, messageId?: string) => void | boolean | Promise<void | boolean>;
+   currentUser?: UserProfile | null;
+ }
+ 
+@@ -29,6 +30,9 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+   const [includePhone, setIncludePhone] = useState(true);
+   const [isSent, setIsSent] = useState(false);
+   const [isClosing, setIsClosing] = useState(false);
++  const [notice, setNotice] = useState('');
++  const [sending, setSending] = useState(false);
++  const draftRef = useRef<MarketDraft | null>(null);
+   const submittingRef = useRef(false);
+   const dragControls = useDragControls();
+ 
+@@ -36,12 +40,31 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+     if (isOpen && item) {
+       setIsClosing(false);
+       const firstName = item.author.split(' ')[0] || 'Neighbor';
+-      setMessage(
+-        `Hi ${firstName}, I saw your listing for "${item.title}" and would love to arrange porch pickup! Is it still available?`
+-      );
++      let next: MarketDraft = { text: `Hi ${firstName}, I saw your listing for "${item.title}" and would love to arrange porch pickup! Is it still available?`,
++        operationId: `mmsg_${crypto.randomUUID()}`, includePhone: true };
++      setNotice('');
++      if (currentUser) {
++        try { next = readMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`) || next; }
++        catch { setNotice('Saved draft could not be opened. Existing local data has not been changed.'); }
++      }
++      draftRef.current = next;
++      setMessage(next.text);
++      setIncludePhone(next.includePhone ?? true);
+       setIsSent(false);
+     }
+-  }, [isOpen, item]);
++  }, [isOpen, item?.id, currentUser?.id]);
++
++  const updateDraft = (text: string, phone: boolean) => {
++    const draft = { text, operationId: `mmsg_${crypto.randomUUID()}`, includePhone: phone };
++    draftRef.current = draft;
++    setMessage(text);
++    setIncludePhone(phone);
++    try {
++      if (!item || !currentUser || !writeMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`, draft))
++        throw Error('Storage unavailable');
++      setNotice('');
++    } catch { setNotice('Draft could not be saved locally. Keep this window open until your message is sent.'); }
++  };
+ 
+   const handleClose = () => {
+     if (isClosing) return;
+@@ -53,8 +76,15 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+ 
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (submittingRef.current || !message.trim() || !item) return;
++    if (submittingRef.current || !message.trim() || !item || !currentUser || !draftRef.current) return;
+     submittingRef.current = true;
++    setSending(true);
++    const attempt = draftRef.current;
++    // Persist before the network request, including a stable ID for ambiguous failures/retries.
++    try {
++      if (!writeMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`, attempt))
++        setNotice('Local draft storage is unavailable. Keep this window open until sending finishes.');
++    } catch { setNotice('Local draft storage is unavailable. Keep this window open until sending finishes.'); }
+ 
+     let finalMessage = message.trim();
+     if (includePhone) {
+@@ -68,15 +98,21 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+     }
+ 
+     try {
+-      if (await onSendMessage(item, finalMessage) === false) return;
++      if (await onSendMessage(item, finalMessage, attempt.operationId) === false) {
++        setNotice('Message was not confirmed. Your draft is kept; please retry.');
++        return;
++      }
++      try { clearMarketDraft(localStorage, String(currentUser.id), `inquiry:${item.id}`, attempt); }
++      catch { /* Keep the stable ID so reopening/retrying cannot duplicate the message. */ }
+       setIsSent(true);
+       setTimeout(() => {
+         onClose();
+       }, 1200);
+     } catch (error) {
+-      console.warn('Could not send inquiry:', error);
++      setNotice('Message was not confirmed. Your draft is kept; please retry.');
+     } finally {
+       submittingRef.current = false;
++      setSending(false);
+     }
+   };
+ 
+@@ -226,7 +262,8 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+                 required
+                 rows={4}
+                 value={message}
+-                onChange={e => setMessage(e.target.value)}
++                disabled={sending}
++                onChange={e => updateDraft(e.target.value, includePhone)}
+                 placeholder="Write your note to the neighbor..."
+                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 text-xs focus:outline-emerald-600 bg-stone-50/50 dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 leading-relaxed"
+               />
+@@ -237,7 +274,8 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+               <input
+                 type="checkbox"
+                 checked={includePhone}
+-                onChange={e => setIncludePhone(e.target.checked)}
++                disabled={sending}
++                onChange={e => updateDraft(message, e.target.checked)}
+                 className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+               />
+               <span className="text-[11px] leading-tight">
+@@ -256,6 +294,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+               </span>
+             </label>
+ 
++            {notice && <p role="status" className="text-[11px] text-stone-500 dark:text-slate-400">{notice}</p>}
+             {/* Buttons */}
+             <div className="flex gap-2 pt-1">
+               <button
+@@ -268,7 +307,7 @@ export const MessageSellerModal: React.FC<MessageSellerModalProps> = ({
+               <button
+                 id="submit-message-to-seller-btn"
+                 type="submit"
+-                disabled={!message.trim()}
++                disabled={sending || !message.trim()}
+                 className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+               >
+                 <Send className="w-3.5 h-3.5" />
+diff --git a/src/components/community/MarketplaceChatModal.tsx b/src/components/community/MarketplaceChatModal.tsx
+index 5ef4e18..8d4c53c 100644
+--- a/src/components/community/MarketplaceChatModal.tsx
++++ b/src/components/community/MarketplaceChatModal.tsx
+@@ -8,7 +8,6 @@ import React, { useState, useEffect, useRef } from 'react';
+ import { motion, AnimatePresence } from 'motion/react';
+ import {
+   X,
+-  Send,
+   ShoppingBag,
+   Trash2,
+   ChevronLeft,
+@@ -24,10 +23,11 @@ import {
+ import { UserProfile } from '../../types';
+ import {
+   MarketplaceChat,
+-  sendMarketplaceReply,
+   markMarketplaceChatRead,
+   deleteMarketplaceChat,
+ } from '../../services/marketplaceChat';
++import { marketLeft } from '../../services/marketplaceChatIdentity';
++import { MarketplaceReplyComposer } from './MarketplaceReplyComposer';
+ 
+ interface MarketplaceChatModalProps {
+   isOpen: boolean;
+@@ -51,16 +51,22 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+   onViewItem,
+ }) => {
+   const [selectedChat, setSelectedChat] = useState<MarketplaceChat | null>(null);
+-  const [replyText, setReplyText] = useState('');
+   const [searchQuery, setSearchQuery] = useState('');
+   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+   const messagesEndRef = useRef<HTMLDivElement>(null);
+ 
++  // A mounted modal may outlive a sign-out/account change. Never retain another account's thread.
++  useEffect(() => {
++    setSelectedChat(previous => previous && currentUser &&
++      (previous.sellerId === String(currentUser.id) || previous.buyerId === String(currentUser.id))
++      ? previous : null);
++  }, [currentUser?.id]);
++
+   // Keep selected chat state in sync with activeChatId or chat array updates
+   useEffect(() => {
+     if (activeChatId) {
+       const found = chats.find((c) => c.id === activeChatId);
+-      if (found) setSelectedChat(found);
++      if (found && currentUser && (found.sellerId === String(currentUser.id) || found.buyerId === String(currentUser.id))) setSelectedChat(found);
+     } else if (selectedChat) {
+       const updated = chats.find((c) => c.id === selectedChat.id);
+       if (updated) setSelectedChat(updated);
+@@ -77,10 +83,8 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+   // Mark chat as read when opened
+   useEffect(() => {
+     if (selectedChat && currentUser) {
+-      const isSeller =
+-        String(currentUser.id).toLowerCase() === String(selectedChat.sellerId).toLowerCase() ||
+-        currentUser.name.toLowerCase() === selectedChat.sellerName.toLowerCase();
+-      markMarketplaceChatRead(selectedChat.id, isSeller);
++      const isSeller = String(currentUser.id) === selectedChat.sellerId;
++      void markMarketplaceChatRead(selectedChat.id, isSeller).catch(() => console.warn("Unable to mark Marketplace conversation read."));
+     }
+   }, [selectedChat, currentUser]);
+ 
+@@ -98,32 +102,6 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+     onSelectChat?.(null);
+   };
+ 
+-  const handleSendReply = async (e: React.FormEvent) => {
+-    e.preventDefault();
+-    if (!replyText.trim() || !selectedChat) return;
+-
+-    const textToSend = replyText.trim();
+-    setReplyText('');
+-
+-    const effectiveSender = currentUser || {
+-      id: 'resident',
+-      name: 'Resident',
+-      email: '',
+-      role: 'resident',
+-    };
+-
+-    try {
+-      const updated = await sendMarketplaceReply({
+-        chat: selectedChat,
+-        sender: effectiveSender,
+-        text: textToSend,
+-      });
+-      setSelectedChat(updated);
+-    } catch (err) {
+-      console.warn('Unable to send reply:', err);
+-    }
+-  };
+-
+   const executeDeleteChat = async (chatId: string) => {
+     try {
+       await deleteMarketplaceChat(chatId, currentUser);
+@@ -140,8 +118,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+ 
+   const selectedIsSeller =
+     selectedChat && currentUser
+-      ? String(currentUser.id).toLowerCase() === String(selectedChat.sellerId).toLowerCase() ||
+-        currentUser.name.toLowerCase() === selectedChat.sellerName.toLowerCase()
++      ? String(currentUser.id) === selectedChat.sellerId
+       : false;
+ 
+   const selectedOtherPartyName = selectedChat
+@@ -157,9 +134,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+     : '';
+ 
+   const selectedOtherPartyHasLeft = selectedChat
+-    ? selectedIsSeller
+-      ? Boolean(selectedChat.buyerLeft || selectedChat.deletedByBuyer || selectedChat.deletedBy?.includes('buyer'))
+-      : Boolean(selectedChat.sellerLeft || selectedChat.deletedBySeller || selectedChat.deletedBy?.includes('seller'))
++    ? marketLeft(selectedChat, selectedIsSeller ? 'buyer' : 'seller')
+     : false;
+ 
+   const isUnreadForOtherParty = selectedChat
+@@ -175,8 +150,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+   const isLastMessageMine = Boolean(
+     lastMsg &&
+       currentUser &&
+-      (String(lastMsg.senderId).toLowerCase() === String(currentUser.id).toLowerCase() ||
+-        lastMsg.senderName.toLowerCase() === currentUser.name.toLowerCase())
++      String(lastMsg.senderId) === String(currentUser.id)
+   );
+ 
+   const filteredChats = chats.filter((c) => {
+@@ -386,15 +360,12 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+                     filteredChats.map((chat) => {
+                       const isSeller =
+                         currentUser &&
+-                        (String(currentUser.id).toLowerCase() === String(chat.sellerId).toLowerCase() ||
+-                          currentUser.name.toLowerCase() === chat.sellerName.toLowerCase());
++                        String(currentUser.id) === chat.sellerId;
+ 
+                       const otherPartyName = isSeller ? chat.buyerName : chat.sellerName;
+                       const roleBadge = isSeller ? 'Buyer' : 'Seller';
+                       const hasUnread = isSeller ? chat.unreadForSeller : chat.unreadForBuyer;
+-                      const otherPartyHasLeft = isSeller
+-                        ? Boolean(chat.buyerLeft || chat.deletedByBuyer || chat.deletedBy?.includes('buyer'))
+-                        : Boolean(chat.sellerLeft || chat.deletedBySeller || chat.deletedBy?.includes('seller'));
++                      const otherPartyHasLeft = marketLeft(chat, isSeller ? 'buyer' : 'seller');
+ 
+                       return (
+                         <div
+@@ -654,8 +625,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+ 
+                     const isMe =
+                       currentUser &&
+-                      (String(m.senderId).toLowerCase() === String(currentUser.id).toLowerCase() ||
+-                        m.senderName.toLowerCase() === currentUser.name.toLowerCase());
++                      String(m.senderId) === String(currentUser.id);
+ 
+                     return (
+                       <div
+@@ -719,25 +689,11 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
+                     </button>
+                   </div>
+                 ) : (
+-                  <form
+-                    onSubmit={handleSendReply}
+-                    className="pt-2 border-t border-stone-200/80 dark:border-slate-800/80 flex items-center gap-2 shrink-0"
+-                  >
+-                    <input
+-                      type="text"
+-                      value={replyText}
+-                      onChange={(e) => setReplyText(e.target.value)}
+-                      placeholder="Type a message to buyer/seller..."
+-                      className="flex-1 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm bg-stone-100/90 dark:bg-slate-800/90 text-stone-900 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 border border-stone-200/80 dark:border-slate-700/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+-                    />
+-                    <button
+-                      type="submit"
+-                      disabled={!replyText.trim()}
+-                      className="p-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white transition cursor-pointer shrink-0 shadow-2xs flex items-center justify-center"
+-                    >
+-                      <Send className="w-4 h-4" />
+-                    </button>
+-                  </form>
++                  currentUser && <MarketplaceReplyComposer
++                    key={`${currentUser.id}:${selectedChat.id}`}
++                    chat={selectedChat} user={currentUser}
++                    onSent={updated => setSelectedChat(current => current?.id === updated.id ? updated : current)}
++                  />
+                 )}
+               </div>
+             )}
+diff --git a/src/hooks/useCommunityState.ts b/src/hooks/useCommunityState.ts
+index 211aa96..23a2164 100644
+--- a/src/hooks/useCommunityState.ts
++++ b/src/hooks/useCommunityState.ts
+@@ -95,8 +95,9 @@ export interface CommunityState {
+   handleOpenMessageSeller: (item: MarketItem) => void;
+   handleSendMessageToSeller: (
+     itemOrRecipient: MarketItem | string,
+-    messageText?: string
+-  ) => Promise<void> | void;
++    messageText?: string,
++    messageId?: string
++  ) => Promise<void | boolean> | void;
+   handleCreatePostSubmit: (payload: {
+     type: 'chat' | 'market';
+     title: string;
+@@ -583,7 +584,7 @@ export function useCommunityState(
+   }, []);
+ 
+   const handleSendMessageToSeller = useCallback(
+-    async (itemOrRecipient: MarketItem | string, messageText?: string) => {
++    async (itemOrRecipient: MarketItem | string, messageText?: string, messageId?: string) => {
+       const effectiveBuyer = currentUser || {
+         id: 'resident',
+         name: 'Resident',
+@@ -597,6 +598,7 @@ export function useCommunityState(
+             item: itemOrRecipient,
+             buyer: effectiveBuyer,
+             messageText,
++            messageId,
+           });
+ 
+           // Instantly update local marketplaceChats React state
+@@ -612,13 +614,11 @@ export function useCommunityState(
+           showToast?.('Message sent to seller!');
+           return;
+         } catch (err) {
+-          console.warn('Unable to send marketplace inquiry:', err);
++          showToast?.('Message was not confirmed. Your draft is kept; please retry.');
++          return false;
+         }
+       }
+-
+-      setIsMessageSellerModalOpen(false);
+-      setSelectedMessageSellerItem(null);
+-      showToast?.('Message sent to seller!');
++      return false;
+     },
+     [currentUser, showToast]
+   );
+diff --git a/src/services/marketplaceChat.ts b/src/services/marketplaceChat.ts
+index 4c2dd98..f735362 100644
+--- a/src/services/marketplaceChat.ts
++++ b/src/services/marketplaceChat.ts
+@@ -4,535 +4,150 @@
+  * Unauthorized copying, distribution, or modification of this source code,
+  * via any medium, is strictly prohibited.
+  */
++// Marketplace conversations are server-authoritative and scoped to exact Firebase UIDs.
++import { doc, getDoc, getDocFromServer, onSnapshot } from "firebase/firestore";
++import { auth, db, isFirebaseConfigured } from "../firebase";
++import type { UserProfile, MarketItem } from "../types";
+ import {
+-  collection,
+-  doc,
+-  setDoc,
+-  getDoc,
+-  updateDoc,
+-  deleteDoc,
+-  onSnapshot,
+-} from 'firebase/firestore';
+-import { db, isFirebaseConfigured } from '../firebase';
+-import { UserProfile, MarketItem } from '../types';
+-
+-export interface MarketplaceChatMessage {
+-  id: string;
+-  senderId: string;
+-  senderName: string;
+-  senderAvatar?: string;
+-  text: string;
+-  timestamp: string;
+-  createdAt?: number;
+-  isSystem?: boolean;
+-}
+-
+-export interface MarketplaceChat {
+-  id: string;
+-  itemId: string;
+-  itemTitle: string;
+-  itemPrice: string;
+-  itemMediaUrl?: string;
+-  sellerId: string;
+-  sellerName: string;
+-  sellerAvatar?: string;
+-  sellerApt?: string;
+-  buyerId: string;
+-  buyerName: string;
+-  buyerAvatar?: string;
+-  buyerApt?: string;
+-  participantIds: string[];
+-  lastMessage: string;
+-  lastMessageTime: string;
+-  updatedAt: number;
+-  unreadForSeller?: boolean;
+-  unreadForBuyer?: boolean;
+-  deletedByBuyer?: boolean;
+-  deletedBySeller?: boolean;
+-  buyerLeft?: boolean;
+-  sellerLeft?: boolean;
+-  deletedBy?: string[];
+-  messages: MarketplaceChatMessage[];
+-}
+-
+-const LOCAL_STORAGE_KEY = 'townloop_marketplace_chats_v1';
+-
+-export function formatMessageTime(): string {
+-  const d = new Date();
+-  let hours = d.getHours();
+-  const minutes = d.getMinutes();
+-  const ampm = hours >= 12 ? 'PM' : 'AM';
+-  hours = hours % 12 || 12;
+-  const minsStr = minutes < 10 ? `0${minutes}` : minutes;
+-  return `${hours}:${minsStr} ${ampm}`;
+-}
+-
+-function cleanId(id?: string | number): string {
+-  if (!id) return 'user';
+-  return String(id).trim().toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_');
++  marketplaceChatQuery,
++  marketSide,
++  marketLeft,
++  sendMarketInquiry,
++  mutateMarketChat,
++} from "./marketplaceChatProtocol";
++import type { MarketplaceChat } from "./marketplaceChatTypes";
++import { recoverCachedMarketMessages } from './marketplaceChatRecovery';
++import type { DraftStorage } from './marketplaceChatRecovery';
++export type {
++  MarketplaceChat,
++  MarketplaceChatMessage,
++} from "./marketplaceChatTypes";
++
++function signedInUid(expected?: UserProfile | null) {
++  const uid = auth?.currentUser?.uid;
++  if (!db || !uid || (expected && String(expected.id) !== uid))
++    throw Error("Please sign in again.");
++  return uid;
+ }
+-
+-export function loadLocalMarketplaceChats(): MarketplaceChat[] {
+-  try {
+-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+-    if (!raw) return [];
+-    const parsed = JSON.parse(raw);
+-    return Array.isArray(parsed) ? parsed : [];
+-  } catch (err) {
+-    console.warn('Unable to parse local marketplace chats:', err);
+-    return [];
+-  }
+-}
+-
+-export function saveLocalMarketplaceChats(chats: MarketplaceChat[]) {
+-  try {
+-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(chats));
+-  } catch (err) {
+-    console.warn('Unable to store local marketplace chats:', err);
+-  }
+-}
+-
+-const DELETED_CHATS_PREFIX = 'townloop_deleted_mkt_chats_';
+-
+-export function getLocalDeletedChatIds(userId?: string | null): Set<string> {
+-  if (!userId) return new Set();
+-  const clean = cleanId(userId);
+-  try {
+-    const raw = localStorage.getItem(`${DELETED_CHATS_PREFIX}${clean}`);
+-    if (!raw) return new Set();
+-    const parsed = JSON.parse(raw);
+-    return new Set(Array.isArray(parsed) ? parsed : []);
+-  } catch {
+-    return new Set();
+-  }
+-}
+-
+-export function addLocalDeletedChatId(chatId: string, userId?: string | null) {
+-  if (!userId) return;
+-  const clean = cleanId(userId);
+-  try {
+-    const existing = getLocalDeletedChatIds(userId);
+-    existing.add(chatId);
+-    localStorage.setItem(`${DELETED_CHATS_PREFIX}${clean}`, JSON.stringify(Array.from(existing)));
+-  } catch (err) {
+-    console.warn('Failed to save local deleted chat id:', err);
+-  }
+-}
+-
+-export function isUserInMarketplaceChat(user: UserProfile | null | undefined, chat: MarketplaceChat): boolean {
+-  if (!chat) return false;
+-  if (!user) return true;
+-
+-  const userClean = cleanId(user.id || user.name);
+-  const userNameLower = (user.name || '').toLowerCase().trim();
+-
+-  // Check if current user has personally deleted/left this chat locally
+-  const localDeleted = getLocalDeletedChatIds(user.id ? String(user.id) : user.name);
+-  if (localDeleted.has(chat.id)) {
+-    return false;
+-  }
+-
+-  const isSeller =
+-    userClean === cleanId(chat.sellerId) ||
+-    (userNameLower && userNameLower === (chat.sellerName || '').toLowerCase().trim());
+-
+-  const isBuyer =
+-    userClean === cleanId(chat.buyerId) ||
+-    (userNameLower && userNameLower === (chat.buyerName || '').toLowerCase().trim());
+-
+-  // If user is the seller, only hide if the SELLER deleted/left the chat
+-  if (isSeller) {
+-    if (
+-      chat.deletedBySeller ||
+-      chat.sellerLeft ||
+-      (chat.deletedBy && (chat.deletedBy.includes('seller') || chat.deletedBy.includes(userClean) || chat.deletedBy.includes(cleanId(chat.sellerId))))
+-    ) {
+-      return false;
+-    }
+-    return true;
+-  }
+-
+-  // If user is the buyer, only hide if the BUYER deleted/left the chat
+-  if (isBuyer) {
+-    if (
+-      chat.deletedByBuyer ||
+-      chat.buyerLeft ||
+-      (chat.deletedBy && (chat.deletedBy.includes('buyer') || chat.deletedBy.includes(userClean) || chat.deletedBy.includes(cleanId(chat.buyerId))))
+-    ) {
+-      return false;
+-    }
+-    return true;
+-  }
+-
+-  // If user is neither seller nor buyer (e.g. general viewer)
+-  if (chat.deletedBy && (chat.deletedBy.includes(userClean) || (userNameLower && chat.deletedBy.includes(userNameLower)))) {
+-    return false;
+-  }
+-
+-  return true;
++export function isUserInMarketplaceChat(
++  user: UserProfile | null | undefined,
++  chat: MarketplaceChat,
++) {
++  if (!user) return false;
++  const side = marketSide(chat, String(user.id));
++  return !!side && !marketLeft(chat, side);
+ }
+-
+-/**
+- * Creates or updates a marketplace chat when a buyer sends a message to a seller.
+- */
+ export async function sendMarketplaceInquiry({
+   item,
+   buyer,
+   messageText,
++  messageId,
+ }: {
+   item: MarketItem;
+   buyer: UserProfile;
+   messageText: string;
+-}): Promise<MarketplaceChat> {
+-  const time = formatMessageTime();
+-  const now = Date.now();
+-
+-  const itemIdClean = cleanId(item.id);
+-  const buyerIdClean = cleanId(buyer.id || buyer.name);
+-  const sellerIdClean = cleanId(item.authorId || item.author);
+-
+-  const chatId = `mkt_${itemIdClean}_${buyerIdClean}`;
+-
+-  const firstMedia = item.media && item.media.length > 0 ? item.media[0].url : item.mediaUrl || item.photoUrl || '';
+-
+-  const newMsg: MarketplaceChatMessage = {
+-    id: `mmsg_${now}_${Math.random().toString(36).substring(2, 7)}`,
+-    senderId: buyer.id ? String(buyer.id) : buyer.name,
+-    senderName: buyer.name || 'Resident',
+-    senderAvatar: buyer.avatarUrl || buyer.avatar_url || (buyer as any).avatar || '',
+-    text: messageText,
+-    timestamp: time,
+-    createdAt: now,
+-  };
+-
+-  const localChats = loadLocalMarketplaceChats();
+-  const existingIndex = localChats.findIndex((c) => c.id === chatId);
+-
+-  let updatedChat: MarketplaceChat;
+-
+-  if (existingIndex >= 0) {
+-    const existing = localChats[existingIndex];
+-    updatedChat = {
+-      ...existing,
+-      itemTitle: item.title,
+-      itemPrice: item.price,
+-      itemMediaUrl: firstMedia || existing.itemMediaUrl,
+-      lastMessage: messageText,
+-      lastMessageTime: time,
+-      updatedAt: now,
+-      unreadForSeller: true,
+-      unreadForBuyer: false,
+-      messages: [...(existing.messages || []), newMsg],
+-    };
+-    localChats[existingIndex] = updatedChat;
+-  } else {
+-    updatedChat = {
+-      id: chatId,
+-      itemId: String(item.id),
+-      itemTitle: item.title,
+-      itemPrice: item.price,
+-      itemMediaUrl: firstMedia,
+-      sellerId: item.authorId ? String(item.authorId) : item.author,
+-      sellerName: item.author || 'Seller',
+-      sellerAvatar: item.authorAvatar || '',
+-      sellerApt: item.unit || 'Resident',
+-      buyerId: buyer.id ? String(buyer.id) : buyer.name,
+-      buyerName: buyer.name || 'Resident',
+-      buyerAvatar: buyer.avatarUrl || buyer.avatar_url || (buyer as any).avatar || '',
+-      buyerApt: buyer.address || buyer.apartmentNumber || 'Resident',
+-      participantIds: [sellerIdClean, buyerIdClean],
+-      lastMessage: messageText,
+-      lastMessageTime: time,
+-      updatedAt: now,
+-      unreadForSeller: true,
+-      unreadForBuyer: false,
+-      messages: [newMsg],
+-    };
+-    localChats.unshift(updatedChat);
+-  }
+-
+-  saveLocalMarketplaceChats(localChats);
+-
+-  if (isFirebaseConfigured() && db) {
+-    try {
+-      const docRef = doc(db, 'marketplace_chats', chatId);
+-      await setDoc(docRef, updatedChat, { merge: true });
+-    } catch (err) {
+-      console.warn('Unable to sync marketplace chat to Firestore:', err);
+-    }
+-  }
+-
+-  return updatedChat;
++  messageId?: string;
++}) {
++  const uid = signedInUid(buyer);
++  const id = await sendMarketInquiry(
++    db!,
++    uid,
++    String(item.id),
++    messageText,
++    messageId || `mmsg_${crypto.randomUUID()}`,
++  );
++  signedInUid(buyer);
++  const snapshot = await getDoc(doc(db!, 'marketplace_chats', id));
++  signedInUid(buyer);
++  return { ...snapshot.data(), id } as MarketplaceChat;
+ }
+-
+-/**
+- * Sends a message inside an existing Marketplace chat session.
+- */
+ export async function sendMarketplaceReply({
+   chat,
+   sender,
+   text,
++  messageId,
+ }: {
+   chat: MarketplaceChat;
+   sender: UserProfile;
+   text: string;
+-}): Promise<MarketplaceChat> {
+-  const time = formatMessageTime();
+-  const now = Date.now();
+-
+-  const isSeller =
+-    cleanId(sender.id) === cleanId(chat.sellerId) ||
+-    cleanId(sender.name) === cleanId(chat.sellerName) ||
+-    cleanId(sender.email) === cleanId(chat.sellerId);
+-
+-  const newMsg: MarketplaceChatMessage = {
+-    id: `mmsg_${now}_${Math.random().toString(36).substring(2, 7)}`,
+-    senderId: sender.id ? String(sender.id) : sender.name,
+-    senderName: sender.name || 'Resident',
+-    senderAvatar: sender.avatarUrl || sender.avatar_url || (sender as any).avatar || '',
++  messageId?: string;
++}) {
++  const uid = signedInUid(sender);
++  await mutateMarketChat(
++    db!,
++    uid,
++    chat.id,
++    "reply",
+     text,
+-    timestamp: time,
+-    createdAt: now,
+-  };
+-
+-  const updatedChat: MarketplaceChat = {
+-    ...chat,
+-    lastMessage: text,
+-    lastMessageTime: time,
+-    updatedAt: now,
+-    unreadForSeller: isSeller ? false : true,
+-    unreadForBuyer: isSeller ? true : false,
+-    messages: [...(chat.messages || []), newMsg],
+-  };
+-
+-  const localChats = loadLocalMarketplaceChats();
+-  const index = localChats.findIndex((c) => c.id === chat.id);
+-  if (index >= 0) {
+-    localChats[index] = updatedChat;
+-  } else {
+-    localChats.unshift(updatedChat);
+-  }
+-  saveLocalMarketplaceChats(localChats);
+-
+-  if (isFirebaseConfigured() && db) {
+-    try {
+-      const docRef = doc(db, 'marketplace_chats', chat.id);
+-      await setDoc(docRef, updatedChat, { merge: true });
+-    } catch (err) {
+-      console.warn('Unable to sync marketplace reply to Firestore:', err);
+-    }
+-  }
+-
+-  return updatedChat;
++    messageId || `mmsg_${crypto.randomUUID()}`,
++  );
++  signedInUid(sender);
++  const snapshot = await getDoc(doc(db!, 'marketplace_chats', chat.id));
++  signedInUid(sender);
++  return { ...snapshot.data(), id: chat.id } as MarketplaceChat;
+ }
+-
+-/**
+- * Marks a marketplace chat as read for the given user.
+- */
+-export async function markMarketplaceChatRead(chatId: string, isSeller: boolean) {
+-  const localChats = loadLocalMarketplaceChats();
+-  const index = localChats.findIndex((c) => c.id === chatId);
+-  if (index >= 0) {
+-    if (isSeller) {
+-      localChats[index].unreadForSeller = false;
+-    } else {
+-      localChats[index].unreadForBuyer = false;
+-    }
+-    saveLocalMarketplaceChats(localChats);
+-  }
+-
+-  if (isFirebaseConfigured() && db) {
+-    try {
+-      const docRef = doc(db, 'marketplace_chats', chatId);
+-      const updateData = isSeller ? { unreadForSeller: false } : { unreadForBuyer: false };
+-      await updateDoc(docRef, updateData);
+-    } catch (err) {
+-      console.warn('Unable to mark marketplace chat read in Firestore:', err);
+-    }
+-  }
++export async function markMarketplaceChatRead(
++  chatId: string,
++  _isSeller: boolean,
++) {
++  // Derive the side from the actual server document, not the caller's UI flag.
++  await mutateMarketChat(db!, signedInUid(), chatId, "read");
+ }
+-
+-/**
+- * Soft-leaves or permanently deletes a marketplace chat session.
+- * First user to tap trashcan leaves (hidden for them, kept for the other party).
+- * Second user to tap trashcan permanently deletes from Firestore.
+- */
+ export async function deleteMarketplaceChat(
+   chatId: string,
+-  user?: UserProfile | null
++  user?: UserProfile | null,
+ ): Promise<boolean> {
+-  const localChats = loadLocalMarketplaceChats();
+-  const targetChat = localChats.find((c) => c.id === chatId);
+-
+-  const userClean = user ? cleanId(user.id || user.name) : 'user';
+-  const userNameLower = user ? (user.name || '').toLowerCase().trim() : '';
+-
+-  // Store in local deleted chat ID set so it immediately disappears for this user
+-  if (user) {
+-    addLocalDeletedChatId(chatId, user.id ? String(user.id) : user.name);
+-  }
+-
+-  const isSeller =
+-    Boolean(user) &&
+-    Boolean(targetChat) &&
+-    (userClean === cleanId(targetChat?.sellerId) ||
+-      (userNameLower && userNameLower === (targetChat?.sellerName || '').toLowerCase().trim()));
+-
+-  const isBuyer =
+-    Boolean(user) &&
+-    Boolean(targetChat) &&
+-    (userClean === cleanId(targetChat?.buyerId) ||
+-      (userNameLower && userNameLower === (targetChat?.buyerName || '').toLowerCase().trim()));
+-
+-  const leavingUserName = user?.name || (isSeller ? targetChat?.sellerName : targetChat?.buyerName) || 'Resident';
+-
+-  const systemMsg: MarketplaceChatMessage = {
+-    id: `sys_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+-    senderId: 'system',
+-    senderName: 'System',
+-    text: `${leavingUserName} left the conversation.`,
+-    timestamp: formatMessageTime(),
+-    createdAt: Date.now(),
+-    isSystem: true,
+-  };
+-
+-  const updatedDeletedBy = Array.from(
+-    new Set([
+-      ...(targetChat?.deletedBy || []),
+-      userClean,
+-      userNameLower,
+-      isSeller ? 'seller' : 'buyer',
+-    ])
+-  );
+-
+-  // Update local chat object with system message and left flags
+-  const updatedLocalChats = localChats.map((c) => {
+-    if (c.id !== chatId) return c;
+-    return {
+-      ...c,
+-      deletedByBuyer: isBuyer ? true : c.deletedByBuyer,
+-      deletedBySeller: isSeller ? true : c.deletedBySeller,
+-      buyerLeft: isBuyer ? true : c.buyerLeft,
+-      sellerLeft: isSeller ? true : c.sellerLeft,
+-      deletedBy: updatedDeletedBy,
+-      lastMessage: `${leavingUserName} left the conversation.`,
+-      lastMessageTime: formatMessageTime(),
+-      updatedAt: Date.now(),
+-      messages: [...(c.messages || []), systemMsg],
+-    };
+-  });
+-
+-  saveLocalMarketplaceChats(updatedLocalChats);
+-
+-  if (isFirebaseConfigured() && db) {
+-    try {
+-      const docRef = doc(db, 'marketplace_chats', chatId);
+-      const docSnap = await getDoc(docRef);
+-
+-      if (!docSnap.exists()) {
+-        return true;
+-      }
+-
+-      const remoteData = docSnap.data() as MarketplaceChat;
+-      const remoteSellerLeft = Boolean(
+-        remoteData.deletedBySeller ||
+-        remoteData.sellerLeft ||
+-        (remoteData.deletedBy && (remoteData.deletedBy.includes('seller') || remoteData.deletedBy.includes(cleanId(remoteData.sellerId))))
+-      );
+-      const remoteBuyerLeft = Boolean(
+-        remoteData.deletedByBuyer ||
+-        remoteData.buyerLeft ||
+-        (remoteData.deletedBy && (remoteData.deletedBy.includes('buyer') || remoteData.deletedBy.includes(cleanId(remoteData.buyerId))))
+-      );
+-
+-      const remoteDeletedByList = remoteData.deletedBy || [];
+-
+-      // Check if both parties will have left after this action
+-      const willBothBeLeft =
+-        (isSeller && remoteBuyerLeft) ||
+-        (isBuyer && remoteSellerLeft) ||
+-        (!isSeller && !isBuyer && remoteDeletedByList.length >= 1) ||
+-        (remoteSellerLeft && remoteBuyerLeft);
+-
+-      if (willBothBeLeft) {
+-        // Both parties left -> hard delete doc completely from Firestore
+-        await deleteDoc(docRef);
+-        // Clean out from local chats completely
+-        saveLocalMarketplaceChats(localChats.filter((c) => c.id !== chatId));
+-      } else {
+-        // First party left -> set left flag and append system message for the other party
+-        const newDeletedBy = Array.from(
+-          new Set([
+-            ...remoteDeletedByList,
+-            userClean,
+-            userNameLower,
+-            isSeller ? 'seller' : 'buyer',
+-          ])
+-        );
+-
+-        await updateDoc(docRef, {
+-          deletedByBuyer: isBuyer ? true : (remoteData.deletedByBuyer || false),
+-          deletedBySeller: isSeller ? true : (remoteData.deletedBySeller || false),
+-          buyerLeft: isBuyer ? true : (remoteData.buyerLeft || false),
+-          sellerLeft: isSeller ? true : (remoteData.sellerLeft || false),
+-          deletedBy: newDeletedBy,
+-          lastMessage: `${leavingUserName} left the conversation.`,
+-          lastMessageTime: formatMessageTime(),
+-          updatedAt: Date.now(),
+-          messages: [...(remoteData.messages || []), systemMsg],
+-        });
+-      }
+-      return true;
+-    } catch (err) {
+-      console.warn('Unable to delete/leave marketplace chat in Firestore:', err);
+-      return false;
+-    }
+-  }
+-
++  await mutateMarketChat(db!, signedInUid(user), chatId, "leave");
+   return true;
+ }
+-
+-/**
+- * Live listener for Marketplace chats with local storage fallback.
+- */
+ export function subscribeMarketplaceChats(
+   currentUser: UserProfile | null | undefined,
+-  onChatsUpdate: (chats: MarketplaceChat[]) => void
++  onChatsUpdate: (chats: MarketplaceChat[]) => void,
+ ): () => void {
+-  // Initial dispatch from LocalStorage
+-  const initialLocal = loadLocalMarketplaceChats();
+-  const filteredLocal = currentUser
+-    ? initialLocal.filter((c) => isUserInMarketplaceChat(currentUser, c))
+-    : initialLocal;
+-  onChatsUpdate(filteredLocal);
+-
+-  if (!isFirebaseConfigured() || !db) {
++  onChatsUpdate([]); // Never display another session's cached private conversations.
++  // Preserve the old unscoped archive verbatim. Never merge it into live history.
++  if (
++    !currentUser ||
++    currentUser.approved !== true ||
++    !isFirebaseConfigured() ||
++    !db ||
++    auth?.currentUser?.uid !== String(currentUser.id)
++  )
+     return () => {};
+-  }
+-
+-  try {
+-    const coll = collection(db, 'marketplace_chats');
+-    const unsub = onSnapshot(
+-      coll,
+-      (snapshot) => {
+-        const remoteChats: MarketplaceChat[] = snapshot.docs.map((d) => d.data() as MarketplaceChat);
+-        remoteChats.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+-
+-        saveLocalMarketplaceChats(remoteChats);
+-
+-        const filtered = currentUser
+-          ? remoteChats.filter((c) => isUserInMarketplaceChat(currentUser, c))
+-          : remoteChats;
+-
+-        onChatsUpdate(filtered);
+-      },
+-      (err) => {
+-        console.warn('Marketplace chats listener warning:', err);
++  const uid = auth.currentUser.uid;
++  return onSnapshot(
++    marketplaceChatQuery(db, uid),
++    (snapshot) => {
++      if (auth?.currentUser?.uid !== uid) {
++        onChatsUpdate([]);
++        return;
+       }
+-    );
+-    return unsub;
+-  } catch (err) {
+-    console.warn('Unable to attach marketplace chats listener:', err);
+-    return () => {};
+-  }
++      const chats = snapshot.docs.map(
++        (d) => ({ ...d.data(), id: d.id }) as MarketplaceChat,
++      );
++      onChatsUpdate(
++        chats
++          .filter((c) => isUserInMarketplaceChat(currentUser, c))
++          .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
++      );
++    },
++    () => {
++      onChatsUpdate([]);
++      console.warn(
++        "Marketplace conversations could not be loaded. Check your account access or connection.",
++      );
++    },
++  );
++}
++
++/** Explicit user action only; check a fresh server document before reading local text. */
++export async function recoverMarketplaceDrafts(chatId: string, user: UserProfile, storage: DraftStorage) {
++  const uid = signedInUid(user);
++  if (user.approved !== true) throw Error('An approved account is required.');
++  const snapshot = await getDocFromServer(doc(db!, 'marketplace_chats', chatId));
++  if (!snapshot.exists() || auth?.currentUser?.uid !== uid)
++    throw Error('This conversation is not available.');
++  const server = { ...snapshot.data(), id: snapshot.id } as MarketplaceChat;
++  if (!marketSide(server, uid)) throw Error('This conversation is not available.');
++  return recoverCachedMarketMessages(storage, server, uid);
+ }
+diff --git a/src/components/community/MarketplaceReplyComposer.tsx b/src/components/community/MarketplaceReplyComposer.tsx
+new file mode 100644
+index 0000000..968d37b
+--- /dev/null
++++ b/src/components/community/MarketplaceReplyComposer.tsx
+@@ -0,0 +1,94 @@
++import React, { useRef, useState } from 'react';
++import { Send } from 'lucide-react';
++import type { UserProfile } from '../../types';
++import type { MarketplaceChat } from '../../services/marketplaceChatTypes';
++import { recoverMarketplaceDrafts, sendMarketplaceReply } from '../../services/marketplaceChat';
++import { clearMarketDraft, readMarketDraft, writeMarketDraft, type MarketDraft } from '../../services/marketplaceChatRecovery';
++
++const newDraft = (text = ''): MarketDraft => ({ text, operationId: `mmsg_${crypto.randomUUID()}` });
++const storage = () => { try { return window.localStorage; } catch { return null; } };
++
++/** Keyed by exact UID + chat: switching accounts/conversations never reuses another draft. */
++export function MarketplaceReplyComposer({ chat, user, onSent }: {
++  chat: MarketplaceChat; user: UserProfile; onSent: (chat: MarketplaceChat) => void;
++}) {
++  const uid = String(user.id);
++  const [initial] = useState(() => {
++    try {
++      const store = storage();
++      return { draft: store && readMarketDraft(store, uid, chat.id) || newDraft(), warning: !store };
++    } catch { return { draft: newDraft(), warning: true }; }
++  });
++  const [draft, setDraft] = useState(initial.draft);
++  const [notice, setNotice] = useState(initial.warning ? 'Local drafts are unavailable. Keep this window open until your message is sent.' : '');
++  const [recovered, setRecovered] = useState<MarketDraft[]>([]);
++  const [busy, setBusy] = useState(false);
++  const submitting = useRef(false);
++
++  const update = (next: MarketDraft) => {
++    setDraft(next);
++    const store = storage();
++    setNotice(store && writeMarketDraft(store, uid, chat.id, next)
++      ? '' : 'Draft could not be saved locally. Keep this window open until your message is sent.');
++  };
++  const recover = async () => {
++    if (submitting.current) return;
++    submitting.current = true;
++    setBusy(true);
++    try {
++      const store = storage();
++      if (!store) throw Error('Local storage is unavailable.');
++      const found = await recoverMarketplaceDrafts(chat.id, user, store);
++      setRecovered(found);
++      setNotice(found.length ? 'Choose your local text to restore. Nothing is sent until you press Send.'
++        : 'No additional text could be safely recovered for this conversation. The original local archive is unchanged.');
++    } catch {
++      setNotice('Local recovery is unavailable. Check your connection and account access. Your local archive has not been changed.');
++    } finally { submitting.current = false; setBusy(false); }
++  };
++  const send = async (event: React.FormEvent) => {
++    event.preventDefault();
++    if (submitting.current || !draft.text.trim()) return;
++    submitting.current = true;
++    setBusy(true);
++    const attempt = draft;
++    try {
++      const updated = await sendMarketplaceReply({ chat, sender: user, text: attempt.text, messageId: attempt.operationId });
++      let cleared = false;
++      try {
++        const store = storage();
++        if (store) { clearMarketDraft(store, uid, chat.id, attempt); cleared = true; }
++      } catch { /* Preserve original data if storage fails; same operation ID makes retry safe. */ }
++      setDraft(newDraft());
++      setRecovered([]);
++      setNotice(cleared ? '' : 'Message sent. Local draft cleanup was unavailable; retrying that saved draft will not send it twice.');
++      onSent(updated);
++    } catch {
++      setNotice('Message was not confirmed. Your text is still here; retry Send when connected.');
++    } finally { submitting.current = false; setBusy(false); }
++  };
++  return <div className="pt-2 border-t border-stone-200/80 dark:border-slate-800/80 shrink-0">
++    {notice && <p role="status" className="text-[11px] text-stone-500 dark:text-slate-400 mb-1">{notice}</p>}
++    {recovered.length > 0 && <div className="max-h-24 overflow-y-auto mb-1 space-y-1" aria-label="Recover local messages">
++      {recovered.map(candidate => <button key={candidate.operationId} type="button"
++        disabled={busy || !!draft.text.trim()} title="Restore this text to the empty composer"
++        onClick={() => { update(candidate); setRecovered([]); }}
++        className="block w-full text-left whitespace-pre-wrap rounded-xl px-2 py-1 text-xs bg-stone-100 dark:bg-slate-800 disabled:opacity-40">
++        {candidate.text}
++      </button>)}
++      {draft.text.trim() && <p className="text-[11px]">Your current draft is kept. Send it or clear the composer before restoring another message.</p>}
++    </div>}
++    <form onSubmit={send} className="flex items-center gap-2">
++      <input type="text" value={draft.text} disabled={busy} maxLength={10000}
++        onChange={e => update(newDraft(e.target.value))} placeholder="Type a message to buyer/seller..."
++        aria-label="Marketplace message"
++        className="flex-1 min-w-0 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm bg-stone-100/90 dark:bg-slate-800/90 text-stone-900 dark:text-slate-100 placeholder-stone-400 dark:placeholder-slate-500 border border-stone-200/80 dark:border-slate-700/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/40" />
++      <button type="submit" disabled={busy || !draft.text.trim()} aria-label="Send message"
++        className="p-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white transition cursor-pointer shrink-0 shadow-2xs flex items-center justify-center">
++        <Send className="w-4 h-4" />
++      </button>
++    </form>
++    <button type="button" disabled={busy} onClick={recover}
++      className="text-[11px] text-stone-500 dark:text-slate-400 hover:underline mt-1 disabled:opacity-40">Recover local message</button>
++  </div>;
++}
+diff --git a/src/services/marketplaceChatIdentity.ts b/src/services/marketplaceChatIdentity.ts
+new file mode 100644
+index 0000000..7dcaa63
+--- /dev/null
++++ b/src/services/marketplaceChatIdentity.ts
+@@ -0,0 +1,10 @@
++/** Shared display/protocol semantics. Lossy UID/name aliases are never leave authority. */
++export function marketLeft(chat: {
++  buyerLeft?: boolean; sellerLeft?: boolean;
++  deletedByBuyer?: boolean; deletedBySeller?: boolean; deletedBy?: string[];
++}, side: 'buyer' | 'seller') {
++  return (side === 'buyer'
++    ? chat.buyerLeft === true || chat.deletedByBuyer === true
++    : chat.sellerLeft === true || chat.deletedBySeller === true) ||
++    (Array.isArray(chat.deletedBy) && chat.deletedBy.includes(side));
++}
+diff --git a/src/services/marketplaceChatProtocol.ts b/src/services/marketplaceChatProtocol.ts
+new file mode 100644
+index 0000000..e41b443
+--- /dev/null
++++ b/src/services/marketplaceChatProtocol.ts
+@@ -0,0 +1,271 @@
++import {
++  collection,
++  doc,
++  getDoc,
++  getDocFromServer,
++  or,
++  query,
++  runTransaction,
++  where,
++  type Firestore,
++  type DocumentReference,
++  type Transaction,
++} from "firebase/firestore";
++import type { UserProfile } from "../types";
++import { marketLeft } from './marketplaceChatIdentity';
++export { marketLeft } from './marketplaceChatIdentity';
++import type {
++  MarketplaceChat,
++  MarketplaceChatMessage,
++} from "./marketplaceChatTypes";
++
++/** Canonical UIDs only. Sanitization is used for legacy document IDs, never authorization. */
++export const marketChatId = (itemId: string, buyerId: string) =>
++  `mkt_${clean(itemId)}_${clean(buyerId)}`;
++const clean = (value: string) =>
++  value
++    .trim()
++    .toLowerCase()
++    .replace(/[^a-zA-Z0-9_-]/g, "_");
++export const marketplaceChatQuery = (db: Firestore, uid: string) =>
++  query(
++    collection(db, "marketplace_chats"),
++    or(where("sellerId", "==", uid), where("buyerId", "==", uid)),
++  );
++export const marketSide = (chat: MarketplaceChat, uid: string) =>
++  chat.sellerId === uid ? "seller" : chat.buyerId === uid ? "buyer" : null;
++
++async function profile(db: Firestore, uid: string) {
++  const snapshot = await getDoc(doc(db, "users", uid));
++  const value = snapshot.data();
++  if (
++    !value ||
++    value.approved !== true ||
++    !["resident", "admin", "vip", "crew"].includes(value.role)
++  )
++    throw Error("An approved TownLoop account is required.");
++  return {
++    ...value,
++    id: uid,
++    name: typeof value.name === "string" ? value.name : "Resident",
++  } as UserProfile & { id: string; name: string };
++}
++function message(
++  user: Awaited<ReturnType<typeof profile>>,
++  text: string,
++  id: string,
++): MarketplaceChatMessage {
++  if (!text.trim() || text.length > 10000)
++    throw Error("Enter a message of up to 10,000 characters.");
++  const now = Date.now();
++  return {
++    id,
++    senderId: user.id,
++    senderName: user.name,
++    senderAvatar: user.avatarUrl || user.avatar_url || "",
++    text: text.trim(),
++    timestamp: new Date(now).toLocaleTimeString("en-US", {
++      hour: "numeric",
++      minute: "2-digit",
++    }),
++    createdAt: now,
++  };
++}
++const summary = (msg: MarketplaceChatMessage) => ({
++  lastMessage: msg.text,
++  lastMessageTime: msg.timestamp,
++  updatedAt: msg.createdAt!,
++});
++
++// A strict append rule can reject a stale optimistic transaction before the SDK
++// reports ABORTED. Retry only when a server read proves another append won.
++async function marketTransaction<T>(
++  db: Firestore,
++  ref: DocumentReference,
++  action: (
++    tx: Transaction,
++    observed: (chat?: MarketplaceChat) => void,
++  ) => Promise<T>,
++) {
++  for (let attempt = 0; ; attempt++) {
++    let beforeCount = -2;
++    try {
++      return await runTransaction(db, (tx) =>
++        action(tx, (chat) => {
++          beforeCount = chat ? chat.messages.length : -1;
++        }),
++      );
++    } catch (error) {
++      if (
++        (error as { code?: string }).code === "permission-denied" &&
++        attempt < 2 &&
++        beforeCount >= -1
++      ) {
++        const latest = await getDocFromServer(ref);
++        if (
++          latest.exists() &&
++          Array.isArray(latest.data().messages) &&
++          latest.data().messages.length > beforeCount
++        )
++          continue;
++      }
++      throw error;
++    }
++  }
++}
++
++export async function sendMarketInquiry(
++  db: Firestore,
++  uid: string,
++  itemId: string,
++  text: string,
++  messageId: string,
++  includeContact = false,
++) {
++  const user = await profile(db, uid);
++  const contact = [
++    user.name,
++    user.address || "",
++    user.phone ? `Phone: ${user.phone}` : "",
++  ]
++    .filter(Boolean)
++    .join(" • ");
++  const msg = message(
++    user,
++    text + (includeContact ? `\n\n— ${contact}` : ""),
++    messageId,
++  );
++  const id = marketChatId(itemId, uid),
++    ref = doc(db, "marketplace_chats", id);
++  await marketTransaction(db, ref, async (tx, observed) => {
++    const [itemSnap, chatSnap] = await Promise.all([
++      tx.get(doc(db, "marketplace_posts", itemId)),
++      tx.get(ref),
++    ]);
++    observed(
++      chatSnap.exists() ? (chatSnap.data() as MarketplaceChat) : undefined,
++    );
++    const item = itemSnap.data();
++    if (!item || item.sold || item.claimed)
++      throw Error("This listing is no longer available.");
++    const sellerId = item.userId || item.authorId;
++    if (typeof sellerId !== "string" || !sellerId || sellerId === uid)
++      throw Error("A verified seller account is required.");
++    const sellerSnap = await tx.get(doc(db, "users", sellerId)),
++      seller = sellerSnap.data();
++    if (
++      !seller ||
++      seller.approved !== true ||
++      !["resident", "admin", "vip", "crew"].includes(seller.role)
++    )
++      throw Error("The seller account is unavailable.");
++    if (chatSnap.exists()) {
++      const chat = chatSnap.data() as MarketplaceChat;
++      if (
++        chat.buyerId !== uid ||
++        chat.sellerId !== sellerId ||
++        chat.itemId !== itemId ||
++        marketLeft(chat, "buyer") ||
++        marketLeft(chat, "seller")
++      )
++        throw Error(
++          "This conversation is closed or requires an identity review by the office.",
++        );
++      if (chat.messages.some((m) => m.id === messageId)) return;
++      tx.update(ref, {
++        messages: [...chat.messages, msg],
++        ...summary(msg),
++        unreadForSeller: true,
++        unreadForBuyer: false,
++      });
++    } else {
++      tx.set(ref, {
++        id,
++        itemId,
++        itemTitle: item.title || "",
++        itemPrice: String(item.price ?? "FREE"),
++        itemMediaUrl: item.media?.[0]?.url || item.mediaUrl || "",
++        sellerId,
++        sellerName: seller.name || "Resident",
++        sellerAvatar: seller.avatarUrl || seller.avatar_url || "",
++        sellerApt: seller.address || "",
++        buyerId: uid,
++        buyerName: user.name,
++        buyerAvatar: user.avatarUrl || user.avatar_url || "",
++        buyerApt: user.address || "",
++        participantIds: [sellerId, uid],
++        messages: [msg],
++        ...summary(msg),
++        unreadForSeller: true,
++        unreadForBuyer: false,
++      });
++    }
++  });
++  return id;
++}
++export async function mutateMarketChat(
++  db: Firestore,
++  uid: string,
++  id: string,
++  action: "reply" | "read" | "leave",
++  text = "",
++  messageId = doc(collection(db, "marketplace_chats")).id,
++) {
++  const user = await profile(db, uid),
++    ref = doc(db, "marketplace_chats", id);
++  await marketTransaction(db, ref, async (tx, observed) => {
++    const snapshot = await tx.get(ref);
++    observed(
++      snapshot.exists() ? (snapshot.data() as MarketplaceChat) : undefined,
++    );
++    if (!snapshot.exists()) {
++      if (action === "read" || action === "leave") return;
++      throw Error("This conversation is no longer available.");
++    }
++    const chat = snapshot.data() as MarketplaceChat,
++      side = marketSide(chat, uid);
++    if (!side) throw Error("You are not a participant in this conversation.");
++    const other = side === "seller" ? "buyer" : "seller";
++    if (action === "read") {
++      tx.update(
++        ref,
++        side === "seller"
++          ? { unreadForSeller: false }
++          : { unreadForBuyer: false },
++      );
++      return;
++    }
++    if (marketLeft(chat, side)) {
++      if (action === "leave") return;
++      throw Error("You left this conversation.");
++    }
++    if (action === "leave") {
++      // Leaving hides only this side. Keep participants and all history even if both leave.
++      const msg = {
++        ...message(user, `${user.name} left the conversation.`, messageId),
++        senderId: "system",
++        senderName: "System",
++        isSystem: true,
++        actorId: uid,
++      };
++      tx.update(ref, {
++        ...(side === "seller"
++          ? { deletedBySeller: true, sellerLeft: true }
++          : { deletedByBuyer: true, buyerLeft: true }),
++        messages: [...chat.messages, msg],
++        ...summary(msg),
++      });
++      return;
++    }
++    if (marketLeft(chat, other))
++      throw Error("The other participant has left this chat.");
++    if (chat.messages.some((m) => m.id === messageId)) return;
++    const msg = message(user, text, messageId);
++    tx.update(ref, {
++      messages: [...chat.messages, msg],
++      ...summary(msg),
++      unreadForBuyer: side === "seller",
++      unreadForSeller: side === "buyer",
++    });
++  });
++}
+diff --git a/src/services/marketplaceChatRecovery.ts b/src/services/marketplaceChatRecovery.ts
+new file mode 100644
+index 0000000..da99c70
+--- /dev/null
++++ b/src/services/marketplaceChatRecovery.ts
+@@ -0,0 +1,58 @@
++// Local text is untrusted recovery material, never server history or identity evidence.
++export const LEGACY_MARKET_CACHE = 'townloop_marketplace_chats_v1';
++export type MarketDraft = { text: string; operationId: string; includePhone?: boolean };
++export type DraftStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
++const draftKey = (uid: string, chatId: string) =>
++  `townloop_marketplace_draft_v2:${encodeURIComponent(uid)}:${encodeURIComponent(chatId)}`;
++
++export function readMarketDraft(storage: DraftStorage, uid: string, chatId: string): MarketDraft | null {
++  const raw = storage.getItem(draftKey(uid, chatId));
++  if (raw === null) return null;
++  const value = JSON.parse(raw);
++  if (!value || typeof value.text !== 'string' || typeof value.operationId !== 'string' || !value.operationId)
++    throw Error('Saved draft needs recovery; it has not been changed.');
++  return { text: value.text, operationId: value.operationId,
++    ...(typeof value.includePhone === 'boolean' ? { includePhone: value.includePhone } : {}) };
++}
++export function writeMarketDraft(storage: DraftStorage, uid: string, chatId: string, draft: MarketDraft) {
++  try {
++    readMarketDraft(storage, uid, chatId); // Preserve malformed existing drafts rather than overwriting them.
++    storage.setItem(draftKey(uid, chatId), JSON.stringify(draft));
++    return true;
++  } catch { return false; }
++}
++export function clearMarketDraft(storage: DraftStorage, uid: string, chatId: string, acknowledged: MarketDraft) {
++  const current = readMarketDraft(storage, uid, chatId);
++  if (current?.operationId === acknowledged.operationId && current.text === acknowledged.text)
++    storage.removeItem(draftKey(uid, chatId));
++}
++
++export function recoverCachedMarketMessages(storage: DraftStorage, server: {
++  id: string; sellerId: string; buyerId: string;
++  messages: { id: string; senderId: string; text: string }[];
++}, uid: string): MarketDraft[] {
++  if (server.sellerId !== uid && server.buyerId !== uid) return [];
++  const raw = storage.getItem(LEGACY_MARKET_CACHE);
++  if (raw === null) return [];
++  const cached = JSON.parse(raw);
++  if (!Array.isArray(cached) || !Array.isArray(server.messages))
++    throw Error('Local messages need review; the archive has not been changed.');
++  const serverIds = new Set(server.messages.map(m => m.id));
++  const sentText = new Set(server.messages.filter(m => m.senderId === uid).map(m => m.text.trim()));
++  const recovered: MarketDraft[] = [];
++  for (const chat of cached) {
++    // Fresh server participation and exact IDs are required. No name/sanitized fallback.
++    if (!chat || chat.id !== server.id || chat.sellerId !== server.sellerId ||
++        chat.buyerId !== server.buyerId || !Array.isArray(chat.messages)) continue;
++    for (const m of chat.messages) {
++      if (!m || m.senderId !== uid || m.isSystem || typeof m.id !== 'string' ||
++          !m.id || m.id.length > 180 || typeof m.text !== 'string' ||
++          !m.text.trim() || m.text.length > 10000 || serverIds.has(m.id) ||
++          serverIds.has(`mrec_${m.id}`) || sentText.has(m.text.trim())) continue;
++      recovered.push({ text: m.text, operationId: `mrec_${m.id}` });
++      serverIds.add(m.id);
++      sentText.add(m.text.trim());
++    }
++  }
++  return recovered; // Original archive is deliberately never written or deleted.
++}
+diff --git a/src/services/marketplaceChatTypes.ts b/src/services/marketplaceChatTypes.ts
+new file mode 100644
+index 0000000..66b8eba
+--- /dev/null
++++ b/src/services/marketplaceChatTypes.ts
+@@ -0,0 +1,38 @@
++export interface MarketplaceChatMessage {
++  id: string;
++  senderId: string;
++  senderName: string;
++  senderAvatar?: string;
++  text: string;
++  timestamp: string;
++  createdAt?: number;
++  isSystem?: boolean;
++}
++
++export interface MarketplaceChat {
++  id: string;
++  itemId: string;
++  itemTitle: string;
++  itemPrice: string;
++  itemMediaUrl?: string;
++  sellerId: string;
++  sellerName: string;
++  sellerAvatar?: string;
++  sellerApt?: string;
++  buyerId: string;
++  buyerName: string;
++  buyerAvatar?: string;
++  buyerApt?: string;
++  participantIds: string[];
++  lastMessage: string;
++  lastMessageTime: string;
++  updatedAt: number;
++  unreadForSeller?: boolean;
++  unreadForBuyer?: boolean;
++  deletedByBuyer?: boolean;
++  deletedBySeller?: boolean;
++  buyerLeft?: boolean;
++  sellerLeft?: boolean;
++  deletedBy?: string[];
++  messages: MarketplaceChatMessage[];
++}

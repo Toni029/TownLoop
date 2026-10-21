@@ -95,8 +95,9 @@ export interface CommunityState {
   handleOpenMessageSeller: (item: MarketItem) => void;
   handleSendMessageToSeller: (
     itemOrRecipient: MarketItem | string,
-    messageText?: string
-  ) => Promise<void> | void;
+    messageText?: string,
+    messageId?: string
+  ) => Promise<void | boolean> | void;
   handleCreatePostSubmit: (payload: {
     type: 'chat' | 'market';
     title: string;
@@ -583,7 +584,7 @@ export function useCommunityState(
   }, []);
 
   const handleSendMessageToSeller = useCallback(
-    async (itemOrRecipient: MarketItem | string, messageText?: string) => {
+    async (itemOrRecipient: MarketItem | string, messageText?: string, messageId?: string) => {
       const effectiveBuyer = currentUser || {
         id: 'resident',
         name: 'Resident',
@@ -597,6 +598,7 @@ export function useCommunityState(
             item: itemOrRecipient,
             buyer: effectiveBuyer,
             messageText,
+            messageId,
           });
 
           // Instantly update local marketplaceChats React state
@@ -612,13 +614,11 @@ export function useCommunityState(
           showToast?.('Message sent to seller!');
           return;
         } catch (err) {
-          console.warn('Unable to send marketplace inquiry:', err);
+          showToast?.('Message was not confirmed. Your draft is kept; please retry.');
+          return false;
         }
       }
-
-      setIsMessageSellerModalOpen(false);
-      setSelectedMessageSellerItem(null);
-      showToast?.('Message sent to seller!');
+      return false;
     },
     [currentUser, showToast]
   );

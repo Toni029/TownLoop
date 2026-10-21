@@ -1,0 +1,11 @@
+{
+  "read_succeeded": true,
+  "latest_releases": [
+    {
+      "release": "projects/cc-livingcommunity-app/sites/townloop/releases/1790369133134000",
+      "releaseTime": "2026-09-25T20:45:33.134Z",
+      "version": "projects/cc-livingcommunity-app/sites/townloop/versions/d7e22df49f9e4bbf",
+      "sourceCommit": null
+    }
+  ]
+}

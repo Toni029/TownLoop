@@ -1,0 +1,35 @@
+{
+  "checked_at_utc": "2026-10-21T23:02:49.043990+00:00",
+  "hosting_site": "townloop",
+  "hosting_version": "d7e22df49f9e4bbf",
+  "releaseTime": "2026-09-25T20:45:33.134Z",
+  "file_manifest_count": 23,
+  "public_entry_bundle": {
+    "path": "/assets/index-C_3tBUcg.js",
+    "sha256": "1dfd19fb7b3b4966a1595a18f0059c7263c4fa67dc69dd6886912b66ad5a55c5",
+    "source_map_references": []
+  },
+  "source_commit_verified": false,
+  "main_remote_commit": "a6567cdcbfaa578dd10a89b8c259a5650d5a0a76",
+  "main_local_matches_remote": true,
+  "static_file_source_candidate_count": 12,
+  "live_project": "cc-livingcommunity-app",
+  "live_database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+  "main_database": "(default)",
+  "database_switch_in_main_plus_C1": true,
+  "live_marketplace_chat_collection_reference": false,
+  "live_marketplace_cache_key_reference": false,
+  "live_inquiry_handler": "Only closes modal, clears selection, shows success notice; no server send in that handler.",
+  "main_plus_C1_deploy_decision": "NO-GO: not a C1-only upgrade relative to live; database selection differs.",
+  "recommended_C1_web_action": "Leave existing Hosting release unchanged; current served client does not use marketplace_chats. Confirm revised rollout before proceeding.",
+  "static_preservation_flags": [
+    "/.well-known/assetlinks.json"
+  ],
+  "no_tracked_main_dependency_lockfile": true,
+  "resident_records_read": false,
+  "resident_caches_inspected": false,
+  "app_code_executed_for_hosted_review": false,
+  "tests_or_builds_run": false,
+  "deployed_or_published": false,
+  "expo_preview_http_status": 200
+}

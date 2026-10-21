@@ -5,6 +5,7 @@ import type {
   UserProfile,
   MediaAttachment,
 } from "../../../src/types";
+import { marketLeft } from '../../../src/services/marketplaceChatIdentity';
 export type Post = PostItem & { createdAt: number };
 export type Listing = MarketItem & { createdAt: number };
 export interface Chat {
@@ -196,15 +197,7 @@ export function chatSide(chat: Chat, uid: string): "seller" | "buyer" | null {
       : null;
 }
 export function hasLeft(chat: Chat, side: "seller" | "buyer") {
-  return (
-    !!(side === "seller"
-      ? chat.sellerLeft || chat.deletedBySeller
-      : chat.buyerLeft || chat.deletedByBuyer) ||
-    !!chat.deletedBy?.includes(side) ||
-    !!chat.deletedBy?.includes(
-      cleanChatId(side === "seller" ? chat.sellerId : chat.buyerId),
-    )
-  );
+  return marketLeft(chat, side);
 }
 export function visibleChat(chat: Chat, uid: string) {
   const side = chatSide(chat, uid);
@@ -221,7 +214,7 @@ export function readChat(id: string, d: Record<string, any>): Chat {
   } as Chat;
 }
 
-/** Reference subscribes to the full collection, including legacy chats lacking updatedAt. */
+/** Sort the participant-scoped result locally, retaining legacy chats without updatedAt. */
 export function orderedChats(chats: Chat[], uid: string) {
   return chats
     .filter((chat) => visibleChat(chat, uid))

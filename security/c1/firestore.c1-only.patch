@@ -1,0 +1,86 @@
+--- firestore.console-baseline.rules
++++ firestore.c1-candidate.rules
+@@ -323,8 +323,82 @@
+       allow delete: if chatAccess('friend', resource.data);
+     }
+ 
++    // C1: Marketplace chats authorize exact UIDs, never names/sanitized aliases.
++    function marketApproved() {
++      return isSignedIn() && currentProfile().approved == true &&
++        currentProfile().role in ['resident', 'admin', 'vip', 'crew'];
++    }
++    function marketParticipant(data) {
++      return data.get('sellerId', '') == request.auth.uid || data.get('buyerId', '') == request.auth.uid;
++    }
++    function marketLeft(data, side) {
++      return (side == 'seller' ? data.get('sellerLeft', false) || data.get('deletedBySeller', false)
++        : data.get('buyerLeft', false) || data.get('deletedByBuyer', false)) ||
++        data.get('deletedBy', []).hasAny([side]);
++    }
++    function marketMessage(before, after, leaving) {
++      let added = after.messages[after.messages.size() - 1];
++      return after.messages.size() == before.size() + 1 && !before.hasAny([added]) &&
++        after.messages.removeAll([added]) == before &&
++        added.keys().hasOnly(['id', 'senderId', 'senderName', 'senderAvatar', 'text', 'timestamp', 'createdAt', 'isSystem', 'actorId']) &&
++        added.id is string && added.id.size() > 0 && added.id.size() <= 200 &&
++        added.text is string && added.text.size() > 0 && added.text.size() <= 10000 && added.text.matches('(?s).*[^\\s].*') &&
++        added.timestamp is string && added.timestamp.size() <= 80 && added.createdAt is int && added.createdAt >= 0 &&
++        after.lastMessage == added.text && after.lastMessageTime == added.timestamp && after.updatedAt == added.createdAt &&
++        (leaving ? (added.senderId == 'system' && added.senderName == 'System' && added.isSystem == true &&
++          added.actorId == request.auth.uid && added.text == currentProfile().get('name', 'Resident') + ' left the conversation.') :
++          (added.senderId == request.auth.uid && added.senderName == currentProfile().get('name', 'Resident') &&
++           added.get('isSystem', false) == false && !added.keys().hasAny(['actorId']))) &&
++        added.get('senderAvatar', '') == currentProfile().get('avatarUrl', currentProfile().get('avatar_url', ''));
++    }
++    function marketCreate(chatId) {
++      let data = request.resource.data;
++      let listing = get(/databases/$(database)/documents/marketplace_posts/$(data.itemId)).data;
++      let seller = get(/databases/$(database)/documents/users/$(data.sellerId)).data;
++      return data.keys().hasOnly(['id', 'itemId', 'itemTitle', 'itemPrice', 'itemMediaUrl', 'sellerId', 'sellerName', 'sellerAvatar', 'sellerApt',
++        'buyerId', 'buyerName', 'buyerAvatar', 'buyerApt', 'participantIds', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForSeller', 'unreadForBuyer', 'messages']) &&
++        data.id == chatId && data.itemId is string && data.itemId.size() > 0 && data.sellerId is string &&
++        chatId == 'mkt_' + data.itemId.lower().replace('[^a-zA-Z0-9_-]', '_') + '_' + request.auth.uid.lower().replace('[^a-zA-Z0-9_-]', '_') &&
++        data.buyerId == request.auth.uid && data.sellerId != data.buyerId &&
++        data.sellerId == listing.get('userId', listing.get('authorId', '')) &&
++        !listing.get('sold', false) && !listing.get('claimed', false) &&
++        seller.approved == true && seller.role in ['resident', 'admin', 'vip', 'crew'] &&
++        data.participantIds == [data.sellerId, data.buyerId] &&
++        data.buyerName == currentProfile().get('name', 'Resident') && data.sellerName == seller.get('name', 'Resident') &&
++        data.buyerAvatar == currentProfile().get('avatarUrl', currentProfile().get('avatar_url', '')) &&
++        data.sellerAvatar == seller.get('avatarUrl', seller.get('avatar_url', '')) &&
++        data.itemTitle == listing.get('title', '') && data.itemPrice == string(listing.get('price', 'FREE')) &&
++        data.unreadForSeller == true && data.unreadForBuyer == false && marketMessage([], data, false);
++    }
++    function marketUpdate() {
++      let before = resource.data;
++      let after = request.resource.data;
++      let changes = after.diff(before).affectedKeys();
++      let seller = before.sellerId == request.auth.uid;
++      let side = seller ? 'seller' : 'buyer';
++      let other = seller ? 'buyer' : 'seller';
++      return
++        // Read acknowledgments never alter messages or the other participant's state.
++        (changes.hasOnly([seller ? 'unreadForSeller' : 'unreadForBuyer']) &&
++          (seller ? after.unreadForSeller == false : after.unreadForBuyer == false)) ||
++        (!marketLeft(before, side) && (
++          (!marketLeft(before, other) &&
++           changes.hasOnly(['messages', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForBuyer', 'unreadForSeller']) &&
++           after.unreadForBuyer == seller && after.unreadForSeller == !seller && marketMessage(before.messages, after, false)) ||
++          (changes.hasOnly(seller ? ['sellerLeft', 'deletedBySeller', 'messages', 'lastMessage', 'lastMessageTime', 'updatedAt'] :
++                                    ['buyerLeft', 'deletedByBuyer', 'messages', 'lastMessage', 'lastMessageTime', 'updatedAt']) &&
++           (seller ? after.sellerLeft == true && after.deletedBySeller == true : after.buyerLeft == true && after.deletedByBuyer == true) &&
++           marketMessage(before.messages, after, true))
++        ));
++    }
+     match /marketplace_chats/{chatId} {
+-      allow read, write: if true;
++      allow get: if marketApproved() && (!exists(/databases/$(database)/documents/marketplace_chats/$(chatId)) || marketParticipant(resource.data));
++      allow list: if marketApproved() && marketParticipant(resource.data);
++      allow create: if marketApproved() && marketCreate(chatId);
++      allow update: if marketApproved() && marketParticipant(resource.data) && marketUpdate();
++      // Second participant may remove the chat only after the other already left.
++      allow delete: if marketApproved() && marketParticipant(resource.data) &&
++        marketLeft(resource.data, resource.data.sellerId == request.auth.uid ? 'buyer' : 'seller');
+     }
+ 
+     match /{document=**} {

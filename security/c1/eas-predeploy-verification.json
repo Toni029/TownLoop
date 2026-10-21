@@ -1,0 +1,86 @@
+{
+  "preview_channel": {
+    "read_succeeded": true,
+    "name": "preview",
+    "paused": false,
+    "mapping": {
+      "data": [
+        {
+          "branchId": "01a14133-2190-7d4d-abca-60834733ca84",
+          "branchMappingLogic": "true"
+        }
+      ],
+      "version": 0
+    },
+    "branches": [
+      {
+        "id": "01a14133-2190-7d4d-abca-60834733ca84",
+        "name": "preview",
+        "latest_groups": [
+          [
+            {
+              "id": "01a15f73-49e4-72b1-9d8f-a7e5e868a6c0",
+              "group": "2b692c19-9683-401d-b5ee-ea8c3ff2bce6",
+              "platform": "android",
+              "runtime": "34fdc17d0432044445e5789a549f8e9bfbcf8b3c",
+              "commit": "25c4b3b9b64baab3ab2b0a52e682f55e9855d9d9"
+            }
+          ]
+        ]
+      }
+    ]
+  },
+  "production_channel": {
+    "read_succeeded": true,
+    "name": "production",
+    "paused": false,
+    "mapping": {
+      "data": [
+        {
+          "branchId": "01a14133-2b68-70bf-a2a5-a31871877efb",
+          "branchMappingLogic": "true"
+        }
+      ],
+      "version": 0
+    },
+    "branches": [
+      {
+        "id": "01a14133-2b68-70bf-a2a5-a31871877efb",
+        "name": "production",
+        "latest_groups": []
+      }
+    ]
+  },
+  "android_builds": {
+    "read_succeeded": true,
+    "builds": [
+      {
+        "id": "e2bba78f-7774-4bdb-99e9-8f2b934831ea",
+        "buildProfile": "preview",
+        "channel": "preview",
+        "runtime": "34fdc17d0432044445e5789a549f8e9bfbcf8b3c",
+        "fingerprint": "34fdc17d0432044445e5789a549f8e9bfbcf8b3c",
+        "commit": "1e01e3d3d680dec3dda12579d2b3f9d15d813a28",
+        "createdAt": "2026-10-19T16:53:51.171Z"
+      },
+      {
+        "id": "82df7c94-b6f1-4685-bb14-505cb4d9b7b9",
+        "buildProfile": "development",
+        "channel": "development",
+        "runtime": "7a4f52ca67cc7391c6bd746696462930f71df303",
+        "fingerprint": "7a4f52ca67cc7391c6bd746696462930f71df303",
+        "commit": "9b5914b9ae4cab046e4c5b6ff7dd7d450d351017",
+        "createdAt": "2026-10-15T20:27:22.930Z"
+      },
+      {
+        "id": "2aa5009d-dd74-465d-84ed-8ad7bcb51e48",
+        "buildProfile": "preview",
+        "channel": "preview",
+        "runtime": "7a4f52ca67cc7391c6bd746696462930f71df303",
+        "fingerprint": "7a4f52ca67cc7391c6bd746696462930f71df303",
+        "commit": "9b5914b9ae4cab046e4c5b6ff7dd7d450d351017",
+        "createdAt": "2026-10-15T20:24:56.331Z"
+      }
+    ]
+  }
+}

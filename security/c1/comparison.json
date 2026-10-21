@@ -1,0 +1,12 @@
+{
+  "baseline_origin": "Full Firebase Console rules supplied by user on 2026-10-21; matches historical source blob 4834e1f:firestore.rules reviewed in this turn. Not independently fetched from Rules API.",
+  "historical_git_blob": "4a962b2f2f2247ab4199488a22001f1f324f2747",
+  "baseline_sha256": "79c701b89890d43c1bb82028f02ce5483987577b2dae31dd1e5518bdecddd259",
+  "candidate_sha256": "ea46363e0c12251f1d9855e24252abaa7593f138a65cab11a099a356def903bd",
+  "outside_C1_identical": true,
+  "C1_block_identical_to_previously_tested_block": true,
+  "existing_referenced_helpers_and_read_rules_identical": true,
+  "previous_emulator_assertions": 51,
+  "new_test_runs": 0,
+  "deployment_status": "NOT DEPLOYED; root firebase.json and firestore.rules unchanged by this composition"
+}

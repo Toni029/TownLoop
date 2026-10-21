@@ -1,3 +1,4 @@
+import { marketplaceChatQuery } from "../../../src/services/marketplaceChatProtocol";
 import { canViewAllWorkOrders } from "../../../src/utils/permissions";
 import { subscribeSafely } from "./subscription";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
@@ -31,7 +32,7 @@ export function useLiveCollection<T>(
     loading: boolean;
     error: string;
   }>({ key: "", items: [], loading: true, error: "" });
-  const source = useMemo(() => residentOrders
+  const source = useMemo(() => name === "marketplace_chats" ? marketplaceChatQuery(db, uid) : residentOrders
     ? query(collection(db, name), where("userId", "==", uid))
     : sortField ? query(collection(db, name), orderBy(sortField, "desc")) : collection(db, name),
     [residentOrders, name, uid, sortField]);

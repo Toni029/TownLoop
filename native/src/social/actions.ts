@@ -1,3 +1,4 @@
+import {sendMarketInquiry, mutateMarketChat} from "../../../src/services/marketplaceChatProtocol";
 import {
   collection,
   doc,
@@ -19,10 +20,6 @@ import {
   owns,
   appendComment,
   formatPrice,
-  readChat,
-  chatSide,
-  hasLeft,
-  cleanChatId,
 } from "./model";
 export type SocialKind = "post" | "listing";
 const collectionFor = (kind: SocialKind) =>
@@ -149,159 +146,16 @@ export async function changeSocial(
     });
   });
 }
-const messageFor = (user: UserProfile, text: string, id: string) => ({
-  id,
-  senderId: String(user.id),
-  senderName: user.name,
-  senderAvatar: avatar(user),
-  text,
-  timestamp: new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }),
-  createdAt: Date.now(),
-});
-export async function inquire(
-  itemId: string,
-  text: string,
-  includeContact: boolean,
-  messageId = newSocialId(),
-) {
+// Both clients use the same UID-only, transactional Marketplace protocol.
+export async function inquire(itemId: string, text: string, includeContact: boolean, messageId = newSocialId()) {
   return runSocial(`inquiry:${itemId}`, async () => {
-    if (!text.trim()) throw Error("Please enter a message.");
     const user = await approvedUser();
-    const id = `mkt_${cleanChatId(itemId)}_${cleanChatId(user.id)}`;
-    const reference = doc(db, "marketplace_chats", id);
-    await runTransaction(db, async (tx) => {
-      const itemSnap = await tx.get(doc(db, "marketplace_posts", itemId));
-      const chatSnap = await tx.get(reference);
-      if (!itemSnap.exists())
-        throw Error("This listing is no longer available.");
-      const item = readListing(itemId, itemSnap.data());
-      if (item.sold || item.claimed) throw Error("This item has been sold.");
-      if (owns(item, user)) throw Error("This is your own listing.");
-      if (!item.authorId)
-        throw Error(
-          "Seller identity is unavailable. Please contact the office.",
-        );
-      const existing = chatSnap.exists() ? readChat(id, chatSnap.data()) : null;
-      if (
-        existing &&
-        (chatSide(existing, String(user.id)) !== "buyer" ||
-          hasLeft(existing, "buyer") ||
-          hasLeft(existing, "seller"))
-      )
-        throw Error("This conversation has closed.");
-      const contact = [
-        user.name,
-        user.address || user.wing,
-        user.phone ? `Phone: ${user.phone}` : "",
-      ]
-        .filter(Boolean)
-        .join(" • ");
-      const msg = messageFor(
-        user,
-        text.trim() + (includeContact ? `\n\n— ${contact}` : ""),
-        messageId,
-      );
-      if (existing?.messages.some((m) => m.id === messageId)) return;
-      tx.set(reference, {
-        ...(existing || {}),
-        id,
-        itemId,
-        itemTitle: item.title,
-        itemPrice: item.price,
-        itemMediaUrl: item.media?.[0]?.url || item.mediaUrl || "",
-        sellerId: String(item.authorId),
-        sellerName: item.author,
-        sellerAvatar: item.authorAvatar || "",
-        sellerApt: item.unit,
-        buyerId: String(user.id),
-        buyerName: user.name,
-        buyerAvatar: avatar(user),
-        buyerApt: user.address || user.apartmentNumber || "Resident",
-        participantIds: [cleanChatId(item.authorId), cleanChatId(user.id)],
-        lastMessage: msg.text,
-        lastMessageTime: msg.timestamp,
-        updatedAt: msg.createdAt,
-        unreadForSeller: true,
-        unreadForBuyer: false,
-        messages: [...(existing?.messages || []), msg],
-      });
-    });
-    return id;
+    return sendMarketInquiry(db, String(user.id), itemId, text, messageId, includeContact);
   });
 }
-export async function changeChat(
-  id: string,
-  action: "reply" | "read" | "leave",
-  text = "",
-  messageId = newSocialId(),
-) {
+export async function changeChat(id: string, action: "reply" | "read" | "leave", text = "", messageId = newSocialId()) {
   return runSocial(`chat:${id}:${action}`, async () => {
     const user = await approvedUser();
-    const reference = doc(db, "marketplace_chats", id);
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(reference);
-      if (!snap.exists()) {
-        if (action === "read") return;
-        throw Error("This conversation is no longer available.");
-      }
-      const chat = readChat(id, snap.data());
-      const side = chatSide(chat, String(user.id));
-      if (!side) throw Error("You are not a participant in this conversation.");
-      const other = side === "seller" ? "buyer" : "seller";
-      if (hasLeft(chat, side)) {
-        if (action === "leave" || action === "read") return;
-        throw Error("You left this conversation.");
-      }
-      if (action === "read") {
-        tx.update(
-          reference,
-          side === "seller"
-            ? { unreadForSeller: false }
-            : { unreadForBuyer: false },
-        );
-        return;
-      }
-      if (action === "leave") {
-        if (hasLeft(chat, other)) {
-          tx.delete(reference);
-          return;
-        }
-        const msg = {
-          ...messageFor(user, `${user.name} left the conversation.`, messageId),
-          senderId: "system",
-          senderName: "System",
-          isSystem: true,
-        };
-        tx.update(reference, {
-          ...(side === "seller"
-            ? { deletedBySeller: true, sellerLeft: true }
-            : { deletedByBuyer: true, buyerLeft: true }),
-          deletedBy: [
-            ...new Set([...(chat.deletedBy || []), side, cleanChatId(user.id)]),
-          ],
-          messages: [...chat.messages, msg],
-          lastMessage: msg.text,
-          lastMessageTime: msg.timestamp,
-          updatedAt: msg.createdAt,
-        });
-        return;
-      }
-      if (hasLeft(chat, other))
-        throw Error("The other participant has left this chat.");
-      if (!text.trim()) throw Error("Please enter a reply.");
-      if (chat.messages.some((m) => m.id === messageId)) return;
-      const msg = messageFor(user, text.trim(), messageId);
-      tx.update(reference, {
-        messages: [...chat.messages, msg],
-        lastMessage: msg.text,
-        lastMessageTime: msg.timestamp,
-        updatedAt: msg.createdAt,
-        unreadForBuyer: side === "seller",
-        unreadForSeller: side === "buyer",
-      });
-    });
+    await mutateMarketChat(db, String(user.id), id, action, text, messageId);
   });
 }

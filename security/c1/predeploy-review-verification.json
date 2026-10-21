@@ -1,0 +1,11 @@
+{
+  "checked_at_utc": "2026-10-21T22:44:59.914075+00:00",
+  "clean_native_patch_checked": true,
+  "live_rules_outside_C1_identical_to_candidate": true,
+  "fallback_outside_marketplace_match_identical_to_candidate": true,
+  "candidate_sha256": "ea46363e0c12251f1d9855e24252abaa7593f138a65cab11a099a356def903bd",
+  "fallback_sha256": "09077bcd7204debfe0dc54c29fa5723a804de8f781c56f0e1eceb044d9eb5a4e",
+  "previous_C1_assertions_reused": 51,
+  "new_recovery_assertions_passed": 8,
+  "release_executed": false
+}
