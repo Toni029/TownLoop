@@ -13,6 +13,7 @@ import { useResident } from "../lib/resident";
 import { useLiveCollection } from "../lib/liveCollection";
 import { Action, Copy, NewsDialog } from "../news/ui";
 import { ProductToast } from "../components/ProductToast";
+import { MarketplaceGallery } from "../components/MarketplaceGallery";
 import { MediaViewer } from "../components/MediaViewer";
 import {
   readPost,
@@ -58,6 +59,7 @@ export default function SocialScreen() {
     index: number;
     title: string;
     returnTo: typeof selected;
+    marketplace: boolean;
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -125,10 +127,12 @@ export default function SocialScreen() {
     [perform],
   );
   const onMedia = (files: MediaAttachment[], title: string, index = 0) => {
-    setMedia({ files, title, index, returnTo: selected });
-    setSelected(null);
+    setMedia({ files, title, index, returnTo: selected, marketplace: (selected?.kind || view) === "listing" });
+    // Keep listing details mounted underneath the gallery; closing must not replay its entrance.
+    if (selected?.kind !== "listing") setSelected(null);
     setError("");
   };
+  const Gallery = media?.marketplace && media.files.every(file => file.type === "image") ? MarketplaceGallery : MediaViewer;
   const onMessage = (item: Listing) => {
     setSelected(null);
     setError("");
@@ -254,12 +258,12 @@ export default function SocialScreen() {
         />
       )}
       {media && (
-        <MediaViewer
+        <Gallery
           media={media.files}
           initialIndex={media.index}
           title={media.title}
           onClose={() => {
-            setSelected(media.returnTo);
+            if (!media.marketplace) setSelected(media.returnTo);
             setMedia(null);
           }}
         />

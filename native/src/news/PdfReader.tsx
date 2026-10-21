@@ -1,6 +1,6 @@
 import { TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -44,6 +44,20 @@ export function PdfReader({
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [zoom, setZoom] = useState(1);
+  // Gesture feedback is display-only; never echo it back as a native scale command.
+  const [commandZoom, setCommandZoom] = useState(1);
+  const zoomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const scaleChanged = useCallback((value: number) => {
+    setZoom(value);
+    clearTimeout(zoomTimer.current);
+    // Synchronize only after native zoom settles, never once per pinch frame.
+    zoomTimer.current = setTimeout(() => setCommandZoom(value), 400);
+  }, []);
+  useEffect(() => () => clearTimeout(zoomTimer.current), []);
+  const source = useMemo(() => ({uri, cache: false}), [uri]);
+  const pageChanged = useCallback((n: number) => { setPage(n); setPageInput(String(n)); }, []);
+  const pdfError = useCallback(() => setError("The newsletter could not be opened. Please try again."), []);
+  const zoomTo = (value: number) => { clearTimeout(zoomTimer.current); setZoom(value); setCommandZoom(value); };
   const [sharing, setSharing] = useState(false);
   const pdf = useRef<PdfRef>(null);
   const sharingRef = useRef(false);
@@ -170,7 +184,7 @@ export function PdfReader({
                   setUri("");
                   setError("");
                   setPages(0);
-                  setZoom(1);
+                  zoomTo(1);
                   setAttempt((n) => n + 1);
                 }}
               />
@@ -178,26 +192,14 @@ export function PdfReader({
           ) : uri ? (
             <PdfPages
               ref={pdf}
-              source={{ uri, cache: false }}
-              style={{ flex: 1, backgroundColor: "#0c0a09" }}
-              scale={zoom}
-              onLoadComplete={(count) => setPages(count)}
-              onPageChanged={(n) => {
-                setPage(n);
-                setPageInput(String(n));
-              }}
-              onScaleChanged={setZoom}
-              onError={() =>
-                setError(
-                  "The newsletter could not be opened. Please try again.",
-                )
-              }
-              renderActivityIndicator={() => (
-                <ActivityIndicator
-                  color="#34d399"
-                  accessibilityLabel="Opening newsletter pages"
-                />
-              )}
+              source={source}
+              style={pdfStyle}
+              scale={commandZoom}
+              onLoadComplete={setPages}
+              onPageChanged={pageChanged}
+              onScaleChanged={scaleChanged}
+              onError={pdfError}
+              renderActivityIndicator={pdfLoading}
             />
           ) : (
             <View
@@ -260,7 +262,7 @@ export function PdfReader({
             <ReaderIcon
               label="Zoom out"
               Icon={Minus}
-              onPress={() => setZoom((v) => Math.max(0.75, v - 0.25))}
+              onPress={() => zoomTo(Math.max(0.75, zoom - 0.25))}
               disabled={zoom <= 0.75}
             />
             <Copy style={{ color: "#e7e5e4", width: 40, textAlign: "center" }}>
@@ -269,12 +271,12 @@ export function PdfReader({
             <ReaderIcon
               label="Zoom in"
               Icon={Plus}
-              onPress={() => setZoom((v) => Math.min(2.5, v + 0.25))}
+              onPress={() => zoomTo(Math.min(2.5, zoom + 0.25))}
               disabled={zoom >= 2.5}
             />
             <Pressable
               accessibilityRole="button"
-              onPress={() => setZoom(1)}
+              onPress={() => zoomTo(1)}
               style={{
                 minHeight: 40,
                 padding: 8,
@@ -325,3 +327,6 @@ function ReaderIcon({
     </Pressable>
   );
 }
+
+const pdfStyle = {flex: 1, backgroundColor: "#0c0a09"};
+const pdfLoading = () => <ActivityIndicator color="#34d399" accessibilityLabel="Opening newsletter pages" />;

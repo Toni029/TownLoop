@@ -21,6 +21,7 @@ const PdfPage: FC<{
   scrollRoot: RefObject<HTMLDivElement | null>;
 }> = ({ pdf, number, width, scrollRoot }) => {
   const host = useRef<HTMLDivElement>(null);
+  const displayed = useRef<HTMLCanvasElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [ratio, setRatio] = useState(792 / 612);
   const [error, setError] = useState(false);
@@ -29,19 +30,24 @@ const PdfPage: FC<{
       ([entry]) => setVisible(entry.isIntersecting),
       {
         root: scrollRoot.current,
-        rootMargin: "400px",
+        rootMargin: "100% 0px",
       },
     );
     if (host.current) observer.observe(host.current);
     return () => observer.disconnect();
   }, [scrollRoot]);
   useEffect(() => {
-    if (!visible || !host.current) return;
+    if (!visible) {
+      const previous = displayed.current;
+      if (previous) { previous.remove(); previous.width = previous.height = 0; displayed.current = null; }
+      return;
+    }
+    if (!host.current) return;
     const canvas = document.createElement("canvas");
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-label", `Newsletter page ${number}`);
     canvas.style.display = "block";
-    host.current.appendChild(canvas);
+    // Render offscreen; the previous page stays visible until this render succeeds.
     let cancelled = false;
     let renderTask:
       | ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]>
@@ -57,20 +63,27 @@ const PdfPage: FC<{
         // Bound canvas memory on phones, especially when zoomed in.
         const density = Math.min(
           window.devicePixelRatio || 1,
-          2,
-          2400 / Math.max(viewport.width, viewport.height),
+          3,
+          4096 / Math.max(viewport.width, viewport.height),
+          Math.sqrt(4_000_000 / (viewport.width * viewport.height)),
         );
         canvas.width = Math.ceil(viewport.width * density);
         canvas.height = Math.ceil(viewport.height * density);
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
         renderTask = page.render({
           canvas,
           viewport,
           transform: [density, 0, 0, density, 0, 0],
         });
         await renderTask.promise;
-        if (!cancelled) canvas.dataset.rendered = "true";
+        if (!cancelled && host.current) {
+          const previous = displayed.current;
+          host.current.appendChild(canvas);
+          displayed.current = canvas;
+          canvas.dataset.rendered = "true";
+          if (previous) { previous.remove(); previous.width = previous.height = 0; }
+        }
       })
       .catch((error) => {
         if (!cancelled && error?.name !== "RenderingCancelledException")
@@ -79,10 +92,15 @@ const PdfPage: FC<{
     return () => {
       cancelled = true;
       renderTask?.cancel();
-      canvas.remove();
-      canvas.width = canvas.height = 0;
+      if (displayed.current !== canvas) {
+        canvas.remove(); canvas.width = canvas.height = 0;
+      }
     };
   }, [pdf, number, width, visible]);
+  useEffect(() => () => {
+    const canvas = displayed.current;
+    if (canvas) { canvas.remove(); canvas.width = canvas.height = 0; }
+  }, []);
   return (
     <section
       data-pdf-page={number}

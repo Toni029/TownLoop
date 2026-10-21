@@ -669,21 +669,23 @@ const OrderCard = memo(function OrderCard({
           </View>
         )}
         {!!order.photos?.length && (
-          <ScrollView horizontal contentContainerStyle={{ gap: 10 }}>
+          <View style={{ gap: 10, width: "100%" }}>
             {order.photos.map((uri, index) => (
               <Pressable
                 key={`${uri}-${index}`}
                 accessibilityRole="button"
                 accessibilityLabel={`Open work order photo ${index + 1}`}
                 onPress={() => setMedia({ urls: order.photos!, index })}
+                style={{ width: "100%", height: 190, borderRadius: 16, overflow: "hidden", backgroundColor: "#0c0a09", alignSelf: "center" }}
               >
                 <Image
                   source={{ uri }}
-                  style={{ width: 96, height: 96, borderRadius: 16 }}
+                  resizeMode="cover"
+                  style={{ width: "100%", height: "100%" }}
                 />
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
         )}
         <Copy weight="bold" style={{ fontSize: 12, lineHeight: 18 }}>
           📍 {order.unit} •{" "}
@@ -740,10 +742,12 @@ const OrderCard = memo(function OrderCard({
                     accessibilityRole="button"
                     accessibilityLabel="Open resolution photo"
                     onPress={() => setMedia({ urls: [c.photoUrl!], index: 0 })}
+                    style={{ width: "100%", height: 190, borderRadius: 16, overflow: "hidden", backgroundColor: "#0c0a09", alignSelf: "center" }}
                   >
                     <Image
                       source={{ uri: c.photoUrl }}
-                      style={{ width: 110, height: 110, borderRadius: 12 }}
+                      resizeMode="cover"
+                      style={{ width: "100%", height: "100%" }}
                     />
                   </Pressable>
                 )}

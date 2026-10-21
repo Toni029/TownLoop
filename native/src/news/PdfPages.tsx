@@ -1,6 +1,6 @@
-import { forwardRef } from "react";
+import { forwardRef, memo } from "react";
 import Pdf, { type PdfProps, type PdfRef } from "react-native-pdf";
-export const PdfPages = forwardRef<PdfRef, PdfProps>(
+export const PdfPages = memo(forwardRef<PdfRef, PdfProps>(
   function PdfPages(props, ref) {
     return (
       <Pdf
@@ -16,4 +16,4 @@ export const PdfPages = forwardRef<PdfRef, PdfProps>(
       />
     );
   },
-);
+));
