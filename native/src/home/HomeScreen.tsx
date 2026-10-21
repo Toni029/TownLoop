@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Moon, Sun, User } from "lucide-react-native";
 import { usePresentation } from "../shell/TownLoopShell";
 import { Theme, Action, Box, Row, Txt, usePalette } from "./ui";
-import { useHomeStore, useReducedMotion, useToday } from "./hooks";
+import { useHomeStore, useReducedMotion, useHeaderTime } from "./hooks";
 import { friendlyDate, toggleReminder, nextTaskId } from "./model";
 import { Weather } from "./Weather";
 import { Medications } from "./Medications";
@@ -67,7 +67,7 @@ function HomeContent({
 }) {
   const p = usePalette(),
     store = useHomeStore(uid),
-    today = useToday(),
+    {today,greeting} = useHeaderTime(),
     reduced = useReducedMotion();
   const [toast, setToast] = useState("");
   const opacity = useState(() => new Animated.Value(0))[0];
@@ -111,7 +111,7 @@ function HomeContent({
                 accessibilityRole="header"
                 style={{ fontFamily: "Playfair", fontSize: 30, lineHeight: 34 }}
               >
-                Good Morning,
+                {greeting},
               </Txt>
               <Txt
                 style={{
@@ -126,6 +126,7 @@ function HomeContent({
               <Txt
                 bold
                 style={{
+                  fontFamily: "Playfair",
                   fontSize: 13,
                   marginTop: 8,
                   textTransform: "uppercase",

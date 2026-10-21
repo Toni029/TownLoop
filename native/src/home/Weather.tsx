@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import {
   MapPin,
   Sun,
+  Moon,
   Cloud,
   CloudSun,
   CloudRain,
@@ -24,6 +25,7 @@ import {
   ChevronRight,
 } from "lucide-react-native";
 import { Action, Box, Row, Txt, Theme } from "./ui";
+import { isNightHour } from "./weatherAtmosphereModel";
 import { WeatherAtmosphere } from "./WeatherAtmosphere";
 import {
   OPEN_METEO_API_URL,
@@ -70,7 +72,7 @@ export function Weather() {
     let inFlight = false;
     async function refresh() {
       if (inFlight) return;
-      if (cache && Date.now() - cache.at < TTL) {
+      if (cache && Date.now() - cache.at < TTL && cache.data.forecastDays[0]?.hourly[0]?.timestamp) {
         setData(cache.data);
         setLoading(false);
         return;
@@ -117,7 +119,7 @@ export function Weather() {
   }, [attempt]);
   const d = data?.forecastDays[day] || data?.forecastDays[0],
     h = d?.hourly[hour] || d?.hourly[0];
-  const Icon = h ? icons[h.icon] : Sun;
+  const Icon = h ? (isNightHour(h) && h.icon === 'sun' ? Moon : isNightHour(h) && h.icon === 'cloudSun' ? Cloud : icons[h.icon]) : Sun;
   return (
     <View style={{ gap: 8 }}>
       <Row
@@ -363,7 +365,7 @@ export function Weather() {
             >
               <Row style={{ flexWrap: "nowrap", gap: 8 }}>
                 {d.hourly.map((item, i) => {
-                  const I = icons[item.icon];
+                  const I = isNightHour(item) && item.icon === 'sun' ? Moon : isNightHour(item) && item.icon === 'cloudSun' ? Cloud : icons[item.icon];
                   const selected = hour === i;
                   return (
                     <Pressable

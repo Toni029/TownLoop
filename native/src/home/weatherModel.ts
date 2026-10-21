@@ -10,6 +10,10 @@ export type WeatherConditionType =
   | "cloudSun"; // Partly Cloudy: Sun with drifting cumulus clouds
 
 export interface HourlyForecast {
+  timestamp?: string;
+  sunrise?: string;
+  sunset?: string;
+  isDay?: boolean;
   weatherCode?: number;
   windSpeed?: number;
   time: string;
@@ -206,7 +210,7 @@ function formatHourLabel(isoString: string): string {
 }
 
 export const OPEN_METEO_API_URL =
-  "https://api.open-meteo.com/v1/forecast?latitude=30.29&longitude=-81.84&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York";
+  "https://api.open-meteo.com/v1/forecast?latitude=30.29&longitude=-81.84&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York";
 
 export interface WeatherResponse {
   current: {
@@ -217,6 +221,7 @@ export interface WeatherResponse {
     time: string;
   };
   hourly: {
+    is_day?: number[];
     time: string[];
     temperature_2m: number[];
     wind_speed_10m: number[];
@@ -225,6 +230,8 @@ export interface WeatherResponse {
     weather_code: number[];
   };
   daily: {
+    sunrise?: string[];
+    sunset?: string[];
     time: string[];
     temperature_2m_max: number[];
     temperature_2m_min: number[];
@@ -240,6 +247,11 @@ export function parseWeather(data: WeatherResponse) {
     !data.daily.time.length
   )
     throw Error("Weather unavailable");
+  function solar(hIdx: number, timestamp = data.hourly.time[hIdx]) {
+    const day = data.daily.time.indexOf(timestamp?.slice(0,10));
+    return {timestamp, sunrise:data.daily.sunrise?.[day],sunset:data.daily.sunset?.[day],
+      isDay: data.hourly.is_day?.[hIdx] === undefined ? undefined : data.hourly.is_day[hIdx] === 1};
+  }
   // 1. Current Conditions: directly extract current.temperature_2m, wind_speed_10m, and relative_humidity_2m
   const currentTempRaw = data.current.temperature_2m;
   const currentTemp = Math.round(currentTempRaw);
@@ -280,6 +292,7 @@ export function parseWeather(data: WeatherResponse) {
     if (i === 0) {
       const popVal = data.hourly.precipitation_probability?.[hIdx];
       next12Hours.push({
+        ...solar(hIdx, data.current.time || data.hourly.time[hIdx]),
         time: "Now",
         temp: `${currentTemp}°`,
         condition: `${currentMapped.label} • ${currentHumidity}% Humidity`,
@@ -297,6 +310,7 @@ export function parseWeather(data: WeatherResponse) {
       const hMapped = mapWeatherCode(data.hourly.weather_code[hIdx]);
 
       next12Hours.push({
+        ...solar(hIdx),
         time: hTime,
         temp: `${hTemp}°`,
         condition: `${hMapped.label} • ${hHum}% Humidity`,
@@ -385,6 +399,7 @@ export function parseWeather(data: WeatherResponse) {
         const hMapped = mapWeatherCode(data.hourly.weather_code[hIdx]);
 
         dayHourly.push({
+          ...solar(hIdx),
           time: hTime,
           temp: `${hTemp}°`,
           condition: `${hMapped.label} • ${hHum}% Humidity`,

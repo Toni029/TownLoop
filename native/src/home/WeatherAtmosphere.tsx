@@ -2,7 +2,7 @@ import { memo, useEffect, useId, useState } from 'react';
 import { AppState, Image, StyleSheet, View } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, RadialGradient, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import Animated, { cancelAnimation, Easing, FadeIn, FadeOut, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { useReducedMotion } from './hooks';
 import type { HourlyForecast } from './weatherModel';
@@ -31,7 +31,7 @@ export const WeatherAtmosphere = memo(function WeatherAtmosphere({ hour }: { hou
   const scene = atmosphereFor(hour);
   const [size, setSize] = useState({ width: 360, height: 440 });
   const active = focused && foreground && !reduced;
-  const key = `${scene.condition}:${scene.drizzle}:${scene.heavy}:${scene.windy}:${scene.particles}`;
+  const key = `${scene.night}:${scene.condition}:${scene.drizzle}:${scene.heavy}:${scene.windy}:${scene.particles}`;
   return <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
     onLayout={e => { const { width, height } = e.nativeEvent.layout; setSize(old => old.width === width && old.height === height ? old : { width, height }); }}
     style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
@@ -62,15 +62,31 @@ function SceneLayer({ scene, active, width, height }: { scene: Scene; active: bo
     transform: [{ scaleX: lighting.value < 0.4 ? 1 : -1 }],
   }));
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const sunny = scene.condition === 'sun' || scene.condition === 'cloudSun';
+  const sunny = !scene.night && (scene.condition === 'sun' || scene.condition === 'cloudSun');
   const fog = scene.condition === 'fog';
-  const dense = !sunny && scene.condition !== 'wind';
+  const dense = !scene.moon && !sunny && scene.condition !== 'wind';
   return <>
     <LinearGradient colors={scene.colors} style={StyleSheet.absoluteFill} />
     {dense && <Animated.View style={[StyleSheet.absoluteFill, skyMotion, { opacity: fog ? 0.12 : scene.storm ? 0.40 : scene.wet ? 0.22 : 0.14 }]}>
       <Image source={require('../../assets/weather/storm-sky.jpg')} resizeMode="cover" fadeDuration={0} style={StyleSheet.absoluteFill} />
     </Animated.View>}
     {(fog || scene.snow || scene.condition === 'cloud' || scene.drizzle) && <LinearGradient colors={fog ? ['#9cabbc80', '#b3c2cb90', '#8298aa80'] : scene.snow ? ['#b9d7e94d', '#a4c6df66', '#668aa64d'] : ['#b2c3d833', '#8cabc03d', '#557a9840']} style={StyleSheet.absoluteFill} />}
+    {scene.moon && <Animated.View style={[StyleSheet.absoluteFill, glow]}>
+      <Svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
+        <Defs>
+          <RadialGradient id={`${id}moonHalo`}><Stop offset="0" stopColor="#e3edff" stopOpacity={0.26}/><Stop offset="0.28" stopColor="#b8d3fa" stopOpacity={0.12}/><Stop offset="1" stopColor="#a1c7ff" stopOpacity={0}/></RadialGradient>
+          <RadialGradient id={`${id}moonSurface`} cx="32%" cy="25%" r="80%"><Stop offset="0" stopColor="#fffdf1"/><Stop offset="0.45" stopColor="#e6e7dd"/><Stop offset="0.78" stopColor="#a1b0ba"/><Stop offset="1" stopColor="#3c5570"/></RadialGradient>
+          <RadialGradient id={`${id}crater`} cx="65%" cy="70%"><Stop offset="0" stopColor="#687a89" stopOpacity={0.28}/><Stop offset="0.72" stopColor="#596d7e" stopOpacity={0.16}/><Stop offset="1" stopColor="#f5f4e9" stopOpacity={0.24}/></RadialGradient>
+          <ClipPath id={`${id}moonClip`}><Circle cx={width*0.77} cy={height*0.23} r={width*0.108}/></ClipPath>
+        </Defs>
+        <Circle cx={width*0.77} cy={height*0.23} r={width*0.38} fill={`url(#${id}moonHalo)`}/>
+        <Circle cx={width*0.77} cy={height*0.23} r={width*0.11} fill="#d2e6ff" opacity={0.12}/>
+        <Circle cx={width*0.77} cy={height*0.23} r={width*0.108} fill={`url(#${id}moonSurface)`}/>
+        <G clipPath={`url(#${id}moonClip)`}>
+          {[[-0.42,-0.28,0.28],[-0.1,-0.5,0.2],[0.32,-0.2,0.31],[-0.16,0.16,0.26],[-0.49,0.4,0.18],[0.35,0.48,0.14],[0.58,0.04,0.12],[-0.1,0.66,0.09],[0.02,-0.02,0.1],[-0.68,-0.05,0.11],[0.15,-0.7,0.08]].map(([x,y,r],i)=><Ellipse key={i} cx={width*(0.77+x*0.108)} cy={height*0.23+y*width*0.108} rx={width*0.108*r} ry={width*0.108*r*0.82} fill={`url(#${id}crater)`}/>)}
+        </G>
+      </Svg>
+    </Animated.View>}
     {sunny && <Animated.View style={[StyleSheet.absoluteFill, glow]}>
       <Svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
         <Defs>

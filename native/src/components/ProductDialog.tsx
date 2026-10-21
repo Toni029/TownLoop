@@ -2,7 +2,7 @@ import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "./SystemBars";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
-import { useEffect, useState, type PropsWithChildren } from "react";
+import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -67,14 +67,24 @@ export function ProductDialog({
   const progress = useSharedValue(0);
   const drag = useSharedValue(0);
   const [closing, setClosing] = useState(false);
+  const opened = useRef(false);
+  const lastFull = useRef(full);
   useEffect(() => {
-    if (ready) progress.set(withSpring(1, { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }));
-    return () => cancelAnimation(progress);
-  }, [progress, ready, reduced]);
-  useEffect(() => {
-    size.set(responsiveResize ? withSpring(target, { damping: 26, stiffness: 280, mass: 0.8, overshootClamping: true, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }) : withTiming(target, { duration: reduced ? 0 : 240 }));
-    return () => cancelAnimation(size);
-  }, [size, target, reduced, responsiveResize]);
+    if (!ready || closing) return;
+    if (!opened.current) {
+      opened.current = true;
+      lastFull.current = full;
+      size.set(target);
+      progress.set(withTiming(1, { duration: reduced ? 0 : 240, reduceMotion: ReduceMotion.System }));
+    } else if (lastFull.current !== full) {
+      lastFull.current = full;
+      size.set(responsiveResize ? withSpring(target, { damping: 26, stiffness: 280, mass: 0.8, overshootClamping: true, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System }) : withTiming(target, { duration: reduced ? 0 : 240 }));
+    } else {
+      // KeyboardAvoidingView owns keyboard movement; never add a second height animation.
+      size.set(target);
+    }
+  }, [ready, closing, target, full, reduced, responsiveResize, size, progress]);
+  useEffect(() => () => { cancelAnimation(size); cancelAnimation(progress); cancelAnimation(drag); }, [size, progress, drag]);
   const close = () => {
     if (busy || closing) return;
     setClosing(true);
@@ -83,16 +93,16 @@ export function ProductDialog({
     }));
   };
   const pan = Gesture.Pan().enabled(!busy).activeOffsetY([-12, 12]).failOffsetX([-24, 24])
-    .onUpdate(event => { drag.value = reduced ? 0 : Math.max(0, event.translationY); })
+    .onUpdate(event => { drag.set(reduced ? 0 : Math.max(0, event.translationY)); })
     .onEnd(event => {
       if (event.translationY > 80 || event.velocityY > 800) {
-        if (full) { runOnJS(setFull)(false); drag.value = withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined); }
+        if (full) { runOnJS(setFull)(false); drag.set(withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined)); }
         else runOnJS(close)();
       } else {
         if (event.translationY < -60 || event.velocityY < -800) runOnJS(setFull)(true);
-        drag.value = withSpring(0, { damping: 26, stiffness: 280 });
+        drag.set(withSpring(0, { damping: 26, stiffness: 280 }));
       }
-    }).onFinalize((_event, success) => { if (!success) drag.value = withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined); });
+    }).onFinalize((_event, success) => { if (!success) drag.set(withSpring(0, responsiveResize ? { damping: 26, stiffness: 280, mass: 0.8, reduceMotion: reduced ? ReduceMotion.Always : ReduceMotion.System } : undefined)); });
   const sizeStyle = useAnimatedStyle(() => ({ height: size.value }));
   const panelMotion = useAnimatedStyle(() => ({
     opacity: Math.min(1, progress.value),

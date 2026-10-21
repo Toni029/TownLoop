@@ -1,3 +1,4 @@
+import {headerTime} from './headerTime';
 import { createMotionPreferenceStore } from "../motion/preference";
 import { useEffect, useMemo, useReducer, useState, useSyncExternalStore } from "react";
 import { AppState, AccessibilityInfo } from "react-native";
@@ -38,4 +39,22 @@ const motionPreference = createMotionPreferenceStore({
 });
 export function useReducedMotion() {
   return useSyncExternalStore(motionPreference.subscribe, motionPreference.snapshot, () => true);
+}
+
+/** Renders only when the local greeting/date changes; background timers are suspended. */
+export function useHeaderTime() {
+  const [value,setValue]=useState(()=>headerTime(new Date()));
+  useEffect(()=>{
+    let timer:ReturnType<typeof setTimeout>;
+    function update() {
+      clearTimeout(timer);
+      const next=headerTime(new Date());
+      setValue(old=>old.today===next.today && old.greeting===next.greeting ? old : next);
+      if(AppState.currentState==='active') timer=setTimeout(update,Math.max(1,next.next-Date.now()));
+    }
+    update();
+    const sub=AppState.addEventListener('change',state=>{if(state==='active')update();else clearTimeout(timer);});
+    return ()=>{clearTimeout(timer);sub.remove();};
+  },[]);
+  return value;
 }

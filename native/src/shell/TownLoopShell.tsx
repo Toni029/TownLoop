@@ -40,7 +40,7 @@ import Motion, {
   ReduceMotion,
 } from "react-native-reanimated";
 import { ProfileMenu } from "../profile/ProfileMenu";
-import { useReducedMotion, useToday } from "../home/hooks";
+import { useReducedMotion, useHeaderTime } from "../home/hooks";
 import { parseDate } from "../home/model";
 export type TabName = "index" | "news" | "workorders" | "social";
 export const townLoopTabs = [
@@ -194,7 +194,7 @@ export function PortalHeader({
     transform: [{ scale: avatarCircleScale.value }],
   }));
   const avatarLight = useAnimatedStyle(() => ({ opacity: avatarSheen.value }));
-  const today = useToday();
+  const {today,greeting} = useHeaderTime();
   const ink = dark ? "#fff" : "#0f172a";
   const label =
     role === "crew"
@@ -245,11 +245,11 @@ export function PortalHeader({
               color: ink,
             }}
           >
-            Good Morning,
+            {greeting},
           </Text>
           <Text
             style={{
-              fontFamily: "Playfair",
+              fontFamily: "PlayfairBlack",
               fontSize: 30,
               lineHeight: 29,
               marginTop: 4,
@@ -270,7 +270,7 @@ export function PortalHeader({
           >
             <Text
               style={{
-                fontFamily: "JakartaSemi",
+                fontFamily: "PlayfairBlack",
                 fontSize: 13,
                 lineHeight: 20,
                 letterSpacing: 0.65,
