@@ -28,6 +28,26 @@ service cloud.firestore {
         (currentProfile().role == 'crew' || isManager());
     }
 
+    function validProfileRequest(userId) {
+      let proposal = request.resource.data.profileUpdateRequest;
+      let fields = ['phone', 'address', 'dateOfBirth', 'maritalStatus',
+        'emergencyContactName', 'emergencyContactPhone', 'emergencyContactAddress'];
+      return isOwner(userId) && isApproved() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileUpdateRequest']) &&
+        proposal.keys().hasOnly(['status', 'changes', 'previous', 'requestedAt', 'requestedBy']) &&
+        proposal.status == 'pending' && proposal.requestedBy == request.auth.uid &&
+        proposal.requestedAt == request.time && proposal.previous is map &&
+        proposal.changes is map && proposal.changes.size() > 0 &&
+        proposal.changes.keys().hasOnly(fields) &&
+        proposal.changes.get('phone', '') is string && proposal.changes.get('phone', '').size() <= 300 &&
+        proposal.changes.get('address', '') is string && proposal.changes.get('address', '').size() <= 300 &&
+        proposal.changes.get('dateOfBirth', '') is string && proposal.changes.get('dateOfBirth', '').size() <= 300 &&
+        proposal.changes.get('maritalStatus', '') is string && proposal.changes.get('maritalStatus', '').size() <= 300 &&
+        proposal.changes.get('emergencyContactName', '') is string && proposal.changes.get('emergencyContactName', '').size() <= 300 &&
+        proposal.changes.get('emergencyContactPhone', '') is string && proposal.changes.get('emergencyContactPhone', '').size() <= 300 &&
+        proposal.changes.get('emergencyContactAddress', '') is string && proposal.changes.get('emergencyContactAddress', '').size() <= 300;
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId) &&
@@ -35,10 +55,10 @@ service cloud.firestore {
         request.resource.data.email == request.auth.token.email &&
         request.resource.data.role == 'resident' &&
         request.resource.data.approved == false;
-      allow update: if isManager() ||
+      allow update: if isManager() || validProfileRequest(userId) ||
         (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['name', 'address', 'avatarUrl', 'avatar_url', 'phone', 'wing',
-                    'emergencyContact', 'emergency_contact', 'dietaryPreference',
+          .hasOnly(['name', 'avatarUrl', 'avatar_url', 'wing',
+                    'dietaryPreference',
                     'dietary_preference']));
       allow delete: if isManager();
     }

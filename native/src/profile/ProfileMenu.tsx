@@ -42,6 +42,7 @@ import {
   Check,
   CheckCheck,
   ChevronLeft,
+  Calendar,
   ChevronRight,
   ChevronDown,
   Mail,
@@ -90,6 +91,8 @@ import {
   profileInterests,
   residentSince,
   matchesNeighbor,
+  accountDetails,
+  type ProfileDetails,
   type Category,
   type Thread,
 } from "./model";
@@ -100,6 +103,7 @@ type MenuView =
   | "friendDetail"
   | "compose"
   | "conversation"
+  | "emergencyContact"
   | "editProfile"
   | "account"
   | "logoutConfirm"
@@ -379,12 +383,8 @@ export function ProfileMenu({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const [details, setDetails] = useState({
-    phone: "",
-    address: "",
-    wing: "",
-    emergencyContact: "",
-    dietaryPreference: "",
+  const [details, setDetails] = useState<ProfileDetails>({
+    phone:'',address:'',dateOfBirth:'',maritalStatus:'',emergencyContactName:'',emergencyContactPhone:'',emergencyContactAddress:'',
   });
   const [recipientOpen, setRecipientOpen] = useState(false);
   const [deleting, setDeleting] = useState<Thread | null>(null);
@@ -623,11 +623,7 @@ export function ProfileMenu({
   }
   function editProfile() {
     if (!user) return;
-    setDetails({
-      phone: user.phone || '', address: user.address || user.unit || '', wing: user.wing || '',
-      emergencyContact: user.emergencyContact || user.emergency_contact || '',
-      dietaryPreference: user.dietaryPreference || user.dietary_preference || '',
-    });
+    setDetails(accountDetails(user));
     go('editProfile');
   }
   function compose(target: Category, recipient?: UserProfile) {
@@ -645,6 +641,24 @@ export function ProfileMenu({
     go("conversation");
     if (thread.unread) void act(() => markRead(thread));
   }
+  function sendCompose() {
+    if (!user) return;
+    void act(async () => {
+      if (!subject.trim()) throw new Error('Enter a subject for your message.');
+      if ((category === 'friend' || category === 'office') && !person)
+        throw new Error('Select a recipient first.');
+      await sendMessage(
+        category === 'office' ? 'friend' : category,
+        person || user, subject, body, undefined,
+        category === 'office' ? {officeDirect:true} : undefined,
+      );
+      setBody('');
+      go('inbox');
+      setNotice('Message sent.');
+    });
+  }
+  const account = user ? accountDetails(user) : null;
+  const compactCompose = view === "compose" && (category === "office" || category === "friend");
   const textInput = [
     s.input,
     {
@@ -842,6 +856,7 @@ export function ProfileMenu({
                             conversation: "Conversation",
                             account: "Resident Account",
                             editProfile: "Edit Profile",
+                            emergencyContact: "Emergency Contact",
                             logoutConfirm: "Log Out",
                             admin: "Admin Portal",
                           } as Record<string, string>
@@ -999,7 +1014,7 @@ export function ProfileMenu({
                       display: view === "admin" ? "none" : "flex",
                     }}
                     contentContainerStyle={{
-                      gap: 14,
+                      gap: compactCompose ? 8 : 14,
                       paddingBottom: 16,
                       ...(view === "conversation" ? { flex: 1 } : {}),
                     }}
@@ -1015,59 +1030,74 @@ export function ProfileMenu({
                         {notice}
                       </Text>
                     )}
+                    {view === "account" && user.profileUpdateRequest?.status === "pending" && (
+                      <Text style={[s.notice, {textAlign:"center"}]}>Your profile update is awaiting Admin/VIP approval.</Text>
+                    )}
                     {view === "editProfile" && (
                       <>
-                        <View
-                          style={[
-                            panel,
-                            { padding: 16, borderRadius: 20, gap: 8 },
-                          ]}
-                        >
-                          <Text style={[s.name, { color: ink }]}>
-                            {user.name}
-                          </Text>
-                          <Text style={[s.small, { color: muted }]}>
-                            {user.email}
-                          </Text>
+                        <View style={[panel, { padding: 16, borderRadius: 22, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 12 }]}>
+                          <Avatar resident={user} size={48} />
+                          <View style={{ flex: 1, gap: 4 }}>
+                            <Text style={[s.name, { color: ink }]}>{user.name}</Text>
+                            <Text style={[s.small, { color: muted }]}>{user.email}</Text>
+                          </View>
                         </View>
-                        {(
-                          [
-                            ["phone", "Resident Phone"],
-                            ["address", "Residency Address"],
-                            ["wing", "Wing"],
-                            ["emergencyContact", "Emergency Contact"],
-                            ["dietaryPreference", "Dietary Preference"],
-                          ] as const
-                        ).map(([key, label]) => (
-                          <View key={key} style={{ gap: 6 }}>
-                            <Text style={[s.rowTitle, { color: muted }]}>
-                              {label}
-                            </Text>
-                            <TextInput
-                              accessibilityLabel={label}
-                              value={details[key]}
-                              editable={!busy}
-                              maxLength={300}
-                              keyboardType={
-                                key === "phone" ? "phone-pad" : "default"
-                              }
-                              onChangeText={(value) =>
-                                setDetails((current) => ({
-                                  ...current,
-                                  [key]: value,
-                                }))
-                              }
-                              style={textInput}
-                            />
+                        {([
+                          {
+                            title: "Personal Details",
+                            Icon: User,
+                            fields: [
+                              ["phone", "Resident Phone", "Phone number"],
+                              ["address", "Residency Address", "Your residency address"],
+                              ["dateOfBirth", "Date of Birth", "YYYY-MM-DD"],
+                              ["maritalStatus", "Marital Status", "Marital status"],
+                            ],
+                          },
+                          {
+                            title: "Emergency Contact",
+                            Icon: Heart,
+                            fields: [
+                              ["emergencyContactName", "Emergency Contact Name", "Full name"],
+                              ["emergencyContactPhone", "Emergency Contact Phone", "Phone number"],
+                              ["emergencyContactAddress", "Emergency Contact Address", "Full address"],
+                            ],
+                          },
+                        ] as const).map(({ title, Icon, fields }) => (
+                          <View key={title} style={[panel, { padding: 16, borderRadius: 22, borderWidth: 1, gap: 14 }]}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                              <View style={{ padding: 8, borderRadius: 12, backgroundColor: dark ? "#10b98120" : "#ecfdf5" }}>
+                                <Icon size={19} color={dark ? "#6ee7b7" : "#047857"} />
+                              </View>
+                              <Text style={[s.rowTitle, { color: ink }]}>{title}</Text>
+                            </View>
+                            {fields.map(([key, label, placeholder]) => (
+                              <View key={key} style={{ gap: 7 }}>
+                                <Text style={[s.small, { color: muted }]}>{label}</Text>
+                                <TextInput
+                                  accessibilityLabel={label}
+                                  placeholder={placeholder}
+                                  placeholderTextColor={muted}
+                                  value={details[key]}
+                                  editable={!busy}
+                                  maxLength={300}
+                                  keyboardType={key === "phone" || key === "emergencyContactPhone" ? "phone-pad" : "default"}
+                                  onChangeText={(value) => setDetails((current) => ({ ...current, [key]: value }))}
+                                  style={[textInput, { borderWidth: 1, borderRadius: 14, backgroundColor: dark ? "#0f172a" : "#f8fafb", borderColor: dark ? "#334155" : "#e2e8ed" }]}
+                                />
+                              </View>
+                            ))}
                           </View>
                         ))}
+                        <Text style={[s.small, { color: muted, textAlign: "center" }]}>
+                          The office will review your requested changes.
+                        </Text>
                         <Action
                           title={busy ? "Sending Request…" : "Request Profile Update"}
                           onPress={() =>
                             void act(async () => {
                               await requestProfileUpdate(details);
                               go("account");
-                              setNotice("Profile update requested. The office will review your changes.");
+                              setNotice("Profile update saved for Admin/VIP review. Your account will update after approval.");
                             })
                           }
                         />
@@ -1731,6 +1761,7 @@ export function ProfileMenu({
                         <View
                           style={[
                             s.composeHero,
+                            compactCompose && {padding:10,gap:4},
                             {
                               backgroundColor:
                                 category === "office"
@@ -1742,11 +1773,11 @@ export function ProfileMenu({
                           ]}
                         >
                           {category === "office" ? (
-                            <Building2 size={28} color="#2563eb" />
+                            <Building2 size={compactCompose ? 20 : 28} color="#2563eb" />
                           ) : category === "maintenance" ? (
-                            <Wrench size={28} color="#d97706" />
+                            <Wrench size={compactCompose ? 20 : 28} color="#d97706" />
                           ) : (
-                            <Users size={28} color="#059669" />
+                            <Users size={compactCompose ? 20 : 28} color="#059669" />
                           )}
                           <Text style={[s.rowTitle, { color: ink }]}>
                             {category === "office"
@@ -1793,14 +1824,14 @@ export function ProfileMenu({
                                 accessibilityLabel="Choose recipient"
                                 accessibilityState={{ expanded: recipientOpen }}
                                 onPress={() => setRecipientOpen(!recipientOpen)}
-                                style={s.recipientChoice}
+                                style={[s.recipientChoice, compactCompose && {padding:10,minHeight:44}]}
                               >
                                 <Text
                                   style={[s.rowTitle, { color: ink, flex: 1 }]}
                                 >
                                   {person
-                                    ? `${person.name}${person.address ? ` · ${person.address}` : ""}`
-                                    : category === "office" ? "Select an Admin or VIP…" : "Select a resident…"}
+                                    ? person.name
+                                    : category === "office" ? "Select recipient" : "Select a resident…"}
                                 </Text>
                                 <ChevronDown size={18} color={muted} />
                               </Pressable>
@@ -1840,6 +1871,7 @@ export function ProfileMenu({
                                         }}
                                         style={[
                                           s.recipientChoice,
+                                          {padding:10,minHeight:44},
                                           person?.id === p.id && {
                                             backgroundColor: "#05966920",
                                           },
@@ -1847,7 +1879,6 @@ export function ProfileMenu({
                                       >
                                         <Text style={[s.small, { color: ink }]}>
                                           {p.name}
-                                          {p.address ? ` · ${p.address}` : ""}
                                         </Text>
                                         {person?.id === p.id && (
                                           <Check size={16} color="#059669" />
@@ -1870,7 +1901,7 @@ export function ProfileMenu({
                           value={subject}
                           onChangeText={setSubject}
                           maxLength={160}
-                          style={textInput}
+                          style={[...textInput, compactCompose && {paddingVertical:10,minHeight:44}]}
                         />
                         <Text style={[s.rowTitle, { color: muted }]}>
                           Message
@@ -1885,33 +1916,13 @@ export function ProfileMenu({
                           maxLength={10000}
                           style={[
                             ...textInput,
-                            { minHeight: 120, textAlignVertical: "top" },
+                            { minHeight: compactCompose ? 88 : 120, textAlignVertical: "top" },
                           ]}
                         />
-                        <Action
+                        {!compactCompose && <Action
                           title={busy ? "Sending…" : "Send Message"}
-                          onPress={() =>
-                            void act(async () => {
-                              if (!subject.trim())
-                                throw new Error(
-                                  "Enter a subject for your message.",
-                                );
-                              if ((category === "friend" || category === "office") && !person)
-                                throw new Error("Select a recipient first.");
-                              await sendMessage(
-                                category === "office" ? "friend" : category,
-                                person || user,
-                                subject,
-                                body,
-                                undefined,
-                                category === "office" ? {officeDirect: true} : undefined,
-                              );
-                              setBody("");
-                              go("inbox");
-                              setNotice("Message sent.");
-                            })
-                          }
-                        />
+                          onPress={sendCompose}
+                        />}
                       </>
                     )}
                     {view === "conversation" && (
@@ -2214,44 +2225,29 @@ export function ProfileMenu({
                         )}
                       </>
                     )}
+                    {view === "emergencyContact" && account && <>
+                      <ContactCard title="Name" value={account.emergencyContactName} icon={User} onCopy={() => void copy(account.emergencyContactName)}/>
+                      <ContactCard title="Phone" value={account.emergencyContactPhone} icon={Phone} onCopy={() => void copy(account.emergencyContactPhone)}/>
+                      <ContactCard title="Address" value={account.emergencyContactAddress} icon={Home} onCopy={() => void copy(account.emergencyContactAddress)}/>
+                    </>}
                     {view === "account" && (
                       <>
                         {(
                           [
                             [
                               "Residency Address",
-                              user.address || user.unit || "Not provided",
+                              account?.address || "Not provided",
                               Home,
                               "#059669",
                             ],
                             [
                               "Resident Phone",
-                              user.phone || "Not provided",
+                              account?.phone || "Not provided",
                               Phone,
                               "#059669",
                             ],
-                            [
-                              "Emergency Contact",
-                              user.emergencyContact ||
-                                user.emergency_contact ||
-                                "Not provided",
-                              Phone,
-                              "#059669",
-                            ],
-                            [
-                              "Dietary Preference",
-                              user.dietaryPreference ||
-                                user.dietary_preference ||
-                                "Not provided",
-                              Heart,
-                              "#f43f5e",
-                            ],
-                            [
-                              "Safety Check-In",
-                              "Contact the office for enrollment",
-                              Shield,
-                              "#f59e0b",
-                            ],
+                            ["Date of Birth", account?.dateOfBirth || "Not provided", Calendar, "#059669"],
+                            ["Marital Status", account?.maritalStatus || "Not provided", Heart, "#f43f5e"],
                           ] as const
                         ).map(([label, value, Glyph, tone]) => (
                           <View
@@ -2293,8 +2289,7 @@ export function ProfileMenu({
                               style={{
                                 fontFamily: "JakartaBold",
                                 fontSize: width >= 640 ? 14 : 12,
-                                color:
-                                  label === "Safety Check-In" ? "#059669" : ink,
+                                color: ink,
                                 textAlign: "right",
                                 maxWidth: "48%",
                               }}
@@ -2303,6 +2298,13 @@ export function ProfileMenu({
                             </Text>
                           </View>
                         ))}
+                        <Pressable accessibilityRole="button" accessibilityLabel="Open emergency contact details" onPress={() => go('emergencyContact')}
+                          style={[panel,{padding:width>=640?16:14,borderRadius:16,borderWidth:1,flexDirection:'row',alignItems:'center',gap:12}]}>
+                          <Phone size={20} color="#059669"/>
+                          <View style={{flex:1,gap:4}}><Text style={{fontFamily:'Jakarta',fontSize:width>=640?14:12,color:muted}}>Emergency Contact</Text>
+                            <Text style={[s.rowTitle,{color:ink}]}>{account?.emergencyContactName || 'Not provided'}</Text></View>
+                          <ChevronRight size={18} color={muted}/>
+                        </Pressable>
                         <Action
                           title="Edit Profile"
                           onPress={editProfile}
@@ -2392,6 +2394,11 @@ export function ProfileMenu({
                     )}
                     {busy && <ActivityIndicator color="#059669" />}
                   </ScrollView>
+                  {compactCompose && (
+                    <View style={{paddingTop:10,borderTopWidth:1,borderColor:dark ? "#1e293b" : "#d6d3d1"}}>
+                      <Action title={busy ? "Sending…" : "Send Message"} onPress={sendCompose}/>
+                    </View>
+                  )}
                   {view === "inbox" && (
                     <View
                       style={{

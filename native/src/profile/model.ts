@@ -250,10 +250,28 @@ export function matchesNeighbor(person: UserProfile, query: string): boolean {
     .includes(query.trim().toLowerCase());
 }
 
-export type ProfileDetails = {phone:string;address:string;wing:string;emergencyContact:string;dietaryPreference:string};
+export type ProfileDetails = {
+  phone:string; address:string; dateOfBirth:string; maritalStatus:string;
+  emergencyContactName:string; emergencyContactPhone:string; emergencyContactAddress:string;
+};
+/** Normalize existing aliases without rewriting or deleting any profile fields. */
+export function accountDetails(user: UserProfile): ProfileDetails {
+  const raw = user as unknown as Record<string, unknown>;
+  const legacy = raw.emergencyContact || raw.emergency_contact;
+  const contact = legacy && typeof legacy === 'object' ? legacy as Record<string,unknown> : {};
+  const text = (...values:unknown[]) => values.find((v):v is string => typeof v === 'string' && !!v.trim())?.trim() || '';
+  const birth = raw.dateOfBirth ?? raw.date_of_birth ?? raw.dob ?? raw.birthDate;
+  return {
+    phone:text(user.phone), address:text(user.address,user.unit,user.apartmentNumber,user.apartment_number),
+    dateOfBirth:text(birth), maritalStatus:text(raw.maritalStatus,raw.marital_status),
+    emergencyContactName:text(raw.emergencyContactName,raw.emergency_contact_name,contact.name,typeof legacy === 'string' ? legacy : ''),
+    emergencyContactPhone:text(raw.emergencyContactPhone,raw.emergency_contact_phone,contact.phone),
+    emergencyContactAddress:text(raw.emergencyContactAddress,raw.emergency_contact_address,contact.address),
+  };
+}
 export function profileRequestText(user: UserProfile, input: ProfileDetails) {
-  const labels = {phone:'Resident Phone',address:'Residency Address',wing:'Wing',emergencyContact:'Emergency Contact',dietaryPreference:'Dietary Preference'};
-  const current = {phone:user.phone || '',address:user.address || user.unit || '',wing:user.wing || '',emergencyContact:user.emergencyContact || user.emergency_contact || '',dietaryPreference:user.dietaryPreference || user.dietary_preference || ''};
+  const labels = {phone:'Resident Phone',address:'Residency Address',dateOfBirth:'Date of Birth',maritalStatus:'Marital Status',emergencyContactName:'Emergency Contact Name',emergencyContactPhone:'Emergency Contact Phone',emergencyContactAddress:'Emergency Contact Address'};
+  const current = accountDetails(user);
   const changes = (Object.keys(labels) as (keyof ProfileDetails)[]).flatMap(key => {
     if(typeof input[key] !== 'string' || input[key].length > 300) throw new Error('Profile fields must be under 300 characters.');
     const next=input[key].trim();
@@ -261,4 +279,12 @@ export function profileRequestText(user: UserProfile, input: ProfileDetails) {
   });
   if(!changes.length) throw new Error('Change at least one field before requesting an update.');
   return `Profile update request from ${user.name} (${user.email || user.id})\n\n${changes.join('\n')}\n\nPlease review these changes before updating my profile.`;
+}
+
+export function profileChanges(user: UserProfile, input: ProfileDetails): Partial<ProfileDetails> {
+  profileRequestText(user, input); // Validate every field and reject empty requests.
+  const current = accountDetails(user);
+  return Object.fromEntries((Object.keys(current) as (keyof ProfileDetails)[])
+    .filter(key => input[key].trim() !== current[key])
+    .map(key => [key, input[key].trim()]));
 }

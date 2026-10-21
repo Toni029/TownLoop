@@ -390,13 +390,13 @@ export default function SignIn() {
                         Resident Email Address
                       </Text>
                       <View style={s.inputWrap}>
-                        <Mail pointerEvents="none" size={20} color={muted} style={[s.inputIcon, { opacity: focused === "email" || email ? 0 : 1 }]} />
+                        <Mail pointerEvents="none" size={20} color={muted} style={s.inputIcon} />
                         <TextInput
                           accessibilityLabel="Resident Email Address"
                           returnKeyType="next"
                           submitBehavior="submit"
                           onSubmitEditing={() => passwordInput.current?.focus()}
-                          placeholder={focused === "email" ? "" : "e.g. resident@cecilpines.com"}
+                          placeholder="e.g. resident@cecilpines.com"
                           placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
                           onFocus={() => setFocused("email")}
                           onBlur={() => setFocused(current => current === "email" ? "" : current)}
@@ -448,12 +448,12 @@ export default function SignIn() {
                         </Pressable>
                       </View>
                       <View style={s.inputWrap}>
-                        <Lock pointerEvents="none" size={20} color={muted} style={[s.inputIcon, { opacity: focused === "password" || password ? 0 : 1 }]} />
+                        <Lock pointerEvents="none" size={20} color={muted} style={s.inputIcon} />
                         <TextInput
                           accessibilityLabel="Password"
                           ref={passwordInput}
                           returnKeyType="done"
-                          placeholder={focused === "password" ? "" : "Enter your password"}
+                          placeholder="Enter your password"
                           placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
                           onFocus={() => setFocused("password")}
                           onBlur={() => setFocused(current => current === "password" ? "" : current)}
@@ -625,7 +625,7 @@ export default function SignIn() {
                   marginTop: 16,
                 }}
               >
-                Cecil Pines Adult Living Community Concierge: (904) 555-0100
+                Cecil Pines Adult Living Community Office: (904)771-8839
               </Text>
               <Text style={[s.footer, { color: muted }]}>
                 Version 1.0.0 • © 2026 TownLoop • All rights reserved.

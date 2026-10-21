@@ -36,6 +36,9 @@ export function ResidentRegistration({
       email: "",
       address: "",
       phone: "",
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+      emergencyContactAddress: "",
       password: "",
     }),
     [show, setShow] = useState(false);
@@ -65,6 +68,11 @@ export function ResidentRegistration({
         role: "resident",
         address: fields.address.trim(),
         phone: fields.phone.trim(),
+        emergencyContactName: fields.emergencyContactName.trim(),
+        emergencyContactPhone: fields.emergencyContactPhone.trim(),
+        emergencyContactAddress: fields.emergencyContactAddress.trim(),
+        emergencyContact: fields.emergencyContactName.trim(),
+        emergency_contact: fields.emergencyContactName.trim(),
         avatarUrl: "",
         approved: false,
         createdAt: new Date().toISOString(),
@@ -90,6 +98,9 @@ export function ResidentRegistration({
             MapPin,
           ],
           ["phone", "Phone Number (optional)", "(904) 555-0100", Phone],
+          ["emergencyContactName", "Emergency Contact Name (optional)", "Full name", User],
+          ["emergencyContactPhone", "Emergency Contact Phone (optional)", "Phone number", Phone],
+          ["emergencyContactAddress", "Emergency Contact Address (optional)", "Full address", MapPin],
           [
             "password",
             "Create Password (min 6 characters)",
@@ -118,6 +129,7 @@ export function ResidentRegistration({
               accessibilityLabel={label}
               value={fields[key]}
               editable={!busy}
+              maxLength={key === "password" ? 4096 : 300}
               placeholder={placeholder}
               placeholderTextColor={dark ? "#64748b" : "#a8a29e"}
               onChangeText={(value) => setFields({ ...fields, [key]: value })}
@@ -125,7 +137,7 @@ export function ResidentRegistration({
               keyboardType={
                 key === "email"
                   ? "email-address"
-                  : key === "phone"
+                  : key === "phone" || key === "emergencyContactPhone"
                     ? "phone-pad"
                     : "default"
               }

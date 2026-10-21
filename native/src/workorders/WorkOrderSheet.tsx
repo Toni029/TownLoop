@@ -25,7 +25,12 @@ export function WorkOrderSheet({ title, subtitle, children, footer, busy = false
   const closing = useRef(false), opened = useRef(false), requestedFull = useRef(false);
   const position = useSharedValue(height + 24), start = useSharedValue(height), shade = useSharedValue(0);
   const phase = useSharedValue(0); // 0 opening/idle, 1 ready, 2 closing
-  const stops = sheetStops(viewport || height, insets.top);
+  const [contentHeight, setContentHeight] = useState(0), [headerHeight, setHeaderHeight] = useState(0);
+  const baseStops = sheetStops(viewport || height, insets.top);
+  // Fit the form through its inline submit action, bounded by the full-screen stop.
+  const stops = {...baseStops, half: contentHeight && headerHeight
+    ? Math.max(baseStops.full, Math.min(baseStops.half, (viewport || height) - headerHeight - contentHeight - insets.bottom))
+    : baseStops.half};
   const timing = { duration: reduced ? 0 : 240, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System };
   useEffect(() => {
     const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboard(true));
@@ -33,7 +38,7 @@ export function WorkOrderSheet({ title, subtitle, children, footer, busy = false
     return () => { show.remove(); hide.remove(); };
   }, []);
   useEffect(() => {
-    if (!shown || !viewport || closing.current) return;
+    if (!shown || !viewport || !contentHeight || !headerHeight || closing.current) return;
     const target = full || keyboard ? stops.full : stops.half;
     if (!opened.current) {
       opened.current = true;
@@ -45,7 +50,7 @@ export function WorkOrderSheet({ title, subtitle, children, footer, busy = false
       position.set(target);
       phase.set(1);
     }
-  }, [shown, viewport, stops.full, stops.half, stops.hidden, full, keyboard, reduced, position, shade, phase]);
+  }, [shown, viewport, contentHeight, headerHeight, stops.full, stops.half, stops.hidden, full, keyboard, reduced, position, shade, phase]);
   useEffect(() => () => { cancelAnimation(position); cancelAnimation(shade); }, [position, shade]);
   function close() {
     if (busy || closing.current) return;
@@ -99,7 +104,7 @@ export function WorkOrderSheet({ title, subtitle, children, footer, busy = false
         <View style={{flex:1,overflow:'hidden'}} onLayout={event => { const next = event.nativeEvent.layout.height; if (next > 0) { largestViewport.current = Math.max(largestViewport.current, next); setViewport(next); } }}>
           <Animated.View style={[{position:'absolute',top:0,width:'100%',maxWidth:width >= 640 && !full ? 512 : undefined,alignSelf:'center',backgroundColor:dark ? '#0f172a':'#fff',overflow:'hidden'},card]}>
             <SafeAreaView edges={['left','right','bottom']} style={{flex:1}}>
-              <GestureDetector gesture={pan}><View>
+              <GestureDetector gesture={pan}><View onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
                 <View style={{alignItems:'center',paddingTop:12,paddingBottom:10}}><View style={{width:full ? 64:48,height:6,borderRadius:3,backgroundColor:full ? '#059669':dark ? '#334155':'#d6d3d1'}} /></View>
                 <View style={[s.row,{padding:20,paddingBottom:12,borderBottomWidth:1,borderColor:dark?'#1e293b':'#e7e5e4',flexWrap:'nowrap',gap:6}]}>
                   <View style={{flex:1}}><Copy accessibilityRole="header" weight="bold" style={{fontFamily:'NewsBold',fontSize:16,lineHeight:24}}>{title}</Copy>
@@ -108,7 +113,7 @@ export function WorkOrderSheet({ title, subtitle, children, footer, busy = false
                   <Pressable accessibilityRole="button" accessibilityLabel="Close" disabled={busy} onPress={close} hitSlop={8} style={{width:32,height:32,alignItems:'center',justifyContent:'center',borderRadius:16,backgroundColor:dark?'#1e293b':'#f5f5f4'}}><X size={16} color="#78716c"/></Pressable>
                 </View>
               </View></GestureDetector>
-              <ScrollView style={{flex:1}} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" extraKeyboardSpace contentContainerStyle={{padding:20,paddingTop:6,gap:12}}>{children}</ScrollView>
+              <ScrollView onContentSizeChange={(_width, nextHeight) => setContentHeight(nextHeight)} style={{flex:1}} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" extraKeyboardSpace contentContainerStyle={{padding:20,paddingTop:6,gap:12}}>{children}</ScrollView>
               {!!footer && <View style={{paddingHorizontal:20,paddingTop:10,paddingBottom:16,gap:10}}>{footer}</View>}
             </SafeAreaView>
           </Animated.View>

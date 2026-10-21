@@ -223,6 +223,12 @@ export interface UserProfile {
   phone?: string;
   emergency_contact?: string;
   emergencyContact?: string;
+  profileUpdateRequest?: { status: string; changes: Record<string, string>; previous: Record<string, string>; requestedAt: unknown; requestedBy: string };
+  dateOfBirth?: string;
+  maritalStatus?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactAddress?: string;
   dietary_preference?: string;
   dietaryPreference?: string;
   avatar?: string;

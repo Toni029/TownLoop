@@ -207,7 +207,7 @@ test("Office selection sends a participant-restricted direct message to the sele
 test("profile edit requests go to the Office team without updating the user profile", async () => {
   for(const role of ['resident','admin']){
     const f=fixture('alice',{residentId:'alice',residentEmail:'alice@example.invalid',messages:[]},role);
-    await f.actions.requestProfileUpdate({phone:'123',address:'',wing:'',emergencyContact:'',dietaryPreference:''});
+    await f.actions.requestProfileUpdate({phone:'123',address:'',dateOfBirth:'',maritalStatus:'',emergencyContactName:'',emergencyContactPhone:'',emergencyContactAddress:''});
     assert.equal(f.writes.length,1);const w=f.writes[0];
     assert.equal(w.kind,'set');assert.equal(w.ref.collection,'office_chats');assert.equal(w.patch.unreadByVip,true);
     assert.match(w.patch.messages[0].body,/Resident Phone.*123/);assert.equal(w.patch.messages[0].senderRole,role);

@@ -7,6 +7,7 @@ import {
   where,
   runTransaction,
   updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
@@ -25,7 +26,8 @@ import {
   readThread,
   officeManager,
   receiptMessages,
-  profileRequestText,
+  profileChanges,
+  accountDetails,
   type ProfileDetails,
   type Category,
   type Thread,
@@ -327,11 +329,51 @@ export async function manageResident(
   await updateDoc(doc(db, "users", id), patch);
 }
 
-/** Submit for office review; never write the user's profile here. */
+/** Persist the proposal without changing approved account information. */
 export async function requestProfileUpdate(input: ProfileDetails) {
   const user = await approvedUser();
-  const message = profileRequestText(user, input);
-  await sendMessage('office', user, 'Profile update request', message, undefined, {officeRequest:true});
+  const ref = doc(db, "users", String(user.id));
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) throw new Error("Your account is no longer available.");
+    const current = readPerson(snapshot.id, snapshot.data());
+    const changes = profileChanges(current, input);
+    transaction.update(ref, { profileUpdateRequest: {
+      status: "pending", changes, previous: accountDetails(current),
+      requestedAt: serverTimestamp(), requestedBy: String(user.id),
+    } });
+  });
+}
+
+export async function reviewProfileUpdate(id: string, requestedAt: unknown, approve: boolean) {
+  const manager = await approvedUser();
+  if (!officeManager(manager)) throw new Error("Admin or VIP access is required.");
+  const ref = doc(db, "users", id);
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.data();
+    const request = data?.profileUpdateRequest;
+    if (!data || request?.status !== "pending" || !request.requestedAt?.isEqual(requestedAt))
+      throw new Error("This request changed. Reopen it before reviewing.");
+    const current = accountDetails(readPerson(id, data));
+    const changes = request.changes as Partial<ProfileDetails>;
+    const keys = Object.keys(changes) as (keyof ProfileDetails)[];
+    if (!keys.length || keys.some(key => !(key in current) || typeof changes[key] !== "string" || changes[key]!.length > 300))
+      throw new Error("Invalid profile request.");
+    if (approve && keys.some(key => current[key] !== request.previous?.[key]))
+      throw new Error("Account information has changed. Ask the resident to submit a fresh request.");
+    transaction.update(ref, {
+      ...(approve ? {
+        ...changes,
+        ...(changes.emergencyContactName !== undefined ? {emergencyContact: changes.emergencyContactName, emergency_contact: changes.emergencyContactName} : {}),
+        ...(changes.emergencyContactPhone !== undefined ? {emergency_contact_phone: changes.emergencyContactPhone} : {}),
+        ...(changes.emergencyContactAddress !== undefined ? {emergency_contact_address: changes.emergencyContactAddress} : {}),
+        ...(changes.dateOfBirth !== undefined ? {date_of_birth: changes.dateOfBirth} : {}),
+        ...(changes.maritalStatus !== undefined ? {marital_status: changes.maritalStatus} : {}),
+      } : {}),
+      profileUpdateRequest: {...request, status: approve ? "approved" : "rejected", reviewedAt: serverTimestamp(), reviewedBy: String(manager.id)},
+    });
+  });
 }
 export async function updateOwnDetails(input: {
   phone: string;

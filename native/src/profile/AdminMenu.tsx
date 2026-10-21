@@ -34,7 +34,7 @@ import { db } from "../lib/firebase";
 import { useLiveCollection } from "../lib/liveCollection";
 import { readNewsEvent } from "../news/model";
 import { approvedUser, removeNewsItem } from "../news/actions";
-import { manageResident } from "./data";
+import { manageResident, reviewProfileUpdate } from "./data";
 const eventDetail = (value: unknown) => {
   const text = String(value ?? "").trim();
   return /not specified/i.test(text) ? "" : text;
@@ -305,6 +305,20 @@ export function AdminMenu({
                   No residents in directory.
                 </Text>
               )}
+              {residents.filter(person => person.profileUpdateRequest?.status === "pending").map(person => {
+                const request = person.profileUpdateRequest!;
+                const labels: Record<string, string> = {phone:"Resident Phone",address:"Residency Address",dateOfBirth:"Date of Birth",maritalStatus:"Marital Status",emergencyContactName:"Emergency Contact Name",emergencyContactPhone:"Emergency Contact Phone",emergencyContactAddress:"Emergency Contact Address"};
+                return <View key={`request-${person.id}`} style={panel}>
+                  <Text style={font(14, true)}>Profile update · {person.name}</Text>
+                  {Object.entries(request.changes).map(([key, value]) => <View key={key} style={{gap:4}}>
+                    <Text style={font(12, true)}>{labels[key] || key}</Text>
+                    <Text style={{...font(12), color:muted}}>Current: {request.previous[key] || "Not provided"}</Text>
+                    <Text style={font(13)}>Requested: {value || "Remove"}</Text>
+                  </View>)}
+                  {button("Approve profile update", () => setConfirm({label:`Apply ${person.name}'s requested profile changes?`, run: () => reviewProfileUpdate(String(person.id), request.requestedAt, true)}))}
+                  {button("Reject request", () => setConfirm({label:`Reject ${person.name}'s profile update request?`, run: () => reviewProfileUpdate(String(person.id), request.requestedAt, false)}))}
+                </View>;
+              })}
               {people
                 .filter((p) => !pendingOnly || p.approved === false)
                 .map((p) => {
