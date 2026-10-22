@@ -40,4 +40,13 @@ function approvedSharedSocialRetention(policy, collection) {
   const shared = policy?.collections?.[collection]?.sharedReferences;
   return approvedSocialDeletion(policy, collection) && shared?.action === 'retain' && typeof shared.reason === 'string' && !!shared.reason.trim();
 }
-module.exports = { jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention };
+// Requests remain usable until the operator has a complete supported processing policy.
+function accountPolicyReady(policy) {
+  return SHARED.every(collection => {
+    const entry = policy?.collections?.[collection];
+    if (entry?.retentionDays != null || entry?.expiresAfterDays != null) return false;
+    return approvedRetention(policy, collection) ||
+      (approvedSocialDeletion(policy, collection) && approvedSharedSocialRetention(policy, collection));
+  });
+}
+module.exports = { accountPolicyReady, jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention };

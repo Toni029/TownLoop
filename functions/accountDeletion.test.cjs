@@ -62,16 +62,16 @@ test('inventory recognizes nested authors, participants, market sides and UID-ke
 test('unknown, invented duration and unapproved anonymization decisions fail closed', () => {
   for (const policy of [undefined, { ownerApproved: true }, { ownerApproved: true, approvalReference: 'owner-1', collections: { posts: { action: 'anonymize', reason: 'review' } } }]) assert.equal(approvedRetention(policy, 'posts'), false);
 });
-test('callable re-verifies revocation and identity, deduplicates durable requests and marks pending without taking a target UID', async () => {
+test('callable re-verifies revocation and identity, deduplicates requests without freezing accounts or taking a target UID', async () => {
   const h = harness({ 'users/alice': { approved: true }, 'users/bob': { approved: true }, 'resident_directory/alice': { name: 'Alice' } });
-  const request = token => ({ auth: { uid: 'alice', token: { auth_time: Date.now() / 1000 } }, data: { confirmation: 'DELETE', uid: 'bob' }, rawRequest: { headers: { authorization: `Bearer ${token}` } } });
+  const request = token => ({ auth: { uid: 'alice', token: { auth_time: Date.now() / 1000 } }, data: { confirmation: 'DELETE', requestOnly: true, uid: 'bob' }, rawRequest: { headers: { authorization: `Bearer ${token}` } } });
   await assert.rejects(h.request(request('revoked')), error => error.code === 'unauthenticated');
   await assert.rejects(h.request(request('wrong-account')), error => error.code === 'failed-precondition');
   const first = await h.request(request('valid')), second = await h.request(request('valid'));
   assert.equal(first.jobId, second.jobId); assert.equal(first.jobId, jobIdFor('alice'));
   assert.equal([...h.records.keys()].filter(path => path.startsWith('account_deletion_jobs/')).length, 1);
-  assert.equal(h.records.get('users/alice').deletionPending, true); assert.equal(h.records.get('users/bob').deletionPending, undefined);
-  assert.equal(h.records.has('resident_directory/alice'), false);
+  assert.equal(h.records.get('users/alice').deletionPending, undefined); assert.equal(h.records.get('users/bob').deletionPending, undefined);
+  assert.equal(h.records.has('resident_directory/alice'), true);
 });
 test('retryable phases preserve shared history and block private/Auth erasure until owner policy approval', async () => {
   const h = harness({ 'account_deletion_jobs/job': { uid: 'alice', phase: 'disable', status: 'queued', collectionIndex: 0, cursor: '' },
@@ -83,8 +83,8 @@ test('retryable phases preserve shared history and block private/Auth erasure un
   assert.equal(h.records.get(h.ref.path).status, 'pending_owner_approval');
   assert.ok(h.records.has('users/alice')); assert.equal(h.authCalls.some(([action]) => action === 'delete'), false);
   assert.equal(h.records.get('resident_chats/shared').messages[0].text, 'preserve');
-  h.records.set('deletion_policies/account', { ownerApproved: true, approvalReference: 'owner-approved-ticket', collections: { resident_chats: { action: 'retain', reason: 'Reviewed community conversation policy' } } });
-  for (let step = 0; step < 8; step++) await h.run(h.db, h.auth, h.ref);
+  h.records.set('deletion_policies/account', { ownerApproved: true, approvalReference: 'owner-approved-ticket', collections: Object.fromEntries(SHARED.map(collection => [collection, { action: 'retain', reason: 'Synthetic approved policy fixture' }])) });
+  for (let step = 0; step < SHARED.length + 8; step++) await h.run(h.db, h.auth, h.ref);
   assert.equal(h.records.get(h.ref.path).status, 'complete');
   assert.equal(h.records.has('users/alice'), false); assert.equal(h.records.has('notification_devices/a'), false);
   assert.ok(h.records.has('users/bob')); assert.ok(h.records.has('notification_devices/b'));
@@ -104,7 +104,8 @@ test('active durable lease skips overlapping cron work; expired lease is reclaim
   const h = harness({ 'account_deletion_jobs/job': { uid: 'alice', phase: 'disable', status: 'queued', collectionIndex: 0, cursor: '', leaseOwner: 'another-run', leaseUntil: Date.now() + 60000 } });
   await h.schedule(); assert.equal(h.authCalls.length, 0);
   h.records.get(h.ref.path).leaseUntil = Date.now() - 1;
-  await h.schedule(); assert.deepEqual(h.authCalls.map(([action]) => action), ['disable', 'revoke']);
+  await h.schedule(); assert.deepEqual(h.authCalls, []);
+  assert.equal(h.records.get(h.ref.path).status, 'pending_owner_approval');
   assert.equal(h.records.get(h.ref.path).leaseOwner, null); assert.equal(h.records.get(h.ref.path).leaseUntil, null);
 });
 test('approved social deletion checks current canonical ownership and leaves shared author references pending', async () => {
@@ -136,4 +137,31 @@ test('approved social deletion checks current canonical ownership and leaves sha
   h.records.get(cleanupPath).status = 'complete';
   await h.run(h.db, h.auth, h.ref); assert.equal(h.records.get(h.ref.path).status, 'complete');
   assert.equal(h.records.get(h.ref.path).mediaCleanupStatus, 'all_tracked_jobs_complete');
+});
+
+test('request-only submission keeps the account, directory and authentication usable', async () => {
+ const h=harness({'users/alice':{approved:true},'resident_directory/alice':{name:'Synthetic'}});
+ const result=await h.request({auth:{uid:'alice',token:{auth_time:Date.now()/1000}},data:{confirmation:'DELETE',requestOnly:true},rawRequest:{headers:{authorization:'Bearer valid'}}});
+ assert.equal(result.status,'requested');
+ assert.equal(h.records.get('users/alice').deletionPending,undefined);
+ assert.equal(h.records.has('resident_directory/alice'),true);
+ assert.deepEqual(h.authCalls,[]);
+ assert.equal(h.records.get(`account_deletion_jobs/${result.jobId}`).phase,'requested');
+});
+test('request-only processing waits for supported policy readiness without disabling access', async () => {
+ const h=harness({'users/alice':{approved:true},'resident_directory/alice':{name:'Synthetic'},'account_deletion_jobs/job':{uid:'alice',phase:'requested',status:'requested'}});
+ await h.run(h.db,h.auth,h.ref);
+ assert.equal(h.records.get(h.ref.path).status,'pending_owner_approval');
+ assert.equal(h.records.get('users/alice').deletionPending,undefined);
+ assert.equal(h.records.has('resident_directory/alice'),true);
+ assert.deepEqual(h.authCalls,[]);
+});
+
+test('request-only worker does not silently treat a 60-day policy as indefinite retention', async () => {
+ const collections=Object.fromEntries(SHARED.map(collection=>[collection,{action:'retain',reason:'Synthetic',retentionDays:60}]));
+ const h=harness({'users/alice':{approved:true},'deletion_policies/account':{ownerApproved:true,approvalReference:'fixture',collections},'account_deletion_jobs/job':{uid:'alice',phase:'requested',status:'requested'}});
+ await h.run(h.db,h.auth,h.ref);
+ assert.equal(h.records.get(h.ref.path).status,'pending_owner_approval');
+ assert.deepEqual(h.authCalls,[]);
+ assert.equal(h.records.get('users/alice').deletionPending,undefined);
 });

@@ -1,7 +1,6 @@
 import { SafetyActions } from "../components/SafetyActions";
 import { LegalLinks } from "../components/LegalLinks";
 import { AccountDeletion } from "./AccountDeletion";
-import { clearResidentHomeData } from "../localData/nativeStorage";
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { AdminMenu } from "./AdminMenu";
@@ -1111,6 +1110,7 @@ export function ProfileMenu({
                           }
                         />
                         <Action title="Cancel" onPress={back} />
+                        <AccountDeletion />
                       </>
                     )}
                     {view === "menu" && (
@@ -2316,33 +2316,10 @@ export function ProfileMenu({
                           <ChevronRight size={18} color={muted}/>
                         </Pressable>
                         <LegalLinks dark={dark}/>
-                        <AccountDeletion onLocalCleanup={clearResidentHomeData} onDeleted={() => close()} />
                         <Action
                           title="Edit Profile"
                           onPress={editProfile}
                         />
-                        <Pressable
-                          accessibilityRole="button"
-                          onPress={editProfile}
-                          style={({ pressed }) => ({
-                            paddingVertical: 12,
-                            borderRadius: 16,
-                            backgroundColor: dark ? "#1e293b" : "#1c1917",
-                            alignItems: "center",
-                            opacity: pressed ? 0.7 : 1,
-                            marginTop: 8,
-                          })}
-                        >
-                          <Text
-                            style={{
-                              fontFamily: "JakartaBold",
-                              fontSize: width >= 640 ? 14 : 12,
-                              color: "#fff",
-                            }}
-                          >
-                            Request Profile Update
-                          </Text>
-                        </Pressable>
                         <Pressable
                           accessibilityRole="button"
                           onPress={() => close(onAccount)}

@@ -1,13 +1,10 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { signOut } from 'firebase/auth';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { TextInput } from '../keyboard/KeyboardScrollView';
 import { auth } from '../lib/firebase';
-import { clearDeletedAccountCaches, requestAccountDeletion } from '../lib/accountDeletion';
+import { requestAccountDeletion } from '../lib/accountDeletion';
 
-export function AccountDeletion({ onLocalCleanup, onDeleted }: {
-  onLocalCleanup?: (uid: string) => Promise<void>;
-  onDeleted?: () => void;
-}) {
+export function AccountDeletion() {
   const [expanded, setExpanded] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -20,33 +17,24 @@ export function AccountDeletion({ onLocalCleanup, onDeleted }: {
     if (!uid || busy || accepted) return;
     setBusy(true); setMessage('');
     try {
-      const result = await requestAccountDeletion(password, confirmation);
+      await requestAccountDeletion(password, confirmation);
       setPassword(''); setAccepted(true);
-      setMessage(`Deletion request accepted (${result.jobId.slice(0, 12)}). Access will be disabled. Shared history is retained pending an approved policy; deletion may require owner review.`);
-      try {
-        await clearDeletedAccountCaches(uid);
-        await onLocalCleanup?.(uid);
-      } catch {
-        setMessage('Deletion request accepted. Some local data could not be removed; use this device’s app storage controls to clear it. Shared history still requires approved retention decisions.');
-      } finally {
-        await signOut(auth);
-        onDeleted?.();
-      }
+      setMessage('Your account deletion request was submitted. You can continue using TownLoop while it is reviewed and prepared for processing. You do not need to send it again.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to request deletion. Please retry.');
     } finally { setBusy(false); }
   }
   return <View style={styles.card}>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} disabled={busy || accepted}>
-      <Text style={styles.title}>Delete account</Text>
+      <Text style={styles.title}>Request Account Deletion</Text>
     </Pressable>
     {expanded && <View style={styles.fields}>
-      <Text style={styles.body}>This requests permanent account deletion and disables access. Your private profile, push registration and sign-in account are removed after retention review. Shared conversations, work orders and community history may be retained under an approved policy. Local account data is cleared after the server accepts your request.</Text>
+      <Text style={styles.body}>Submit a verified request to permanently delete your account and associated data. Sending the request does not immediately delete your account or sign you out. Shared records are handled under the approved retention policy when processing begins.</Text>
       {!accepted && <>
         {needsPassword && <TextInput accessibilityLabel="Current password" placeholder="Current password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!busy} style={styles.input} />}
-        <TextInput accessibilityLabel="Type DELETE to confirm account deletion" placeholder="Type DELETE to confirm" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" autoCorrect={false} editable={!busy} style={styles.input} />
+        <TextInput accessibilityLabel="Type DELETE to confirm the deletion request" placeholder="Type DELETE to confirm" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" autoCorrect={false} editable={!busy} style={styles.input} />
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || confirmation !== 'DELETE' }} disabled={busy || confirmation !== 'DELETE'} onPress={() => void submit()} style={[styles.button, (busy || confirmation !== 'DELETE') && styles.disabled]}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify identity and request deletion</Text>}
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Confirm Deletion Request</Text>}
         </Pressable>
       </>}
     </View>}

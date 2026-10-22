@@ -105,7 +105,9 @@ export function useProfileData(user: UserProfile | null) {
               lists: s.key === key ? s.lists : {},
               errors: {
                 ...(s.key === key ? s.errors : {}),
-                [category]: friendlyError(error),
+                [category]: (error as { code?: string }).code === "permission-denied"
+                  ? "The server denied this Inbox query. The matching messaging security rules may still be pending."
+                  : friendlyError(error),
               },
             })),
         );
@@ -118,7 +120,7 @@ export function useProfileData(user: UserProfile | null) {
   return {
     directory,
     threads,
-    errors: Object.values(state.errors).filter(Boolean),
+    errors: Object.entries(state.errors).filter(([, error]) => !!error).map(([category, error]) => `${category === "friend" ? "Friends" : category === "office" ? "Office" : "Maintenance"}: ${error}`),
     loading:
       Object.keys(state.lists).length +
         Object.values(state.errors).filter(Boolean).length <

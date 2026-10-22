@@ -20,8 +20,8 @@ export async function requestAccountDeletion(password: string, confirmation: str
   }
   if (auth.currentUser?.uid !== user.uid) throw new Error('Your session changed. Sign in again.');
   await user.getIdToken(true);
-  const request = httpsCallable<{ confirmation: string }, { jobId: string; status: string }>(getFunctions(app, 'us-central1'), 'requestAccountDeletion');
-  return (await request({ confirmation })).data;
+  const request = httpsCallable<{ confirmation: string; requestOnly: boolean }, { jobId: string; status: string }>(getFunctions(app, 'us-central1'), 'requestAccountDeletion');
+  return (await request({ confirmation, requestOnly: true })).data;
 }
 
 /** Exact account-scoped keys only; never clear another account's data or all AsyncStorage. */

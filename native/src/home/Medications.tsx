@@ -20,6 +20,7 @@ import {
   Pill,
   AlertTriangle,
   Sparkles,
+  Info,
 } from "lucide-react-native";
 import {
   Action,
@@ -96,6 +97,7 @@ export function Medications({
   const dark = useContext(Theme);
   const p = usePalette(),
     reduced = useReducedMotion();
+  const [showInformation, setShowInformation] = useState(false);
   const [expanded, setExpanded] = useState(false),
     [editor, setEditor] = useState<MedicationItem | "new" | null>(null);
   const taken = items.filter((m) => m.lastTakenDate === today).length;
@@ -110,7 +112,6 @@ export function Medications({
   return (
     <Tile tone="medication">
       {!hasProtectedStorage && <Txt accessibilityRole="alert" style={{ fontSize: 12, lineHeight: 18 }}>Secure storage requires an app update. Existing reminders on this version are stored without app-level encryption.</Txt>}
-      <Txt style={{ fontSize: 12, lineHeight: 18 }}>Personal tracking only; not medical advice. Follow your clinician’s directions. Reminders are not guaranteed; use another reliable reminder.</Txt>
       <Row>
         <View
           style={{
@@ -182,6 +183,9 @@ export function Medications({
               ? "All doses completed for today! 🎉"
               : `${taken} of ${items.length} doses taken today`}
           </Txt>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Medication information" onPress={() => setShowInformation(true)} style={{ width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}>
+          <Info size={21} color={p.blue} />
         </Pressable>
       </Row>
       <Row style={{ gap: 10 }}>
@@ -351,6 +355,11 @@ export function Medications({
           )}
         </View>
       )}
+      {showInformation && <Sheet centered title="Medication information" onClose={() => setShowInformation(false)}>
+        <Txt>Personal tracking only; not medical advice. Follow your clinician’s directions. Reminders are not guaranteed; use another reliable reminder.</Txt>
+        <Txt>Do not change medication or doses based on this tracker. Contact your clinician or pharmacist with medication questions.</Txt>
+        <Action label="Done" onPress={() => setShowInformation(false)} />
+      </Sheet>}
       {!!editor && (
         <MedicationEditor
           initial={editor === "new" ? undefined : editor}
@@ -398,7 +407,7 @@ function MedicationEditor({
   const hint = dark ? '#94a3b8' : '#8da2c0';
   const fieldStyle = { fontFamily: 'Jakarta', fontSize: 18, color: p.ink, backgroundColor: dark ? '#1e293b' : '#f7f9fb', borderWidth: 1, borderColor: dark ? p.line : '#c9d6ea', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, minHeight: 58 };
   const panelStyle = { backgroundColor: dark ? '#1e293b' : '#f8fafc', borderWidth: 1, borderColor: p.line, borderRadius: 22 };
-  const stepStyle = { width: 38, height: 46, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: p.paper, borderWidth: 1, borderColor: dark ? p.line : '#c9d6ea', borderRadius: 14 };
+  const stepStyle = { width: 44, minHeight: 48, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: p.paper, borderWidth: 1, borderColor: dark ? p.line : '#c9d6ea', borderRadius: 14 };
   return (
     <Sheet
       centered
@@ -408,9 +417,9 @@ function MedicationEditor({
       <View style={{ gap: 8 }}>
         <Txt bold style={{ fontSize: 16 }}>Medication / Supplement Name <Txt style={{ color: '#f43f5e' }}>*</Txt></Txt>
         <TextInput accessibilityLabel="Medication / Supplement Name" value={name} onChangeText={setName}
-          placeholder="e.g., Lisinopril (10 mg), Metformin, Calcium" placeholderTextColor={hint} style={fieldStyle} />
+          placeholder="e.g., Lisinopril (10 mg)" placeholderTextColor={hint} style={fieldStyle} />
       </View>
-      <View style={{ flexDirection: 'row', gap: 18 }}>
+      <View style={{ gap: 18 }}>
         <View style={{ flex: 1, gap: 8 }}>
           <Txt bold style={{ fontSize: 16 }}>Dose Amount</Txt>
           <View style={{ ...panelStyle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, gap: 6 }}>
@@ -421,26 +430,26 @@ function MedicationEditor({
         </View>
         <View style={{ flex: 1, gap: 8 }}>
           <Txt bold style={{ fontSize: 16 }}>Pills in Bottle</Txt>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <View style={{ gap: 10 }}>
             <TextInput accessibilityLabel="Pills in Bottle" keyboardType="number-pad" value={count} onChangeText={setCount} style={[fieldStyle, { flexGrow: 1, minWidth: 58, textAlign: 'center', fontFamily: 'JakartaBold', fontSize: 22 }]} />
-            {[30, 60, 90].map(n => <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} pills`} accessibilityState={{ selected: count === String(n) }} disabled={busy} onPress={() => setCount(String(n))} style={{ borderWidth: 1, borderColor: count === String(n) ? '#65cfff' : p.line, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 4, backgroundColor: count === String(n) ? (dark ? '#164e63' : '#e0f4ff') : p.paper }}><Txt bold style={{ fontSize: 13, color: count === String(n) ? p.blue : p.ink }}>{n}</Txt><Txt style={{ fontSize: 9, lineHeight: 12 }}>pills</Txt></Pressable>)}
+            <View style={{ flexDirection: 'row', gap: 10 }}>{[30, 60, 90].map(n => <Pressable key={n} accessibilityRole="button" accessibilityLabel={`${n} pills`} accessibilityState={{ selected: count === String(n) }} disabled={busy} onPress={() => setCount(String(n))} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: count === String(n) ? '#65cfff' : p.line, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 4, backgroundColor: count === String(n) ? (dark ? '#164e63' : '#e0f4ff') : p.paper }}><Txt bold style={{ fontSize: 13, color: count === String(n) ? p.blue : p.ink }}>{n}</Txt><Txt style={{ fontSize: 9, lineHeight: 12 }}>pills</Txt></Pressable>)}</View>
           </View>
         </View>
       </View>
       <View style={{ gap: 8 }}>
         <Txt bold style={{ fontSize: 16 }}>Daily Schedule Slot</Txt>
-        <View style={{ flexDirection: 'row', gap: 7 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {slots.map(item => { const Icon = slotIcons[item.id]; const selected = slot === item.id;
-            return <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected }} disabled={busy} onPress={() => setSlot(item.id)} style={{ flex: 1, minWidth: 0, borderRadius: 19, borderWidth: 1, borderColor: selected ? '#7dd3fc' : p.line, backgroundColor: selected ? '#026fa9' : p.paper, paddingVertical: 12, paddingHorizontal: 5, alignItems: 'center', gap: 3 }}>
+            return <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected }} disabled={busy} onPress={() => setSlot(item.id)} style={{ flexGrow: 1, flexBasis: '45%', minWidth: 0, minHeight: 72, borderRadius: 19, borderWidth: 1, borderColor: selected ? '#7dd3fc' : p.line, backgroundColor: selected ? '#026fa9' : p.paper, paddingVertical: 12, paddingHorizontal: 5, alignItems: 'center', gap: 3 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 4 }}><Icon size={14} color={selected ? '#fff' : '#009be8'} /><Txt bold style={{ fontSize: 12, color: selected ? '#fff' : p.ink }}>{item.title}</Txt></View>
               <Txt style={{ fontSize: 9, lineHeight: 13, color: selected ? '#fff' : hint, textAlign: 'center' }}>{item.id === 'morning' ? 'With Breakfast' : item.id === 'noon' ? 'Lunchtime' : item.id === 'evening' ? 'With Dinner' : 'Before Sleep'}</Txt>
             </Pressable>;
           })}
         </View>
       </View>
-      <View style={{ ...panelStyle, padding: 18, gap: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <FileText size={18} color="#009be8" /><Txt bold style={{ flex: 1, fontSize: 16, lineHeight: 23 }}>Special Instructions & Doctor Notes</Txt><Txt style={{ width: 68, fontSize: 10, lineHeight: 15, color: hint }}>Optional Directions</Txt>
+      <View style={{ ...panelStyle, padding: 14, gap: 12 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+          <FileText size={18} color="#009be8" /><Txt bold style={{ flex: 1, fontSize: 16, lineHeight: 23 }}>Special Instructions & Doctor Notes</Txt><Txt style={{ flexBasis: '100%', fontSize: 12, lineHeight: 15, color: hint }}>Optional Directions</Txt>
         </View>
         <TextInput accessibilityLabel="Special Instructions & Doctor Notes" multiline value={notes} onChangeText={setNotes}
           placeholder="e.g., Take with breakfast & full glass of water. Do not lie down for 30 minutes after taking. Avoid grapefruit." placeholderTextColor={hint}
@@ -448,7 +457,7 @@ function MedicationEditor({
         <View style={{ gap: 8 }}>
           <Row><Sparkles size={15} color="#f59e0b" /><Txt style={{ fontSize: 10, color: p.muted }}>Quick-Add Common Directions:</Txt></Row>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-            {suggestions.map(direction => <Pressable key={direction} accessibilityRole="button" disabled={busy} onPress={() => setNotes(n => n.includes(direction) ? n : n.trim() ? `${n.trim()}. ${direction}` : direction)} style={{ borderWidth: 1, borderColor: p.line, backgroundColor: p.paper, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 6 }}><Txt style={{ fontSize: 10, lineHeight: 15 }}>{direction}</Txt></Pressable>)}
+            {suggestions.map(direction => <Pressable key={direction} accessibilityRole="button" disabled={busy} onPress={() => setNotes(n => n.includes(direction) ? n : n.trim() ? `${n.trim()}. ${direction}` : direction)} style={{ maxWidth: '100%', minHeight: 36, justifyContent: 'center', borderWidth: 1, borderColor: p.line, backgroundColor: p.paper, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 8 }}><Txt style={{ flexShrink: 1, fontSize: 12, lineHeight: 15 }}>{direction}</Txt></Pressable>)}
           </View>
         </View>
       </View>
@@ -464,11 +473,11 @@ function MedicationEditor({
           {error}
         </Txt>
       )}
-      <View style={{ flexDirection: "row", gap: 12 }}>
-      <Pressable accessibilityRole="button" disabled={busy} onPress={onClose} style={{ flex: 1, minHeight: 56, borderRadius: 20, borderWidth: 1, borderColor: p.line, justifyContent: "center", alignItems: "center" }}><Txt bold style={{ fontSize: 16 }}>Cancel</Txt></Pressable>
+      <View style={{ gap: 10 }}>
+      <Pressable accessibilityRole="button" disabled={busy} onPress={onClose} style={{ minHeight: 50, borderRadius: 20, borderWidth: 1, borderColor: p.line, justifyContent: "center", alignItems: "center" }}><Txt bold style={{ fontSize: 16 }}>Cancel</Txt></Pressable>
       <Pressable
         accessibilityRole="button"
-        style={{ flex: 1, minHeight: 56, borderRadius: 20, backgroundColor: "#026fa9", flexDirection: "row", gap: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", opacity: busy ? 0.5 : 1 }}
+        style={{ minHeight: 56, borderRadius: 20, backgroundColor: "#026fa9", flexDirection: "row", gap: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", opacity: busy ? 0.5 : 1 }}
         disabled={busy}
         onPress={async () => {
           if (!name.trim()) {

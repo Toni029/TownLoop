@@ -3,12 +3,13 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { randomUUID } = require('node:crypto');
-const { jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention } = require('./accountDeletionPolicy.cjs');
+const { accountPolicyReady, jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention } = require('./accountDeletionPolicy.cjs');
 const database = process.env.TOWNLOOP_FIRESTORE_DATABASE_ID || '(default)';
 const options = { region: 'us-central1', maxInstances: 1, timeoutSeconds: 300 };
 exports.requestAccountDeletion = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const invalid = validateRequest(request.auth, request.data);
   if (invalid) throw new HttpsError(invalid === 'unauthenticated' ? 'unauthenticated' : 'failed-precondition', invalid);
+  if (request.data?.requestOnly !== true) throw new HttpsError('failed-precondition', 'Update TownLoop or use the public deletion-request page to submit a verified request.');
   // Callable authentication checks the signature; additionally reject revoked/disabled sessions.
   const bearer = request.rawRequest.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
   if (!bearer) throw new HttpsError('unauthenticated', 'Missing session.');
@@ -18,13 +19,11 @@ exports.requestAccountDeletion = onCall({ ...options, timeoutSeconds: 60 }, asyn
     throw new HttpsError('failed-precondition', 'Sign in again before deleting your account.');
   const db = getFirestore(database), jobId = jobIdFor(verified.uid), ref = db.doc(`account_deletion_jobs/${jobId}`);
   await db.runTransaction(async tx => {
-    const [existing, profile] = await Promise.all([tx.get(ref), tx.get(db.doc(`users/${verified.uid}`))]);
-    if (!existing.exists) tx.create(ref, { uid: verified.uid, phase: 'disable', status: 'queued',
+    const existing = await tx.get(ref);
+    if (!existing.exists) tx.create(ref, { uid: verified.uid, phase: 'requested', status: 'requested',
       createdAt: FieldValue.serverTimestamp(), lastAttemptAt: FieldValue.serverTimestamp(), collectionIndex: 0, cursor: '', inventoryComplete: false });
-    if (profile.exists) tx.update(profile.ref, { deletionPending: true });
-    tx.delete(db.doc(`resident_directory/${verified.uid}`));
   });
-  return { jobId, status: 'queued' };
+  return { jobId, status: 'requested' };
 });
 
 async function processJob(db, auth, ref) {
@@ -32,10 +31,19 @@ async function processJob(db, auth, ref) {
   if (!snapshot.exists || snapshot.data().status === 'complete') return;
   const job = snapshot.data(), uid = job.uid;
   if (typeof uid !== 'string' || !uid || uid.includes('/')) throw Error('Invalid deletion job');
-  if (job.phase === 'disable') {
-    try { await auth.updateUser(uid, { disabled: true }); await auth.revokeRefreshTokens(uid); }
-    catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
-    await ref.update({ phase: 'inventory', status: 'processing' });
+  if (job.phase === 'requested' || job.phase === 'disable') {
+    const policy = (await db.doc('deletion_policies/account').get()).data();
+    if (!accountPolicyReady(policy)) {
+      await ref.update({ status: 'pending_owner_approval', lastError: 'processing_policy_not_ready' });
+      return;
+    }
+    // Freeze writes only once real processing can proceed, never when a request is submitted.
+    const batch = db.batch();
+    const profile = await db.doc(`users/${uid}`).get();
+    if (profile.exists) batch.update(profile.ref, { deletionPending: true });
+    batch.delete(db.doc(`resident_directory/${uid}`));
+    batch.update(ref, { phase: 'inventory', status: 'processing' });
+    await batch.commit();
     return;
   }
   if (job.phase === 'private') {
@@ -53,7 +61,7 @@ async function processJob(db, auth, ref) {
     batch.update(ref, { phase: 'auth' }); await batch.commit(); return;
   }
   if (job.phase === 'auth') {
-    try { await auth.deleteUser(uid); } catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
+    try { await auth.updateUser(uid, { disabled: true }); await auth.revokeRefreshTokens(uid); await auth.deleteUser(uid); } catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
     await ref.update({ phase: job.mediaCleanupRequired ? 'media' : 'done', status: job.mediaCleanupRequired ? 'identity_complete_media_pending' : 'complete',
       mediaCleanupStatus: job.mediaCleanupRequired ? 'waiting_for_policy_gated_jobs' : 'no_owned_social_deletion_requested',
       identityDeletedAt: FieldValue.serverTimestamp(), ...(job.mediaCleanupRequired ? { mediaCursor: '' } : { completedAt: FieldValue.serverTimestamp() }) }); return;
@@ -130,7 +138,7 @@ async function processJob(db, auth, ref) {
 }
 exports.resumeAccountDeletions = onSchedule({ ...options, schedule: 'every 5 minutes', timeZone: 'Etc/UTC' }, async () => {
   const db = getFirestore(database);
-  const jobs = await db.collection('account_deletion_jobs').where('status', 'in', ['queued', 'processing', 'pending_owner_approval', 'identity_complete_media_pending']).orderBy('lastAttemptAt').limit(20).get();
+  const jobs = await db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'queued', 'processing', 'pending_owner_approval', 'identity_complete_media_pending']).orderBy('lastAttemptAt').limit(20).get();
   for (const job of jobs.docs) {
     const leaseOwner = randomUUID();
     const claimed = await db.runTransaction(async tx => {

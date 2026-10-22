@@ -121,9 +121,8 @@ export default function SocialScreen() {
     setSeller(String(item.id));
   };
   const data = view === "post" ? posts : listings;
-  const currentError = [data.error, directory.error, inbox.error]
-    .filter(Boolean)
-    .join("\n");
+  // Optional directory/avatar and Inbox failures must not claim the feed itself is forbidden.
+  const currentError = data.error;
   return (
     <View style={{ flex: 1 }}>
       <SocialFeed
