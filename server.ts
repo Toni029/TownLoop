@@ -11,7 +11,9 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { translateWorkOrderContent } from './server/translation.ts';
 import { extractNewsletterContent } from './server/newsletterExtractor.ts';
-import { requireNewsletterManager, requireWorkOrderTranslator } from './server/newsletterAuth.ts';
+import { requireNewsletterManager, requireNewsletterReader, requireWorkOrderTranslator } from './server/newsletterAuth.ts';
+
+import { decodePdf, validatePdf, fetchNewsletterPdf, MAX_NEWSLETTER_PDF_BYTES, NEWSLETTER_JSON_LIMIT, NewsletterInputError } from './server/newsletterPdfSecurity.ts';
 
 dotenv.config();
 
@@ -54,7 +56,7 @@ function limitAiRequests(req: Request, res: Response, next: () => void) {
 }
 
 // Allow the local Expo preview and explicitly configured deployed web clients.
-app.use(['/api/newsletter/extract-content', '/api/translate'], (req, res, next) => {
+app.use(['/api/newsletter', '/api/translate'], (req, res, next) => {
   const origin = req.headers.origin;
   const allowed = new Set((process.env.TOWNLOOP_ALLOWED_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean));
   if (process.env.NODE_ENV !== 'production') {
@@ -65,20 +67,20 @@ app.use(['/api/newsletter/extract-content', '/api/translate'], (req, res, next) 
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   }
   if (req.method === 'OPTIONS') { res.sendStatus(origin && allowed.has(origin) ? 204 : 403); return; }
   next();
 });
 
-// Parse JSON and urlencoded bodies with sufficient size limit for large PDF documents & text payloads
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Authenticate before parsing document bodies; unrelated endpoints never accept large JSON.
+const newsletterJson = express.json({ limit: NEWSLETTER_JSON_LIMIT });
+const translationJson = express.json({ limit: '256kb' });
 
 // ==================== API ROUTES ====================
 
 // Newsletter AI extraction endpoint for PDF / community bulletin documents
-app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterManager, async (req: Request, res: Response) => {
+app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterManager, newsletterJson, async (req: Request, res: Response) => {
   try {
     const {
       newsletterId,
@@ -99,29 +101,14 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
       `[Newsletter Pipeline] Step 1: File received for extraction - Title: "${editionTitle || 'Unknown'}", Month: "${monthEdition || 'TBA'}", File: "${fileName || 'none'}", NewsletterID: "${newsletterId || 'auto'}", isNewUpload: ${Boolean(isNewUpload)}`
     );
 
-    let cleanBase64 = typeof base64Data === 'string' ? base64Data.trim() : '';
-    let effectiveMime = typeof mimeType === 'string' ? mimeType.trim() : (fileType || 'application/pdf');
-
-    // If cleanBase64 was not passed directly, extract from fileDataUrl
-    if (!cleanBase64 && typeof fileDataUrl === 'string') {
-      const rawUrl = fileDataUrl.trim();
-      if (rawUrl.includes('base64,')) {
-        cleanBase64 = rawUrl.split('base64,')[1]?.trim() || '';
-        const detectedMime = rawUrl.substring(rawUrl.indexOf(':') + 1, rawUrl.indexOf(';'));
-        if (detectedMime) effectiveMime = detectedMime;
-      } else if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
-        try {
-          console.log(`[Newsletter Pipeline] Step 1a: Fetching raw PDF from remote URL...`);
-          const fetchRes = await fetch(rawUrl, { signal: AbortSignal.timeout(15_000) });
-          if (fetchRes.ok) {
-            const arrayBuf = await fetchRes.arrayBuffer();
-            cleanBase64 = Buffer.from(arrayBuf).toString('base64');
-            effectiveMime = fetchRes.headers.get('content-type') || 'application/pdf';
-          }
-        } catch (fetchErr) {
-          console.warn('[Newsletter Pipeline] Failed to download remote document URL:', fetchErr);
-        }
-      }
+    let cleanBase64 = '';
+    const effectiveMime = 'application/pdf';
+    if (base64Data) cleanBase64 = decodePdf(base64Data).toString('base64');
+    else if (fileDataUrl) {
+      const document = typeof fileDataUrl === 'string' && /^(https:|gs:)/.test(fileDataUrl)
+        ? await fetchNewsletterPdf(fileDataUrl, req.headers.authorization!)
+        : decodePdf(fileDataUrl);
+      cleanBase64 = document.toString('base64');
     }
 
     // Check edition-specific file if saved earlier
@@ -129,11 +116,9 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
       const sanitizedId = String(newsletterId).replace(/[^a-zA-Z0-9_-]/g, '_');
       const specificPath = path.join(UPLOADS_DIR, `newsletter_${sanitizedId}.pdf`);
       if (fs.existsSync(specificPath)) {
-        try {
-          const buf = fs.readFileSync(specificPath);
-          cleanBase64 = buf.toString('base64');
-          effectiveMime = 'application/pdf';
-        } catch (e) {}
+        if (fs.statSync(specificPath).size > MAX_NEWSLETTER_PDF_BYTES) throw new NewsletterInputError('PDF exceeds 32 MB.', 413);
+        const buf = validatePdf(fs.readFileSync(specificPath));
+        cleanBase64 = buf.toString('base64');
       }
     }
 
@@ -168,6 +153,7 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
 
     res.json(result);
   } catch (error: any) {
+    if (error instanceof NewsletterInputError) { res.status(error.status).json({ error: error.message }); return; }
     const message = String(error?.message || '');
     let status = 502;
     let detail = 'Newsletter analysis failed. Please retry; your published newsletter has not been changed.';
@@ -192,7 +178,7 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
 });
 
 // Newsletter PDF upload & permanent filesystem persistence endpoint
-app.post('/api/newsletter/upload-pdf', requireNewsletterManager, async (req: Request, res: Response) => {
+app.post('/api/newsletter/upload-pdf', requireNewsletterManager, newsletterJson, async (req: Request, res: Response) => {
   try {
     const { fileDataUrl, fileName, newsletterId, config } = req.body;
     if (!fileDataUrl || typeof fileDataUrl !== 'string') {
@@ -200,12 +186,8 @@ app.post('/api/newsletter/upload-pdf', requireNewsletterManager, async (req: Req
       return;
     }
 
-    const base64Data = fileDataUrl.includes(',')
-      ? fileDataUrl.split(',')[1]
-      : fileDataUrl;
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    const sanitizedId = (newsletterId || 'current').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const buffer = decodePdf(fileDataUrl);
+    const sanitizedId = asText(newsletterId, 100).replace(/[^a-zA-Z0-9_-]/g, '_') || 'current';
     const currentPdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
 
     // Write file to persistent storage
@@ -240,13 +222,14 @@ app.post('/api/newsletter/upload-pdf', requireNewsletterManager, async (req: Req
       config: effectiveConfig,
     });
   } catch (err: any) {
+    if (err instanceof NewsletterInputError) { res.status(err.status).json({ error: err.message }); return; }
     console.error('Failed to save uploaded newsletter PDF to disk:', err);
     res.status(500).json({ error: 'Failed to persist PDF file.' });
   }
 });
 
 // Stream saved newsletter PDF directly with inline browser support
-app.get('/api/newsletter/pdf/:filename', (req: Request, res: Response) => {
+app.get('/api/newsletter/pdf/:filename', requireNewsletterReader, (req: Request, res: Response) => {
   try {
     const rawFilename = req.params.filename || 'current_newsletter.pdf';
     const filename = path.basename(rawFilename);
@@ -266,12 +249,13 @@ app.get('/api/newsletter/pdf/:filename', (req: Request, res: Response) => {
     }
 
     const stat = fs.statSync(filePath);
+    if (stat.size > MAX_NEWSLETTER_PDF_BYTES) { res.status(413).send('PDF exceeds 32 MB.'); return; }
     res.writeHead(200, {
       'Content-Type': 'application/pdf',
       'Content-Length': stat.size,
       'Content-Disposition': `inline; filename="${filename}"`,
       'Cache-Control': 'no-store',
-      'Accept-Ranges': 'bytes',
+      'X-Content-Type-Options': 'nosniff',
     });
 
     const readStream = fs.createReadStream(filePath);
@@ -283,8 +267,9 @@ app.get('/api/newsletter/pdf/:filename', (req: Request, res: Response) => {
 });
 
 // Get current saved newsletter edition from disk
-app.get('/api/newsletter/current', (req: Request, res: Response) => {
+app.get('/api/newsletter/current', requireNewsletterReader, (req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const configPath = path.join(UPLOADS_DIR, 'current_newsletter.json');
     const pdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
 
@@ -302,6 +287,7 @@ app.get('/api/newsletter/current', (req: Request, res: Response) => {
 // Remove current newsletter PDF from disk
 app.delete('/api/newsletter/current', requireNewsletterManager, (req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const configPath = path.join(UPLOADS_DIR, 'current_newsletter.json');
     const pdfPath = path.join(UPLOADS_DIR, 'current_newsletter.pdf');
     if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
@@ -316,7 +302,7 @@ app.delete('/api/newsletter/current', requireNewsletterManager, (req: Request, r
 });
 
 // Translation endpoint for crew members using Google Cloud Translation API (Basic v2)
-app.post('/api/translate', requireWorkOrderTranslator, async (req: Request, res: Response) => {
+app.post('/api/translate', limitAiRequests, requireWorkOrderTranslator, translationJson, async (req: Request, res: Response) => {
   try {
     const { title, description, comments, targetLang } = req.body;
     if (!title && !description && (!comments || comments.length === 0)) {

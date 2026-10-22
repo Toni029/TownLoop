@@ -42,8 +42,12 @@ export function useAuth(): UseAuthReturn {
     }
 
     let unsubDoc: (() => void) | null = null;
+    let generation = 0;
 
-    const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
+    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
+      const current = ++generation;
+      setCurrentUser(null);
+      setIsLoading(!!fbUser);
       if (unsubDoc) {
         unsubDoc();
         unsubDoc = null;
@@ -61,31 +65,33 @@ export function useAuth(): UseAuthReturn {
         const userDocRef = doc(db, 'users', fbUser.uid);
         unsubDoc = onSnapshot(
           userDocRef,
-          async (snapshot) => {
+          (snapshot) => {
+            if (current !== generation) return;
             if (snapshot.exists()) {
               const profile = normalizeUserProfile(fbUser.uid, snapshot.data(), fbUser);
               setCurrentUser(profile);
               setIsLoading(false);
             } else {
-              const fallbackProfile = normalizeUserProfile(fbUser.uid, null, fbUser);
-              setCurrentUser(fallbackProfile);
+              setCurrentUser(null);
               setIsLoading(false);
             }
           },
           (error) => {
+            if (current !== generation) return;
             console.warn('[useAuth] Error streaming user document from Firestore:', error);
-            setCurrentUser(normalizeUserProfile(fbUser.uid, null, fbUser));
+            setCurrentUser(null);
             setIsLoading(false);
           }
         );
       } catch (err) {
         console.warn('[useAuth] Failed to attach Firestore user snapshot:', err);
-        setCurrentUser(normalizeUserProfile(fbUser.uid, null, fbUser));
+        setCurrentUser(null);
         setIsLoading(false);
       }
     });
 
     return () => {
+      generation++;
       if (unsubDoc) unsubDoc();
       unsubAuth();
     };

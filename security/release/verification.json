@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-21",
+  "branch": "native/expo-migration",
+  "recoveryCheckpoint": "fb8c146",
+  "checks": {
+    "webTypeScript": "passed; exit 0",
+    "nativeTypeScript": "passed; exit 0",
+    "focusedH8H10Rules": {
+      "passed": 6,
+      "failed": 0,
+      "environment": "loopback Firestore emulator; synthetic authentication only"
+    },
+    "newsletterSecurityAndPipeline": {
+      "passed": 24,
+      "failed": 0
+    },
+    "workOrderHelpers": {
+      "passed": 7,
+      "failed": 0
+    },
+    "registrationAuthListener": "17 focused assertions passed; results reused from this batch",
+    "inboxAcknowledgment": "3 mocked assertions passed; results reused from this batch",
+    "candidateHashes": "all matched",
+    "recovery": "Firestore candidate compiled; all client writes statically denied in Firestore/Storage recovery; Storage emulator compilation not performed",
+    "diffWhitespace": "passed"
+  },
+  "notPerformed": [
+    "live resident reads/writes",
+    "live migration or cleanup",
+    "Firebase deployment",
+    "GitHub push",
+    "OTA publication",
+    "APK/AAB/export build",
+    "physical-device validation",
+    "repeat C1 audit/51 assertions"
+  ],
+  "releaseStatus": "OWNER REVIEW; production deployment blocked by documented dependencies"
+}

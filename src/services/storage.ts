@@ -228,7 +228,7 @@ export async function uploadNewsletterPdfToStorage({
         );
       });
 
-      const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+      const downloadUrl = `gs://${uploadTask.snapshot.ref.bucket}/${storagePath}`;
       onProgress?.({ percent: 100, message: 'PDF stored permanently in cloud!' });
       return downloadUrl;
     } catch (err) {

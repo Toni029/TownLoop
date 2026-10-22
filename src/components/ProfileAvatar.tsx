@@ -1,3 +1,4 @@
+import { ProfileUpdateRequest } from "./ProfileUpdateRequest";
 import { SafetyActions } from './SafetyActions';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
@@ -5,6 +6,7 @@ import { SafetyActions } from './SafetyActions';
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
+import { auth } from '../firebase';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -39,7 +41,7 @@ import {
   RefreshCw,
   Trash2
 } from 'lucide-react';
-import { UserProfile, MaintenanceChat, MaintenanceChatMessage } from '../types';
+import { UserProfile, MaintenanceChat } from '../types';
 import { updateResidentProfile, subscribeToCommunityDirectory } from '../services/auth';
 import { canAccessAdminPanel, getUserRole, getRoleBadgeInfo, isCrew, isStrictVip, isVip, isAdmin, isStaff } from '../utils/permissions';
 import { UserAvatar } from './UserAvatar';
@@ -69,7 +71,7 @@ import {
   getCleanParticipantKey,
   getAllParticipantIdentifiers,
 } from '../services/friendChat';
-import { OfficeChat, OfficeChatMessage, ResidentChat, ResidentChatMessage } from '../types';
+import { OfficeChat, ResidentChat, ResidentChatMessage } from '../types';
 
 interface ProfileAvatarProps {
   apartmentNumber?: string;
@@ -383,6 +385,47 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   const [friendReplyText, setFriendReplyText] = useState('');
   const [isSendingFriendReply, setIsSendingFriendReply] = useState(false);
   const friendChatEndRef = useRef<HTMLDivElement>(null);
+  const pendingInboxIds = useRef(new Map<string, string>());
+  const inboxSendLocks = useRef(new Set<string>());
+  const inboxSendContext = useRef<Record<string, string>>({});
+  const inboxSendVersion = useRef<Record<string, number>>({});
+  const actorScope = [currentUser?.id, currentUser?.role, currentUser?.approved, activeView, selectedMessage?.id];
+  const nextInboxSendContext = {
+    compose: JSON.stringify([...actorScope, composeRecipient, composeBody, composeSubject, activeMaintenanceChat?.id, activeOfficeChat?.id]),
+    maintenance: JSON.stringify([...actorScope, activeMaintenanceChat?.id, activeMaintenanceChat?.residentId, chatReplyText]),
+    office: JSON.stringify([...actorScope, activeOfficeChat?.id, activeOfficeChat?.residentId, officeReplyText]),
+  };
+  for (const [kind, context] of Object.entries(nextInboxSendContext)) {
+    if (inboxSendContext.current[kind] !== context) inboxSendVersion.current[kind] = (inboxSendVersion.current[kind] || 0) + 1;
+  }
+  inboxSendContext.current = nextInboxSendContext;
+  useEffect(() => () => {
+    for (const kind of ['compose', 'maintenance', 'office']) inboxSendVersion.current[kind] = (inboxSendVersion.current[kind] || 0) + 1;
+  }, []);
+
+  async function confirmedInboxSend(kind: string, target: string, body: string, subject: string,
+    send: (messageId: string) => Promise<boolean>): Promise<string | null> {
+    const uid = String(currentUser?.id || '');
+    const version = inboxSendVersion.current[kind];
+    const lock = `${uid}:${kind}`;
+    if (!uid || auth?.currentUser?.uid !== uid || inboxSendLocks.current.has(lock)) return null;
+    const key = JSON.stringify([uid, kind, target, body, subject]);
+    const messageId = pendingInboxIds.current.get(key) || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    pendingInboxIds.current.set(key, messageId);
+    inboxSendLocks.current.add(lock);
+    const isCurrent = () => auth?.currentUser?.uid === uid && inboxSendVersion.current[kind] === version;
+    try {
+      const acknowledged = await send(messageId);
+      if (!isCurrent()) return null;
+      if (acknowledged) pendingInboxIds.current.delete(key);
+      if (!acknowledged) { showToast('Message was not confirmed. Your draft is kept; please retry.'); return null; }
+      return messageId;
+    } catch {
+      if (isCurrent()) showToast('Message was not confirmed. Your draft is kept; please retry.');
+      return null;
+    } finally { inboxSendLocks.current.delete(lock); }
+  }
+
 
   useEffect(() => {
     const unsubscribe = subscribeToFriendChats(currentUser, (chats) => {
@@ -926,7 +969,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
       const docId = getResidentChatDocId(residentTarget);
 
-      // 2. Immediately create and add to local state messages so it appears instantly in ALL and CREW!
+      // Prepare the inbox summary; publish it only after server acknowledgement.
       const newMaintMsg: InboxMessage = {
         id: `maint_${docId}`,
         from: 'Maintenance Crew',
@@ -942,15 +985,17 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
         maintenanceChatId: docId,
       };
 
-      setMessages(prev => [newMaintMsg, ...prev.filter(m => m.maintenanceChatId !== docId && m.id !== `maint_${docId}`)]);
 
       // 3. Persist to Firestore maintenance_chats
-      sendMaintenanceChatMessage({
+      const confirmedId = await confirmedInboxSend('compose', `${composeRecipient.category}:${docId}`, messageBody, messageSubject, messageId => sendMaintenanceChatMessage({
+        messageId,
         resident: residentTarget,
         sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: 'resident' },
         body: messageBody,
         subject: messageSubject,
-      }).catch(err => console.warn('Maintenance chat sync warning:', err));
+      }));
+      if (!confirmedId) return;
+      setMessages(prev => [newMaintMsg, ...prev.filter(m => m.maintenanceChatId !== docId && m.id !== `maint_${docId}`)]);
 
       showToast(userIsCrew ? 'Reply sent to resident!' : 'Message sent to Maintenance Crew!');
       setComposeBody('');
@@ -1001,14 +1046,16 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
         officeChatId: docId,
       };
 
-      setMessages(prev => [newOfficeMsg, ...prev.filter(m => m.officeChatId !== docId && m.id !== `office_${docId}`)]);
 
-      sendOfficeChatMessage({
+      const confirmedId = await confirmedInboxSend('compose', `${composeRecipient.category}:${docId}`, messageBody, messageSubject, messageId => sendOfficeChatMessage({
+        messageId,
         resident: residentTarget,
         sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
         body: messageBody,
         subject: messageSubject,
-      }).catch(err => console.warn('Office chat sync warning:', err));
+      }));
+      if (!confirmedId) return;
+      setMessages(prev => [newOfficeMsg, ...prev.filter(m => m.officeChatId !== docId && m.id !== `office_${docId}`)]);
 
       showToast(userIsVip ? 'Reply sent to resident!' : 'Message sent to Community Office!');
       setComposeBody('');
@@ -1169,30 +1216,6 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
     const replyContent = chatReplyText.trim();
     setIsSendingReply(true);
-    setChatReplyText('');
-
-    // Optimistically append message to activeMaintenanceChat so it shows immediately!
-    const optimisticMessage: MaintenanceChatMessage = {
-      id: `msg_opt_${Date.now()}`,
-      senderId: String(currentUser?.id || currentUser?.email || 'me'),
-      senderName: currentUser?.name || (userIsCrew ? 'Maintenance Crew' : 'Resident'),
-      senderRole: userIsCrew ? 'crew' : 'resident',
-      senderAvatar: profilePhotoUrl,
-      body: replyContent,
-      createdAt: Date.now(),
-      time: 'Just now',
-    };
-
-    setActiveMaintenanceChat(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        messages: [...(prev.messages || []), optimisticMessage],
-        lastMessage: userIsCrew ? `${currentUser?.name || 'Crew'}: ${replyContent}` : replyContent,
-        updatedAt: Date.now(),
-      };
-    });
-
     try {
       const residentTarget = userIsCrew && activeMaintenanceChat
         ? {
@@ -1231,19 +1254,22 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
         maintenanceChatId: docId,
       };
 
-      setMessages(prev => [updatedMaintMsg, ...prev.filter(m => m.maintenanceChatId !== docId && m.id !== `maint_${docId}`)]);
 
-      await sendMaintenanceChatMessage({
+      const confirmedId = await confirmedInboxSend('maintenance', docId, replyContent, activeMaintenanceChat?.subject || '', messageId => sendMaintenanceChatMessage({
+        messageId,
         resident: residentTarget,
         sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: userIsCrew ? 'crew' : 'resident' },
         body: replyContent,
         subject: activeMaintenanceChat?.subject || 'Maintenance Service Request',
-      });
+      }));
+      if (!confirmedId) return;
+      setChatReplyText(value => value === chatReplyText ? '' : value);
+      setMessages(prev => [updatedMaintMsg, ...prev.filter(m => m.maintenanceChatId !== docId && m.id !== `maint_${docId}`)]);
 
       showToast(userIsCrew ? 'Reply sent to resident!' : 'Message sent to Maintenance Crew!');
     } catch (err) {
       console.error('Failed to send maintenance reply:', err);
-      showToast('Failed to send message.');
+      showToast('Message was not confirmed. Your draft is kept; please retry.');
     } finally {
       setIsSendingReply(false);
     }
@@ -1255,28 +1281,6 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
     const replyContent = officeReplyText.trim();
     setIsSendingOfficeReply(true);
-    setOfficeReplyText('');
-
-    const optimisticMessage: OfficeChatMessage = {
-      id: `msg_opt_${Date.now()}`,
-      senderId: String(currentUser?.id || currentUser?.email || 'me'),
-      senderName: userIsVip ? 'Community Office' : (currentUser?.name || 'Resident'),
-      senderRole: userIsVip ? 'vip' : 'resident',
-      body: replyContent,
-      createdAt: Date.now(),
-      time: 'Just now',
-    };
-
-    setActiveOfficeChat(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        messages: [...(prev.messages || []), optimisticMessage],
-        lastMessage: replyContent,
-        updatedAt: Date.now(),
-      };
-    });
-
     try {
       const residentTarget = userIsVip && activeOfficeChat
         ? {
@@ -1314,19 +1318,22 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
         officeChatId: docId,
       };
 
-      setMessages(prev => [updatedOfficeMsg, ...prev.filter(m => m.officeChatId !== docId && m.id !== `office_${docId}`)]);
 
-      await sendOfficeChatMessage({
+      const confirmedId = await confirmedInboxSend('office', docId, replyContent, activeOfficeChat?.subject || '', messageId => sendOfficeChatMessage({
+        messageId,
         resident: residentTarget,
         sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
         body: replyContent,
         subject: activeOfficeChat?.subject || 'Office Inquiry',
-      });
+      }));
+      if (!confirmedId) return;
+      setOfficeReplyText(value => value === officeReplyText ? '' : value);
+      setMessages(prev => [updatedOfficeMsg, ...prev.filter(m => m.officeChatId !== docId && m.id !== `office_${docId}`)]);
 
       showToast(userIsVip ? 'Reply sent to resident!' : 'Message sent to Community Office!');
     } catch (err) {
       console.error('Failed to send office reply:', err);
-      showToast('Failed to send message.');
+      showToast('Message was not confirmed. Your draft is kept; please retry.');
     } finally {
       setIsSendingOfficeReply(false);
     }
@@ -3001,12 +3008,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
               </div>
 
               <div className="pt-2 space-y-2">
-                <button
-                  onClick={() => showToast('Profile update request sent to front office')}
-                  className="w-full py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white text-xs sm:text-sm font-bold transition cursor-pointer shadow-xs"
-                >
-                  Request Profile Update
-                </button>
+                {currentUser && <ProfileUpdateRequest user={currentUser}/>}
               </div>
             </div>
           )}

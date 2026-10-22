@@ -842,7 +842,7 @@ export const WeatherWidget: React.FC = () => {
     if (isViewingCurrent && currentRealTimeWeather !== null) {
       return currentRealTimeWeather.icon;
     }
-    return activeHour?.icon || 'sunny';
+    return activeHour?.icon || 'sun';
   }, [isViewingCurrent, currentRealTimeWeather, activeHour]);
 
   const theme = useMemo(() => getConditionTheme(activeCondition), [activeCondition]);

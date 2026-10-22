@@ -25,17 +25,14 @@ export interface ErrorBoundaryState {
  * in child components, preventing the entire portal from crashing to a blank screen.
  * Displays an accessible, graceful fallback card ('Something went wrong loading this view — Tap to retry').
  */
-export class ErrorBoundary extends (Component as any) {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
   };
 
-  props: ErrorBoundaryProps;
-
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.props = props;
     this.state = {
       hasError: false,
       error: null,
@@ -49,12 +46,9 @@ export class ErrorBoundary extends (Component as any) {
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error(
-      `[ErrorBoundary${this.props.viewName ? ` - ${this.props.viewName}` : ''}] Unhandled render error:`,
-      error,
-      errorInfo
-    );
+  componentDidCatch() {
+    // Never log resident data from error messages or component props.
+    console.error('[TownLoop] react_render_failure');
   }
 
   resetError = () => {

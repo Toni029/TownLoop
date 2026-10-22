@@ -1,3 +1,4 @@
+import { downloadPdfBytes } from './download';
 import type { NewsletterConfig } from "../models";
 import { activeEdition, loadPdfData, MAX_PDF_BYTES } from "./edition";
 export type PickedPdf = { name: string; dataUrl: string; size: number };
@@ -66,13 +67,11 @@ export async function preparePdf(
     if (
       !(error instanceof Error) ||
       !error.message.startsWith("No complete PDF") ||
-      !url.startsWith("https://")
+      !(url.startsWith("https://") || url.startsWith("gs://") || url.startsWith("/api/newsletter/pdf/"))
     )
       throw error;
-    const response = await fetch(url);
-    if (!response.ok)
-      throw new Error("Unable to download the newsletter. Please try again.");
-    blob = await response.blob();
+    const bytes = await downloadPdfBytes(url);
+    blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' });
   }
   if (blob.size > MAX_PDF_BYTES || (await blob.slice(0, 5).text()) !== "%PDF-")
     throw new Error("This file is not a supported PDF (maximum 32 MB).");

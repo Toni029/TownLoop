@@ -13,7 +13,7 @@ test('queue uses the displayed pending list and removes completed tickets from p
   assert.equal(queueState(done,[done,order]).inProgress,false);
 });
 test('crew resolution requires a note with optional photo, is atomic with its comment, and is idempotent',()=>{
-  const crew={id:'crew',role:'crew',name:'Crew',email:'crew@example.invalid'} as const;
+  const crew={id:'crew',approved:true,role:'crew',name:'Crew',email:'crew@example.invalid'} as const;
   assert.throws(()=>resolutionPatch(order,crew,null,'now'));
   assert.throws(()=>resolutionPatch(order,{...crew,role:'resident'},null,'now'));
   const comment={id:'proof',author:'Crew',role:'Maintenance Crew',text:'Fixed sink',timestamp:'Just now',photoUrl:'https://example.invalid/proof.jpg'};
@@ -59,7 +59,7 @@ test('open tickets sort oldest first, completed last, and reopen uses original s
 
 test('recompletion revises the same owned resolution and retains its previous text', async () => {
   const { editableResolution } = await import('../src/workorders/model.ts');
-  const crew = {id:'crew',name:'Crew',role:'crew',email:'crew@example.invalid'} as const;
+  const crew = {id:'crew',name:'Crew',approved:true,role:'crew',email:'crew@example.invalid'} as const;
   const original = {id:'resolution',author:'Crew',authorId:'crew',role:'Maintenance Crew',text:'Fixed sink',timestamp:'Yesterday',photoUrl:'proof.jpg'};
   const reopened = {...order,comments:[original],resolutionCommentId:'resolution',resolutionAuthorId:'crew',resolutionCommentIndex:0};
   assert.equal(editableResolution(reopened,crew)?.id,'resolution');

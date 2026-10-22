@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type PropsWithChildren 
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { MISSING_REGISTRATION_MESSAGE } from '../../../src/services/registrationRecovery';
 import { friendlyError, readProfile, type ResidentProfile } from './profile';
 type Session = {
     user: User | null;
@@ -12,9 +13,12 @@ type Session = {
 const initial: Session = { user: null, profile: null, loading: true, error: null };
 const Context = createContext<Session & {
     retry: () => void;
-}>({ ...initial, retry: () => { } });
+    registrationInProgress: boolean;
+    setRegistrationInProgress: (value: boolean) => void;
+}>({ ...initial, retry: () => { }, registrationInProgress: false, setRegistrationInProgress: () => {} });
 export function SessionProvider({ children }: PropsWithChildren) {
     const [state, setState] = useState(initial);
+    const [registrationInProgress, setRegistrationInProgress] = useState(false);
     const [attempt, setAttempt] = useState(0);
     useEffect(() => {
         let generation = 0;
@@ -30,7 +34,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
                 if (current !== generation)
                     return;
                 setState({ user, profile: snapshot.exists() ? readProfile(snapshot.data()) : null, loading: false,
-                    error: snapshot.exists() ? null : 'Your resident profile is not available. Please contact your community office.' });
+                    error: snapshot.exists() ? null : MISSING_REGISTRATION_MESSAGE });
             }, error => {
                 if (current === generation)
                     setState({ user, profile: null, loading: false, error: friendlyError(error) });
@@ -38,6 +42,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
         }, error => setState({ ...initial, loading: false, error: friendlyError(error) }));
         return () => { generation++; stopProfile(); stopAuth(); };
     }, [attempt]);
-    return <Context.Provider value={{ ...state, retry: () => { setState(initial); setAttempt(n => n + 1); } }}>{children}</Context.Provider>;
+    return <Context.Provider value={{ ...state, registrationInProgress, setRegistrationInProgress, retry: () => { setState(initial); setAttempt(n => n + 1); } }}>{children}</Context.Provider>;
 }
 export const useSession = () => useContext(Context);

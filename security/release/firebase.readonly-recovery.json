@@ -1,0 +1,8 @@
+{
+  "firestore": {
+    "rules": "firestore.readonly-recovery.rules"
+  },
+  "storage": {
+    "rules": "storage.readonly-recovery.rules"
+  }
+}

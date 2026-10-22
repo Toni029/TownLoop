@@ -76,6 +76,7 @@ test('reader refuses stale cached metadata and revokes an open PDF when the admi
   'react':`export const useState=()=>[{},s=>global.__readerStates.push(s)];export const useEffect=f=>{global.__cleanup=f()};`,
   'firebase/firestore':`export const doc=()=>({});export const onSnapshot=(ref,options,callback)=>{global.__snapshot=callback;return ()=>{}};`,
   '../firebase':`export const db={};`,
+  '../services/newsletterDownload':`export const fetchNewsletterResource=(...args)=>fetch(...args);`,
   '../services/storage':`export const downloadNewsletterPdfFromFirestore=async()=>null;`,
   '../utils/pdfStorage':`export const convertDataUrlToBlobUrl=()=> 'blob:test-newsletter';export const getPdfFromStorage=async()=>{global.__cacheReads++;return 'data:application/pdf;base64,JVBERg=='};export const clearAllNewsletterPdfStorage=async()=>{global.__cleared++};`,
  });
@@ -111,7 +112,7 @@ test('special events qualify but recurring activities are excluded even with RSV
 
 test('PDF storage rejects removed editions, incomplete chunks, and stale tails from a larger previous PDF',async()=>{
  const sdkMock = `
- export const runTransaction=async()=>{};export const collection=(...args)=>args;export const doc=(...args)=>args;
+ export const deleteField=()=>{};export const Timestamp={};export const runTransaction=async()=>{};export const collection=(...args)=>args;export const doc=(...args)=>args;
  export const getDoc=async(ref)=>({exists:()=>true,data:()=>ref.at(-1)==='current'?global.__active:{totalChunks:2}});
  export const getDocs=async()=>({empty:false,forEach:fn=>global.__chunks.forEach(c=>fn({data:()=>c}))});
  export const addDoc=()=>{};export const setDoc=()=>{};export const updateDoc=()=>{};export const arrayUnion=()=>{};

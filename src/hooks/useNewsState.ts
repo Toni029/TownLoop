@@ -1,3 +1,4 @@
+import { fetchNewsletterResource } from '../services/newsletterDownload';
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -200,7 +201,7 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
 
       // 1. Check Server Filesystem (authoritative persistent storage)
       try {
-        const serverResp = await fetch('/api/newsletter/current');
+        const serverResp = await fetchNewsletterResource('/api/newsletter/current');
         if (serverResp.ok && serverResp.headers.get('content-type')?.includes('application/json')) {
           const serverData = await serverResp.json();
           if (serverData.exists && serverData.config && isMounted) {
@@ -733,10 +734,11 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
         (effectivePdfUrl.startsWith('/') ||
           effectivePdfUrl.startsWith('http://') ||
           effectivePdfUrl.startsWith('https://') ||
+          effectivePdfUrl.startsWith('gs://') ||
           effectivePdfUrl.startsWith('blob:'))
       ) {
         try {
-          const resp = await fetch(effectivePdfUrl);
+          const resp = await fetchNewsletterResource(effectivePdfUrl);
           if (resp.ok) {
             const blob = await resp.blob();
             if (blob.size > 200) {
@@ -808,7 +810,7 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
       // Tier 6: Check Server endpoint /api/newsletter/pdf/current_newsletter.pdf
       if (!cleanBase64) {
         try {
-          const resp = await fetch('/api/newsletter/pdf/current_newsletter.pdf');
+          const resp = await fetchNewsletterResource('/api/newsletter/pdf/current_newsletter.pdf');
           if (resp.ok) {
             const blob = await resp.blob();
             if (blob.size > 200) {
@@ -852,6 +854,7 @@ export function useNewsState(currentUser?: UserProfile | null): NewsState {
         {
           rsvp_events: extractionResult.rsvp_events,
           pinned_highlights: extractionResult.pinned_highlights,
+          source: 'gemini',
         },
         {
           id: currentDoc?.id || `newsletter-${Date.now()}`,

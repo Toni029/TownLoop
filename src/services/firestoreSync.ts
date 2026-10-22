@@ -1,3 +1,5 @@
+import { editableResolution, resolutionPatch, removeResolutionComment } from "../data/workOrderResolution";
+import { getUserRole } from "../utils/permissions";
 import { mutateSocial, type SocialCollection } from "./socialIntegrity";
 import { allocateWorkOrder } from "../data/allocateWorkOrder";
 /*
@@ -264,35 +266,48 @@ export async function saveWorkOrderResolutionToFirestore({
     return false;
   }
 
-  const resolutionComment: WorkOrderComment = {
-    id: crypto.randomUUID(),
-    author: crewUser?.name || 'Maintenance Crew',
-    role: 'Maintenance Crew',
-    text: replyText.trim(),
-    timestamp: 'Just now',
-    photoUrl: photoDownloadUrl,
-  };
-
   try {
+    const uid = auth?.currentUser?.uid;
+    if (!uid || crewUser && String(crewUser.id) !== uid) throw Error('Please sign in again.');
     const woDocRef = doc(db, 'work_orders', String(woId || woCode));
-    if (crewUser?.role !== 'crew' || !replyText.trim()) throw new Error('A crew resolution note is required.');
+    const commentId = doc(collection(db, 'work_orders')).id;
     await runTransaction(db, async tx => {
-      const snapshot = await tx.get(woDocRef);
-      if (!snapshot.exists()) throw new Error('Work order no longer exists.');
-      if (snapshot.data().status === 'Done') return;
-      tx.update(woDocRef, {
-        status: 'Done', statusNote: `Completed by ${crewUser.name}`,
-        completedAt: serverTimestamp(), completedBy: crewUser.name,
-        retentionVersion: 1, resolutionNote: replyText.trim(),
-        ...(photoDownloadUrl ? { photoUrl: photoDownloadUrl, latestResolutionPhoto: photoDownloadUrl } : {}),
-        comments: [...(snapshot.data().comments || []), resolutionComment], updatedAt: serverTimestamp(),
-      });
+      const [snapshot, actor] = await Promise.all([tx.get(woDocRef), tx.get(doc(db, 'users', uid))]);
+      const user = {...actor.data(), id:uid} as UserProfile;
+      if (getUserRole(user) !== 'crew' || !replyText.trim()) throw Error('A crew resolution note is required.');
+      if (!snapshot.exists()) throw Error('Work order no longer exists.');
+      const patch = resolutionPatch({...snapshot.data(),id:snapshot.id} as WorkOrderItem, user, {
+        id:commentId,author:user.name,authorId:uid,role:'Maintenance Crew',text:replyText.trim(),timestamp:'Just now',photoUrl:photoDownloadUrl,
+      },new Date().toISOString());
+      if (patch) tx.update(woDocRef,{...patch,completedAt:serverTimestamp(),retentionVersion:1,updatedAt:serverTimestamp()});
     });
     return true;
-  } catch (error) {
-    console.warn('Notice: Updating work order resolution in Firestore:', error);
-    return false;
-  }
+  } catch { return false; }
+}
+
+export async function deleteWorkOrderResolutionComment(id: string | number, commentId: string): Promise<void> {
+  if (!db || !auth?.currentUser) throw Error('Please sign in.');
+  const uid = auth.currentUser.uid, ref = doc(db,'work_orders',String(id));
+  await runTransaction(db,async tx=>{
+    const [snapshot,actor]=await Promise.all([tx.get(ref),tx.get(doc(db!,'users',uid))]);
+    if (!snapshot.exists()) throw Error('Work order no longer exists.');
+    const before=snapshot.data(),patch=removeResolutionComment({...before,id:snapshot.id} as WorkOrderItem,{...actor.data(),id:uid} as UserProfile,commentId,new Date().toISOString());
+    if(!patch)return;
+    tx.update(ref,{comments:patch.comments,resolutionCommentDeletions:[...(before.resolutionCommentDeletions||[]),patch.audit],
+      lastResolutionCommentDeletedAt:serverTimestamp(),updatedAt:serverTimestamp(),...(patch.activeIndex<0?
+      {resolutionCommentId:deleteField(),resolutionCommentIndex:deleteField(),resolutionAuthorId:deleteField()}:{resolutionCommentIndex:patch.activeIndex})});
+  });
+}
+export async function appendWorkOrderCrewNote(id: string | number, text: string, photoUrl = ''): Promise<void> {
+  if(!db||!auth?.currentUser)throw Error('Please sign in.');
+  const uid=auth.currentUser.uid,ref=doc(db,'work_orders',String(id)),commentId=doc(collection(db,'work_orders')).id;
+  await runTransaction(db,async tx=>{
+    const [snapshot,actor]=await Promise.all([tx.get(ref),tx.get(doc(db!,'users',uid))]);
+    const user={...actor.data(),id:uid} as UserProfile;
+    if(getUserRole(user)!=='crew'||!text.trim()||text.length>10000)throw Error('A crew note is required.');
+    if(!snapshot.exists()||snapshot.data().status==='Done')throw Error('Reopen this order before adding a note.');
+    tx.update(ref,{comments:[...(snapshot.data().comments||[]),{id:commentId,authorId:uid,author:user.name,role:'Maintenance Crew',text:text.trim(),timestamp:'Just now',photoUrl}],updatedAt:serverTimestamp()});
+  });
 }
 
 // Backward compatibility wrappers
@@ -803,12 +818,16 @@ export async function deleteNewsletterPdfChunksFromFirestore(
 
 
 export async function reopenWorkOrderInFirestore(id: string | number) {
-  if (!db) throw new Error('Firebase is unavailable.');
-  const reference = doc(db, 'work_orders', String(id));
-  await runTransaction(db, async tx => {
-    const snapshot = await tx.get(reference);
-    if (!snapshot.exists() || snapshot.data().status !== 'Done') return;
-    tx.update(reference, { status: 'In Progress', statusNote: 'Reopened for maintenance inspection',
-      completedAt: deleteField(), completedBy: deleteField(), retentionVersion: deleteField(), resolutionNote: deleteField(), updatedAt: serverTimestamp() });
+  if (!db || !auth?.currentUser) throw Error('Please sign in.');
+  const uid=auth.currentUser.uid,reference=doc(db,'work_orders',String(id));
+  await runTransaction(db,async tx=>{
+    const [snapshot,actor]=await Promise.all([tx.get(reference),tx.get(doc(db!,'users',uid))]);
+    const user={...actor.data(),id:uid} as UserProfile;
+    if(getUserRole(user)!=='crew')throw Error('Only crew can reopen orders.');
+    if(!snapshot.exists()||snapshot.data().status!=='Done')return;
+    const order={...snapshot.data(),id:snapshot.id} as WorkOrderItem,previous=editableResolution(order,user);
+    tx.update(reference,{...(previous?{resolutionCommentId:previous.id,resolutionCommentIndex:(order.comments||[]).findIndex(c=>c.id===previous.id),resolutionAuthorId:uid}:
+      {resolutionCommentId:deleteField(),resolutionCommentIndex:deleteField(),resolutionAuthorId:deleteField()}),
+      status:'In Progress',statusNote:'Reopened for maintenance inspection',completedAt:deleteField(),completedBy:deleteField(),retentionVersion:deleteField(),resolutionNote:deleteField(),updatedAt:serverTimestamp()});
   });
 }

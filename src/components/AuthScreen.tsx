@@ -117,6 +117,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       }, 400);
     } catch (err: any) {
       setErrorMessage(err.message || 'Could not sign in with Firebase. Please verify your credentials.');
+      if (err.message?.includes('has no resident profile')) {
+        setRegEmail(signInEmail.trim());
+        setRegPassword(signInPassword);
+        setAuthMode('register');
+      }
     } finally {
       setIsLoading(false);
     }

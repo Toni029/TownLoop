@@ -10,6 +10,7 @@ import {
   deleteWorkOrderFromFirestore,
   saveWorkOrderResolutionToFirestore,
   updateFirestoreDocument,
+  appendWorkOrderCrewNote,
 } from '../services/firestoreSync';
 import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../firebase';
@@ -34,11 +35,11 @@ export interface WorkOrdersState {
   setNewWoPhotos: React.Dispatch<React.SetStateAction<string[]>>;
   handleWorkOrderSubmit: (e: React.FormEvent, recordId?: string) => Promise<void> | void;
   handleMarkAsDone: (id: number | string) => void;
-  handleCompleteWithReply: (id: number | string, text: string, photoUrl?: string) => void;
+  handleCompleteWithReply: (id: number | string, text: string, photoUrl?: string) => Promise<boolean>;
   handleReopenWorkOrder: (id: number | string) => void;
   handleDeleteWorkOrder: (id: number | string) => void;
   handleDeleteWorkOrderWithProof?: (id: number | string) => void;
-  handleAddWorkOrderComment: (woId: number | string, text: string, photoUrl?: string) => void;
+  handleAddWorkOrderComment: (woId: number | string, text: string, photoUrl?: string) => Promise<boolean>;
   handleAddWorkOrderPhoto?: (woId: number | string, photoUrl: string) => void;
 }
 
@@ -133,6 +134,8 @@ export function useWorkOrders(
               timeAgo: data.timeAgo || 'Recent',
               completedAt: typeof data.completedAt?.toDate === 'function' ? data.completedAt.toDate().toISOString() : data.completedAt,
               completedBy: data.completedBy,
+              resolutionNote: data.resolutionNote, resolutionCommentId: data.resolutionCommentId,
+              resolutionCommentIndex: data.resolutionCommentIndex, resolutionAuthorId: data.resolutionAuthorId,
               photoUrl: data.photoUrl,
               photos: data.photos || (data.photoUrl ? [data.photoUrl] : []),
               comments: data.comments || [],
@@ -237,10 +240,11 @@ export function useWorkOrders(
 
   const handleCompleteWithReply = useCallback(async (id: number | string, text: string, photoUrl?: string) => {
     if (currentUser?.role !== 'crew' || !text.trim()) {
-      showToast?.('A crew resolution note is required.'); return;
+      showToast?.('A crew resolution note is required.'); return false;
     }
     const saved = await saveWorkOrderResolutionToFirestore({ woId: id, replyText: text, photoDownloadUrl: photoUrl || '', crewUser: currentUser });
     showToast?.(saved ? 'Work order completed' : 'Work order was not completed. Please retry.');
+    return saved;
   }, [currentUser, showToast]);
 
   const handleReopenWorkOrder = useCallback(async (id: number | string) => {
@@ -253,29 +257,10 @@ export function useWorkOrders(
     showToast?.(deleted ? 'Work order deleted' : 'Work order could not be deleted.');
   }, [showToast]);
 
-  const handleAddWorkOrderComment = useCallback(
-    (woId: number | string, text: string, photoUrl?: string) => {
-      if (!text.trim() && !photoUrl) return;
-      const newComment: WorkOrderComment = {
-        id: `c-${Date.now()}`,
-        author: currentUser?.name || 'Resident',
-        role: currentUser?.role === 'crew' ? 'Maintenance Crew' : 'Resident',
-        text: text.trim(),
-        timestamp: 'Just now',
-        photoUrl: photoUrl || '',
-      };
-
-      setWorkOrders((prev) =>
-        prev.map((wo) =>
-          String(wo.id) === String(woId)
-            ? { ...wo, comments: [...(wo.comments || []), newComment] }
-            : wo
-        )
-      );
-      showToast?.('Comment added');
-    },
-    [currentUser, showToast]
-  );
+  const handleAddWorkOrderComment = useCallback(async (woId:number|string,text:string,photoUrl='') => {
+    try {await appendWorkOrderCrewNote(woId,text,photoUrl);showToast?.('Crew note saved');return true;}
+    catch {showToast?.('Crew note was not saved. Please retry.');return false;}
+  },[showToast]);
 
   const handleAddWorkOrderPhoto = useCallback(
     (woId: number | string, photoUrl: string) => {

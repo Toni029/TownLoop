@@ -1,0 +1,71 @@
+# TownLoop coordinated release — prepared locally, NOT authorized
+
+> Superseded release sequencing: use [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md). The hosted website and named database are now explicitly excluded; do not follow any web replacement step below.
+
+2026-10-21. Scope: C1–C4, H1–H7, H8/H9/H10/H12, M3/M4/M10 and release infrastructure. Preserve checkpoints `1529a92`, `1bb97d7`, and `fb8c146` (all earlier launch work before Batch 4). No live migration, cleanup, deployment, build, push or publication occurred in Batch 4.
+
+## Decision: ready for owner review; NOT ready for public deployment
+
+1. Approve operator/contact, final Privacy/Terms/consent version, deletion/shared-history exceptions, media-retention/provenance policy and moderation staffing. Existing `security/launch/POLICY_DECISIONS.md`, `DELETION.md` and `GOOGLE_PLAY_CHECKLIST.md` remain the decision records. No new retention periods are established here. Previously approved Work Order completion retention remains 30 days.
+2. Approve separately scoped metadata migrations/cutover and verify backups. C1's 2/2 conversation identity result is reused; no rescan or message reading occurred. C2 linked uploads/drafts/legacy download-token rotation, C3 directory projection/backfill and H1 exact Inbox identity migration still have their own gates. Missing or ambiguous identities must remain held for review, never matched by name. Strict approval requires explicit canonical role and `approved: true`; do not silently grandfather missing approval.
+3. Resolve the hosted-web database/source decision. The earlier read-only Hosting review found a named database, while current native/shared code uses `(default)`. Its exact Git source is unknown. Do not deploy this whole web snapshot over that site or redirect its data implicitly. Preserve its deployed artifacts. Review `security/c1/HOSTED_WEB_REVIEW.md`. A narrow native-default-database rollout may be separable; a complete web launch is blocked until the intended database and compatible source are approved.
+4. Review unresolved advisories in `security/launch/DEPENDENCIES.md`. Root npm audit is clean; native still has 45 affected-package findings and functions 10 moderate. Several fixes lack published compatible patches or require major changes. These counts are not proof of exploitability, nor permission to ignore them. Keep untrusted build inputs out of tooling; assess runtime exposure and wait for/validate supported upgrades. No forced SDK/router/Firebase major upgrade was made.
+5. Select crash-monitoring operator/provider, region, retention, alerts and privacy settings. The implemented error boundary and static-code-only diagnostic sink collect nothing remotely until configured. They do not capture native fatal crashes. A full native crash SDK requires a binary and separate approval; never attach profiles, messages, tokens, medication, error bodies or component props by default.
+6. Verify newsletter HTTPS service hosting, service identity, secrets, CORS, billing and request quotas before phone testing. Firebase Hosting's current static rewrite does not deploy `server.ts` or create an API. Native requires a reachable approved API origin; localhost cannot serve phones remotely. Preserve authenticated Storage SDK downloads. Old Firebase download tokens remain bearer capabilities until separately authorized revocation; stricter rules alone do not revoke them.
+
+## Local changes in Batch 4
+
+- H8: consolidated Firestore rules preserve all prior security batches; bounded owner-only profile proposals and Admin/VIP approval; real web proposal form; shared UID-bound Crew resolution revision/reopen logic; confirmed Admin/VIP audited comment deletion without changing status. Legacy comments lacking a trustworthy author UID remain intact but are not adopted by matching a display name. A new own resolution can be created on completion; in-place legacy editing requires trusted identity reconciliation.
+- H10: authorization before bounded parsing; approved-user PDF/current reads; newsletter metadata/chunks also require approval. Strict PDF base64/header/size validation; fixed own-bucket newsletter URL allowlist; authenticated private downloads, no arbitrary URL fetching/redirects or bearer-token forwarding. JSON/remote PDF maximum is 32 MiB; Storage's existing 25 MiB limit remains unchanged and is the tighter published-upload constraint. Existing reader UI and Firebase paths remain.
+- H12: targeted transitive patches and reproducible npm locks, no direct native SDK upgrade. Root React declaration fixes uncover and resolve actual web type errors (typed error boundary, newsletter metadata size/source and valid weather condition fallback). Production EAS profile explicitly selects store/AAB output; signing identity was not modified.
+- M3/M4: same-UID interrupted registration recovery, create-only profile transactions, explicit consent and preserved input; stale auth/listener results ignored. Avatar changes no longer reconnect every web listener; stable native decoders retain unchanged objects. Service Inbox compose/reply clears only after acknowledged writes and retries reuse operation IDs. Histories were not arbitrarily truncated to claim scalability: pagination remains future work requiring complete-history UX/permissions review.
+- M10: nonfunctional native/Expo-web Google button is hidden. Original working web Google/email flows remain; new Google profiles require consent. Native Google reauthentication stays unavailable until provider configuration is completed; retain the secure supported email/password or web recovery path.
+
+## Exact backend candidates
+
+`firestore.coordinated.rules` is a full snapshot of current root rules, not the superseded C1-only file. `storage.coordinated.rules` is the existing proposed secured Storage candidate. `firestore.coordinated.indexes.json` includes required current indexes. `candidate-manifest.json` binds each file by SHA-256. Reconcile against newly exported live rules immediately before an authorized release; if unrelated live changes exist, STOP and merge them, do not overwrite.
+
+`firebase.coordinated.json` deliberately includes only Firestore/indexes/Storage; it does not deploy Hosting or Functions. Its Firestore target is the default database. Never apply it blindly to the historical named web database. Storage cross-service Firestore checks also target default profiles; one bucket shared with named-database users requires an explicit membership/data-boundary decision.
+
+## Rollout gates, in order — commands are documentation ONLY
+
+1. Owner approves the exact source/diff and remaining decisions above. Freeze release scope, run only relevant checks on the final immutable commit, inspect staged files for credentials/private artifacts, commit locally and push the approved branch. Preserve old checkpoints. Do not `git add .` without reviewing files; no `.env`, signing files, logs, live exports, resident data or auth artifacts belong in Git.
+2. Approve backup/access and cutover strategy. Take a restricted, encrypted Firestore export/snapshot of the explicitly chosen databases and Storage metadata/generations; evaluate PITR/scheduled backups and object versioning costs. Record Auth configuration and immutable ticket reservations. Test restore into a separate isolated project before treating it as recovery. Never restore a counter independently or reuse deleted Work Order numbers. Backups contain sensitive data and need owner-approved retention and access controls.
+3. In an authorized isolated staging backend, apply required indexes, deploy only reviewed functions/API routes and run dry-run metadata/provenance migrations with receipts and reconciliation. Do not create fake production Auth users. Verify consent/recovery, approval, reports/blocks, deletion policy gates, upload retries and private downloads with authorized test participants. New clients and restrictive rules have interdependent draft/identity fields; do not ship either half against an unprepared backend. Use a controlled, owner-approved cutover window if dual-client compatibility cannot be proven.
+4. After owner approval, create a new Preview binary using the existing package/project and matching signing certificate. SecureStore and backup exclusions from earlier batches require it. Lock/native/config changes may change fingerprint runtime; compute the final runtime once, then build and publish Preview only for that same immutable source/environment. Do not force an old runtime to send incompatible code to old APKs. Old APKs and Production-channel installations will not receive a new Preview runtime; notify users through the approved upgrade path. No signing secrets were read/changed during this batch.
+
+   ```sh
+   cd native
+   npx eas-cli@24.14.0 build --platform android --profile preview
+   # After separately approved compatible build/runtime validation:
+   node scripts/publish-preview.cjs "Approved coordinated Preview release"
+   ```
+
+   Use the checked-in publish command only after its clean/pushed-source and confirmation requirements are met. Device/staging verification is required; browser and emulator results are not production end-to-end evidence.
+5. Prepare/deploy the approved web source to its approved database without clearing old localStorage/IndexedDB. C1's archived cache/draft recovery and manual-send rules must be included wherever real Marketplace chat code is introduced. No automatic sending, cache erasure or name-based identity migration. Retain the current Hosting release until its broader replacement is approved. Host approved public policy/deletion pages and verify links without authentication.
+6. During the approved backend cutover, compare fresh live rules against the reviewed manifest, install indexes first and wait for readiness, apply only the reviewed rules, then activate compatible clients/functions/migrations in the agreed window. Explicitly select deployed functions; never use blanket `--only functions` while cleanup policies or notification credentials are unapproved. Auth Admin SDK jobs bypass rules and must be independently policy-gated.
+
+   ```sh
+   # From repository root, ONLY after all gates and explicit deployment approval:
+   firebase deploy --project cc-livingcommunity-app --config security/release/firebase.coordinated.json --only firestore:indexes
+   firebase deploy --project cc-livingcommunity-app --config security/release/firebase.coordinated.json --only firestore:rules,storage
+   ```
+
+   Deploy the API via the reviewed hosting mechanism separately; this config cannot expose it. Use npm lock installs for the audited function resolution. Recheck Storage cross-service IAM grants as an explicit permission change; do not invent extra credentials.
+7. Verify participant-only messaging, append/receipt integrity, blocks, canonical roles, private directory fields, approved profile updates, Crew revision and manager deletion, authenticated PDF/media reads and failed-upload retry. Use synthetic staging data first; any production smoke action involving resident data needs explicit scope/consent. Verify old clients fail safely and show upgrade guidance rather than loosening rules.
+8. Production release is separately approved after device/staging success, final Play disclosures and advisory decisions. Production channel currently has no published updates; do not promote Preview implicitly. Future updates must match the installed Production runtime and target Production explicitly. Production Play signing/credentials, store access and target/API requirements need final owner review; no Play submission or binary checks occurred here.
+
+## OTA separation (read-only verification)
+
+Authenticated EAS `channel:view` on 2026-10-21 confirms Preview → preview and Production → production are distinct branch mappings. Latest Preview Android runtime: `34fdc17d0432044445e5789a549f8e9bfbcf8b3c`; Production has no update groups. See `eas-readonly-verification.json`. Neither channel is protected in EAS; owner should approve protection/release access controls. Channel separation does NOT isolate Firebase data: Preview and Production clients can share the same backend. Do not run destructive experiments on Preview assuming its data is sandboxed.
+
+## Recovery — never restore public access
+
+- Prefer a fix-forward update for the same runtime/channel. Republish only an earlier **security-compatible** update group (never a pre-security client with the hardened schema); `eas update:republish --group APPROVED_GROUP --destination-channel preview --platform android`. Verify the target group's runtime first. A native incompatibility needs a corrected binary, not a forged runtime.
+- If writes cannot be trusted, the prepared `firebase.readonly-recovery.json` preserves the candidate's restricted reads and denies all client writes. This intentionally disables submissions, profile writes and messaging temporarily. It never restores public chats/files or broad profile access. Its scope covers default Firestore and the selected bucket; approve any other database separately.
+- Pause relevant privileged API workers/scheduled jobs and cleanup triggers separately: Admin SDK bypasses rules. Do not delete job receipts, tombstones, Auth users or files as part of rollback. Keep user-entered forms/drafts for retry and give honest unavailable feedback.
+- Restore Hosting only to a verified database-compatible artifact. Do not restore old public Storage/Firestore rules. Backups are disaster-recovery inputs requiring a scoped reviewed restore, not permission to overwrite recent data or reset permanent number reservations.
+
+## Verification evidence and limits
+
+Focused H8/H10 emulator suite: 6 tests passed against current combined rules. Newsletter security/pipeline: 24 tests passed. Registration/auth/listener and Inbox acknowledgment tests reused from this batch; native Work Order helper tests passed. Prior C1's 51 assertions were not repeated. Type checks cover web/native; no APK/AAB/export or full audit rerun. No claim is made about device FPS, live API IAM/CORS, native crash delivery, actual backup availability, real-data migrations, Play approval or full end-to-end deletion/cleanup.

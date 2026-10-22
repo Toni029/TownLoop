@@ -15,6 +15,7 @@ function availableScreens(
   user: object | null,
   profile: { approved: boolean } | null,
   community: string | null = "cecil_pines",
+  registrationInProgress = false,
 ): string[] {
   const routes: string[] = [];
   function visit(node: any, allowed = true) {
@@ -30,8 +31,9 @@ function availableScreens(
             "user",
             "profile",
             "community",
+            "registrationInProgress",
             `return ${guard.getText(source)}`,
-          )(user, profile, community)
+          )(user, profile, community, registrationInProgress)
         : false;
       node.children.forEach((child: any) => visit(child, allowed && enabled));
       return;
@@ -72,4 +74,9 @@ test("no saved community opens welcome even with a restored auth session", () =>
     availableScreens({ uid: "resident" }, { approved: true }, null),
     ["communities"],
   );
+});
+
+test("registration keeps the form mounted while the Auth account exists and the profile write is pending", () => {
+  assert.deepEqual(availableScreens({ uid: "created" }, null, "cecil_pines", true), ["sign-in"]);
+  assert.deepEqual(availableScreens({ uid: "created" }, { approved: false }, "cecil_pines", true), ["sign-in"]);
 });

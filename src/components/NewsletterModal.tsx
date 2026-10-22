@@ -1,3 +1,4 @@
+import { fetchNewsletterResource } from '../services/newsletterDownload';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -427,7 +428,8 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
                             a.click();
                             document.body.removeChild(a);
                           } else {
-                            const res = await fetch(targetUrl);
+                            const res = await fetchNewsletterResource(targetUrl);
+                            if (!res.ok) throw new Error('The newsletter is unavailable.');
                             const blob = await res.blob();
                             const bUrl = URL.createObjectURL(blob);
                             const a = document.createElement('a');
@@ -565,8 +567,9 @@ export const NewsletterModal: React.FC<NewsletterModalProps> = ({
                                 a.click();
                                 document.body.removeChild(a);
                               } else {
-                                const res = await fetch(target);
-                                const blob = await res.blob();
+                                const res = await fetchNewsletterResource(target);
+                                if (!res.ok) throw new Error('The newsletter is unavailable.');
+                            const blob = await res.blob();
                                 const bUrl = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
                                 a.href = bUrl;

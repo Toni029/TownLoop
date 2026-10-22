@@ -1,3 +1,4 @@
+export const googleSignInAvailable = false;
 /** Native Google OAuth needs platform client IDs and a configured development build. */
 export async function googleSignIn(): Promise<void> {
   throw new Error(

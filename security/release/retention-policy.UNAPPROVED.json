@@ -1,0 +1,15 @@
+{
+  "status": "OWNER_DECISIONS_REQUIRED_NOT_FIRESTORE_IMPORT",
+  "account": {
+    "ownerApproved": false,
+    "approvalReference": "",
+    "collections": {}
+  },
+  "media": {
+    "ownerApproved": false,
+    "approvalReference": "",
+    "trustedUploadsAfter": null,
+    "collections": {}
+  },
+  "doNotActivate": ["resumeAccountDeletions", "resumeMediaCleanup", "expireMediaDrafts", "cleanupLateOrphanMedia", "queueDeletedMedia*"]
+}

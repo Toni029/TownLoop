@@ -4,10 +4,10 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { canManageNewsletter, canTranslateWorkOrder } from '../src/utils/permissions';
 
 /** Authenticate with Firebase, then check the same saved profile used by the UI. */
-async function requireRole(req: Request, res: Response, next: NextFunction, translation = false) {
+async function requireRole(req: Request, res: Response, next: NextFunction, role: 'manager' | 'translator' | 'reader' = 'manager') {
   const token = req.headers.authorization?.match(/^Bearer ([^\s]+)$/)?.[1];
   if (!token) {
-    res.status(401).json({ error: 'Please sign in before analyzing a newsletter.' });
+    res.status(401).json({ error: 'Please sign in to access this service.' });
     return;
   }
   try {
@@ -17,7 +17,7 @@ async function requireRole(req: Request, res: Response, next: NextFunction, tran
       body: JSON.stringify({ idToken: token }), signal: AbortSignal.timeout(10_000),
     });
     const account = lookup.ok ? (await lookup.json()).users?.[0] : null;
-    if (!account?.localId || account.disabled) {
+    if (!account?.localId || account.disabled || account.providerUserInfo?.every((provider: any) => provider.providerId === 'anonymous')) {
       res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
       return;
     }
@@ -30,8 +30,8 @@ async function requireRole(req: Request, res: Response, next: NextFunction, tran
     const fields = profileResponse.ok ? (await profileResponse.json()).fields : null;
     const profile = fields ? Object.fromEntries(Object.entries(fields).map(([key, value]: [string, any]) =>
       [key, value.stringValue ?? value.booleanValue])) : null;
-    if (!profile || profile.approved !== true || profile.deletionPending === true || !(translation ? canTranslateWorkOrder(profile as UserProfile) : canManageNewsletter(profile as UserProfile))) {
-      res.status(403).json({ error: translation ? 'Translation requires an approved Admin, VIP, or Crew account.' : 'Newsletter analysis requires an approved newsletter manager account.' });
+    if (!profile || profile.approved !== true || profile.deletionPending === true || (role !== 'reader' && !(role === 'translator' ? canTranslateWorkOrder(profile as UserProfile) : canManageNewsletter(profile as UserProfile)))) {
+      res.status(403).json({ error: role === 'translator' ? 'Translation requires an approved Admin, VIP, or Crew account.' : role === 'reader' ? 'An approved account is required to read newsletters.' : 'Newsletter analysis requires an approved newsletter manager account.' });
       return;
     }
     next();
@@ -41,4 +41,6 @@ async function requireRole(req: Request, res: Response, next: NextFunction, tran
 }
 
 export const requireNewsletterManager = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next);
-export const requireWorkOrderTranslator = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next, true);
+export const requireWorkOrderTranslator = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next, 'translator');
+
+export const requireNewsletterReader = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next, 'reader');

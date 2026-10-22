@@ -1,3 +1,4 @@
+import { downloadPdfBytes } from './download';
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
@@ -41,15 +42,10 @@ export async function preparePdf(
       if (
         !(error instanceof Error) ||
         !error.message.startsWith("No complete PDF") ||
-        !url.startsWith("https://")
+        !(url.startsWith("https://") || url.startsWith("gs://") || url.startsWith("/api/newsletter/pdf/"))
       )
         throw error;
-      await File.downloadFileAsync(url, file);
-      if (
-        file.size > MAX_PDF_BYTES ||
-        !(await file.base64()).startsWith("JVBERi0")
-      )
-        throw new Error("This file is not a supported PDF.");
+      file.write(await downloadPdfBytes(url));
     }
   } catch (error) {
     if (file.exists) file.delete();

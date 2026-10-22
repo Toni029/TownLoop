@@ -1,5 +1,5 @@
 import { TextInput } from '../keyboard/KeyboardScrollView';
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, Text,  View } from "react-native";
 import {
   ArrowRight,
@@ -12,12 +12,14 @@ import {
   User,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
+import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { friendlyError } from "../lib/profile";
 import { TERMS_VERSION, requireTermsAcceptance } from '../../../src/data/legal';
 import { LegalLinks } from './LegalLinks';
+import { useSession } from '../lib/session';
+import { obtainRegistrationUser, INCOMPLETE_REGISTRATION_MESSAGE } from '../../../src/services/registrationRecovery';
 export function ResidentRegistration({
   dark,
   wide,
@@ -33,6 +35,8 @@ export function ResidentRegistration({
   onError: (v: string) => void;
   onSignIn: () => void;
 }) {
+  const { registrationInProgress, setRegistrationInProgress } = useSession();
+  useEffect(() => () => setRegistrationInProgress(false), [setRegistrationInProgress]);
   const [fields, setFields] = useState({
       name: "",
       email: "",
@@ -61,14 +65,16 @@ export function ResidentRegistration({
       return;
     }
     setBusy(true);
+    setRegistrationInProgress(true);
     try {
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        fields.email.trim().toLowerCase(),
-        fields.password,
-      );
-      await updateProfile(credential.user, { displayName: fields.name.trim() });
-      await setDoc(doc(db, "users", credential.user.uid), {
+      const email = fields.email.trim().toLowerCase();
+      const credential = await obtainRegistrationUser({
+        email,
+        currentEmail: auth.currentUser?.email,
+        create: () => createUserWithEmailAndPassword(auth, email, fields.password),
+        signIn: () => signInWithEmailAndPassword(auth, email, fields.password),
+      });
+      const profileData = {
         id: credential.user.uid,
         name: fields.name.trim(),
         email: credential.user.email,
@@ -85,9 +91,26 @@ export function ResidentRegistration({
         termsVersion: TERMS_VERSION,
         termsAcceptedAt: serverTimestamp(),
         createdAt: new Date().toISOString(),
-      });
+      };
+      let createdProfile = false;
+      try {
+        createdProfile = await runTransaction(db, async transaction => {
+          const reference = doc(db, "users", credential.user.uid);
+          const existing = await transaction.get(reference);
+          if (existing.exists()) return false;
+          transaction.set(reference, profileData);
+          return true;
+        });
+      } catch {
+        throw new Error(INCOMPLETE_REGISTRATION_MESSAGE);
+      }
+      // Profile persistence succeeds independently of the optional Auth display name.
+      if (createdProfile) {
+        try { await updateProfile(credential.user, { displayName: fields.name.trim() }); } catch {}
+      }
+      setRegistrationInProgress(false);
     } catch (e) {
-      onError(friendlyError(e));
+      onError(e instanceof Error && e.message === INCOMPLETE_REGISTRATION_MESSAGE ? e.message : friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -259,7 +282,15 @@ export function ResidentRegistration({
         >
           Already registered?
         </Text>
-        <Pressable accessibilityRole="button" onPress={onSignIn}>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => {
+          void (async () => {
+            if (registrationInProgress) {
+              try { await signOut(auth); } catch (error) { onError(friendlyError(error)); return; }
+              setRegistrationInProgress(false);
+            }
+            onSignIn();
+          })();
+        }}>
           <Text
             style={{
               fontFamily: "JakartaExtra",

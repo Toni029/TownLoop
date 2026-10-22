@@ -117,6 +117,7 @@ export async function changeWorkOrder(
         ? {
             id: commentId,
             author: user.name,
+            authorId: String(user.id),
             role: "Maintenance Crew",
             text: text.trim(),
             timestamp: "Just now",

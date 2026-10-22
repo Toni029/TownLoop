@@ -1,3 +1,4 @@
+import { fetchNewsletterResource } from '../services/newsletterDownload';
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -31,9 +32,9 @@ export function useNewsletterPdf() {
       try {
         let source = config.pdfUrl || config.fileUrl || '';
         let downloaded: Blob | null = null;
-        if (/^(https?:|\/)/.test(source)) {
+        if (/^(https?:|gs:|\/)/.test(source)) {
           try {
-            const response = await fetch(source, { cache: 'no-store', signal: AbortSignal.timeout(20_000) });
+            const response = await fetchNewsletterResource(source, { cache: 'no-store', signal: AbortSignal.timeout(20_000) });
             if (response.ok) {
               const file = await response.blob();
               if ((await file.slice(0, 5).text()) === '%PDF-') downloaded = file;

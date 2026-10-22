@@ -1,0 +1,19 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "work-order-retention",
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.test.cjs",
+        "tools",
+        "*.log",
+        ".env*",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml"
+      ]
+    }
+  ]
+}

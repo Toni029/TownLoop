@@ -1,0 +1,621 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function currentProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isApproved() {
+      return isSignedIn() && currentProfile().approved == true && currentProfile().get('deletionPending', false) == false &&
+        currentProfile().role in ['resident', 'admin', 'vip', 'crew'];
+    }
+
+    function isManager() {
+      return isApproved() &&
+        (currentProfile().role == 'admin' || currentProfile().role == 'vip');
+    }
+
+    function isCrewOrManager() {
+      return isApproved() &&
+        (currentProfile().role == 'crew' || isManager());
+    }
+
+    function validProfileRequest(userId) {
+      let proposal = request.resource.data.profileUpdateRequest;
+      let fields = ['phone', 'address', 'dateOfBirth', 'maritalStatus',
+        'emergencyContactName', 'emergencyContactPhone', 'emergencyContactAddress'];
+      return isOwner(userId) && isApproved() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileUpdateRequest']) &&
+        proposal.keys().hasOnly(['status', 'changes', 'previous', 'requestedAt', 'requestedBy']) &&
+        proposal.status == 'pending' && proposal.requestedBy == request.auth.uid &&
+        proposal.requestedAt == request.time && proposal.previous is map && proposal.previous.keys().hasOnly(fields) &&
+        proposal.previous.get('phone', '') is string && proposal.previous.get('phone', '').size() <= 300 &&
+        proposal.previous.get('address', '') is string && proposal.previous.get('address', '').size() <= 300 &&
+        proposal.previous.get('dateOfBirth', '') is string && proposal.previous.get('dateOfBirth', '').size() <= 300 &&
+        proposal.previous.get('maritalStatus', '') is string && proposal.previous.get('maritalStatus', '').size() <= 300 &&
+        proposal.previous.get('emergencyContactName', '') is string && proposal.previous.get('emergencyContactName', '').size() <= 300 &&
+        proposal.previous.get('emergencyContactPhone', '') is string && proposal.previous.get('emergencyContactPhone', '').size() <= 300 &&
+        proposal.previous.get('emergencyContactAddress', '') is string && proposal.previous.get('emergencyContactAddress', '').size() <= 300 &&
+        proposal.changes is map && proposal.changes.size() > 0 &&
+        proposal.changes.keys().hasOnly(fields) &&
+        proposal.changes.get('phone', '') is string && proposal.changes.get('phone', '').size() <= 300 &&
+        proposal.changes.get('address', '') is string && proposal.changes.get('address', '').size() <= 300 &&
+        proposal.changes.get('dateOfBirth', '') is string && proposal.changes.get('dateOfBirth', '').size() <= 300 &&
+        proposal.changes.get('maritalStatus', '') is string && proposal.changes.get('maritalStatus', '').size() <= 300 &&
+        proposal.changes.get('emergencyContactName', '') is string && proposal.changes.get('emergencyContactName', '').size() <= 300 &&
+        proposal.changes.get('emergencyContactPhone', '') is string && proposal.changes.get('emergencyContactPhone', '').size() <= 300 &&
+        proposal.changes.get('emergencyContactAddress', '') is string && proposal.changes.get('emergencyContactAddress', '').size() <= 300;
+    }
+
+    // Private profiles are never a resident directory. Projection is server-owned.
+    match /resident_directory/{uid} {
+      allow get, list: if isApproved();
+      allow write: if false;
+    }
+    function canonicalRole(role) { return role in ['resident', 'admin', 'vip', 'crew']; }
+    function profileIdentityUnchanged() {
+      return request.resource.data.get('id', '') == resource.data.get('id', '') && request.resource.data.get('email', '') == resource.data.get('email', '');
+    }
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isManager();
+      allow list: if isManager();
+      allow create: if isOwner(userId) &&
+        request.resource.data.keys().hasOnly(['id', 'name', 'email', 'role', 'approved', 'createdAt',
+          'address', 'phone', 'avatarUrl', 'avatar_url', 'emergencyContactName', 'emergencyContactPhone',
+          'emergencyContactAddress', 'emergencyContact', 'emergency_contact', 'termsVersion', 'termsAcceptedAt']) &&
+        request.resource.data.id == request.auth.uid &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.name is string && request.resource.data.name.size() <= 300 &&
+        request.resource.data.role == 'resident' && request.resource.data.approved == false &&
+        request.resource.data.termsVersion == '2026-10-draft1' && request.resource.data.termsAcceptedAt == request.time;
+      allow update: if profileIdentityUnchanged() &&
+        ((isManager() && canonicalRole(request.resource.data.role) && request.resource.data.approved is bool &&
+          (userId != request.auth.uid || request.resource.data.role == resource.data.role) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'role', 'approved', 'phone',
+            'address', 'dateOfBirth', 'maritalStatus', 'avatarUrl', 'avatar_url', 'wing', 'dietaryPreference',
+            'dietary_preference', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactAddress',
+            'emergencyContact', 'emergency_contact', 'emergency_contact_phone', 'emergency_contact_address',
+            'date_of_birth', 'marital_status', 'profileUpdateRequest'])) || validProfileRequest(userId) ||
+          (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatarUrl', 'avatar_url'])));
+      allow delete: if isManager();
+    }
+
+    function mediaParentMayCreate(collectionName, recordId) {
+      return !exists(/databases/$(database)/documents/media_deletion_tombstones/$(collectionName)/records/$(recordId));
+    }
+    match /media_deletion_tombstones/{collectionName}/records/{recordId} { allow read, write: if false; }
+    function mediaDraft(data) {
+      return data.keys().hasOnly(['userId', 'storageDraft', 'storageDraftExpiresAt', 'createdAt']) &&
+        data.userId == request.auth.uid && data.storageDraft == true && data.createdAt == request.time &&
+        data.storageDraftExpiresAt is timestamp && data.storageDraftExpiresAt > request.time &&
+        data.storageDraftExpiresAt <= request.time + duration.value(61, 'm');
+    }
+    function socialOwner(data, legacy) {
+      return data.get(legacy ? 'authorId' : 'userId', '') == request.auth.uid;
+    }
+    function published(data) { return data.get('storageDraft', true) == false; }
+    function socialAvatar() {
+      return currentProfile().get('avatarUrl', '') != '' ? currentProfile().avatarUrl : currentProfile().get('avatar_url', '');
+    }
+    function socialNew(data, legacy, market) {
+      return published(data) && socialOwner(data, legacy) &&
+        data.get('userId', request.auth.uid) == request.auth.uid &&
+        data.get('authorId', request.auth.uid) == request.auth.uid && data.get('uid', request.auth.uid) == request.auth.uid &&
+        data.createdAt == request.time &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 1000 &&
+        data.get(market ? 'description' : 'content', '') is string &&
+        data.get(market ? 'description' : 'content', '').size() <= 20000 &&
+        data.author == currentProfile().get('name', 'Resident') && data.authorAvatar == socialAvatar() &&
+        data.get('authorEmail', '') == '' && data.get('unit', '') == 'TownLoop Resident' &&
+        data.comments == [] && !data.keys().hasAny(['storageDraftExpiresAt']) &&
+        (market ? (data.get('sold', false) == false && data.get('claimed', false) == false) :
+          (data.likes == 0 && data.get('likedBy', {}) == {}));
+    }
+    function socialComment(old, next) {
+      let before = old.get('comments', []);
+      let after = next.comments;
+      let added = after[after.size() - 1];
+      return next.diff(old).affectedKeys().hasOnly(['comments', 'updatedAt']) && next.updatedAt == request.time &&
+        before is list && after is list && after == before.concat([added]) &&
+        !before.hasAny([added]) &&
+        added.keys().hasOnly(['id', 'authorId', 'author', 'authorAvatar', 'authorEmail', 'unit', 'text', 'timeAgo']) &&
+        added.id is string && added.id.size() > 0 && added.id.size() <= 200 &&
+        added.authorId == request.auth.uid && added.author == currentProfile().get('name', 'Resident') &&
+        added.authorAvatar == socialAvatar() && added.get('authorEmail', '') == '' &&
+        added.get('unit', '') == 'TownLoop Resident' && added.text is string &&
+        added.text.size() > 0 && added.text.size() <= 10000 && added.text.matches('(?s).*[^\\s].*');
+    }
+    function socialLike(old, next) {
+      let previous = old.get('likedBy', {});
+      let after = next.likedBy;
+      let beforeLiked = previous.get(request.auth.uid, false);
+      let liked = after[request.auth.uid];
+      return next.diff(old).affectedKeys().hasOnly(['likedBy', 'likes', 'updatedAt']) && next.updatedAt == request.time &&
+        previous is map && after is map && after.diff(previous).affectedKeys().hasOnly([request.auth.uid]) &&
+        liked is bool && liked != beforeLiked && next.likes is int && next.likes >= 0 &&
+        next.likes == old.get('likes', 0) + (liked ? 1 : -1);
+    }
+    function socialUpdate(legacy, market) {
+      let old = resource.data;
+      let next = request.resource.data;
+      return (old.get('storageDraft', false) == true && old.userId == request.auth.uid &&
+          socialNew(next, legacy, market)) ||
+        (published(old) && published(next) &&
+          next.get('userId', '') == old.get('userId', '') && next.get('authorId', '') == old.get('authorId', '') && next.get('uid', '') == old.get('uid', '') &&
+          ((socialComment(old, next)) || (!market && socialLike(old, next)) ||
+           ((socialOwner(old, legacy) || isManager()) &&
+            next.diff(old).affectedKeys().hasOnly(['title', 'content', 'description', 'tag', 'media', 'mediaUrl', 'price', 'sold', 'claimed', 'updatedAt']) &&
+            (market || !next.diff(old).affectedKeys().hasAny(['sold', 'claimed', 'price'])))));
+    }
+    match /posts/{postId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/posts/$(postId)) || published(resource.data) || resource.data.get('userId', '') == request.auth.uid);
+      allow list: if isApproved() && published(resource.data);
+      allow create: if isApproved() && mediaParentMayCreate('posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, false));
+      allow update: if isApproved() && socialUpdate(true, false);
+      allow delete: if isApproved() && (socialOwner(resource.data, true) || isManager());
+    }
+    match /marketItems/{itemId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/marketItems/$(itemId)) || published(resource.data) || resource.data.get('userId', '') == request.auth.uid);
+      allow list: if isApproved() && published(resource.data);
+      allow create: if isApproved() && mediaParentMayCreate('marketItems', itemId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, true));
+      allow update: if isApproved() && socialUpdate(true, true);
+      allow delete: if isApproved() && (socialOwner(resource.data, true) || isManager());
+    }
+    match /marketplace_posts/{postId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/marketplace_posts/$(postId)) || published(resource.data) || socialOwner(resource.data, false));
+      allow list: if isApproved() && published(resource.data);
+      allow create: if isApproved() && mediaParentMayCreate('marketplace_posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, true));
+      allow update: if isApproved() && socialUpdate(false, true);
+      allow delete: if isApproved() && (socialOwner(resource.data, false) || isManager());
+    }
+    match /discussion_feed/{postId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/discussion_feed/$(postId)) || published(resource.data) || socialOwner(resource.data, false));
+      allow list: if isApproved() && published(resource.data);
+      allow create: if isApproved() && mediaParentMayCreate('discussion_feed', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, false));
+      allow update: if isApproved() && socialUpdate(false, false);
+      allow delete: if isApproved() && (socialOwner(resource.data, false) || isManager());
+    }
+    function unallocatedOrder(orderId) {
+      return !exists(/databases/$(database)/documents/work_orders/$(orderId)) ||
+        (get(/databases/$(database)/documents/work_orders/$(orderId)).data.get('storageDraft', false) == true &&
+         get(/databases/$(database)/documents/work_orders/$(orderId)).data.userId == request.auth.uid &&
+         !get(/databases/$(database)/documents/work_orders/$(orderId)).data.keys().hasAny(['ticketNumber', 'code']));
+    }
+    // Counter updates must be paired atomically with the submitting resident's new ticket.
+    match /counters/work_orders {
+      allow read: if isApproved();
+      function validCounterTicket() {
+        return isApproved() &&
+        request.resource.data.keys().hasOnly(['lastNumber', 'orderId']) &&
+        request.resource.data.lastNumber is int &&
+        request.resource.data.orderId is string &&
+        unallocatedOrder(request.resource.data.orderId) &&
+        getAfter(/databases/$(database)/documents/work_orders/$(request.resource.data.orderId)).data.userId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/work_orders/$(request.resource.data.orderId)).data.ticketNumber == request.resource.data.lastNumber;
+      }
+      allow create: if validCounterTicket() && request.resource.data.lastNumber == 10000;
+      allow update: if validCounterTicket() && request.resource.data.lastNumber == resource.data.lastNumber + 1;
+    }
+
+    // Four-digit allocator: initialized only by the audited administrative migration.
+    function fourDigitTicket(orderId, number) {
+      let ticket = getAfter(/databases/$(database)/documents/work_orders/$(orderId)).data;
+      return unallocatedOrder(orderId) &&
+        ticket.userId == request.auth.uid && ticket.ticketNumber == number && ticket.code == string(number);
+    }
+    match /counters/work_orders_four_digit {
+      allow read: if isApproved();
+      allow update: if isApproved() && resource.data.ready == true &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastNumber', 'orderId']) &&
+        request.resource.data.lastNumber == resource.data.lastNumber + 1 &&
+        request.resource.data.lastNumber >= 1000 && request.resource.data.lastNumber <= 9999 &&
+        ((request.resource.data.orderId == '' &&
+          exists(/databases/$(database)/documents/work_order_numbers/$(string(request.resource.data.lastNumber)))) ||
+         (request.resource.data.orderId is string && request.resource.data.orderId != '' &&
+          !exists(/databases/$(database)/documents/work_order_numbers/$(string(request.resource.data.lastNumber))) &&
+          getAfter(/databases/$(database)/documents/work_order_numbers/$(string(request.resource.data.lastNumber))).data.orderId == request.resource.data.orderId &&
+          fourDigitTicket(request.resource.data.orderId, request.resource.data.lastNumber)));
+    }
+    match /work_order_numbers/{number} {
+      allow read: if isApproved();
+      allow create: if isApproved() && number.matches('^[1-9][0-9]{3}$') &&
+        request.resource.data.keys().hasOnly(['orderId']) && request.resource.data.orderId is string &&
+        getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.orderId == request.resource.data.orderId &&
+        string(getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.lastNumber) == number &&
+        fourDigitTicket(request.resource.data.orderId, getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.lastNumber);
+      // Reservations are permanent, even after a ticket is removed.
+    }
+    function allocatedTicket(orderId) {
+      let number = request.resource.data.ticketNumber;
+      return number is int &&
+        ((number >= 1000 && number <= 9999 && request.resource.data.code == string(number) &&
+          getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.orderId == orderId &&
+          getAfter(/databases/$(database)/documents/counters/work_orders_four_digit).data.lastNumber == number &&
+          !exists(/databases/$(database)/documents/work_order_numbers/$(string(number))) &&
+          getAfter(/databases/$(database)/documents/work_order_numbers/$(string(number))).data.orderId == orderId) ||
+         (number >= 10000 && request.resource.data.code == 'WO-' + string(number) &&
+          getAfter(/databases/$(database)/documents/counters/work_orders).data.orderId == orderId &&
+          getAfter(/databases/$(database)/documents/counters/work_orders).data.lastNumber == number));
+    }
+
+    // A revision replaces only the original crew member's resolution, retaining prior text.
+    function validResolutionRevision() {
+      let i = resource.data.resolutionCommentIndex;
+      let before = resource.data.comments[i];
+      let after = request.resource.data.comments[i];
+      return resource.data.resolutionAuthorId == request.auth.uid &&
+        request.resource.data.resolutionAuthorId == resource.data.resolutionAuthorId &&
+        request.resource.data.resolutionCommentId == resource.data.resolutionCommentId &&
+        request.resource.data.resolutionCommentIndex == i &&
+        before.id == resource.data.resolutionCommentId && after.id == before.id &&
+        before.get('authorId', '') == request.auth.uid &&
+        after.diff(before).affectedKeys().hasOnly(['text', 'photoUrl', 'editedAt', 'revisions']) &&
+        after.text == request.resource.data.resolutionNote &&
+        request.resource.data.comments.size() == resource.data.comments.size() &&
+        request.resource.data.comments.removeAll([after]) == resource.data.comments.removeAll([before]) &&
+        after.revisions == before.get('revisions', []).concat([{
+          'text': before.text, 'photoUrl': before.get('photoUrl', ''),
+          'timestamp': before.timestamp, 'editedAt': before.get('editedAt', '')
+        }]);
+    }
+    function validNewResolution() {
+      let before = resource.data.comments;
+      let comments = request.resource.data.comments;
+      let i = comments.size() - 1;
+      let added = comments[i];
+      return comments == before.concat([added]) && !before.hasAny([added]) &&
+        added.id is string && added.id.size() > 0 && added.id.size() <= 200 &&
+        added.authorId == request.auth.uid && added.author == currentProfile().name &&
+        added.role == 'Maintenance Crew' && added.kind == 'resolution' &&
+        added.text == request.resource.data.resolutionNote &&
+        request.resource.data.resolutionCommentId == added.id && request.resource.data.resolutionCommentIndex == i &&
+        request.resource.data.resolutionAuthorId == request.auth.uid;
+    }
+    function validReopenedResolution() {
+      let data = request.resource.data;
+      let changed = data.diff(resource.data).affectedKeys();
+      return !changed.hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) ||
+        !data.keys().hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) ||
+        (data.resolutionAuthorId == request.auth.uid && data.comments == resource.data.comments &&
+         data.resolutionCommentIndex == resource.data.comments.size() - 1 &&
+         data.comments[data.resolutionCommentIndex].id == data.resolutionCommentId &&
+         data.comments[data.resolutionCommentIndex].get('authorId', '') == request.auth.uid &&
+         data.comments[data.resolutionCommentIndex].author == currentProfile().name &&
+         data.comments[data.resolutionCommentIndex].text == resource.data.resolutionNote &&
+         resource.data.completedBy == currentProfile().name);
+    }
+
+    // Managers may remove exactly one resolution, with an append-only audit record.
+    function validResolutionCommentDeletion() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let audit = after.resolutionCommentDeletions;
+      let entry = audit[audit.size() - 1];
+      let removed = entry.comment;
+      let oldId = before.get('resolutionCommentId', '');
+      let hasPointer = after.keys().hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']);
+      return isManager() &&
+        after.diff(before).affectedKeys().hasOnly(['comments', 'resolutionCommentDeletions', 'lastResolutionCommentDeletedAt', 'updatedAt', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) &&
+        removed.role == 'Maintenance Crew' &&
+        (removed.get('kind', '') == 'resolution' || removed.id == oldId ||
+          (before.status == 'Done' && removed.text == before.get('resolutionNote', '') && removed.author == before.get('completedBy', ''))) &&
+        before.comments.hasAny([removed]) && after.comments == before.comments.removeAll([removed]) &&
+        after.comments.size() == before.comments.size() - 1 &&
+        audit == before.get('resolutionCommentDeletions', []).concat([entry]) &&
+        entry.keys().hasOnly(['comment', 'deletedBy', 'deletedAt']) && entry.deletedBy == request.auth.uid && entry.deletedAt is string &&
+        after.lastResolutionCommentDeletedAt == request.time && after.updatedAt == request.time &&
+        ((oldId == '' || removed.id == oldId) ? !hasPointer :
+          (after.resolutionCommentId == oldId && after.resolutionAuthorId == before.resolutionAuthorId &&
+           after.resolutionCommentIndex is int && after.resolutionCommentIndex >= 0 &&
+           after.resolutionCommentIndex < after.comments.size() &&
+           after.comments[after.resolutionCommentIndex] == before.comments[before.resolutionCommentIndex]));
+    }
+
+    function validWorkOrderTransition() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let protected = ['status', 'completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId', 'comments', 'resolutionCommentDeletions', 'lastResolutionCommentDeletedAt'];
+      return (!changed.hasAny(protected)) || (isManager() && validResolutionCommentDeletion()) ||
+        (!changed.hasAny(['resolutionCommentDeletions', 'lastResolutionCommentDeletedAt']) && currentProfile().role == 'crew' && (
+          (resource.data.status != 'Done' && request.resource.data.status in ['Queued', 'In Progress'] &&
+            !changed.hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) &&
+            (!changed.hasAny(['comments']) || (request.resource.data.comments.size() == resource.data.comments.size() + 1 &&
+              request.resource.data.comments.removeAll([request.resource.data.comments[request.resource.data.comments.size() - 1]]) == resource.data.comments &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].author == currentProfile().name &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].authorId == request.auth.uid &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].role == 'Maintenance Crew' &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].text is string &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].text.size() > 0 &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].text.size() <= 10000))) ||
+          (resource.data.status != 'Done' && request.resource.data.status == 'Done' &&
+            request.resource.data.completedAt == request.time && request.resource.data.retentionVersion == 1 &&
+            request.resource.data.completedBy == currentProfile().name &&
+            request.resource.data.resolutionNote is string && request.resource.data.resolutionNote.size() <= 10000 && request.resource.data.resolutionNote.matches('(?s).*[^\\s].*') &&
+            (validNewResolution() || validResolutionRevision())) ||
+          (resource.data.status == 'Done' && request.resource.data.status == 'In Progress' &&
+            !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote']) && request.resource.data.comments == resource.data.comments && validReopenedResolution())
+        ));
+    }
+
+    function validPublishedOrder(orderId) {
+      return request.resource.data.userId == request.auth.uid && published(request.resource.data) && allocatedTicket(orderId) &&
+        request.resource.data.status == 'Queued' &&
+        !request.resource.data.keys().hasAny(['storageDraftExpiresAt', 'completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId', 'resolutionCommentDeletions', 'lastResolutionCommentDeletedAt']);
+    }
+    match /work_orders/{orderId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/work_orders/$(orderId)) ||
+        resource.data.userId == request.auth.uid || (published(resource.data) && isCrewOrManager()));
+      allow list: if isApproved() && published(resource.data) && (isCrewOrManager() || resource.data.userId == request.auth.uid);
+      allow create: if isApproved() && mediaParentMayCreate('work_orders', orderId) && (mediaDraft(request.resource.data) || validPublishedOrder(orderId));
+      allow update: if isApproved() &&
+        ((resource.data.get('storageDraft', false) == true && resource.data.userId == request.auth.uid && validPublishedOrder(orderId)) ||
+         (published(resource.data) && published(request.resource.data) &&
+          (isCrewOrManager() || resource.data.userId == request.auth.uid) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber', 'createdAt', 'storageDraft', 'storageDraftExpiresAt']) &&
+          validWorkOrderTransition()));
+      allow delete: if isApproved() && (isManager() ||
+        (currentProfile().role == 'resident' && resource.data.userId == request.auth.uid && resource.data.get('status', '') != 'Done'));
+    }
+
+    match /newsletters/{newsletterId} {
+      allow read: if isApproved();
+      allow write: if isManager();
+
+      match /chunks/{chunkId} {
+        allow read: if isApproved();
+        allow write: if isManager();
+      }
+    }
+
+    // A resident can change only their own RSVP, never the event or another attendee.
+    function ownRsvp() {
+      let old = resource.data;
+      let next = request.resource.data;
+      let uid = request.auth.uid;
+      let change = next.rsvpChange;
+      let attendee = change.attendee;
+      let before = old.get('attendees', []);
+      let after = next.attendees;
+      let members = old.get('rsvpMembers', {});
+      let joining = change.going;
+      return next.diff(old).affectedKeys().hasOnly([
+          'attendees', 'attendeesCount', 'spotsLeft', 'updatedAt', 'rsvpMembers', 'rsvpChange'
+        ]) && attendee.id == uid && attendee.get('userId', uid) == uid &&
+        next.rsvpMembers.diff(members).affectedKeys().hasOnly([uid]) &&
+        next.rsvpMembers[uid] == joining &&
+        next.attendeesCount == after.size() &&
+        (joining
+          ? (members.get(uid, false) == false &&
+             attendee.name == currentProfile().name &&
+             attendee.email == currentProfile().email &&
+             attendee.role == currentProfile().role &&
+             after == [attendee].concat(before) &&
+             (!(old.get('spotsLeft', null) is number) || old.spotsLeft > 0))
+          : (before.hasAny([attendee]) && after == before.removeAll([attendee]) &&
+             after.size() == before.size() - 1)) &&
+        (old.get('spotsLeft', null) is number
+          ? next.spotsLeft == old.spotsLeft + (joining ? -1 : 1)
+          : next.get('spotsLeft', null) == old.get('spotsLeft', null));
+    }
+    match /community_events/{eventId} {
+      allow read: if isApproved();
+      allow create, delete: if isManager();
+      allow update: if isManager() || (isApproved() && ownRsvp());
+    }
+
+    match /community_highlights/{highlightId} {
+      allow read: if isApproved();
+      allow write: if isManager();
+    }
+
+    // Push tokens and delivery claims are accessible only to authenticated server code.
+    match /notification_devices/{deviceId} { allow read, write: if false; }
+    match /notification_deliveries/{deliveryId} { allow read, write: if false; }
+    // Private peer messaging blocks are bidirectional and cannot be bypassed by another chat ID.
+    function userBlocked(a, b) {
+      return exists(/databases/$(database)/documents/user_blocks/$(a)/targets/$(b)) ||
+        exists(/databases/$(database)/documents/user_blocks/$(b)/targets/$(a));
+    }
+    function friendMaySend(data) {
+      return data.participantIds is list && data.participantIds.size() == 2 &&
+        !userBlocked(data.participantIds[0], data.participantIds[1]);
+    }
+    match /user_blocks/{uid}/targets/{targetUid} {
+      allow get, list: if isApproved() && request.auth.uid == uid;
+      allow write: if false;
+    }
+    match /moderation_reports/{reportId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+    match /safety_limits/{uid} { allow read, write: if false; }
+    match /account_deletion_jobs/{jobId}/{document=**} { allow read, write: if false; }
+    match /deletion_policies/{policyId} { allow read, write: if false; }
+    match /media_cleanup_jobs/{jobId} { allow read, write: if false; }
+    match /media_cleanup_cursors/{cursorId} { allow read, write: if false; }
+
+    // H1: exact UIDs; legacy email/sanitized-only memberships need reviewed migration.
+    function chatResident(data) { return data.get('residentId', '') == request.auth.uid; }
+    function chatTeam(kind) {
+      return kind == 'office' ? currentProfile().role in ['admin', 'vip'] : currentProfile().role == 'crew';
+    }
+    function chatAccess(kind, data) {
+      return isApproved() && (kind == 'friend'
+        ? data.get('identityVersion', 0) == 2 && data.get('participantIds', []).hasAny([request.auth.uid])
+        : chatResident(data) || chatTeam(kind));
+    }
+    function chatApprovedUid(uid) {
+      let user = get(/databases/$(database)/documents/users/$(uid)).data;
+      return uid is string && uid.size() > 0 && user.approved == true &&
+        user.role in ['resident', 'admin', 'vip', 'crew'];
+    }
+    function validAppend(before, next) {
+      let after = next.messages;
+      let last = after[after.size() - 1];
+      return before is list && after is list && after.size() == before.size() + 1 &&
+        !before.hasAny([last]) && after.removeAll([last]) == before &&
+        last.keys().hasOnly(['id', 'senderId', 'senderName', 'senderRole', 'senderAvatar', 'body', 'createdAt', 'time']) &&
+        last.id is string && last.id.size() > 0 && last.id.size() <= 200 &&
+        last.body is string && last.body.size() > 0 && last.body.size() <= 10000 && last.body.matches('(?s).*[^\\s].*') &&
+        last.senderId == request.auth.uid && last.senderRole == currentProfile().role &&
+        last.senderName == currentProfile().get('name', 'Resident') &&
+        last.get('senderAvatar', '') == currentProfile().get('avatar_url', currentProfile().get('avatarUrl', '')) &&
+        last.createdAt is int && last.createdAt >= 0 && last.time is string && last.time.size() <= 100 &&
+        next.lastMessage == last.body && next.updatedAt == last.createdAt &&
+        next.subject is string && next.subject.size() > 0 && next.subject.size() <= 160;
+    }
+    function ownChatCursor(old, next, field) {
+      let before = old.get(field, {});
+      let after = next.get(field, {});
+      return before is map && after is map &&
+        after.diff(before).affectedKeys().hasOnly([request.auth.uid]) &&
+        (after == before || (after.get(request.auth.uid, -1) is int && after[request.auth.uid] == next.messages.size()));
+    }
+    function chatCursors(old, next) {
+      return ownChatCursor(old, next, 'readBy') && ownChatCursor(old, next, 'hiddenBy');
+    }
+    function chatCreate(kind, chatId) {
+      let next = request.resource.data;
+      return chatAccess(kind, next) && (kind != 'friend' || friendMaySend(next)) && next.id == chatId &&
+        next.keys().hasOnly(kind == 'friend'
+          ? ['id', 'identityVersion', 'participantIds', 'participants', 'subject', 'lastMessage', 'updatedAt', 'unreadBy', 'messages', 'officeDirect']
+          : ['id', 'residentId', 'residentName', 'residentEmail', 'residentApt', 'residentPhone', 'residentAvatar', 'subject', 'lastMessage', 'updatedAt', 'unreadByResident', 'unreadByVip', 'unreadByCrew', 'messages']) &&
+        (kind == 'friend'
+          ? (next.participantIds is list && next.participantIds.size() == 2 && next.participantIds[0] != next.participantIds[1] &&
+             chatApprovedUid(next.participantIds[0]) && chatApprovedUid(next.participantIds[1]) &&
+             next.participants is list && next.participants.size() == 2 &&
+             next.participants[0].id == next.participantIds[0] && next.participants[1].id == next.participantIds[1] &&
+             next.unreadBy == next.participantIds.removeAll([request.auth.uid]) && next.get('officeDirect', false) is bool)
+          : (next.residentId == chatId && chatApprovedUid(next.residentId) &&
+             next.residentName is string && next.residentName.size() <= 300 &&
+             next.residentEmail == '' && next.residentApt == '' && next.get('residentPhone', '') == '' &&
+             next.unreadByResident == chatTeam(kind) && next.get(kind == 'office' ? 'unreadByVip' : 'unreadByCrew', false) == !chatTeam(kind))) &&
+        validAppend([], next);
+    }
+    function chatUpdate(kind) {
+      let old = resource.data;
+      let next = request.resource.data;
+      let changes = next.diff(old).affectedKeys();
+      return chatAccess(kind, old) &&
+        ((changes.hasOnly(['readBy', 'hiddenBy']) && chatCursors(old, next)) ||
+         (changes.hasOnly(kind == 'friend'
+            ? ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadBy', 'readBy']
+            : ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadByResident', 'unreadByVip', 'unreadByCrew', 'readBy']) &&
+          ownChatCursor(old, next, 'readBy') && (kind != 'friend' || friendMaySend(old)) && validAppend(old.get('messages', []), next) &&
+          (kind == 'friend'
+            ? next.unreadBy == old.participantIds.removeAll([request.auth.uid])
+            : next.unreadByResident == chatTeam(kind) && next.get(kind == 'office' ? 'unreadByVip' : 'unreadByCrew', false) == !chatTeam(kind))));
+    }
+    match /maintenance_chats/{chatId} {
+      allow get: if isApproved() && ((!exists(/databases/$(database)/documents/maintenance_chats/$(chatId)) && (chatId == request.auth.uid || chatTeam('maintenance'))) || chatAccess('maintenance', resource.data));
+      allow list: if chatAccess('maintenance', resource.data);
+      allow create: if chatCreate('maintenance', chatId);
+      allow update: if chatUpdate('maintenance');
+      allow delete: if false;
+    }
+    match /office_chats/{chatId} {
+      allow get: if isApproved() && ((!exists(/databases/$(database)/documents/office_chats/$(chatId)) && (chatId == request.auth.uid || chatTeam('office'))) || chatAccess('office', resource.data));
+      allow list: if chatAccess('office', resource.data);
+      allow create: if chatCreate('office', chatId);
+      allow update: if chatUpdate('office');
+      allow delete: if false;
+    }
+    match /resident_chats/{chatId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/resident_chats/$(chatId)) || chatAccess('friend', resource.data));
+      allow list: if chatAccess('friend', resource.data);
+      allow create: if chatCreate('friend', chatId);
+      allow update: if chatUpdate('friend');
+      allow delete: if false;
+    }
+
+    // C1: Marketplace chats authorize exact UIDs, never names/sanitized aliases.
+    function marketApproved() {
+      return isSignedIn() && currentProfile().approved == true && currentProfile().get('deletionPending', false) == false &&
+        currentProfile().role in ['resident', 'admin', 'vip', 'crew'];
+    }
+    function marketParticipant(data) {
+      return data.get('sellerId', '') == request.auth.uid || data.get('buyerId', '') == request.auth.uid;
+    }
+    function marketLeft(data, side) {
+      return (side == 'seller' ? data.get('sellerLeft', false) || data.get('deletedBySeller', false)
+        : data.get('buyerLeft', false) || data.get('deletedByBuyer', false)) ||
+        data.get('deletedBy', []).hasAny([side]);
+    }
+    function marketMessage(before, after, leaving) {
+      let added = after.messages[after.messages.size() - 1];
+      return after.messages.size() == before.size() + 1 && !before.hasAny([added]) &&
+        after.messages.removeAll([added]) == before &&
+        added.keys().hasOnly(['id', 'senderId', 'senderName', 'senderAvatar', 'text', 'timestamp', 'createdAt', 'isSystem', 'actorId']) &&
+        added.id is string && added.id.size() > 0 && added.id.size() <= 200 &&
+        added.text is string && added.text.size() > 0 && added.text.size() <= 10000 && added.text.matches('(?s).*[^\\s].*') &&
+        added.timestamp is string && added.timestamp.size() <= 80 && added.createdAt is int && added.createdAt >= 0 &&
+        after.lastMessage == added.text && after.lastMessageTime == added.timestamp && after.updatedAt == added.createdAt &&
+        (leaving ? (added.senderId == 'system' && added.senderName == 'System' && added.isSystem == true &&
+          added.actorId == request.auth.uid && added.text == currentProfile().get('name', 'Resident') + ' left the conversation.') :
+          (added.senderId == request.auth.uid && added.senderName == currentProfile().get('name', 'Resident') &&
+           added.get('isSystem', false) == false && !added.keys().hasAny(['actorId']))) &&
+        added.get('senderAvatar', '') == currentProfile().get('avatarUrl', currentProfile().get('avatar_url', ''));
+    }
+    function marketCreate(chatId) {
+      let data = request.resource.data;
+      let listing = get(/databases/$(database)/documents/marketplace_posts/$(data.itemId)).data;
+      let seller = get(/databases/$(database)/documents/users/$(data.sellerId)).data;
+      return data.keys().hasOnly(['id', 'itemId', 'itemTitle', 'itemPrice', 'itemMediaUrl', 'sellerId', 'sellerName', 'sellerAvatar', 'sellerApt',
+        'buyerId', 'buyerName', 'buyerAvatar', 'buyerApt', 'participantIds', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForSeller', 'unreadForBuyer', 'messages']) &&
+        data.id == chatId && data.itemId is string && data.itemId.size() > 0 && data.sellerId is string &&
+        chatId == 'mkt_' + data.itemId.lower().replace('[^a-zA-Z0-9_-]', '_') + '_' + request.auth.uid.lower().replace('[^a-zA-Z0-9_-]', '_') &&
+        data.buyerId == request.auth.uid && data.sellerId != data.buyerId && !userBlocked(data.sellerId, data.buyerId) &&
+        data.sellerId == listing.get('userId', listing.get('authorId', '')) &&
+        !listing.get('sold', false) && !listing.get('claimed', false) &&
+        seller.approved == true && seller.role in ['resident', 'admin', 'vip', 'crew'] &&
+        data.participantIds == [data.sellerId, data.buyerId] &&
+        data.buyerName == currentProfile().get('name', 'Resident') && data.sellerName == seller.get('name', 'Resident') &&
+        data.buyerAvatar == currentProfile().get('avatarUrl', currentProfile().get('avatar_url', '')) &&
+        data.sellerAvatar == seller.get('avatarUrl', seller.get('avatar_url', '')) &&
+        data.itemTitle == listing.get('title', '') && data.itemPrice == string(listing.get('price', 'FREE')) &&
+        data.unreadForSeller == true && data.unreadForBuyer == false && marketMessage([], data, false);
+    }
+    function marketUpdate() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let changes = after.diff(before).affectedKeys();
+      let seller = before.sellerId == request.auth.uid;
+      let side = seller ? 'seller' : 'buyer';
+      let other = seller ? 'buyer' : 'seller';
+      return
+        // Read acknowledgments never alter messages or the other participant's state.
+        (changes.hasOnly([seller ? 'unreadForSeller' : 'unreadForBuyer']) &&
+          (seller ? after.unreadForSeller == false : after.unreadForBuyer == false)) ||
+        (!marketLeft(before, side) && (
+          (!marketLeft(before, other) && !userBlocked(before.sellerId, before.buyerId) &&
+           changes.hasOnly(['messages', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForBuyer', 'unreadForSeller']) &&
+           after.unreadForBuyer == seller && after.unreadForSeller == !seller && marketMessage(before.messages, after, false)) ||
+          (changes.hasOnly(seller ? ['sellerLeft', 'deletedBySeller', 'messages', 'lastMessage', 'lastMessageTime', 'updatedAt'] :
+                                    ['buyerLeft', 'deletedByBuyer', 'messages', 'lastMessage', 'lastMessageTime', 'updatedAt']) &&
+           (seller ? after.sellerLeft == true && after.deletedBySeller == true : after.buyerLeft == true && after.deletedByBuyer == true) &&
+           marketMessage(before.messages, after, true))
+        ));
+    }
+    match /marketplace_chats/{chatId} {
+      allow get: if marketApproved() && (!exists(/databases/$(database)/documents/marketplace_chats/$(chatId)) || marketParticipant(resource.data));
+      allow list: if marketApproved() && marketParticipant(resource.data);
+      allow create: if marketApproved() && marketCreate(chatId);
+      allow update: if marketApproved() && marketParticipant(resource.data) && marketUpdate();
+      // Second participant may remove the chat only after the other already left.
+      allow delete: if marketApproved() && marketParticipant(resource.data) &&
+        marketLeft(resource.data, resource.data.sellerId == request.auth.uid ? 'buyer' : 'seller');
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

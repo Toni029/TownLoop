@@ -1,3 +1,5 @@
+import { editableResolution, isResolutionComment } from "../data/workOrderResolution";
+import { deleteWorkOrderResolutionComment } from "../services/firestoreSync";
 import { PrivateMediaImage } from '../components/PrivateMediaImage';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
@@ -5,7 +7,7 @@ import { PrivateMediaImage } from '../components/PrivateMediaImage';
  * Unauthorized copying, distribution, or modification of this source code,
  * via any medium, is strictly prohibited.
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus,
@@ -208,8 +210,20 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
     }
   };
 
+  useEffect(() => {
+    if (!currentUser) return;
+    for (const order of workOrders) {
+      if(order.status==='Done')continue;
+      const previous=editableResolution(order,currentUser);
+      if(previous){
+        setCrewReplyText(values=>values[String(order.id)]===undefined?{...values,[String(order.id)]:previous.text}:values);
+        setCrewReplyPhoto(values=>values[String(order.id)]===undefined?{...values,[String(order.id)]:previous.photoUrl||''}:values);
+      }
+    }
+  },[workOrders,currentUser]);
+
   // Submit crew reply + photo and mark as done
-  const handleSubmitCrewCompletion = (woId: number | string) => {
+  const handleSubmitCrewCompletion = async (woId: number | string) => {
     const text = (crewReplyText[String(woId)] || '').trim();
     const photo = (crewReplyPhoto[String(woId)] || '').trim();
 
@@ -222,7 +236,7 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
     }
 
     setCrewReplyError((prev) => ({ ...prev, [String(woId)]: null }));
-    handleCompleteWithReply(woId, text, photo);
+    if (!await handleCompleteWithReply(woId, text, photo)) setCrewReplyError(prev=>({...prev,[String(woId)]:'Your resolution was not saved. Your text and photo are preserved; please retry.'}));
   };
 
   // Toggle English <-> Spanish translation for a single work order
@@ -729,6 +743,10 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                                   {comm.author} ({comm.role})
                                 </span>
                                 <span>{comm.timestamp}</span>
+                                {(isAdmin(currentUser)||isVip(currentUser))&&isResolutionComment(wo,comm)&&<button type="button" className="text-rose-700 underline" onClick={async()=>{
+                                  if(!window.confirm('Delete this crew resolution comment? The work order status will remain unchanged.'))return;
+                                  try{await deleteWorkOrderResolutionComment(wo.id,String(comm.id));}catch{setCrewReplyError(values=>({...values,[String(wo.id)]:'Comment was not deleted. Please retry.'}));}
+                                }}>Delete comment</button>}
                               </div>
                               <p className="text-stone-800 dark:text-slate-200 font-medium">
                                 {commentText}
@@ -1010,12 +1028,11 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                                   [wo.id]: e.target.value,
                                 })
                               }
-                              onKeyDown={(e) => {
+                              onKeyDown={async (e) => {
                                 if (e.key === 'Enter') {
                                   const text = (commentInputs[wo.id] || '').trim();
                                   if (text) {
-                                    handleAddWorkOrderComment(wo.id, text);
-                                    setCommentInputs({ ...commentInputs, [wo.id]: '' });
+                                    if(await handleAddWorkOrderComment(wo.id, text)) setCommentInputs({ ...commentInputs, [wo.id]: '' });
                                   }
                                 }
                               }}
@@ -1023,11 +1040,10 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                               className="flex-1 px-3 py-1.5 rounded-xl border border-stone-300 dark:border-slate-700 text-xs bg-white dark:bg-slate-800/70 text-stone-900 dark:text-slate-100 placeholder:text-stone-400 dark:placeholder:text-slate-500 focus:outline-blue-600"
                             />
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 const text = (commentInputs[wo.id] || '').trim();
                                 if (text) {
-                                  handleAddWorkOrderComment(wo.id, text);
-                                  setCommentInputs({ ...commentInputs, [wo.id]: '' });
+                                  if(await handleAddWorkOrderComment(wo.id, text)) setCommentInputs({ ...commentInputs, [wo.id]: '' });
                                 }
                               }}
                               disabled={!(commentInputs[wo.id] || '').trim()}

@@ -91,6 +91,8 @@ export function useCommunityState(
   currentUser?: UserProfile | null,
   showToast?: (message: string) => void
 ): CommunityState {
+  const collectionScope = currentUser?.approved === true ? `${currentUser.id}:${currentUser.role}` : '';
+  const [chatScope, setChatScope] = useState('');
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
 
@@ -117,11 +119,14 @@ export function useCommunityState(
 
   // Subscribe to Marketplace Chats
   useEffect(() => {
+    let alive = true;
+    setMarketplaceChats([]);
+    setChatScope(collectionScope);
     const unsub = subscribeMarketplaceChats(currentUser, (chats) => {
-      setMarketplaceChats(chats);
+      if (alive) setMarketplaceChats(chats);
     });
-    return () => unsub();
-  }, [currentUser]);
+    return () => { alive = false; unsub(); };
+  }, [collectionScope]);
   const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
   // Discard the former persistent cache, which could contain private profile fields.
   useEffect(() => {
@@ -130,7 +135,9 @@ export function useCommunityState(
   useEffect(() => {
     setDirectoryUsers([]);
     if (!currentUser || currentUser.approved !== true) return;
-    return subscribeToCommunityDirectory(setDirectoryUsers);
+    let alive = true;
+    const stop = subscribeToCommunityDirectory(users => { if (alive) setDirectoryUsers(users); });
+    return () => { alive = false; stop(); };
   }, [currentUser?.id, currentUser?.approved, currentUser?.role]);
 
   const resolveAvatar = useCallback(
@@ -199,25 +206,39 @@ export function useCommunityState(
     } catch {}
   }, []);
 
+  // Avatar/profile edits update the rendered records below without replacing Firestore listeners.
+  const avatarResolver = useRef(resolveAvatar);
+  avatarResolver.current = resolveAvatar;
+  const activeCollectionScope = useRef(collectionScope);
+  activeCollectionScope.current = collectionScope;
+  const [loadedCollectionScope, setLoadedCollectionScope] = useState('');
+
   // Firestore live subscriptions
   useEffect(() => {
     if (!isFirebaseConfigured() || !db || currentUser?.approved !== true) {
       setPosts([]); setMarketItems([]); return;
     }
+    let alive = true;
+    const ownsScope = () => alive && activeCollectionScope.current === collectionScope;
+    setPosts([]); setMarketItems([]);
+    setSelectedDetailPost(null); setSelectedDetailMarket(null);
+    setLoadedCollectionScope(collectionScope);
+    let unsubPosts = () => {};
+    let unsubMarket = () => {};
     try {
       const qPosts = query(collection(db, 'discussion_feed'), where('storageDraft', '==', false), orderBy('createdAt', 'desc'));
-      const unsubPosts = onSnapshot(
+      unsubPosts = onSnapshot(
         qPosts,
         { includeMetadataChanges: true },
         (snapshot) => {
-          if (snapshot.metadata.hasPendingWrites) return;
+          if (!ownsScope() || snapshot.metadata.hasPendingWrites) return;
           const remotePosts: PostItem[] = snapshot.docs.map((doc) => {
             const d = doc.data();
             const rawAvatar = d.authorAvatar || d.author_avatar || d.avatarUrl || d.avatar_url || d.photoUrl || d.photoURL || d.avatar || d.userAvatar || '';
             const authorId = d.userId || d.authorId || d.uid;
             const authorEmail = d.authorEmail || d.email || '';
             const author = d.author || 'Resident';
-            const resolvedAvatar = resolveAvatar(rawAvatar, authorId, authorEmail, author);
+            const resolvedAvatar = avatarResolver.current(rawAvatar, authorId, authorEmail, author);
 
             return {
               id: doc.id,
@@ -236,29 +257,29 @@ export function useCommunityState(
               liked: !!currentUser?.id && d.likedBy?.[String(currentUser.id)] === true,
               comments: (d.comments || []).map((c: any) => ({
                 ...c,
-                authorAvatar: resolveAvatar(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
+                authorAvatar: avatarResolver.current(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
               })),
             };
           });
           setPosts(remotePosts);
           setSelectedDetailPost(selected => selected ? remotePosts.find(post => String(post.id) === String(selected.id)) || null : null);
         },
-        (err) => console.warn('Firestore discussion listener error:', err)
+        (err) => { if (ownsScope()) { setPosts([]); setSelectedDetailPost(null); } console.warn('Firestore discussion listener error:', err); }
       );
 
       const qMarket = query(collection(db, 'marketplace_posts'), where('storageDraft', '==', false), orderBy('createdAt', 'desc'));
-      const unsubMarket = onSnapshot(
+      unsubMarket = onSnapshot(
         qMarket,
         { includeMetadataChanges: true },
         (snapshot) => {
-          if (snapshot.metadata.hasPendingWrites) return;
+          if (!ownsScope() || snapshot.metadata.hasPendingWrites) return;
           const remoteMarket: MarketItem[] = snapshot.docs.map((doc) => {
             const d = doc.data();
             const rawAvatar = d.authorAvatar || d.author_avatar || d.avatarUrl || d.avatar_url || d.photoUrl || d.photoURL || d.avatar || d.userAvatar || '';
             const authorId = d.userId || d.authorId || d.uid;
             const authorEmail = d.authorEmail || d.email || '';
             const author = d.author || 'Resident';
-            const resolvedAvatar = resolveAvatar(rawAvatar, authorId, authorEmail, author);
+            const resolvedAvatar = avatarResolver.current(rawAvatar, authorId, authorEmail, author);
 
             const isOwner = !!currentUser?.id && authorId === String(currentUser.id);
 
@@ -281,24 +302,27 @@ export function useCommunityState(
               media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
               comments: (d.comments || []).map((c: any) => ({
                 ...c,
-                authorAvatar: resolveAvatar(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
+                authorAvatar: avatarResolver.current(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
               })),
             };
           });
           setMarketItems(remoteMarket);
           setSelectedDetailMarket(selected => selected ? remoteMarket.find(item => String(item.id) === String(selected.id)) || null : null);
         },
-        (err) => console.warn('Firestore marketplace listener error:', err)
+        (err) => { if (ownsScope()) { setMarketItems([]); setSelectedDetailMarket(null); } console.warn('Firestore marketplace listener error:', err); }
       );
 
       return () => {
+        alive = false;
         unsubPosts();
         unsubMarket();
       };
     } catch (err) {
+      alive = false;
+      unsubPosts(); unsubMarket();
       console.warn('Failed to attach Firestore community listeners:', err);
     }
-  }, [currentUser?.id, currentUser?.approved, resolveAvatar]);
+  }, [collectionScope]);
 
   // Sync avatar updates when directory or current user profile picture changes
   useEffect(() => {
@@ -461,23 +485,23 @@ export function useCommunityState(
 
   return {
     currentUser,
-    posts,
+    posts: loadedCollectionScope === collectionScope && collectionScope ? posts : [],
     setPosts,
-    marketItems,
+    marketItems: loadedCollectionScope === collectionScope && collectionScope ? marketItems : [],
     setMarketItems,
     socialView,
     setSocialView,
     isCreatePostModalOpen,
     setIsCreatePostModalOpen,
-    selectedDetailPost,
+    selectedDetailPost: loadedCollectionScope === collectionScope && collectionScope ? selectedDetailPost : null,
     setSelectedDetailPost,
-    selectedDetailMarket,
+    selectedDetailMarket: loadedCollectionScope === collectionScope && collectionScope ? selectedDetailMarket : null,
     setSelectedDetailMarket,
     selectedMessageSellerItem,
     setSelectedMessageSellerItem,
     isMessageSellerModalOpen,
     setIsMessageSellerModalOpen,
-    marketplaceChats,
+    marketplaceChats: collectionScope && chatScope === collectionScope ? marketplaceChats : [],
     setMarketplaceChats,
     isMarketplaceChatModalOpen,
     setIsMarketplaceChatModalOpen,

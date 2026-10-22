@@ -14,7 +14,7 @@ test('legal contract identifies version and public HTTPS endpoints', () => {
 });
 test('native signup validates before credentials and records server consent', () => {
   const source = readFileSync(new URL('../src/components/ResidentRegistration.tsx', import.meta.url), 'utf8');
-  assert.ok(source.indexOf('requireTermsAcceptance(termsAccepted)') < source.indexOf('const credential = await createUserWithEmailAndPassword'));
+  assert.ok(source.indexOf('requireTermsAcceptance(termsAccepted)') < source.indexOf('const credential = await obtainRegistrationUser'));
   assert.match(source, /termsAcceptedAt: serverTimestamp\(\)/);
   assert.match(source, /termsVersion: TERMS_VERSION/);
   assert.match(source, /accessibilityRole="checkbox"/);
@@ -23,6 +23,7 @@ test('native signup validates before credentials and records server consent', ()
 // Execute the real auth service with isolated Firebase adapters: no network or production data.
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
+import * as recovery from '../../src/services/registrationRecovery.ts';
 const typescript = createRequire(import.meta.url)('typescript');
 function service(existing: boolean) {
   const writes: any[] = [];
@@ -38,8 +39,13 @@ function service(existing: boolean) {
       signOut: async () => { signedOut++; },
       GoogleAuthProvider: class {},
     },
+    './registrationRecovery': recovery,
     'firebase/firestore': {
       doc: () => ({}), serverTimestamp: () => timestamp,
+      runTransaction: async (_db: unknown, fn: any) => fn({
+        get: async () => ({ exists: () => existing, data: () => ({ name: 'Existing', role: 'resident', approved: true }) }),
+        set: (_reference: unknown, data: unknown) => { writes.push(data); },
+      }),
       getDoc: async () => ({ exists: () => existing, data: () => ({ name: 'Existing', role: 'resident', approved: true }) }),
       setDoc: async (_reference: unknown, data: unknown) => { writes.push(data); },
     },

@@ -11,6 +11,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { recordDiagnostic } from "../monitoring/diagnostics";
 import { friendlyError } from "./profile";
 import { useResident } from "./resident";
 export function useLiveCollection<T>(
@@ -42,10 +43,13 @@ export function useLiveCollection<T>(
     ];
     return query(collection(db, name), ...constraints);
   }, [residentOrders, name, uid, sortField]);
+  const decoder = useRef(read);
+  decoder.current = read;
   const activeKey = useRef(key);
   const refreshingRef = useRef(false);
   const [refreshKey, setRefreshKey] = useState('');
-  useEffect(() => { activeKey.current = key; return () => { activeKey.current = ''; }; }, [key]);
+  activeKey.current = key;
+  useEffect(() => () => { activeKey.current = ''; }, []);
   const refresh = useCallback(async () => {
     if (!key || refreshingRef.current) return;
     refreshingRef.current = true;
@@ -77,7 +81,7 @@ export function useLiveCollection<T>(
           (snapshot) => {
             for (const change of snapshot.docChanges()) {
               if (change.type === 'removed') decoded.delete(change.doc.id);
-              else decoded.set(change.doc.id, read(change.doc.id, change.doc.data({ serverTimestamps: "estimate" })));
+              else decoded.set(change.doc.id, decoder.current(change.doc.id, change.doc.data({ serverTimestamps: "estimate" })));
             }
             next(
               (residentOrders
@@ -92,16 +96,19 @@ export function useLiveCollection<T>(
           },
           fail,
         ),
-      (items: T[]) => setOwned({ key, items, loading: false, error: "" }),
-      (error) =>
+      (items: T[]) => { if (activeKey.current === key) setOwned({ key, items, loading: false, error: "" }); },
+      (error) => {
+        if (activeKey.current !== key) return;
+        recordDiagnostic('listener_failure');
         setOwned((state) => ({
           key,
           items: state.key === key ? state.items : [],
           loading: false,
           error: friendlyError(error),
-        })),
+        }));
+      },
     );
-  }, [key, source, read, attempt, residentOrders]);
+  }, [key, source, attempt, residentOrders]);
   return {
     ...(key && owned.key === key
       ? owned

@@ -368,7 +368,7 @@ export const UploadNewsletterModal: React.FC<UploadNewsletterModalProps> = ({
         fileUrl: publishedPdfUrl,
         fileName: selectedFile?.name || rawFile?.name || 'document.pdf',
         fileType: 'application/pdf',
-        fileSize: selectedFile?.size ? undefined : rawFile?.size,
+        fileSize: selectedFile?.size || (rawFile ? `${(rawFile.size / (1024 * 1024)).toFixed(1)} MB` : undefined),
         uploadedAt: Date.now(),
         uploadedBy: currentUser?.name || 'Admin',
         isCustomUpload: true,

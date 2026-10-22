@@ -2,7 +2,7 @@ import { LegalLinks } from "../components/LegalLinks";
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { ScreenSystemBars } from "../components/SystemBars";
 import { ResidentRegistration } from "../components/ResidentRegistration";
-import { googleSignIn } from "../lib/googleSignIn";
+import { googleSignIn, googleSignInAvailable } from "../lib/googleSignIn";
 import Svg, { Path } from "react-native-svg";
 import { useCommunity } from "../lib/community";
 import { useRef, useState } from "react";
@@ -541,7 +541,7 @@ export default function SignIn() {
                         <ArrowRight size={20} color="#fff" />
                       </LinearGradient>
                     </Pressable>
-                    <Pressable
+                    {googleSignInAvailable && <Pressable
                       onHoverIn={() => setGoogleHovered(true)}
                       onHoverOut={() => setGoogleHovered(false)}
                       accessibilityRole="button"
@@ -605,7 +605,7 @@ export default function SignIn() {
                       >
                         Continue with Google
                       </Text>
-                    </Pressable>
+                    </Pressable>}
                   </>
                 )}
                 {mode === "register" && !!message && (

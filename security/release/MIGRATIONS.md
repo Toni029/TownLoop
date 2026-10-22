@@ -1,0 +1,30 @@
+# Non-destructive release migrations — prepared, not executed
+
+Scope is `cc-livingcommunity-app/(default)` only. Do not touch the hosted website, its named database `ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb`, its Hosting artifacts, or deploy a replacement website. Preserve collection IDs, document IDs, messages, counters, attachments and history. The current rules/indexes/config snapshots are bound in `candidate-manifest.json`.
+
+## Required before strict readers/rules become active
+
+1. **Canonical approval/roles:** approved `resident/admin/vip/crew` and exact existing Auth UID mapping. Missing/legacy/ambiguous records require reviewed resolution, not automatic approval or new accounts. Reuse completed C1 2/2 compatible result; no C1 identity rewrite is indicated.
+2. **Directory projection:** use `functions/tools/planResidentDirectory.cjs` on a separately approved complete private-profile snapshot; secure local output only. On authorized application, re-read each current profile transactionally through `syncDirectoryProfile`, preserving private source profiles. Default RC migration mode should upsert eligible projections only; suppress automatic orphan/projection deletion during initial release. The ongoing trigger still removes revoked residents' projection according to its reviewed authorization behavior.
+3. **Publication markers:** use `security/plan-published-record-backfill.mjs`. Mark only reviewed existing published Work Orders/feed/listings with `storageDraft:false`, using source updateTime preconditions. Do not mark unfinished uploads as published, change IDs, or recompute number reservations. Missing markers otherwise make legitimate old records disappear from new queries.
+4. **Inbox identity:** prepare exact UID membership for legacy `resident_chats` (`identityVersion:2`, immutable two-party `participantIds`) and authoritative `residentId` for old office/maintenance histories. Input must be a separately reviewed identity mapping, not a fuzzy name/email inference. Preserve messages/subjects/participants' descriptive objects and receipts; do not rewrite historical sender IDs or invent historical read state. Verify client protocol can append to the preserved history. Ambiguous records remain held and block an uninterrupted-messaging claim. See `security/batch/INBOX_MIGRATION.md`.
+5. **Storage parent links:** use `security/plan-workorder-storage-migration.mjs` for reviewed Work Order reference/object metadata. Feed/Marketplace use the same single-parent proof requirement from Firestore attachment references and exact existing object names. Stamp only verified `collection`, `recordId`, `securityVersion`; preserve existing custom metadata, bytes and historical uploader identity. Do not infer ownership from filenames. Storage objects need generation + metageneration preconditions and the source parent's updateTime checked at application. Ambiguous/missing/unverified objects are held. No file move/rename/re-upload is required or authorized.
+6. **Authenticated download/token cutover:** validate approved native/website reads BEFORE any separately approved old download-token revocation. Existing download URLs remain bearer capabilities until revoked, regardless of rules. Token rotation is not part of metadata linking. Do not revoke website-used tokens without a compatible path for that unchanged website.
+
+## Application protocol, after separate authorization
+
+Existing planners are offline-only and are NOT executable live migrations. The release package deliberately contains no automatic credential discovery or live runner. Preparation is complete at the reviewed-plan contract; execution must use a separately authorized operator session and exact approved inputs:
+
+- Capture encrypted backup, selected project/database/bucket, source updateTime and object generation/metageneration. Keep exports/plans outside Git; mode 0600, no record IDs or personal fields in aggregate reports. Plan digest, approval reference and database/bucket are mandatory.
+- Stop incompatible writes for the approved cutover window. An updateTime precondition protects a Firestore patch; Storage and Firestore have no cross-service atomic transaction, so freeze parent edits during link application or revalidate/replan on any race. Never blindly replay a stale link plan.
+- Apply bounded batches with preconditions, recording success/conflict receipts outside client collections. On conflict, skip and replan, never overwrite. Idempotent already-applied exact patches are skips. Do not delete any source/profile/conversation/file, clear a message array, alter roles/approval, or modify counters.
+- Compare aggregate expected/applied/skipped/conflicted/unclassified counts. A held record needs an explicit access-preservation decision before strict rules; never introduce public fallback access to avoid that decision.
+- Only then activate matching queries/rules. Install required indexes and wait until READY before client cutover. Existing rules and reader contracts are interdependent; use a controlled window if old APK compatibility cannot be maintained.
+
+## Shared Storage compatibility is a hard gate
+
+Storage rules affect the entire bucket, while the proposed membership/parent checks use `(default)`. This is not database-isolated. The hosted named-database website may use the same bucket and old download URLs. Without an approved, privacy-preserving reference/metadata inventory, do NOT activate the global Storage candidate. Keep the website unchanged; either prove its existing authenticated access remains supported or approve a narrowly scoped coexistence design before that stage. Do not add unconditional reads/writes or silently copy profiles between databases.
+
+## Non-migrations
+
+SecureStore migration executes locally in the new APK after verified writes; no bulk cloud migration is needed for medications. C1 cache recovery stays manual-send and preserves unsent drafts. Do not purge old client caches, run retention jobs, clear Auth users, migrate the website database, or overwrite existing policy documents during release migration.

@@ -37,7 +37,14 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileUpdateRequest']) &&
         proposal.keys().hasOnly(['status', 'changes', 'previous', 'requestedAt', 'requestedBy']) &&
         proposal.status == 'pending' && proposal.requestedBy == request.auth.uid &&
-        proposal.requestedAt == request.time && proposal.previous is map &&
+        proposal.requestedAt == request.time && proposal.previous is map && proposal.previous.keys().hasOnly(fields) &&
+        proposal.previous.get('phone', '') is string && proposal.previous.get('phone', '').size() <= 300 &&
+        proposal.previous.get('address', '') is string && proposal.previous.get('address', '').size() <= 300 &&
+        proposal.previous.get('dateOfBirth', '') is string && proposal.previous.get('dateOfBirth', '').size() <= 300 &&
+        proposal.previous.get('maritalStatus', '') is string && proposal.previous.get('maritalStatus', '').size() <= 300 &&
+        proposal.previous.get('emergencyContactName', '') is string && proposal.previous.get('emergencyContactName', '').size() <= 300 &&
+        proposal.previous.get('emergencyContactPhone', '') is string && proposal.previous.get('emergencyContactPhone', '').size() <= 300 &&
+        proposal.previous.get('emergencyContactAddress', '') is string && proposal.previous.get('emergencyContactAddress', '').size() <= 300 &&
         proposal.changes is map && proposal.changes.size() > 0 &&
         proposal.changes.keys().hasOnly(fields) &&
         proposal.changes.get('phone', '') is string && proposal.changes.get('phone', '').size() <= 300 &&
@@ -250,7 +257,7 @@ service cloud.firestore {
         request.resource.data.resolutionCommentId == resource.data.resolutionCommentId &&
         request.resource.data.resolutionCommentIndex == i &&
         before.id == resource.data.resolutionCommentId && after.id == before.id &&
-        before.get('authorId', request.auth.uid) == request.auth.uid &&
+        before.get('authorId', '') == request.auth.uid &&
         after.diff(before).affectedKeys().hasOnly(['text', 'photoUrl', 'editedAt', 'revisions']) &&
         after.text == request.resource.data.resolutionNote &&
         request.resource.data.comments.size() == resource.data.comments.size() &&
@@ -261,15 +268,17 @@ service cloud.firestore {
         }]);
     }
     function validNewResolution() {
+      let before = resource.data.comments;
       let comments = request.resource.data.comments;
       let i = comments.size() - 1;
       let added = comments[i];
-      return comments.size() == resource.data.comments.size() + 1 &&
-        comments.removeAll([added]) == resource.data.comments &&
+      return comments == before.concat([added]) && !before.hasAny([added]) &&
+        added.id is string && added.id.size() > 0 && added.id.size() <= 200 &&
+        added.authorId == request.auth.uid && added.author == currentProfile().name &&
+        added.role == 'Maintenance Crew' && added.kind == 'resolution' &&
         added.text == request.resource.data.resolutionNote &&
-        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) ||
-          (request.resource.data.resolutionCommentId == added.id && request.resource.data.resolutionCommentIndex == i &&
-           request.resource.data.resolutionAuthorId == request.auth.uid && added.authorId == request.auth.uid));
+        request.resource.data.resolutionCommentId == added.id && request.resource.data.resolutionCommentIndex == i &&
+        request.resource.data.resolutionAuthorId == request.auth.uid;
     }
     function validReopenedResolution() {
       let data = request.resource.data;
@@ -279,7 +288,7 @@ service cloud.firestore {
         (data.resolutionAuthorId == request.auth.uid && data.comments == resource.data.comments &&
          data.resolutionCommentIndex == resource.data.comments.size() - 1 &&
          data.comments[data.resolutionCommentIndex].id == data.resolutionCommentId &&
-         data.comments[data.resolutionCommentIndex].get('authorId', request.auth.uid) == request.auth.uid &&
+         data.comments[data.resolutionCommentIndex].get('authorId', '') == request.auth.uid &&
          data.comments[data.resolutionCommentIndex].author == currentProfile().name &&
          data.comments[data.resolutionCommentIndex].text == resource.data.resolutionNote &&
          resource.data.completedBy == currentProfile().name);
@@ -320,11 +329,16 @@ service cloud.firestore {
             !changed.hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote', 'resolutionCommentId', 'resolutionCommentIndex', 'resolutionAuthorId']) &&
             (!changed.hasAny(['comments']) || (request.resource.data.comments.size() == resource.data.comments.size() + 1 &&
               request.resource.data.comments.removeAll([request.resource.data.comments[request.resource.data.comments.size() - 1]]) == resource.data.comments &&
-              request.resource.data.comments[request.resource.data.comments.size() - 1].author == currentProfile().name))) ||
+              request.resource.data.comments[request.resource.data.comments.size() - 1].author == currentProfile().name &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].authorId == request.auth.uid &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].role == 'Maintenance Crew' &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].text is string &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].text.size() > 0 &&
+              request.resource.data.comments[request.resource.data.comments.size() - 1].text.size() <= 10000))) ||
           (resource.data.status != 'Done' && request.resource.data.status == 'Done' &&
             request.resource.data.completedAt == request.time && request.resource.data.retentionVersion == 1 &&
             request.resource.data.completedBy == currentProfile().name &&
-            request.resource.data.resolutionNote is string && request.resource.data.resolutionNote.matches('.*[^\\s].*') &&
+            request.resource.data.resolutionNote is string && request.resource.data.resolutionNote.size() <= 10000 && request.resource.data.resolutionNote.matches('(?s).*[^\\s].*') &&
             (validNewResolution() || validResolutionRevision())) ||
           (resource.data.status == 'Done' && request.resource.data.status == 'In Progress' &&
             !request.resource.data.keys().hasAny(['completedAt', 'completedBy', 'retentionVersion', 'resolutionNote']) && request.resource.data.comments == resource.data.comments && validReopenedResolution())
@@ -352,11 +366,11 @@ service cloud.firestore {
     }
 
     match /newsletters/{newsletterId} {
-      allow read: if isSignedIn();
+      allow read: if isApproved();
       allow write: if isManager();
 
       match /chunks/{chunkId} {
-        allow read: if isSignedIn();
+        allow read: if isApproved();
         allow write: if isManager();
       }
     }

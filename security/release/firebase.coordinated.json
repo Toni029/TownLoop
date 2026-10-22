@@ -1,0 +1,9 @@
+{
+  "firestore": {
+    "rules": "firestore.coordinated.rules",
+    "indexes": "firestore.coordinated.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.coordinated.rules"
+  }
+}

@@ -23,7 +23,8 @@ import {
   updateDoc,
   collection,
   onSnapshot,
-  serverTimestamp
+  serverTimestamp,
+  runTransaction
 } from 'firebase/firestore';
 import {
   auth,
@@ -34,6 +35,7 @@ import {
 } from '../firebase';
 import { UserProfile, UserRole } from '../types';
 import { TERMS_VERSION, requireTermsAcceptance } from '../data/legal';
+import { obtainRegistrationUser, INCOMPLETE_REGISTRATION_MESSAGE, MISSING_REGISTRATION_MESSAGE } from './registrationRecovery';
 
 /**
  * Normalizes Firestore or Auth data into consistent UserProfile structure
@@ -140,17 +142,16 @@ export async function loginUser(email: string, password: string): Promise<UserPr
     let userData: any = null;
 
     try {
-      const snap = await getDoc(userDocRef);
+      const snap = await getDocFromServer(userDocRef);
       if (snap.exists()) {
         userData = snap.data();
       }
     } catch (err) {
-      console.warn('Notice reading user profile from Firestore:', err);
+      throw new Error('Your account signed in, but the resident profile could not be checked. Please check your connection and retry Sign In.');
     }
 
     if (!userData) {
-      await signOut(auth);
-      throw new Error('Your resident profile is missing. Please contact the community office for account assistance.');
+      throw new Error(MISSING_REGISTRATION_MESSAGE);
     }
 
     return normalizeUserProfile(user.uid, userData, user);
@@ -187,19 +188,21 @@ export async function signupUser(params: {
   }
 
   try {
-    // 1. Create account in Firebase Authentication
-    const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const cleanEmail = email.trim().toLowerCase();
+    const userCredential = await obtainRegistrationUser({
+      email: cleanEmail,
+      currentEmail: auth.currentUser?.email,
+      create: () => createUserWithEmailAndPassword(auth!, cleanEmail, password),
+      signIn: () => signInWithEmailAndPassword(auth!, cleanEmail, password),
+    });
     const user = userCredential.user;
-
-    // 2. Update Auth display name
-    await updateProfile(user, { displayName: name.trim() });
 
     // 3. Persist resident profile document in Firestore
     const userDocRef = doc(db, 'users', user.uid);
     const profileData: Record<string, any> = {
       id: user.uid,
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      email: user.email || cleanEmail,
       role: "resident",
       address: userStreetAddress,
       avatarUrl: user.photoURL || '',
@@ -213,13 +216,22 @@ export async function signupUser(params: {
       profileData.phone = phone.trim();
     }
 
+    let savedData: Record<string, any>;
     try {
-      await setDoc(userDocRef, profileData);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
+      savedData = await runTransaction(db, async transaction => {
+        const existing = await transaction.get(userDocRef);
+        if (existing.exists()) return existing.data();
+        transaction.set(userDocRef, profileData);
+        return profileData;
+      });
+    } catch {
+      throw new Error(INCOMPLETE_REGISTRATION_MESSAGE);
     }
-
-    return normalizeUserProfile(user.uid, profileData, user);
+    // The durable resident document is authoritative; a cosmetic Auth update must not block recovery.
+    if (savedData === profileData) {
+      try { await updateProfile(user, { displayName: name.trim() }); } catch {}
+    }
+    return normalizeUserProfile(user.uid, savedData, user);
   } catch (err: any) {
     console.error('Firebase registration failed:', err);
     if (err.code === 'auth/email-already-in-use') {
@@ -382,8 +394,10 @@ export function subscribeToCommunityDirectory(
   let stopDirectory = () => {};
   let generation = 0;
   let directoryGeneration = 0;
+  let directoryScope = '';
   const stopAuth = onAuthStateChanged(auth, fbUser => {
     const authGeneration = ++generation;
+    directoryScope = '';
     stopProfile();
     directoryGeneration++;
     stopDirectory();
@@ -391,13 +405,18 @@ export function subscribeToCommunityDirectory(
     if (!fbUser) return;
     stopProfile = onSnapshot(doc(db, 'users', fbUser.uid), profile => {
       if (authGeneration !== generation) return;
+      const own = profile.data();
+      const allowed = own?.approved === true && ['resident', 'crew', 'admin', 'vip'].includes(own.role);
+      // Profile/avatar edits do not change which directory this account may read.
+      const privateAccess = allowed && ['admin', 'vip'].includes(own.role);
+      const scope = allowed ? `${fbUser.uid}:${privateAccess ? 'private' : 'public'}` : '';
+      if (scope === directoryScope) return;
+      directoryScope = scope;
       const directoryVersion = ++directoryGeneration;
       stopDirectory();
       callback([]);
-      const own = profile.data();
-      if (!own || own.approved !== true) return;
+      if (!allowed) return;
       // Full profiles are needed only by the Admin/VIP approval and review tools.
-      const privateAccess = ['admin', 'vip'].includes(own.role);
       stopDirectory = onSnapshot(collection(db, privateAccess ? 'users' : 'resident_directory'), snapshot => {
         if (authGeneration !== generation || directoryVersion !== directoryGeneration) return;
         callback(snapshot.docs.filter(document => privateAccess || (document.data().uid === document.id && document.data().approved === true)).map(document => {
@@ -417,9 +436,12 @@ export function subscribeToCommunityDirectory(
             } : {}),
           };
         }));
-      }, () => callback([]));
+      }, () => {
+        if (authGeneration === generation && directoryVersion === directoryGeneration) callback([]);
+      });
     }, () => {
       if (authGeneration !== generation) return;
+      directoryScope = '';
       directoryGeneration++;
       stopDirectory();
       callback([]);
@@ -438,9 +460,12 @@ export function subscribeToCommunityDirectory(
  */
 export function subscribeToAuth(callback: (user: UserProfile | null) => void): () => void {
   let docUnsubscribe: (() => void) | null = null;
+  let generation = 0;
 
   if (isFirebaseConfigured() && auth && db) {
     const authUnsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      const current = ++generation;
+      callback(null);
       if (docUnsubscribe) {
         docUnsubscribe();
         docUnsubscribe = null;
@@ -455,27 +480,29 @@ export function subscribeToAuth(callback: (user: UserProfile | null) => void): (
         const userDocRef = doc(db, 'users', fbUser.uid);
         docUnsubscribe = onSnapshot(
           userDocRef,
-          async (snap) => {
+          (snap) => {
+            if (current !== generation) return;
             if (snap.exists()) {
               const normalized = normalizeUserProfile(fbUser.uid, snap.data(), fbUser);
               callback(normalized);
             } else {
-              const normalized = normalizeUserProfile(fbUser.uid, null, fbUser);
-              callback(normalized);
+              callback(null);
             }
           },
           (err) => {
+            if (current !== generation) return;
             console.warn('User profile snapshot notice:', err);
-            callback(normalizeUserProfile(fbUser.uid, null, fbUser));
+            callback(null);
           }
         );
       } catch (err) {
         console.warn('Error binding snapshot on user profile:', err);
-        callback(normalizeUserProfile(fbUser.uid, null, fbUser));
+        callback(null);
       }
     });
 
     return () => {
+      generation++;
       if (docUnsubscribe) docUnsubscribe();
       authUnsubscribe();
     };
@@ -498,7 +525,7 @@ export async function fetchCurrentUser(): Promise<UserProfile | null> {
       if (snap.exists()) {
         return normalizeUserProfile(currentFbUser.uid, snap.data(), currentFbUser);
       }
-      return normalizeUserProfile(currentFbUser.uid, null, currentFbUser);
+      return null;
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, `users/${currentFbUser.uid}`);
     }

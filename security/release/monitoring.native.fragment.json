@@ -1,0 +1,24 @@
+{
+  "status": "PREPARED_FRAGMENT_NOT_ACTIVE_OWNER_CONFIGURATION_REQUIRED",
+  "dependencies": {
+    "@react-native-firebase/app": "27.0.0",
+    "@react-native-firebase/crashlytics": "27.0.0",
+    "expo-build-properties": "~57.0.22"
+  },
+  "appendExpoPlugins": [
+    "@react-native-firebase/app",
+    "@react-native-firebase/crashlytics",
+    ["expo-build-properties", {"ios": {"useFrameworks": "dynamic"}}]
+  ],
+  "requiredEasFileVariables": ["GOOGLE_SERVICES_JSON", "GOOGLE_SERVICE_INFO_PLIST"],
+  "nativeFirebaseJson": {
+    "react-native": {
+      "crashlytics_auto_collection_enabled": false,
+      "crashlytics_debug_enabled": false,
+      "crashlytics_is_error_generation_on_js_crash_enabled": false,
+      "crashlytics_javascript_exception_handler_chaining_enabled": false
+    }
+  },
+  "requiresNewBinary": true,
+  "preserveExistingJsFirebaseAuthAndDatabase": true
+}

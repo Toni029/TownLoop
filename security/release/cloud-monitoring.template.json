@@ -1,0 +1,16 @@
+{
+  "status": "INACTIVE_SPECIFICATION_NOT_A_GCLOUD_IMPORT",
+  "projectId": "cc-livingcommunity-app",
+  "enabled": false,
+  "apiHostname": null,
+  "notificationChannels": [],
+  "proposedChecks": [
+    {"kind": "https_uptime", "path": "/api/health", "expectedStatus": 200, "alertAfterSeconds": 300},
+    {"kind": "server_5xx_ratio", "threshold": 0.05, "minimumRequests": 20, "windowSeconds": 300},
+    {"kind": "scheduler_execution_failure"},
+    {"kind": "firestore_storage_quota_errors"},
+    {"kind": "policy_gated_job_failure_or_backlog", "serviceSlaRequiresApproval": true}
+  ],
+  "noResidentPayloadsOrIdentifiersInMetrics": true,
+  "ownerMustApprove": ["telemetry_disclosures", "collection_consent", "provider_retention", "alert_recipients", "thresholds", "budget", "iam"]
+}

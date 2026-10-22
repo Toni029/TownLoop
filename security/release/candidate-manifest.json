@@ -1,0 +1,21 @@
+{
+  "status": "LOCAL CANDIDATES ONLY; NOT DEPLOYED OR RELEASE APPROVED",
+  "recoveryCheckpoint": "fb8c146",
+  "preservedCheckpoints": [
+    "1529a92",
+    "1bb97d7"
+  ],
+  "sha256": {
+    "firestore.indexes.json": "179d965390fca6d8646caa695af2472bbb93f527ecbac5164b5cf4831ebe94a2",
+    "firestore.rules": "e77833f481a6ccbaf72b586e1cc580b178deb9a069a26e6a95b491ade65d935e",
+    "security/release/eas-readonly-verification.json": "ce45907e288a7034c9c90b96a5202f51cc60c42f9e0b8d08b25d731ac5ce3511",
+    "security/release/firebase.coordinated.json": "57caaaae5079848a42ce18a48837686668f6c4338e9640c782dbda9a0082f9b5",
+    "security/release/firebase.readonly-recovery.json": "4f3ce5c453b8f30dfb9cc560754c69cbc8b83f9b9ffe70777d56e21b0dc432b7",
+    "security/release/firestore.coordinated.indexes.json": "179d965390fca6d8646caa695af2472bbb93f527ecbac5164b5cf4831ebe94a2",
+    "security/release/firestore.coordinated.rules": "e77833f481a6ccbaf72b586e1cc580b178deb9a069a26e6a95b491ade65d935e",
+    "security/release/firestore.readonly-recovery.rules": "87c042edc52ff945015c811e648d0e5ff3a34bd011b0039e80e06ac68eec7420",
+    "security/release/storage.coordinated.rules": "a4908c48b4711f3edba8380a9c3ded21ff5d32c29115df8f3c04419f1db8fc2a",
+    "security/release/storage.readonly-recovery.rules": "561225ed6a84885787bc4199fa69b822360a09f6e5256b3de32058dbf8ff1c28",
+    "security/storage.proposed.rules": "a4908c48b4711f3edba8380a9c3ded21ff5d32c29115df8f3c04419f1db8fc2a"
+  }
+}
