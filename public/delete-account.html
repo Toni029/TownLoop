@@ -34,7 +34,7 @@ element('request').onsubmit=async event=>{
  if(!auth.currentUser||Date.now()-verifiedAt>5*60000){status.textContent='Verify your identity again before requesting deletion.';return;}
  if(element('confirmation').value!=='DELETE'){status.textContent='Type DELETE exactly to confirm.';return;}
  busy=true;element('submit').disabled=true;status.textContent='Submitting deletion request…';
- try{await auth.currentUser.getIdToken(true);const response=await httpsCallable(getFunctions(app,'us-central1'),'requestAccountDeletion')({confirmation:'DELETE',requestOnly:true});
+ try{await auth.currentUser.getIdToken(true);const response=await httpsCallable(getFunctions(app,'us-central1'),'submitAccountDeletionRequest')({confirmation:'DELETE',requestOnly:true});
   status.textContent=`Request accepted. Reference: ${response.data.jobId}. Your account remains available while the request is prepared for processing. Shared history follows the approved retention policy.`;
   element('request').hidden=true;
 

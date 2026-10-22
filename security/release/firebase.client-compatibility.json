@@ -1,5 +1,6 @@
 {
   "firestore": {
-    "rules": "firestore.client-compatibility.rules"
+    "rules": "firestore.client-compatibility.rules",
+    "database": "(default)"
   }
 }

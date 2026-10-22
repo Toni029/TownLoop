@@ -26,6 +26,9 @@ exports.requestAccountDeletion = onCall({ ...options, timeoutSeconds: 60 }, asyn
   return { jobId, status: 'requested' };
 });
 
+// Distinct protocol endpoint: new clients never hit a deployed legacy destructive handler.
+exports.submitAccountDeletionRequest = exports.requestAccountDeletion;
+
 async function processJob(db, auth, ref) {
   const snapshot = await ref.get();
   if (!snapshot.exists || snapshot.data().status === 'complete') return;

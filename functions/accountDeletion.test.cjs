@@ -43,7 +43,7 @@ function harness(initial) {
     throw Error(`Unexpected import: ${name}`);
   }, process: { env: {} }, Date };
   vm.runInNewContext(fs.readFileSync(require.resolve('./accountDeletion.cjs'), 'utf8') + '\nmodule.exports.run = processJob;', context);
-  return { records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, request: context.module.exports.requestAccountDeletion, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
+  return { records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
 }
 test('deletion request requires exact confirmation and recent authentication, not just a refreshed token', () => {
   const now = 100000000, auth = { uid: 'alice', token: { auth_time: now / 1000 } };
@@ -164,4 +164,15 @@ test('request-only worker does not silently treat a 60-day policy as indefinite 
  assert.equal(h.records.get(h.ref.path).status,'pending_owner_approval');
  assert.deepEqual(h.authCalls,[]);
  assert.equal(h.records.get('users/alice').deletionPending,undefined);
+});
+
+test('request-only protocol has a distinct endpoint and preserves the same durable queue', async () => {
+ const h = harness({'users/alice':{approved:true}, 'resident_directory/alice':{name:'Synthetic'}});
+ assert.equal(typeof h.requestOnly, 'function');
+ const input={auth:{uid:'alice',token:{auth_time:Date.now()/1000}},data:{confirmation:'DELETE',requestOnly:true},rawRequest:{headers:{authorization:'Bearer valid'}}};
+ const first=await h.requestOnly(input), retry=await h.request(input);
+ assert.equal(first.jobId,retry.jobId);
+ assert.equal(h.records.get('users/alice').deletionPending,undefined);
+ assert.equal(h.records.has('resident_directory/alice'),true);
+ assert.equal(h.authCalls.length,0);
 });

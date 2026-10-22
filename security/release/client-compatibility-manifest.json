@@ -1,0 +1,14 @@
+{
+  "baseCheckpoint": "9012749",
+  "project": "cc-livingcommunity-app",
+  "database": "(default)",
+  "region": "us-central1",
+  "files": {
+    "security/release/firestore.client-compatibility.rules": "7eccdfe7873ac2d7c19d50f83cb99b61adb8fee4412252214355504c5b90af2e",
+    "security/release/firebase.client-compatibility.json": "0aa760f032d049467353b73cffeb538e9a9581278fee858f6de101da71059331",
+    "functions/accountDeletion.cjs": "4457314e2de7c20a4027d7e5903ce580d26db5ce3e577351a4b9ee0d42b944f2",
+    "functions/accountDeletionPolicy.cjs": "4e05d572341608001697d34e5ca451df6cf51270ac1614e6520a4fed40cb9473",
+    "native/src/lib/accountDeletion.ts": "03ec3583db2a0c7e3ebfc62828bccb7b16b1ad520a1db0fb7a2f7efbc02f197a",
+    "public/delete-account.html": "79878203b20cf2a7394f78a2a21305ac67bdcd2212122f98e2ea32b0e2eac47c"
+  }
+}
