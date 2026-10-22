@@ -1,3 +1,4 @@
+import { LegalLinks } from "../components/LegalLinks";
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { ScreenSystemBars } from "../components/SystemBars";
 import { ResidentRegistration } from "../components/ResidentRegistration";
@@ -616,7 +617,8 @@ export default function SignIn() {
                   </Text>
                 )}
               </View>
-              <Text
+              <LegalLinks dark={dark}/>
+                    <Text
                 style={{
                   fontFamily: "Jakarta",
                   fontSize: wide ? 14 : 12,

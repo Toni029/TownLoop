@@ -1,56 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy - Seeds4Clix</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 40px auto; padding: 0 20px; }
-    h1 { color: #111; }
-    h2 { color: #222; margin-top: 28px; }
-    p, li { font-size: 15px; }
-    .updated { color: #666; font-size: 14px; }
-  </style>
-</head>
-<body>
-
-  <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: September 2026</p>
-
-  <p>Seeds4Clix ("we", "our", or "us") operates this application. This Privacy Policy describes how we collect, use, and protect your information when you access our app and services.</p>
-
-  <h2>1. Information We Collect</h2>
-  <p>We only collect information necessary to provide and improve our app experience:</p>
-  <ul>
-    <li><strong>Account & Profile Data:</strong> If you sign up or log in, we collect basic credentials (e.g., your email address or user identifier) managed securely through Firebase Authentication.</li>
-    <li><strong>User Content:</strong> Information or data you actively input while using the application.</li>
-    <li><strong>Usage & Device Information:</strong> Standard technical information such as browser/app performance, error logs, and device operating system version to maintain stability and prevent crashes.</li>
-  </ul>
-
-  <h2>2. How We Use Your Information</h2>
-  <p>We use collected data solely for legitimate app functionality, including:</p>
-  <ul>
-    <li>Authenticating user sessions and managing user accounts.</li>
-    <li>Syncing and storing your user data via Google Firebase services.</li>
-    <li>Diagnosing technical issues, maintaining security, and monitoring server performance.</li>
-  </ul>
-
-  <h2>3. Third-Party Services</h2>
-  <p>We do not sell, rent, or trade your personal data. We utilize trusted third-party cloud infrastructure providers that process data on our behalf under strict confidentiality agreements:</p>
-  <ul>
-    <li><strong>Google Firebase:</strong> Used for database storage, hosting, and secure authentication.</li>
-    <li><strong>Google Gemini API / AI Services:</strong> Queries or prompts sent to AI features are processed to generate responses in accordance with Google's API data handling terms.</li>
-  </ul>
-
-  <h2>4. Data Retention & Account Deletion</h2>
-  <p>We retain your data only for as long as your account remains active or as needed to provide our services. You have the right to request deletion of your account and associated personal data at any time by contacting us at the email listed below.</p>
-
-  <h2>5. Children's Privacy</h2>
-  <p>Our app does not knowingly collect or solicit personal information from children under the age of 13. If we discover we have inadvertently collected data from a child under 13, we will promptly delete it.</p>
-
-  <h2>6. Contact Us</h2>
-  <p>If you have any questions or wish to exercise your data rights, contact us at:</p>
-  <p><strong>Email:</strong> support@seeds4clix.com</p>
-
-</body>
-</html>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TownLoop Privacy Policy</title><style>body{font:17px/1.65 system-ui,sans-serif;max-width:850px;margin:36px auto;padding:0 22px;color:#243328;background:#fcfaf5}h1,h2{line-height:1.25}a{color:#047857}.draft{padding:16px;border:2px solid #9a6700;background:#fff4ce}li{margin-bottom:10px}</style></head><body><main><h1>TownLoop Privacy Policy</h1><p class="draft"><strong>Draft for owner review — not approved for release.</strong> Version 2026-10-draft1; prepared October 21, 2026. This draft describes reviewed source code. Operator identity, retention, deletion operations, and service-provider practices must be approved before release.</p>
+<p>TownLoop supports resident community activities, dining, announcements, maintenance requests, marketplace listings, and conversations. The accountable operator and final privacy contact must be confirmed by the owner. For community-office inquiries, call <a href="tel:+19047718839">904-771-8839</a>. This phone number is not a confirmed privacy or deletion processing service.</p>
+<h2>Account and community information</h2>
+<p>Email/password or Google sign-in uses Firebase Authentication. Resident profiles in Cloud Firestore include name, email, resident address, optional phone and emergency-contact details, profile image, account approval and role, and the terms version and acceptance timestamp. Only provide another person's contact details when you have permission.</p>
+<p>Community features store posts, comments, marketplace listings, reactions, activity participation, maintenance requests and status updates, and conversations in Firestore. Selected photos, videos, profile images, and newsletter documents may be uploaded to Firebase Storage. These records support the features you choose, community administration, and access controls. Community content is visible to its intended community audience; maintenance staff and authorized office administrators access records needed for their work. Messages are available to their participants through the service. Do not assume messages are end-to-end encrypted.</p>
+<h2>Medication and other device storage</h2>
+<p>The newly prepared native implementation keeps medication and task reminder names, schedules, quantities, and taken status on the device, keyed by the signed-in user. A new app binary containing Expo SecureStore can use protected device storage and migrate existing AsyncStorage records after validating and verifying the protected copy. Older app binaries without that native capability continue to use AsyncStorage; an over-the-air JavaScript update alone does not add the protection. The baseline implementation used AsyncStorage. Ordinary sign-out preserves local reminder records. The owner must verify the released binary, migration, device backup behavior, and explicit deletion path before claiming these protections for installed apps.</p>
+<p>The newly prepared web medication implementation persists records separately by user ID in browser IndexedDB, encrypted with AES-GCM using a nonextractable browser cryptographic key stored with the encrypted records. Refreshing the page retains saved records. This browser at-rest protection is not a private vault: scripts running with the site's origin can use the key, and clearing site data or browser storage eviction can remove records. Older web versions saved medication records in plaintext browser localStorage. Explicit copying of those legacy records requires a verified durable write; the original legacy copy remains until separately removed with confirmation. The owner must verify this prepared storage implementation in the released browser version.</p>
+<p>These reviewed reminder stores do not contain a cloud-sync operation and are not a medical record service. Information you enter in a post, message, attachment, or maintenance request may be uploaded even if it mentions health or medication. Review all distributed versions and device backup behavior before making a local-only data claim.</p>
+<h2>Translation, AI, and external services</h2>
+<p>When maintenance translation is requested, request titles, descriptions/notes, and comments can be sent through the TownLoop translation service to Google Translate or a Gemini fallback. When an authorized editor requests newsletter analysis, PDF content is sent through the TownLoop server to Google Gemini for extraction. AI output can be inaccurate and requires human review. Avoid submitting unnecessary sensitive information. Provider retention, model-training settings, processing locations, and contractual terms have not yet been approved for this release; no promise of zero retention or exclusion from training is made here.</p>
+<p>Firebase supplies authentication, cloud database and file services. Expo's update service checks for and delivers app updates. The weather tile queries Open-Meteo for configured community coordinates, rather than requesting your device GPS location. External services receive network requests and may process connection or technical information. The exact production SDK, server, hosting, and update-service logging inventory remains a release-review item. This draft does not assert that no technical data is collected or that data is sold or used for advertising.</p>
+<h2>Permissions and security</h2>
+<p>The app asks for camera access when you choose to take an attachment photo and uses the system photo/video picker for selected media. Features can be limited if you decline access. Final Android permissions must be verified from the release manifest. TownLoop uses authenticated Firebase access controls and HTTPS service endpoints; these measures do not guarantee complete security. Device/browser storage is not described as an encrypted health-data vault.</p>
+<h2 id="deletion">Retention and account deletion</h2>
+<p>The source does not establish an approved retention schedule for profiles, messages, attachments, operational records, logs, backups, or reports. Those periods, exceptions, and deletion processing responsibilities remain pending owner approval. Signing out, leaving a conversation, or uninstalling must not be treated as deletion of cloud records.</p>
+<p>The prepared account-deletion service requires a recently authenticated, verified session and explicit confirmation, then queues a restartable job and marks the account as deletion pending. The worker can disable access and process records. Deletion of owned social posts or listings requires an explicit owner-approved collection policy. Shared conversation history, comments in another person's content, and records without a reviewed policy are held for an owner decision; identity deletion does not establish that all media cleanup is complete. This implementation is not an approved retention schedule or evidence that the service has been deployed.</p>
+<p>See the <a href="delete-account.html">TownLoop account deletion request page</a> for the prepared request route. Before release, the owner must approve any retained categories and reasons, verify that in-app and external request paths work, and test associated records, files, local data, and processing failures. Existing private-history migration also requires a separately reviewed trusted cutover; a prepared migration does not prove older records were converted. This draft does not promise a completion deadline or an already staffed request service.</p>
+<h2>Questions and changes</h2>
+<p>The owner must designate the privacy contact, applicable rights-request process, and approved policy effective date. Changes to data handling require a corresponding policy and store-disclosure review. This draft is not evidence of legal or Google Play compliance.</p>
+<p><a href="terms.html">TownLoop Terms of Use</a></p></main></body></html>

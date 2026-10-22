@@ -1,3 +1,4 @@
+import { SafetyActions } from "./SafetyActions";
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -89,6 +90,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 
   const title = currentItem?.title || '';
   const author = currentItem?.author || '';
+  const safetyTarget = currentItem ? {kind: isMarket ? 'listing' as const : 'post' as const, id: String(currentItem.id), authorId: String(currentItem.authorId || '')} : null;
   const unit = currentItem?.unit;
   const authorAvatar = currentItem?.authorAvatar;
   const timeAgo = isMarket ? marketItem?.timeAgo || 'Recently' : post?.timeAgo;
@@ -503,6 +505,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       <span className="text-[10px] text-stone-400 dark:text-slate-500 font-medium">{c.timeAgo}</span>
                     </div>
                     <p className="text-xs text-stone-700 dark:text-slate-300 pl-8 leading-relaxed">{c.text}</p>
+                    {currentItem && <SafetyActions target={{kind:'comment',id:String(currentItem.id),collection:isMarket?'marketplace_posts':'discussion_feed',commentId:String(c.id),authorId:String(c.authorId || '')}}/>}
                   </div>
                 ))}
               </div>
@@ -510,6 +513,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
           </div>
         </div>
 
+        {safetyTarget && <div className="px-5 py-2"><SafetyActions target={safetyTarget}/></div>}
         {/* Comment Input Footer */}
         <form
           onSubmit={handleSendComment}

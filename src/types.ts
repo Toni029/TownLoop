@@ -211,6 +211,9 @@ export interface NewsletterConfig {
 }
 
 export interface UserProfile {
+  deletionPending?: boolean;
+  termsVersion?: string;
+  termsAcceptedAt?: unknown;
   id: string | number;
   name: string;
   email: string;

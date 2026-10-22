@@ -40,7 +40,7 @@ async function profile(db: Firestore, uid: string) {
   const value = snapshot.data();
   if (
     !value ||
-    value.approved !== true ||
+    value.approved !== true || value.deletionPending === true ||
     !["resident", "admin", "vip", "crew"].includes(value.role)
   )
     throw Error("An approved TownLoop account is required.");

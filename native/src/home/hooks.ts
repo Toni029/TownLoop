@@ -2,11 +2,11 @@ import {headerTime} from './headerTime';
 import { createMotionPreferenceStore } from "../motion/preference";
 import { useEffect, useMemo, useReducer, useState, useSyncExternalStore } from "react";
 import { AppState, AccessibilityInfo } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { protectedHomeStorage } from "../localData/nativeStorage";
 import { HomeStore } from "./store";
 import { localDate } from "./model";
 export function useHomeStore(uid: string) {
-  const store = useMemo(() => new HomeStore(uid, AsyncStorage), [uid]);
+  const store = useMemo(() => new HomeStore(uid, protectedHomeStorage), [uid]);
   const [, render] = useReducer((n) => n + 1, 0);
   useEffect(() => {
     const off = store.subscribe(render);

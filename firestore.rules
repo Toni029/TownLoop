@@ -15,7 +15,7 @@ service cloud.firestore {
     }
 
     function isApproved() {
-      return isSignedIn() && currentProfile().approved == true &&
+      return isSignedIn() && currentProfile().approved == true && currentProfile().get('deletionPending', false) == false &&
         currentProfile().role in ['resident', 'admin', 'vip', 'crew'];
     }
 
@@ -64,11 +64,12 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
         request.resource.data.keys().hasOnly(['id', 'name', 'email', 'role', 'approved', 'createdAt',
           'address', 'phone', 'avatarUrl', 'avatar_url', 'emergencyContactName', 'emergencyContactPhone',
-          'emergencyContactAddress', 'emergencyContact', 'emergency_contact']) &&
+          'emergencyContactAddress', 'emergencyContact', 'emergency_contact', 'termsVersion', 'termsAcceptedAt']) &&
         request.resource.data.id == request.auth.uid &&
         request.resource.data.email == request.auth.token.email &&
         request.resource.data.name is string && request.resource.data.name.size() <= 300 &&
-        request.resource.data.role == 'resident' && request.resource.data.approved == false;
+        request.resource.data.role == 'resident' && request.resource.data.approved == false &&
+        request.resource.data.termsVersion == '2026-10-draft1' && request.resource.data.termsAcceptedAt == request.time;
       allow update: if profileIdentityUnchanged() &&
         ((isManager() && canonicalRole(request.resource.data.role) && request.resource.data.approved is bool &&
           (userId != request.auth.uid || request.resource.data.role == resource.data.role) &&
@@ -81,6 +82,10 @@ service cloud.firestore {
       allow delete: if isManager();
     }
 
+    function mediaParentMayCreate(collectionName, recordId) {
+      return !exists(/databases/$(database)/documents/media_deletion_tombstones/$(collectionName)/records/$(recordId));
+    }
+    match /media_deletion_tombstones/{collectionName}/records/{recordId} { allow read, write: if false; }
     function mediaDraft(data) {
       return data.keys().hasOnly(['userId', 'storageDraft', 'storageDraftExpiresAt', 'createdAt']) &&
         data.userId == request.auth.uid && data.storageDraft == true && data.createdAt == request.time &&
@@ -147,28 +152,28 @@ service cloud.firestore {
     match /posts/{postId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/posts/$(postId)) || published(resource.data) || resource.data.get('userId', '') == request.auth.uid);
       allow list: if isApproved() && published(resource.data);
-      allow create: if isApproved() && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, false));
+      allow create: if isApproved() && mediaParentMayCreate('posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, false));
       allow update: if isApproved() && socialUpdate(true, false);
       allow delete: if isApproved() && (socialOwner(resource.data, true) || isManager());
     }
     match /marketItems/{itemId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/marketItems/$(itemId)) || published(resource.data) || resource.data.get('userId', '') == request.auth.uid);
       allow list: if isApproved() && published(resource.data);
-      allow create: if isApproved() && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, true));
+      allow create: if isApproved() && mediaParentMayCreate('marketItems', itemId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, true));
       allow update: if isApproved() && socialUpdate(true, true);
       allow delete: if isApproved() && (socialOwner(resource.data, true) || isManager());
     }
     match /marketplace_posts/{postId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/marketplace_posts/$(postId)) || published(resource.data) || socialOwner(resource.data, false));
       allow list: if isApproved() && published(resource.data);
-      allow create: if isApproved() && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, true));
+      allow create: if isApproved() && mediaParentMayCreate('marketplace_posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, true));
       allow update: if isApproved() && socialUpdate(false, true);
       allow delete: if isApproved() && (socialOwner(resource.data, false) || isManager());
     }
     match /discussion_feed/{postId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/discussion_feed/$(postId)) || published(resource.data) || socialOwner(resource.data, false));
       allow list: if isApproved() && published(resource.data);
-      allow create: if isApproved() && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, false));
+      allow create: if isApproved() && mediaParentMayCreate('discussion_feed', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, false));
       allow update: if isApproved() && socialUpdate(false, false);
       allow delete: if isApproved() && (socialOwner(resource.data, false) || isManager());
     }
@@ -335,7 +340,7 @@ service cloud.firestore {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/work_orders/$(orderId)) ||
         resource.data.userId == request.auth.uid || (published(resource.data) && isCrewOrManager()));
       allow list: if isApproved() && published(resource.data) && (isCrewOrManager() || resource.data.userId == request.auth.uid);
-      allow create: if isApproved() && (mediaDraft(request.resource.data) || validPublishedOrder(orderId));
+      allow create: if isApproved() && mediaParentMayCreate('work_orders', orderId) && (mediaDraft(request.resource.data) || validPublishedOrder(orderId));
       allow update: if isApproved() &&
         ((resource.data.get('storageDraft', false) == true && resource.data.userId == request.auth.uid && validPublishedOrder(orderId)) ||
          (published(resource.data) && published(request.resource.data) &&
@@ -400,6 +405,29 @@ service cloud.firestore {
     // Push tokens and delivery claims are accessible only to authenticated server code.
     match /notification_devices/{deviceId} { allow read, write: if false; }
     match /notification_deliveries/{deliveryId} { allow read, write: if false; }
+    // Private peer messaging blocks are bidirectional and cannot be bypassed by another chat ID.
+    function userBlocked(a, b) {
+      return exists(/databases/$(database)/documents/user_blocks/$(a)/targets/$(b)) ||
+        exists(/databases/$(database)/documents/user_blocks/$(b)/targets/$(a));
+    }
+    function friendMaySend(data) {
+      return data.participantIds is list && data.participantIds.size() == 2 &&
+        !userBlocked(data.participantIds[0], data.participantIds[1]);
+    }
+    match /user_blocks/{uid}/targets/{targetUid} {
+      allow get, list: if isApproved() && request.auth.uid == uid;
+      allow write: if false;
+    }
+    match /moderation_reports/{reportId} {
+      allow read: if isManager();
+      allow write: if false;
+    }
+    match /safety_limits/{uid} { allow read, write: if false; }
+    match /account_deletion_jobs/{jobId}/{document=**} { allow read, write: if false; }
+    match /deletion_policies/{policyId} { allow read, write: if false; }
+    match /media_cleanup_jobs/{jobId} { allow read, write: if false; }
+    match /media_cleanup_cursors/{cursorId} { allow read, write: if false; }
+
     // H1: exact UIDs; legacy email/sanitized-only memberships need reviewed migration.
     function chatResident(data) { return data.get('residentId', '') == request.auth.uid; }
     function chatTeam(kind) {
@@ -442,7 +470,7 @@ service cloud.firestore {
     }
     function chatCreate(kind, chatId) {
       let next = request.resource.data;
-      return chatAccess(kind, next) && next.id == chatId &&
+      return chatAccess(kind, next) && (kind != 'friend' || friendMaySend(next)) && next.id == chatId &&
         next.keys().hasOnly(kind == 'friend'
           ? ['id', 'identityVersion', 'participantIds', 'participants', 'subject', 'lastMessage', 'updatedAt', 'unreadBy', 'messages', 'officeDirect']
           : ['id', 'residentId', 'residentName', 'residentEmail', 'residentApt', 'residentPhone', 'residentAvatar', 'subject', 'lastMessage', 'updatedAt', 'unreadByResident', 'unreadByVip', 'unreadByCrew', 'messages']) &&
@@ -467,7 +495,7 @@ service cloud.firestore {
          (changes.hasOnly(kind == 'friend'
             ? ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadBy', 'readBy']
             : ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadByResident', 'unreadByVip', 'unreadByCrew', 'readBy']) &&
-          ownChatCursor(old, next, 'readBy') && validAppend(old.get('messages', []), next) &&
+          ownChatCursor(old, next, 'readBy') && (kind != 'friend' || friendMaySend(old)) && validAppend(old.get('messages', []), next) &&
           (kind == 'friend'
             ? next.unreadBy == old.participantIds.removeAll([request.auth.uid])
             : next.unreadByResident == chatTeam(kind) && next.get(kind == 'office' ? 'unreadByVip' : 'unreadByCrew', false) == !chatTeam(kind))));
@@ -496,7 +524,7 @@ service cloud.firestore {
 
     // C1: Marketplace chats authorize exact UIDs, never names/sanitized aliases.
     function marketApproved() {
-      return isSignedIn() && currentProfile().approved == true &&
+      return isSignedIn() && currentProfile().approved == true && currentProfile().get('deletionPending', false) == false &&
         currentProfile().role in ['resident', 'admin', 'vip', 'crew'];
     }
     function marketParticipant(data) {
@@ -530,7 +558,7 @@ service cloud.firestore {
         'buyerId', 'buyerName', 'buyerAvatar', 'buyerApt', 'participantIds', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForSeller', 'unreadForBuyer', 'messages']) &&
         data.id == chatId && data.itemId is string && data.itemId.size() > 0 && data.sellerId is string &&
         chatId == 'mkt_' + data.itemId.lower().replace('[^a-zA-Z0-9_-]', '_') + '_' + request.auth.uid.lower().replace('[^a-zA-Z0-9_-]', '_') &&
-        data.buyerId == request.auth.uid && data.sellerId != data.buyerId &&
+        data.buyerId == request.auth.uid && data.sellerId != data.buyerId && !userBlocked(data.sellerId, data.buyerId) &&
         data.sellerId == listing.get('userId', listing.get('authorId', '')) &&
         !listing.get('sold', false) && !listing.get('claimed', false) &&
         seller.approved == true && seller.role in ['resident', 'admin', 'vip', 'crew'] &&
@@ -553,7 +581,7 @@ service cloud.firestore {
         (changes.hasOnly([seller ? 'unreadForSeller' : 'unreadForBuyer']) &&
           (seller ? after.unreadForSeller == false : after.unreadForBuyer == false)) ||
         (!marketLeft(before, side) && (
-          (!marketLeft(before, other) &&
+          (!marketLeft(before, other) && !userBlocked(before.sellerId, before.buyerId) &&
            changes.hasOnly(['messages', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForBuyer', 'unreadForSeller']) &&
            after.unreadForBuyer == seller && after.unreadForSeller == !seller && marketMessage(before.messages, after, false)) ||
           (changes.hasOnly(seller ? ['sellerLeft', 'deletedBySeller', 'messages', 'lastMessage', 'lastMessageTime', 'updatedAt'] :

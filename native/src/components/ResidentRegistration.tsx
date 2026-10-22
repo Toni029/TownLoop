@@ -13,9 +13,11 @@ import {
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { friendlyError } from "../lib/profile";
+import { TERMS_VERSION, requireTermsAcceptance } from '../../../src/data/legal';
+import { LegalLinks } from './LegalLinks';
 export function ResidentRegistration({
   dark,
   wide,
@@ -42,6 +44,7 @@ export function ResidentRegistration({
       password: "",
     }),
     [show, setShow] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   async function register() {
     if (busy) return;
     onError("");
@@ -51,6 +54,10 @@ export function ResidentRegistration({
     }
     if (fields.password.length < 6) {
       onError("Password must be at least 6 characters long.");
+      return;
+    }
+    try { requireTermsAcceptance(termsAccepted); } catch (error) {
+      onError((error as Error).message);
       return;
     }
     setBusy(true);
@@ -75,6 +82,8 @@ export function ResidentRegistration({
         emergency_contact: fields.emergencyContactName.trim(),
         avatarUrl: "",
         approved: false,
+        termsVersion: TERMS_VERSION,
+        termsAcceptedAt: serverTimestamp(),
         createdAt: new Date().toISOString(),
       });
     } catch (e) {
@@ -182,8 +191,15 @@ export function ResidentRegistration({
           </View>
         </View>
       ))}
+      <LegalLinks dark={dark} />
+      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: termsAccepted, disabled: busy }}
+        disabled={busy} onPress={() => setTermsAccepted(!termsAccepted)}
+        style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Text style={{ color: ink, fontSize: 22 }}>{termsAccepted ? '☑' : '☐'}</Text>
+        <Text style={{ color: ink, flex: 1, fontSize: 14 }}>I accept the TownLoop Terms of Use and acknowledge the Privacy Policy.</Text>
+      </Pressable>
       <Pressable
-        disabled={busy}
+        disabled={busy || !termsAccepted}
         accessibilityRole="button"
         onPress={() => void register()}
         style={({ pressed }) => ({

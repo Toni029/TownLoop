@@ -33,7 +33,8 @@
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundImage": "./assets/adaptive-icon-background.png",
         "backgroundColor": "#42c7f1"
-      }
+      },
+      "allowBackup": false
     },
     "plugins": [
       "expo-router",
@@ -73,7 +74,15 @@
           "imageWidth": 240,
           "resizeMode": "contain"
         }
-      ]
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false,
+          "faceIDPermission": false
+        }
+      ],
+      "./plugins/withLocalDataProtection.cjs"
     ],
     "web": {
       "bundler": "metro",

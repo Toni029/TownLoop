@@ -1,3 +1,4 @@
+import { PRIVACY_URL, TERMS_URL } from '../data/legal';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -53,6 +54,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
 
   // Create Account Form State
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
@@ -125,6 +127,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    if (!termsAccepted) {
+      setErrorMessage('Please accept the TownLoop Terms of Use and acknowledge the Privacy Policy.');
+      return;
+    }
     if (regPassword.length < 6) {
       setErrorMessage('Password must be at least 6 characters long.');
       return;
@@ -149,7 +155,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         email: regEmail.trim(),
         password: regPassword,
         address: enteredAddress,
-        phone: regPhone.trim() || undefined
+        phone: regPhone.trim() || undefined,
+        termsAccepted
       });
 
       setSuccessMessage('Registration created! Awaiting administrator approval...');
@@ -167,7 +174,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setErrorMessage(null);
     setIsLoading(true);
     try {
-      const user = await loginWithGoogle();
+      const user = await loginWithGoogle(termsAccepted);
       if (user.approved === false) {
         setSuccessMessage('Signed in with Google. Redirecting to pending approval...');
       } else {
@@ -685,6 +692,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         )}
       </div>
 
+      <div className={`max-w-lg mt-4 text-left text-sm ${isDarkMode ? 'text-slate-200' : 'text-stone-800'}`}>
+        <label className="flex items-start gap-3 py-3 cursor-pointer">
+          <input type="checkbox" checked={termsAccepted} disabled={isLoading}
+            onChange={event => setTermsAccepted(event.target.checked)} className="mt-1 min-w-5 min-h-5" />
+          <span>I accept the TownLoop Terms of Use and acknowledge the Privacy Policy (required for a new account).</span>
+        </label>
+        <div className="flex gap-5">
+          <a className="underline py-3" href={TERMS_URL} target="_blank" rel="noreferrer">Terms of Use</a>
+          <a className="underline py-3" href={PRIVACY_URL} target="_blank" rel="noreferrer">Privacy Policy</a>
+        </div>
+      </div>
       <div className="mt-4 text-center space-y-1">
         <p className={`text-xs sm:text-sm font-medium transition-colors ${
           isDarkMode ? 'text-slate-400' : 'text-[#635949]'

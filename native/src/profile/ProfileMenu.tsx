@@ -1,3 +1,7 @@
+import { SafetyActions } from "../components/SafetyActions";
+import { LegalLinks } from "../components/LegalLinks";
+import { AccountDeletion } from "./AccountDeletion";
+import { clearResidentHomeData } from "../localData/nativeStorage";
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { AdminMenu } from "./AdminMenu";
@@ -1677,6 +1681,7 @@ export function ProfileMenu({
                           >
                             {person.name}
                           </Text>
+                          <SafetyActions target={{kind:"user",id:String(person.id)}} allowBlock/>
                           <Text style={[s.role, { textAlign: "center" }]}>
                             {person.address ||
                               person.unit ||
@@ -1960,6 +1965,7 @@ export function ProfileMenu({
                                   <Text style={[s.rowTitle, { color: ink }]}>
                                     {conversation.name}
                                   </Text>
+                                  {conversation.category === "friend" && <SafetyActions target={{kind:"user",id:String(conversation.recipient.id)}} allowBlock/>}
                                   <Text style={[s.small, { color: muted }]}>
                                     {conversation.category === "maintenance"
                                       ? "Maintenance Team"
@@ -2304,6 +2310,8 @@ export function ProfileMenu({
                             <Text style={[s.rowTitle,{color:ink}]}>{account?.emergencyContactName || 'Not provided'}</Text></View>
                           <ChevronRight size={18} color={muted}/>
                         </Pressable>
+                        <LegalLinks dark={dark}/>
+                        <AccountDeletion onLocalCleanup={clearResidentHomeData} onDeleted={() => close()} />
                         <Action
                           title="Edit Profile"
                           onPress={editProfile}

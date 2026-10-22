@@ -33,6 +33,7 @@ import {
 } from "./ui";
 import { slots, takeDose, undoDose, type MedicationItem } from "./model";
 import { useReducedMotion } from "./hooks";
+import { hasProtectedStorage } from "../localData/nativeStorage";
 const slotIcons = { morning: Sun, noon: Clock, evening: Sunset, bedtime: Moon };
 const suggestions = [
   "Take with food / meal",
@@ -108,6 +109,8 @@ export function Medications({
   }
   return (
     <Tile tone="medication">
+      {!hasProtectedStorage && <Txt accessibilityRole="alert" style={{ fontSize: 12, lineHeight: 18 }}>Secure storage requires an app update. Existing reminders on this version are stored without app-level encryption.</Txt>}
+      <Txt style={{ fontSize: 12, lineHeight: 18 }}>Personal tracking only; not medical advice. Follow your clinician’s directions. Reminders are not guaranteed; use another reliable reminder.</Txt>
       <Row>
         <View
           style={{

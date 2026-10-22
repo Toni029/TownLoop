@@ -1,3 +1,4 @@
+import { ModerationPanel } from "./ModerationPanel";
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { adminDirectory, removeAttendeePatch } from "./adminModel";
 import { CecilPinesMark } from "../components/CecilPinesMark";
@@ -68,7 +69,7 @@ export function AdminMenu({
   function finishTabTransition() { if (activeTab.current === tab) tabLock.current = false; }
   function changeTab(next: string) {
     if (next === tab || tabLock.current || busy) return;
-    const order = ['residents', 'rsvp', 'database'];
+    const order = ['residents', 'rsvp', 'moderation', 'database'];
     tabLock.current = true;
     activeTab.current = next;
     setTabDirection(order.indexOf(next) > order.indexOf(tab) ? 1 : -1);
@@ -207,6 +208,7 @@ export function AdminMenu({
         {[
           ["residents", "Directory", Users],
           ["rsvp", "RSVP Upcoming", CalendarCheck],
+          ["moderation", "Reports", AlertTriangle],
           ...(privileged ? [["database", "Database Clean", Trash2]] : []),
         ].map(([id, label, Icon]) => {
           const Glyph = Icon as typeof Users;
@@ -269,6 +271,7 @@ export function AdminMenu({
             </View>
           )}
           {busy && <ActivityIndicator color="#059669" />}
+          {tab === "moderation" && <ModerationPanel/>}
           {tab === "residents" && (
             <>
               <View

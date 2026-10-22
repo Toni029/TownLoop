@@ -1,7 +1,7 @@
 // Shared by the trusted projection trigger and the offline migration planner.
 const ROLES = new Set(['resident', 'crew', 'vip', 'admin']);
 function directoryProjection(uid, profile) {
-  if (!profile || profile.approved !== true || !ROLES.has(profile.role)) return null;
+  if (!profile || profile.approved !== true || profile.deletionPending === true || !ROLES.has(profile.role)) return null;
   const text = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
   const avatar = text(profile.avatarUrl || profile.avatar_url, 700000);
   return {

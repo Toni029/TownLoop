@@ -1,7 +1,7 @@
 const collections = { resident_chats: 'friend', office_chats: 'office', maintenance_chats: 'maintenance' };
 const { isDeepStrictEqual } = require('node:util');
 function aliases(p) { return typeof p?.id === 'string' && p.id ? [p.id] : []; }
-const approved = p => !!p && p.approved === true && ['resident', 'admin', 'vip', 'crew'].includes(p.role);
+const approved = p => !!p && p.approved === true && !p.deletionPending && ['resident', 'admin', 'vip', 'crew'].includes(p.role);
 function member(collection, chat, user) {
   if (!approved(user)) return false;
   const ids = aliases(user);

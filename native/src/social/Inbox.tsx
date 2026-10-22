@@ -1,3 +1,4 @@
+import { SafetyActions } from "../components/SafetyActions";
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
@@ -155,6 +156,7 @@ export function Inbox({
       ? selected.buyerName
       : selected.sellerName
     : "";
+  const otherUid = selected ? side === "seller" ? selected.buyerId : selected.sellerId : "";
   const closed =
     selected && hasLeft(selected, side === "seller" ? "buyer" : "seller");
   async function reply() {
@@ -190,6 +192,7 @@ export function Inbox({
           color="#047857"
         />
       )}
+      {selected && <SafetyActions target={{kind:"user",id:otherUid}} allowBlock/>}
       {!!error && <ErrorNotice message={error} retry={retry} />}
       {selected ? (
         <>

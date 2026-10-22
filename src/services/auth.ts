@@ -33,6 +33,7 @@ import {
   OperationType
 } from '../firebase';
 import { UserProfile, UserRole } from '../types';
+import { TERMS_VERSION, requireTermsAcceptance } from '../data/legal';
 
 /**
  * Normalizes Firestore or Auth data into consistent UserProfile structure
@@ -148,23 +149,8 @@ export async function loginUser(email: string, password: string): Promise<UserPr
     }
 
     if (!userData) {
-      // If Firestore doc does not exist yet, initialize it
-      userData = {
-        id: user.uid,
-        name: user.displayName || cleanEmail.split('@')[0] || 'Resident',
-        email: user.email || cleanEmail,
-        role: "resident",
-        address: '',
-        avatarUrl: user.photoURL || '',
-        approved: false,
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        await setDoc(userDocRef, userData);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
-      }
+      await signOut(auth);
+      throw new Error('Your resident profile is missing. Please contact the community office for account assistance.');
     }
 
     return normalizeUserProfile(user.uid, userData, user);
@@ -190,7 +176,9 @@ export async function signupUser(params: {
   password: string;
   address?: string;
   phone?: string;
+  termsAccepted?: boolean;
 }): Promise<UserProfile> {
+  requireTermsAcceptance(params.termsAccepted);
   const { name, email, password, address, phone } = params;
   const userStreetAddress = address ? address.trim() : '';
 
@@ -216,6 +204,8 @@ export async function signupUser(params: {
       address: userStreetAddress,
       avatarUrl: user.photoURL || '',
       approved: false,
+      termsVersion: TERMS_VERSION,
+      termsAcceptedAt: serverTimestamp(),
       createdAt: new Date().toISOString()
     };
 
@@ -244,7 +234,7 @@ export async function signupUser(params: {
 /**
  * Sign in with Google popup via Firebase Auth
  */
-export async function loginWithGoogle(): Promise<UserProfile> {
+export async function loginWithGoogle(termsAccepted?: boolean): Promise<UserProfile> {
   if (!isFirebaseConfigured() || !auth || !db) {
     throw new Error('Firebase Authentication is not configured.');
   }
@@ -267,6 +257,10 @@ export async function loginWithGoogle(): Promise<UserProfile> {
     }
 
     if (!userData) {
+      if (termsAccepted !== true) {
+        await signOut(auth);
+        requireTermsAcceptance(termsAccepted);
+      }
       userData = {
         id: user.uid,
         name: user.displayName || 'Resident',
@@ -275,6 +269,8 @@ export async function loginWithGoogle(): Promise<UserProfile> {
         address: '',
         avatarUrl: user.photoURL || '',
         approved: false,
+        termsVersion: TERMS_VERSION,
+        termsAcceptedAt: serverTimestamp(),
         createdAt: new Date().toISOString()
       };
 

@@ -1,3 +1,4 @@
+import { SafetyActions } from "../components/SafetyActions";
 import { usePresentation } from "../shell/TownLoopShell";
 import { useState } from "react";
 import {
@@ -210,7 +211,9 @@ export function Comments({
   busy,
   draft,
   onDraftChange,
+  safetyTarget,
 }: {
+  safetyTarget?: {kind: "post" | "listing"; id: string};
   draft?: { text: string; id: string };
   onDraftChange?: (draft: { text: string; id: string }) => void;
   comments: CommentItem[];
@@ -260,6 +263,7 @@ export function Comments({
               </Copy>
             </Copy>
             <Copy style={{ lineHeight: 20 }}>{c.text}</Copy>
+            {safetyTarget && <SafetyActions target={{kind:'comment',id:safetyTarget.id,collection:safetyTarget.kind==='post'?'discussion_feed':'marketplace_posts',commentId:String(c.id),authorId:c.authorId?String(c.authorId):undefined}}/>}
           </View>
         </View>
       ))}
@@ -532,6 +536,7 @@ export function SocialFeed({
                     </View>
                   </Pressable>
                   <Pill label={post.tag} />
+                  <SafetyActions target={{kind:"post",id:String(post.id),authorId:String(post.authorId || "")}}/>
                   {(owns(post, user) || canDeleteAnyPost(user)) && (
                     <DeleteControl
                       busy={busy}
@@ -637,6 +642,7 @@ export function SocialFeed({
                   <Collapsible open={comments === String(post.id)}>
                     <Comments
                       comments={post.comments}
+                      safetyTarget={{kind:"post",id:String(post.id)}}
                       draft={drafts.get(String(post.id))}
                       onDraftChange={draft => drafts.set(String(post.id), draft)}
                       busy={busy}
@@ -700,6 +706,7 @@ export function SocialFeed({
                           : "amber"
                     }
                   />
+                  <SafetyActions target={{kind:"listing",id:String(item.id),authorId:String(item.authorId || "")}}/>
                   {(owns(item, user) || canDeleteAnyPost(user)) && (
                     <DeleteControl
                       busy={busy}
@@ -1006,6 +1013,7 @@ export function Detail({
           <Pill label={post!.tag} />
         )}
       </View>
+      <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
       <View style={s.row}>
         <Action
           label="Share post"
@@ -1066,6 +1074,7 @@ export function Detail({
       <Copy weight="bold">{item.comments?.length || 0} Comments</Copy>
       <Comments
         comments={item.comments || []}
+        safetyTarget={{kind,id:String(item.id)}}
         busy={busy}
         onSubmit={(text, commentId) =>
           onAction(kind, String(item.id), "comment", { text, commentId })

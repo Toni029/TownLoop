@@ -1,3 +1,4 @@
+import { SafetyActions } from './SafetyActions';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -377,6 +378,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   // Real-time Resident / Friend Chats from Firestore
   const [friendChats, setFriendChats] = useState<ResidentChat[]>([]);
   const [activeFriendChat, setActiveFriendChat] = useState<ResidentChat | null>(null);
+  const friendCounterpartUid = activeFriendChat?.participantIds?.includes(String(currentUser?.id))
+    ? activeFriendChat.participantIds.find(uid => uid !== String(currentUser?.id)) : undefined;
   const [friendReplyText, setFriendReplyText] = useState('');
   const [isSendingFriendReply, setIsSendingFriendReply] = useState(false);
   const friendChatEndRef = useRef<HTMLDivElement>(null);
@@ -2372,6 +2375,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                 )}
               </div>
 
+              {friendCounterpartUid && <SafetyActions key={friendCounterpartUid} target={{ kind: 'user', id: friendCounterpartUid }} allowBlock />}
               {/* Conversation Messages Thread */}
               <div className="flex-1 overflow-y-auto hide-scrollbar native-scroll space-y-3 p-2.5 rounded-2xl liquid-glass-subpanel pr-2 overscroll-contain touch-pan-y">
                 {activeFriendChat && activeFriendChat.messages && activeFriendChat.messages.length > 0 ? (
@@ -2555,6 +2559,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
           {/* ================= VIEW 3B: RESIDENT PROFILE DETAIL (PHONE & ADDRESS) ================= */}
           {activeView === 'friendDetail' && selectedResident && (
             <div className="space-y-4">
+              <SafetyActions key={selectedResident.id} target={{ kind: 'user', id: selectedResident.id }} allowBlock />
               <div className="flex items-center justify-between pb-2.5 border-b border-stone-200/90 dark:border-slate-800 pr-11 sm:pr-12">
                 <button
                   onClick={() => setActiveView('friends')}

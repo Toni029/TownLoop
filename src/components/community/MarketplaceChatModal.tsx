@@ -1,3 +1,4 @@
+import { SafetyActions } from '../SafetyActions';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -120,6 +121,10 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
     selectedChat && currentUser
       ? String(currentUser.id) === selectedChat.sellerId
       : false;
+
+  const selectedCounterpartUid = selectedChat && currentUser &&
+    [selectedChat.sellerId, selectedChat.buyerId].includes(String(currentUser.id))
+    ? (selectedIsSeller ? selectedChat.buyerId : selectedChat.sellerId) : undefined;
 
   const selectedOtherPartyName = selectedChat
     ? selectedIsSeller
@@ -610,6 +615,7 @@ export const MarketplaceChatModal: React.FC<MarketplaceChatModalProps> = ({
                   </div>
                 )}
 
+                {selectedCounterpartUid && <div className="px-4 py-2"><SafetyActions key={selectedCounterpartUid} target={{ kind: 'user', id: selectedCounterpartUid }} allowBlock /></div>}
                 {/* Messages Thread */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-3 hide-scrollbar">
                   {(selectedChat.messages || []).map((m) => {

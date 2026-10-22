@@ -5,7 +5,7 @@ export type SocialCollection = 'posts' | 'discussion_feed' | 'marketItems' | 'ma
 export async function mutateSocial(db: Firestore, uid: string, collection: SocialCollection, id: string,
   action: 'like' | 'comment' | 'sold' | 'delete', payload: { liked?: boolean; text?: string; commentId?: string; sold?: boolean } = {}) {
   const profile = (await getDoc(doc(db, 'users', uid))).data();
-  if (!profile || profile.approved !== true || !['resident', 'admin', 'vip', 'crew'].includes(profile.role))
+  if (!profile || profile.approved !== true || profile.deletionPending === true || !['resident', 'admin', 'vip', 'crew'].includes(profile.role))
     throw Error('An approved account is required.');
   const ref = doc(db, collection, id);
   const commentId = payload.commentId || doc(collectionRef(db, collection)).id;

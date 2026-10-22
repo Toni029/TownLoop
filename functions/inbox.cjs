@@ -49,6 +49,10 @@ async function send(event, collection) {
     if (typeof after.residentId === 'string' && after.residentId && !after.residentId.includes('/')) add(await db.doc(`users/${after.residentId}`).get());
   }
   for (const recipient of recipients(collection, after, [...profiles.values()], sender.id)) {
+    if (collection === 'resident_chats') {
+      const blocked = await Promise.all([db.doc(`user_blocks/${sender.id}/targets/${recipient.id}`).get(), db.doc(`user_blocks/${recipient.id}/targets/${sender.id}`).get()]);
+      if (blocked.some(item => item.exists)) continue;
+    }
     const devices = await db.collection('notification_devices').where('uid', '==', recipient.id).get();
     for (const device of devices.docs) {
       const claim = db.collection('notification_deliveries').doc(hash(`${collection}/${event.params.chatId}/${message.id}/${recipient.id}/${device.id}`));

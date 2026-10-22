@@ -7,7 +7,7 @@ export function isMasterAdminEmail(_email?: string | null): boolean {
 
 /** Only an explicitly approved canonical role grants privileges. Legacy aliases are data, not authority. */
 export function getUserRole(user: UserProfile | null | undefined): UserRole {
-  return user?.approved === true && ['admin', 'vip', 'crew', 'resident'].includes(user.role || '')
+  return user?.approved === true && user.deletionPending !== true && ['admin', 'vip', 'crew', 'resident'].includes(user.role || '')
     ? user.role as UserRole : '';
 }
 export function isAdmin(user: UserProfile | null | undefined): boolean {

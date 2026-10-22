@@ -12,7 +12,7 @@ export async function inboxActor(expectedId?: string): Promise<UserProfile> {
   if (!db || !uid || (expectedId && expectedId !== uid)) throw Error('Sign in again.');
   const snapshot = await getDoc(doc(db, 'users', uid));
   const profile = { ...snapshot.data(), id: uid } as UserProfile;
-  if (!snapshot.exists() || profile.approved !== true || !['resident', 'admin', 'vip', 'crew'].includes(getUserRole(profile)))
+  if (!snapshot.exists() || profile.approved !== true || profile.deletionPending === true || !['resident', 'admin', 'vip', 'crew'].includes(getUserRole(profile)))
     throw Error('An approved account is required.');
   if (auth?.currentUser?.uid !== uid) throw Error('Your session changed.');
   return profile;

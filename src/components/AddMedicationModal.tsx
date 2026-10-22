@@ -25,7 +25,7 @@ import type { MedicationItem, MedicationTimeSlot } from '../types';
 interface AddMedicationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (medication: Omit<MedicationItem, 'id' | 'createdAt'>, editingId?: string) => void;
+  onSave: (medication: Omit<MedicationItem, 'id' | 'createdAt'>, editingId?: string) => void | boolean | Promise<void | boolean>;
   initialData?: MedicationItem | null;
 }
 
@@ -66,6 +66,7 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
   const [instructions, setInstructions] = useState('');
   const [pharmacyPhone, setPharmacyPhone] = useState('(904) 555-0199');
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Populate data when editing or opening
   useEffect(() => {
@@ -98,7 +99,7 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = name.trim();
     if (!cleanName) {
@@ -106,21 +107,27 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
       return;
     }
 
-    onSave(
-      {
-        name: cleanName,
-        doseCount: Math.max(1, doseCount),
-        timeSlot,
-        bottleCount: Math.max(0, bottleCount),
-        instructions: instructions.trim() || undefined,
-        pharmacyPhone: pharmacyPhone.trim() || undefined,
-        lastTakenDate: initialData?.lastTakenDate,
-        lastTakenTime: initialData?.lastTakenTime,
-      },
-      initialData?.id
-    );
+    if (saving) return;
+    setSaving(true);
+    try {
+      const saved = await onSave(
+        {
+          name: cleanName,
+          doseCount: Math.max(1, doseCount),
+          timeSlot,
+          bottleCount: Math.max(0, bottleCount),
+          instructions: instructions.trim() || undefined,
+          pharmacyPhone: pharmacyPhone.trim() || undefined,
+          lastTakenDate: initialData?.lastTakenDate,
+          lastTakenTime: initialData?.lastTakenTime,
+        },
+        initialData?.id
+      );
 
-    onClose();
+      if (saved === false) { setError('Your medication could not be saved. Please retry.'); return; }
+      onClose();
+    } catch { setError('Your medication could not be saved. Please retry.'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -407,10 +414,11 @@ export const AddMedicationModal: React.FC<AddMedicationModalProps> = ({
             </button>
             <button
               type="submit"
+              disabled={saving}
               className="flex-1 min-h-[50px] py-3 px-4 rounded-2xl bg-sky-700 hover:bg-sky-800 active:scale-98 text-white font-bold shadow-md hover:shadow-lg transition cursor-pointer text-sm flex items-center justify-center gap-2"
             >
               <Pill className="w-4 h-4" />
-              <span>{isEditing ? 'Save Changes' : 'Save Medication'}</span>
+              <span>{saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Save Medication'}</span>
             </button>
           </div>
         </form>

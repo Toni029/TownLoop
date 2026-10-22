@@ -91,7 +91,7 @@ async function saveSocialDocument(name: 'discussion_feed' | 'marketplace_posts',
       transaction.get(doc(db, 'users', uid)), transaction.get(reference),
     ]);
     const profile = profileSnapshot.data();
-    if (auth?.currentUser?.uid !== uid || !profile || profile.approved !== true || !['resident', 'admin', 'vip', 'crew'].includes(profile.role))
+    if (auth?.currentUser?.uid !== uid || !profile || profile.approved !== true || profile.deletionPending === true || !['resident', 'admin', 'vip', 'crew'].includes(profile.role))
       throw Error('An approved account is required.');
     const content = name === 'discussion_feed' ? {
       content: (params as SaveDiscussionFeedParams).content.trim(),

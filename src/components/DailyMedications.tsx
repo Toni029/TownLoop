@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import type { MedicationItem, MedicationTimeSlot } from '../types';
 import { AddMedicationModal } from './AddMedicationModal';
+import { loadResidentMedications, updateResidentMedications, validateMedications } from '../localData/medications';
 
 // Dedicated Orange Pill Bottle SVG Icon for maximum visual clarity
 export const OrangePillBottleIcon: React.FC<{ className?: string }> = ({
@@ -96,48 +97,7 @@ interface DailyMedicationsProps {
 }
 
 const STORAGE_KEY = 'cecil_pines_medications_v1';
-const STORAGE_EXPANDED_KEY = 'cecil_pines_medications_expanded_v1';
 const DEFAULT_PHARMACY_PHONE = '(904) 555-0199';
-
-// Senior-friendly starter medications
-const SEED_MEDICATIONS: MedicationItem[] = [
-  {
-    id: 'med-1',
-    name: 'Lisinopril (10 mg)',
-    doseCount: 1,
-    timeSlot: 'morning',
-    bottleCount: 28,
-    instructions: 'Take 1 tablet every morning with breakfast and a full glass of water. Avoid skipping doses.',
-    lastTakenDate: undefined,
-    lastTakenTime: undefined,
-    pharmacyPhone: DEFAULT_PHARMACY_PHONE,
-    createdAt: 1710000000000,
-  },
-  {
-    id: 'med-2',
-    name: 'Calcium + Vitamin D3',
-    doseCount: 1,
-    timeSlot: 'noon',
-    bottleCount: 4, // Low supply trigger (<= 5)
-    instructions: 'Take with midday lunch for optimal calcium absorption. Do not take with iron supplements.',
-    lastTakenDate: undefined,
-    lastTakenTime: undefined,
-    pharmacyPhone: DEFAULT_PHARMACY_PHONE,
-    createdAt: 1710000001000,
-  },
-  {
-    id: 'med-3',
-    name: 'Metformin (500 mg)',
-    doseCount: 1,
-    timeSlot: 'evening',
-    bottleCount: 45,
-    instructions: 'Take with evening dinner to reduce stomach upset. Swallow whole with water.',
-    lastTakenDate: undefined,
-    lastTakenTime: undefined,
-    pharmacyPhone: DEFAULT_PHARMACY_PHONE,
-    createdAt: 1710000002000,
-  },
-];
 
 const TIME_SLOT_META: Record<
   MedicationTimeSlot,
@@ -186,69 +146,76 @@ const TIME_SLOT_META: Record<
 
 const TIME_SLOT_ORDER: MedicationTimeSlot[] = ['morning', 'noon', 'evening', 'bedtime'];
 
-export const DailyMedications: React.FC<DailyMedicationsProps> = ({
+export const DailyMedications: React.FC<DailyMedicationsProps> = (props) =>
+  props.userId === undefined ? null : <ResidentMedications key={String(props.userId)} {...props} />;
+
+const ResidentMedications: React.FC<DailyMedicationsProps> = ({
   todayStr,
   onShowToast,
   userId,
 }) => {
-  const [medications, setMedications] = useState<MedicationItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return SEED_MEDICATIONS;
-  });
-
-  // Collapse/Expand state patterned after WorkOrdersScreen: defaults to collapsed (false) when logging in
-  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_EXPANDED_KEY);
-      if (saved !== null) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // ignore
-    }
-    return false; // default collapsed as requested
-  });
-
-  // Reset to collapsed state whenever user logs in or switches account
-  useEffect(() => {
-    if (userId) {
-      setIsExpanded(false);
-      try {
-        localStorage.setItem(STORAGE_EXPANDED_KEY, 'false');
-      } catch {}
-    }
-  }, [userId]);
-
+  const uid = String(userId);
+  const [medications, setMedications] = useState<MedicationItem[]>([]);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingMedication, setEditingMedication] = useState<MedicationItem | null>(null);
-
-  // Persist medications to localStorage
-  useEffect(() => {
+  const [hasLegacy, setHasLegacy] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY) !== null; } catch { return false; }
+  });
+  const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [storageError, setStorageError] = useState('');
+  const mounted = useRef(true);
+  async function load() {
+    setReady(false);
+    setStorageError('');
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(medications));
-    } catch {
-      // ignore
+      const saved = await loadResidentMedications(uid);
+      if (mounted.current) { setMedications(saved); setReady(true); }
+    } catch (error) {
+      if (mounted.current) setStorageError(error instanceof Error ? error.message : 'Saved records could not be loaded. They have been preserved.');
     }
-  }, [medications]);
-
-  // Persist expand/collapse state
+  }
   useEffect(() => {
+    mounted.current = true;
+    void load();
+    const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('townloop-medication-deletion');
+    if (channel) channel.onmessage = event => {
+      if (event.data?.type === 'deleted' && event.data.uid === uid) {
+        setMedications([]); setReady(false);
+        setStorageError('Local medication records were removed after account deletion.');
+      }
+    };
+    return () => { mounted.current = false; channel?.close(); };
+  }, [uid]);
+  async function change(update: (current: MedicationItem[]) => MedicationItem[]) {
+    if (!ready) return false;
+    setSaving(true); setStorageError('');
     try {
-      localStorage.setItem(STORAGE_EXPANDED_KEY, JSON.stringify(isExpanded));
-    } catch {
-      // ignore
-    }
-  }, [isExpanded]);
+      const saved = await updateResidentMedications(uid, update);
+      if (!mounted.current) return false;
+      setMedications(saved);
+      return true;
+    } catch (error) {
+      if (mounted.current) {
+        setStorageError(error instanceof Error ? error.message : 'Your change could not be saved. Existing records are preserved.');
+        onShowToast?.('Medication change was not saved. Please retry.');
+      }
+      return false;
+    } finally { if (mounted.current) setSaving(false); }
+  }
+  async function copyLegacy() {
+    try {
+      const parsed = validateMedications(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'));
+      if (await change(current => [...current, ...parsed.filter(m => !current.some(c => c.id === m.id))]))
+        onShowToast?.('Copied and verified your old records in encrypted browser storage. The original browser copy remains until you remove it.');
+    } catch { onShowToast?.('Saved browser records could not be read. They have been preserved.'); }
+  }
+  function removeLegacy() {
+    if (!window.confirm('Permanently remove the old medication records saved in this browser? Only remove them after confirming your records were copied to this account or if you no longer need them.')) return;
+    try { localStorage.removeItem(STORAGE_KEY); setHasLegacy(false); }
+    catch { onShowToast?.('Old browser records could not be removed.'); }
+  }
 
   const sectionRef = useRef<HTMLElement>(null);
   const savedTopRef = useRef<number | null>(null);
@@ -291,99 +258,29 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
     }
   }, [isExpanded]);
 
-  // Action: Take dose now
-  const handleTakeDose = (med: MedicationItem) => {
-    const now = new Date();
-    const formattedTime = now.toLocaleTimeString([], {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-
-    setMedications((prev) =>
-      prev.map((item) => {
-        if (item.id === med.id) {
-          const newBottleCount = Math.max(0, item.bottleCount - item.doseCount);
-          return {
-            ...item,
-            bottleCount: newBottleCount,
-            lastTakenDate: todayStr,
-            lastTakenTime: formattedTime,
-          };
-        }
-        return item;
-      })
-    );
-
-    const remainingAfter = Math.max(0, med.bottleCount - med.doseCount);
-    onShowToast?.(
-      `✓ Marked ${med.name} as taken (${remainingAfter} pills left in bottle).`
-    );
+  const handleTakeDose = async (med: MedicationItem) => {
+    const formattedTime = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    if (await change(prev => prev.map(item => item.id === med.id && item.lastTakenDate !== todayStr ? {
+      ...item, bottleCount: Math.max(0, item.bottleCount - item.doseCount), lastTakenDate: todayStr, lastTakenTime: formattedTime,
+    } : item))) onShowToast?.(`✓ Marked ${med.name} as taken.`);
   };
-
-  // Action: Undo dose taken
-  const handleUndoDose = (med: MedicationItem) => {
-    setMedications((prev) =>
-      prev.map((item) => {
-        if (item.id === med.id) {
-          return {
-            ...item,
-            bottleCount: item.bottleCount + item.doseCount,
-            lastTakenDate: undefined,
-            lastTakenTime: undefined,
-          };
-        }
-        return item;
-      })
-    );
-    onShowToast?.(`Undid ${med.name}. Restored dose to bottle.`);
+  const handleUndoDose = async (med: MedicationItem) => {
+    if (await change(prev => prev.map(item => item.id === med.id && item.lastTakenDate === todayStr ? {
+      ...item, bottleCount: item.bottleCount + item.doseCount, lastTakenDate: undefined, lastTakenTime: undefined,
+    } : item))) onShowToast?.(`Undid ${med.name}. Restored dose to bottle.`);
   };
-
-  // Action: Restock bottle (+30 pills)
-  const handleRestock = (id: string, amount = 30) => {
-    setMedications((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          return {
-            ...item,
-            bottleCount: item.bottleCount + amount,
-          };
-        }
-        return item;
-      })
-    );
-    onShowToast?.(`Added +${amount} pills to prescription bottle.`);
+  const handleRestock = async (id: string, amount = 30) => {
+    if (await change(prev => prev.map(item => item.id === id ? { ...item, bottleCount: item.bottleCount + amount } : item)))
+      onShowToast?.(`Added +${amount} pills to prescription bottle.`);
   };
-
-  // Action: Delete medication
-  const handleDeleteMed = (id: string, name: string) => {
-    setMedications((prev) => prev.filter((item) => item.id !== id));
-    onShowToast?.(`Removed ${name} from reminders.`);
+  const handleDeleteMed = async (id: string, name: string) => {
+    if (await change(prev => prev.filter(item => item.id !== id))) onShowToast?.(`Removed ${name} from reminders.`);
   };
-
-  // Action: Add or Edit medication
-  const handleSaveMedication = (
-    medData: Omit<MedicationItem, 'id' | 'createdAt'>,
-    editingId?: string
-  ) => {
-    if (editingId) {
-      setMedications((prev) =>
-        prev.map((item) => (item.id === editingId ? { ...item, ...medData } : item))
-      );
-      onShowToast?.(`Updated ${medData.name} details & instructions.`);
-    } else {
-      const newItem: MedicationItem = {
-        ...medData,
-        id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        pharmacyPhone: medData.pharmacyPhone || DEFAULT_PHARMACY_PHONE,
-        createdAt: Date.now(),
-      };
-      setMedications((prev) => [...prev, newItem]);
-      onShowToast?.(
-        `Added ${medData.name} to ${TIME_SLOT_META[medData.timeSlot].title} schedule.`
-      );
-    }
-    setEditingMedication(null);
+  const handleSaveMedication = async (medData: Omit<MedicationItem, 'id' | 'createdAt'>, editingId?: string) => {
+    const next: MedicationItem = { ...medData, id: `med-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, pharmacyPhone: medData.pharmacyPhone || DEFAULT_PHARMACY_PHONE, createdAt: Date.now() };
+    const saved = await change(prev => editingId ? prev.map(item => item.id === editingId ? { ...item, ...medData } : item) : [...prev, next]);
+    if (saved) { onShowToast?.(`Saved ${medData.name}.`); setEditingMedication(null); }
+    return saved;
   };
 
   // Stats for today
@@ -452,6 +349,7 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
 
             <button
               type="button"
+              disabled={!ready || saving}
               onClick={() => {
                 setEditingMedication(null);
                 setIsAddModalOpen(true);
@@ -465,6 +363,21 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
           </div>
         </div>
 
+        <p className="mt-3 text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+          Personal tracking only; not medical advice. Follow your clinician’s directions. Reminders are not guaranteed; use another reliable reminder.
+          {' '}Records are encrypted in this browser for your account and remain after refresh. Clearing browser data removes them. Use a trusted device; browser scripts can still access your records.
+        </p>
+        {!ready && !storageError && <p role="status" className="mt-2 text-xs">Loading saved medication records…</p>}
+        {saving && <p role="status" className="mt-2 text-xs">Saving medication records…</p>}
+        {storageError && <div role="alert" className="mt-2 text-xs"><p>{storageError}</p><button type="button" onClick={() => void load()} className="min-h-[44px] underline">Retry loading saved records</button></div>}
+        {hasLegacy && <div className="mt-3 text-xs space-y-2" role="status">
+          <p>Old medication records remain saved in this browser without app-level encryption. Their owner cannot be verified. Copy them only if they belong to you. The original is kept until you explicitly remove it.</p>
+          <div className="flex gap-3 flex-wrap">
+            <button type="button" onClick={copyLegacy} disabled={!ready || saving} className="min-h-[44px] underline">Copy my old records to this account</button>
+            <button type="button" onClick={removeLegacy} className="min-h-[44px] underline">Remove old browser records</button>
+          </div>
+        </div>}
+
         {/* ======================================================== */}
         {/* EXPANDABLE CONTENT: Smooth CSS Grid Accordion Transition */}
         {/* ======================================================== */}
@@ -474,12 +387,13 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
           }`}
         >
           <div className="overflow-hidden">
+            <fieldset disabled={!ready || saving} className="contents">
             <div
               className={`space-y-4 pt-1 transition-opacity duration-300 ease-in-out ${
                 isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
             >
-            {totalMedications === 0 ? (
+            {!ready ? <p className="text-sm">Saved medication records are not available yet. Check the storage message above.</p> : totalMedications === 0 ? (
               <div className="text-center py-8 px-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl">
                 <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 flex items-center justify-center mx-auto mb-2.5">
                   <OrangePillBottleIcon className="w-7 h-7" />
@@ -721,6 +635,7 @@ export const DailyMedications: React.FC<DailyMedicationsProps> = ({
                 </div>
               )}
             </div>
+            </fieldset>
           </div>
         </div>
       </section>

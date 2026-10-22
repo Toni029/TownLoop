@@ -1,3 +1,4 @@
+import { ModerationPanel } from './ModerationPanel';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -78,7 +79,7 @@ export function AdminPanelModal({
   const isUpcoming = communityId === 'upcoming_community' || communityId === 'demo_community';
   const [usersList, setUsersList] = useState<ManagedUser[]>([]);
   const [isApprovingId, setIsApprovingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'residents' | 'rsvp' | 'database'>('residents');
+  const [activeTab, setActiveTab] = useState<'residents' | 'rsvp' | 'database' | 'moderation'>('residents');
   const [isPurging, setIsPurging] = useState(false);
   const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
   const [rsvpSearch, setRsvpSearch] = useState('');
@@ -380,6 +381,12 @@ export function AdminPanelModal({
             )}
           </button>
 
+          {currentUser?.approved === true && ['admin', 'vip'].includes(currentUser.role) && (
+            <button type="button" onClick={() => setActiveTab('moderation')}
+              className={`flex-1 min-h-11 text-xs font-bold border-b-2 ${activeTab === 'moderation' ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400' : 'border-transparent text-stone-600 dark:text-slate-300'}`}>
+              Safety reports
+            </button>
+          )}
           {isPrivilegedUser && (
             <button
               onClick={() => setActiveTab('database')}
@@ -397,7 +404,7 @@ export function AdminPanelModal({
 
         {/* Body Content */}
         <div className="p-3 sm:p-5 overflow-y-auto overflow-x-hidden flex-1 space-y-3 sm:space-y-4">
-          {activeTab === 'residents' ? (
+          {activeTab === 'moderation' ? <ModerationPanel currentUser={currentUser} /> : activeTab === 'residents' ? (
             <>
               <div className="flex items-center justify-between gap-2 pb-2 border-b border-stone-200/80 dark:border-slate-800">
                 <div className="flex items-center gap-1.5 sm:gap-2">

@@ -35,3 +35,9 @@ Object.assign(exports, require("./translation.cjs"));
 
 // Prepared privacy projection; deploy only with reviewed directory backfill/rules rollout.
 Object.assign(exports, require("./profilePrivacy.cjs"));
+
+// Local launch-security batch: deployment requires separate approval and matching rules/clients.
+Object.assign(exports, require('./safety.cjs'));
+
+// Prepared locally; do not deploy without owner-approved deletion/media policies.
+Object.assign(exports, require('./accountDeletion.cjs'), require('./mediaCleanup.cjs'));
