@@ -28,7 +28,7 @@ test("profile chats use stable identity and do not give a namesake access to ano
   assert.ok(!identifiers(resident).includes("alex_resident"));
   const data = {
     identityVersion: 2,
-    participantIds: identifiers(resident),
+    participantIds: [String(resident.id), String(other.id)],
     participants: [resident, { ...other, name: "Another Neighbor" }],
     unreadBy: ["uid-one"],
     messages: [],
@@ -217,4 +217,19 @@ test("UID case, legacy aliases, approval and per-user cursors fail closed", () =
   assert.equal(readThread("friend", "one", data, {...resident, id: String(resident.id).toUpperCase()}), null);
   assert.equal(readThread("friend", "one", data, {...resident, approved:false}), null);
   assert.equal(readThread("office", "one", {residentId:other.id,residentEmail:resident.email}, resident), null);
+});
+
+
+test("migrated friend chats route by canonical UID while displaying legacy participant IDs", () => {
+ const me = { ...resident, id: "MixedCaseUid", email: "me@example.invalid" };
+ const peer = { ...other, id: "OtherCaseUid", name: "Neighbor" };
+ const data = { identityVersion: 2, participantIds: [me.id, peer.id], participants: [
+   { id: "mixedcaseuid", name: "Me" }, { id: "othercaseuid", name: peer.name }
+ ], unreadBy: ["me_example_invalid"], messages: [] };
+ const thread = readThread("friend", "legacy", data, me);
+ assert.equal(thread?.recipient.id, peer.id);
+ assert.equal(thread?.name, peer.name);
+ assert.equal(thread?.unread, true);
+ assert.equal(readThread("friend", "legacy", data, { ...me, id: "mixedcaseuid" }), null);
+ assert.equal(data.participants[0].id, "mixedcaseuid");
 });

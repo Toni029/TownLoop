@@ -81,11 +81,15 @@
     "src/services/storage.ts": "40117b1c7da8a46d1ac10ae7f342f16f5f07209914770e39b7c72fceb2a50a95",
     "tests/newsletter-security.test.cjs": "679d4d745a8fdd994f608366d6dfb76b5b7a8f5ce4eed65a39217575d100535e",
     "tests/newsletter.test.cjs": "27c24acfb2642903a387392a249d32c88775ef4ca1861b9fee0f8b733489c365",
-    "functions/mediaCleanup.cjs": "a38218b0e5da354b5c42f5918bef0bb1664146a54ba8d440a7461fe14857b5a9"
+    "functions/mediaCleanup.cjs": "a38218b0e5da354b5c42f5918bef0bb1664146a54ba8d440a7461fe14857b5a9",
+    "native/src/profile/model.ts": "5057ad34a025a8b93ba7a2f7ba4eb304c4466f63c115ea984c0cbe9a10f4e8b5",
+    "native/src/profile/ProfileMenu.tsx": "bc628098856c0bbdda4fcc9cc129cb524940ad28edb3338450a16f5056794502",
+    "native/tests/profile-menu.test.ts": "a832551948af97d0016dd5d4cc560a2a22dd599af343451592059626555a9ad1"
   },
   "excludedUntrackedArtifacts": [
     "docs/security/launch/DELETION.md (prior duplicate; canonical security/launch/DELETION.md retained)"
   ],
   "runtimePolicy": "fingerprint; compute after approved native monitoring setup, never override with old runtime",
-  "backendOnlyDeploymentCorrection": "Storage finalize trigger region matches verified US-EAST1 bucket; no cleanup activation. Native APK/OTA source remains 00724a4."
+  "backendOnlyDeploymentCorrection": "Storage finalize trigger region matches verified US-EAST1 bucket; no cleanup activation. Native APK/OTA source remains 00724a4.",
+  "migrationCompatibilityPatch": "Native migrated-thread display/routing and compose reuse only; no new native dependency or APK build."
 }

@@ -41,6 +41,14 @@ export function identifiers(user: {
   // Firebase UIDs are case-sensitive. Names, emails and lossy aliases are not identities.
   return user.id ? [String(user.id)] : [];
 }
+// Display compatibility only, after exact UID membership authorizes the thread.
+// Never use these lossy aliases for database access, routing, or role checks.
+function displayIdentities(user: { id?: string | number; email?: string }) {
+  return new Set([user.id, user.email].filter(Boolean).flatMap(value => {
+    const raw = String(value).trim().toLowerCase();
+    return [String(value), raw, raw.replace(/[^a-zA-Z0-9_-]/g, "_")];
+  }));
+}
 export function participantKey(user: { id?: string | number; email?: string; name?: string }) {
   return user.id ? String(user.id) : "";
 }
@@ -68,7 +76,6 @@ export function readThread(
   user: UserProfile,
 ): Thread | null {
   if (!getUserRole(user)) return null;
-  const mine = identifiers(user);
   let recipient: UserProfile, unread: boolean;
   if (category === "friend") {
     const participants = Array.isArray(data.participants)
@@ -76,18 +83,17 @@ export function readThread(
       : [];
     const ids = Array.isArray(data.participantIds) ? data.participantIds : [];
     if (data.identityVersion !== 2 || !ids.includes(String(user.id))) return null;
-    const other = participants.find(
-      (p: UserProfile) => !identifiers(p).some((v) => mine.includes(v)),
-    );
-    if (!other) return null;
+    const otherUid = ids.find((id: string) => id !== String(user.id));
+    const ownDisplayIds = displayIdentities(user);
+    const other = participants.find((p: UserProfile) => !ownDisplayIds.has(String(p.id)));
+    if (!other || !otherUid) return null;
     recipient = {
       ...other,
+      id: otherUid,
       address: other.apt || other.address || "",
       role: other.role || "resident",
     };
-    unread = (data.unreadBy || []).some((v: string) =>
-      mine.includes(v),
-    );
+    unread = (data.unreadBy || []).some((v: string) => ownDisplayIds.has(v));
   } else {
     const manager = category === "office" ? officeManager(user) : isCrew(user);
     if (
@@ -175,7 +181,7 @@ export function senderLabel(
 }
 
 export function messageIsMine(message: Message, user: UserProfile) {
-  return identifiers(user).includes(message.senderId);
+  return displayIdentities(user).has(message.senderId);
 }
 
 export function messageAvatar(message: Message, people: UserProfile[]): string {

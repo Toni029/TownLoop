@@ -651,9 +651,14 @@ export function ProfileMenu({
       if (!subject.trim()) throw new Error('Enter a subject for your message.');
       if ((category === 'friend' || category === 'office') && !person)
         throw new Error('Select a recipient first.');
+      const destination = category === 'office' ? 'friend' : category;
+      // Reuse migrated document IDs instead of starting a duplicate canonical-ID thread.
+      const existing = destination === 'friend' && person
+        ? data.threads.find(thread => thread.category === 'friend' && String(thread.recipient.id) === String(person.id))
+        : undefined;
       await sendMessage(
-        category === 'office' ? 'friend' : category,
-        person || user, subject, body, undefined,
+        destination,
+        person || user, subject, body, existing,
         category === 'office' ? {officeDirect:true} : undefined,
       );
       setBody('');
