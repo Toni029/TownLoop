@@ -21,8 +21,8 @@ export function readProfile(data: Record<string, unknown>): ResidentProfile {
         data.full_name,
       ) || "Resident",
     email: text(data.email),
-    role: text(data.role, data.userRole, data.user_role),
-    approved: data.approved !== false,
+    role: typeof data.role === "string" && ["resident", "crew", "vip", "admin"].includes(data.role) ? data.role : "",
+    approved: data.approved === true,
     address: text(data.address, data.unit),
   };
 }

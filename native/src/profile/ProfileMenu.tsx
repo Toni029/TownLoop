@@ -1289,20 +1289,19 @@ export function ProfileMenu({
                         {deleting && (
                           <View style={[s.bubble, panel]}>
                             <Text style={[s.rowTitle, { color: ink }]}>
-                              Delete conversation?
+                              Hide conversation?
                             </Text>
                             <Text style={[s.small, { color: muted }]}>
-                              This removes the shared conversation and its
-                              messages.
+                              Hide this conversation from your Inbox. New messages will make it appear again.
                             </Text>
                             <Action
                               danger
-                              title="Delete conversation"
+                              title="Hide conversation"
                               onPress={() =>
                                 void act(async () => {
                                   await deleteThread(deleting);
                                   setDeleting(null);
-                                }, "Conversation deleted")
+                                }, "Conversation hidden")
                               }
                             />
                             <Action
@@ -1487,7 +1486,7 @@ export function ProfileMenu({
                                 </Pressable>
                                 <Pressable
                                   accessibilityRole="button"
-                                  accessibilityLabel="Delete conversation"
+                                  accessibilityLabel="Hide conversation"
                                   hitSlop={6}
                                   onPress={() => setDeleting(t)}
                                   style={{
@@ -1971,7 +1970,7 @@ export function ProfileMenu({
                                 </View>
                                 <Pressable
                                   accessibilityRole="button"
-                                  accessibilityLabel="Delete conversation"
+                                  accessibilityLabel="Hide conversation"
                                   onPress={() => {
                                     setDeleting(conversation);
                                     go("inbox");

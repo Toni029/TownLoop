@@ -30,7 +30,7 @@ async function requireRole(req: Request, res: Response, next: NextFunction, tran
     const fields = profileResponse.ok ? (await profileResponse.json()).fields : null;
     const profile = fields ? Object.fromEntries(Object.entries(fields).map(([key, value]: [string, any]) =>
       [key, value.stringValue ?? value.booleanValue])) : null;
-    if (!profile || profile.approved === false || !(translation ? canTranslateWorkOrder(profile as UserProfile) : canManageNewsletter(profile as UserProfile))) {
+    if (!profile || profile.approved !== true || !(translation ? canTranslateWorkOrder(profile as UserProfile) : canManageNewsletter(profile as UserProfile))) {
       res.status(403).json({ error: translation ? 'Translation requires an approved Admin, VIP, or Crew account.' : 'Newsletter analysis requires an approved newsletter manager account.' });
       return;
     }

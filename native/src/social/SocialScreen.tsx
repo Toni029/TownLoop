@@ -1,13 +1,10 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
-  useReducer,
   useRef,
   useState,
 } from "react";
 import { View } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { MediaAttachment } from "../../../src/types";
 import { useResident } from "../lib/resident";
 import { useLiveCollection } from "../lib/liveCollection";
@@ -26,7 +23,6 @@ import {
   avatarResolver,
   type Listing,
 } from "./model";
-import { LikeStore } from "./likes";
 import { changeSocial, changeChat, inquire, type SocialKind } from "./actions";
 import { SocialFeed, Detail, type SocialAction } from "./SocialFeed";
 import { CreateEditor } from "./CreateEditor";
@@ -35,16 +31,9 @@ export default function SocialScreen() {
   const user = useResident();
   const posts = useLiveCollection("discussion_feed", readPost);
   const listings = useLiveCollection("marketplace_posts", readListing);
-  const directory = useLiveCollection("users", readPerson, "");
+  const directory = useLiveCollection("resident_directory", readPerson, "");
   const inbox = useLiveCollection("marketplace_chats", readChat, "");
   const uid = String(user?.id || "");
-  const likes = useMemo(() => new LikeStore(uid, AsyncStorage), [uid]);
-  const [likesRevision, render] = useReducer((n) => n + 1, 0);
-  useEffect(() => {
-    const stop = likes.subscribe(render);
-    void likes.load();
-    return stop;
-  }, [likes]);
   const [view, setView] = useState<SocialKind>("post");
   const [create, setCreate] = useState(false);
   const [selected, setSelected] = useState<{
@@ -65,13 +54,11 @@ export default function SocialScreen() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const lock = useRef(false);
-  // LikeStore mutates its Set in place; its subscription revision invalidates this snapshot.
-  const likedIds = useMemo(() => { void likesRevision; return new Set(likes.values); }, [likes, likesRevision]);
   const resolveAvatar = useMemo(() => avatarResolver(directory.items, user), [directory.items, user]);
   const resolvedPosts = useMemo(() => posts.items.map((p) => ({
     ...withAvatar(p, directory.items, user, resolveAvatar),
-    liked: likedIds.has(String(p.id)),
-  })), [posts.items, directory.items, user, resolveAvatar, likedIds]);
+    liked: p.likedBy[uid] === true,
+  })), [posts.items, directory.items, user, resolveAvatar, uid]);
   const resolvedListings = useMemo(() => listings.items.map((p) =>
     withAvatar(p, directory.items, user, resolveAvatar),
   ), [listings.items, directory.items, user, resolveAvatar]);
@@ -107,12 +94,7 @@ export default function SocialScreen() {
   const action: SocialAction = async (kind, id, operation, payload) =>
     perform(
       async () => {
-        if (operation === "like" && (!likes.ready || likes.error))
-          throw Error(
-            "Please finish loading or retry saving your reactions first.",
-          );
         await changeSocial(id, kind, operation, payload);
-        if (operation === "like") await likes.save(id, !!payload?.liked);
       },
       operation === "comment"
         ? "Comment posted!"
@@ -139,7 +121,7 @@ export default function SocialScreen() {
     setSeller(String(item.id));
   };
   const data = view === "post" ? posts : listings;
-  const currentError = [data.error, directory.error, inbox.error, likes.error]
+  const currentError = [data.error, directory.error, inbox.error]
     .filter(Boolean)
     .join("\n");
   return (
@@ -156,10 +138,9 @@ export default function SocialScreen() {
           data.retry();
           directory.retry();
           inbox.retry();
-          void likes.retry();
         }}
         busy={busy}
-        reactionsReady={likes.ready && !likes.error}
+        reactionsReady={!posts.loading && !posts.error}
         unread={unread}
         onCreate={() => {
           setError("");
@@ -198,7 +179,7 @@ export default function SocialScreen() {
           item={item}
           user={user}
           busy={busy}
-          reactionsReady={likes.ready && !likes.error}
+          reactionsReady={!posts.loading && !posts.error}
           onClose={() => setSelected(null)}
           onAction={action}
           onMessage={onMessage}

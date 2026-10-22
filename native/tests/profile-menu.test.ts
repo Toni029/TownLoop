@@ -7,7 +7,6 @@ import {
   readThread,
   neighbors,
   senderLabel,
-  receiptMessages,
   officeManager,
   messageAvatar,
   profileInterests,
@@ -24,10 +23,11 @@ const resident = {
 } as UserProfile;
 const other = { ...resident, id: "uid-two", email: "other@example.invalid" };
 test("profile chats use stable identity and do not give a namesake access to another resident’s messages", () => {
-  assert.equal(participantKey(resident), "alex@example.invalid");
-  assert.equal(residentKey(resident), "alex_example_invalid");
+  assert.equal(participantKey(resident), "uid-one");
+  assert.equal(residentKey(resident), "uid-one");
   assert.ok(!identifiers(resident).includes("alex_resident"));
   const data = {
+    identityVersion: 2,
     participantIds: identifiers(resident),
     participants: [resident, { ...other, name: "Another Neighbor" }],
     unreadBy: ["uid-one"],
@@ -149,25 +149,12 @@ test("read receipts require the opposite side, not another sender-team member", 
     body: "Hello",
     createdAt: 1,
   };
-  assert.equal(
-    receiptMessages([crewReply], "maintenance", { ...other, role: "crew" })[0]
-      .readBy,
-    undefined,
-  );
-  assert.deepEqual(
-    receiptMessages([crewReply], "maintenance", resident)[0].readBy,
-    [resident.id],
-  );
-  const request = {
-    ...crewReply,
-    senderId: String(resident.id),
-    senderRole: "resident",
-  };
-  assert.deepEqual(
-    receiptMessages([request], "maintenance", { ...other, role: "crew" })[0]
-      .readBy,
-    [other.id],
-  );
+  const data = { residentId: resident.id, residentName: resident.name, messages: [crewReply], readBy: { [other.id]: 1 } };
+  assert.deepEqual(readThread("maintenance", "one", data, resident)?.messages[0].readBy, []);
+  assert.deepEqual(readThread("maintenance", "one", {...data, readBy: {[resident.id]: 1}}, resident)?.messages[0].readBy, [resident.id]);
+  const request = { ...crewReply, senderId: String(resident.id), senderRole: "resident" };
+  assert.deepEqual(readThread("maintenance", "one", {...data, messages:[request]}, resident)?.messages[0].readBy, [other.id]);
+  assert.equal("readBy" in crewReply, false, "stored message is never rewritten");
   for (const role of ["resident", "crew", "staff"])
     assert.equal(officeManager({ ...other, role }), false);
   for (const role of ["admin", "vip"])
@@ -215,4 +202,19 @@ test("directory supports real interests and does not fabricate a membership date
   assert.equal(residentSince(person), "2025");
   assert.equal(residentSince(other), "");
   assert.equal(residentSince({ ...other, createdAt: "invalid" }), "");
+});
+
+test("UID case, legacy aliases, approval and per-user cursors fail closed", () => {
+  const messages = [{id:"one", senderId:other.id, senderRole:"resident", senderName:other.name, body:"Hello", createdAt:1}];
+  const data = { identityVersion:2, participantIds:[resident.id,other.id], participants:[resident,other], messages, unreadBy:[resident.id], readBy:{[resident.id]:1} };
+  assert.equal(readThread("friend", "one", data, resident)?.unread, false);
+  assert.equal(readThread("friend", "one", {...data, readBy:{[resident.id]:0}}, resident)?.unread, true);
+  assert.equal(readThread("friend", "one", {...data, hiddenBy:{[resident.id]:1}}, resident), null);
+  assert.ok(readThread("friend", "one", {...data, hiddenBy:{[other.id]:1}}, resident));
+  assert.ok(readThread("friend", "one", {...data, hiddenBy:{[resident.id]:1}, messages:[...messages, {...messages[0],id:"two"}]}, resident));
+  assert.equal(readThread("friend", "one", {...data, identityVersion:undefined}, resident), null);
+  assert.equal(readThread("friend", "one", {...data, participantIds:[resident.email,other.id]}, resident), null);
+  assert.equal(readThread("friend", "one", data, {...resident, id: String(resident.id).toUpperCase()}), null);
+  assert.equal(readThread("friend", "one", data, {...resident, approved:false}), null);
+  assert.equal(readThread("office", "one", {residentId:other.id,residentEmail:resident.email}, resident), null);
 });

@@ -10,7 +10,9 @@ export async function allocateWorkOrder(db: Firestore, reference: DocumentRefere
     let saved: boolean;
     try {
     saved = await runTransaction(db, async transaction => {
-      if ((await transaction.get(reference)).exists()) return true;
+      const previous = await transaction.get(reference);
+      if (previous.exists() && previous.data().storageDraft !== true) return true;
+      if (previous.exists() && previous.data().userId !== payload.userId) throw new Error('Draft ownership does not match.');
       const state = await transaction.get(counter);
       if (!state.exists() || state.data()?.ready !== true)
         throw new Error('Ticket numbering is being prepared. Please try again shortly.');
@@ -21,7 +23,7 @@ export async function allocateWorkOrder(db: Firestore, reference: DocumentRefere
         transaction.update(counter, { lastNumber: number, orderId: '' });
         return false;
       }
-      transaction.set(reference, { ...payload, ticketNumber: number, code: workOrderCode(number) });
+      transaction.set(reference, { ...payload, storageDraft: false, ticketNumber: number, code: workOrderCode(number) });
       transaction.set(reservation, { orderId: reference.id });
       transaction.update(counter, { lastNumber: number, orderId: reference.id });
       return true;

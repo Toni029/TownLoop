@@ -23,7 +23,7 @@ export function useLiveCollection<T>(
   const residentOrders = name === "work_orders" && !!user && !canViewAllWorkOrders(user);
   const [attempt, setAttempt] = useState(0);
   const key =
-    user && user.approved !== false
+    user && user.approved === true && ["resident", "admin", "vip", "crew"].includes(user.role || "")
       ? `${user.id}:${user.role}:${residentOrders}:${name}`
       : "";
   const [owned, setOwned] = useState<{
@@ -32,10 +32,16 @@ export function useLiveCollection<T>(
     loading: boolean;
     error: string;
   }>({ key: "", items: [], loading: true, error: "" });
-  const source = useMemo(() => name === "marketplace_chats" ? marketplaceChatQuery(db, uid) : residentOrders
-    ? query(collection(db, name), where("userId", "==", uid))
-    : sortField ? query(collection(db, name), orderBy(sortField, "desc")) : collection(db, name),
-    [residentOrders, name, uid, sortField]);
+  const source = useMemo(() => {
+    if (name === "marketplace_chats") return marketplaceChatQuery(db, uid);
+    const guarded = ['work_orders', 'discussion_feed', 'marketplace_posts', 'posts', 'marketItems'].includes(name);
+    const constraints = [
+      ...(guarded ? [where('storageDraft', '==', false)] : []),
+      ...(residentOrders ? [where('userId', '==', uid)] : []),
+      ...(sortField && !residentOrders ? [orderBy(sortField, 'desc')] : []),
+    ];
+    return query(collection(db, name), ...constraints);
+  }, [residentOrders, name, uid, sortField]);
   const activeKey = useRef(key);
   const refreshingRef = useRef(false);
   const [refreshKey, setRefreshKey] = useState('');

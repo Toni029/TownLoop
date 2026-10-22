@@ -1,5 +1,6 @@
+import { PrivateImage } from './PrivateImage';
 import { useState } from "react";
-import { Image, View } from "react-native";
+import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS, ReduceMotion } from "react-native-reanimated";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react-native";
@@ -39,7 +40,7 @@ export function ZoomImage({ uri, title }: { uri: string; title: string }) {
         onLayout={event => { width.set(event.nativeEvent.layout.width); height.set(event.nativeEvent.layout.height); }}
         style={{ flex: 1, overflow: "hidden", justifyContent: "center" }}>
         <Animated.View style={[{ width: "100%", height: "100%" }, motion]}>
-          <Image key={retry} source={{ uri }} accessibilityLabel={title} resizeMode="contain" onError={() => setError(true)} style={{ width: "100%", height: "100%" }} />
+          <PrivateImage key={retry} source={{ uri }} accessibilityLabel={title} resizeMode="contain" onError={() => setError(true)} style={{ width: "100%", height: "100%" }} />
         </Animated.View>
         {error && <View style={{ position: "absolute", alignSelf: "center", gap: 10 }}><Copy style={{ color: "#fff" }}>Unable to load this picture.</Copy><Action label="Retry Picture" onPress={() => { setError(false); setRetry(v => v + 1); }} /></View>}
       </View>

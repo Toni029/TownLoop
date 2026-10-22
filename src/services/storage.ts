@@ -1,6 +1,6 @@
-import { ref, deleteObject, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'firebase/storage';
+import { ensureMediaDraft, privateWorkOrderPath, type MediaRecordLink } from './mediaAuthorization';
+import { ref, deleteObject, uploadBytesResumable, getDownloadURL, getBlob } from 'firebase/storage';
 import {
-  onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
 import { auth, db, storage, isFirebaseConfigured } from '../firebase';
@@ -16,7 +16,7 @@ import {
 export type StorageFolder = 'marketplace' | 'feed' | 'work_orders';
 
 export interface UploadResult {
-  url: string; // Live secure web token string from getDownloadURL() or Data URL
+  url: string; // WorkOrders use a gs:// identity, resolved with authenticated reads.
   fileName: string;
   originalName: string;
   storagePath: string;
@@ -34,14 +34,14 @@ export interface UploadProgressTracker {
 
 /**
  * Requirement 2: File Organization & Unique Names
- * Prevents file name collisions by automatically combining a unique unix timestamp
+ * Reduces file name collisions by combining a random suffix and unix timestamp
  * with the user's sanitized ID (e.g., 1726582400_userId_filename.jpg).
  */
 export function generateStorageFileName(originalFileName: string, userId: string): string {
   const timestamp = Date.now();
   const sanitizedUserId = (userId || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
   const sanitizedFileName = originalFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  return `${timestamp}_${sanitizedUserId}_${sanitizedFileName}`;
+  return `${timestamp}_${sanitizedUserId}_${crypto.randomUUID()}_${sanitizedFileName}`;
 }
 
 /**
@@ -56,15 +56,8 @@ export async function ensureFirebaseAuthSession(
     return null;
   }
 
-  if (auth.currentUser && !auth.currentUser.isAnonymous) {
-    return auth.currentUser;
-  }
-  return new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      unsubscribe();
-      resolve(user && !user.isAnonymous ? user : null);
-    });
-  });
+  await auth.authStateReady();
+  return auth.currentUser && !auth.currentUser.isAnonymous ? auth.currentUser : null;
 }
 
 /**
@@ -73,112 +66,57 @@ export async function ensureFirebaseAuthSession(
  * before attempting uploadBytesResumable and attaching authentication metadata to pass strict production rules.
  *
  * Requirement 2: Dedicated sub-folders: /marketplace, /feed, and /work_orders
- * Requirement 3: Live secure web token download string via getDownloadURL() with seamless fallback
+ * WorkOrder references require authenticated byte delivery; upload failures are surfaced.
  */
 export async function uploadMediaToStorage({
   file,
   folder,
   currentUser,
   onProgress,
+  recordId, collection,
 }: {
+  recordId?: string; collection?: MediaRecordLink['collection'];
   file: File;
   folder: StorageFolder;
   currentUser?: UserProfile | null;
   onProgress?: (progress: number) => void;
 }): Promise<UploadResult> {
-  const effectiveUserId = currentUser?.id || auth?.currentUser?.uid || 'user';
-  const effectiveEmail = currentUser?.email || auth?.currentUser?.email || '';
-  const effectiveName = currentUser?.name || auth?.currentUser?.displayName || 'Resident';
+  if (!storage || !db || !isFirebaseConfigured()) throw new Error('Cloud Storage is unavailable.');
+  const user = await ensureFirebaseAuthSession(currentUser);
+  if (!user || user.isAnonymous) throw new Error('Please sign in before uploading.');
+  if (!recordId || !collection) throw new Error('An attachment must be linked to its record.');
+  if (file.size <= 0 || file.size >= 25 * 1024 * 1024) throw new Error('Choose a nonempty file smaller than 25MB.');
+  const expected = folder === 'work_orders' ? ['work_orders'] : folder === 'feed' ? ['discussion_feed', 'posts'] : ['marketplace_posts', 'marketItems'];
+  if (!expected.includes(collection)) throw new Error('Attachment record does not match its folder.');
+  await ensureMediaDraft(db, {recordId, collection}, user.uid);
+  const fileName = generateStorageFileName(file.name, user.uid);
+  const storagePath = `${folder}/${fileName}`;
+  const reference = ref(storage, storagePath);
+  const task = uploadBytesResumable(reference, file, { contentType: file.type, customMetadata: {
+    uploadedBy: user.uid, securityVersion: '1', recordId, collection, originalName: file.name,
+  }});
+  await new Promise<void>((resolve, reject) => task.on('state_changed', snapshot => {
+    onProgress?.(Math.round(snapshot.bytesTransferred / Math.max(1, snapshot.totalBytes) * 100));
+  }, reject, resolve));
+  if (auth?.currentUser?.uid !== user.uid) throw new Error('Your session changed. Please sign in again.');
+  const url = folder === 'work_orders' ? `gs://${reference.bucket}/${storagePath}` : await getDownloadURL(reference);
+  return {url, fileName, originalName: file.name, storagePath, type: file.type.startsWith('video/') ? 'video' : 'image', size: file.size};
+}
 
-  const userIdStr = String(effectiveUserId);
-  const uniqueFileName = generateStorageFileName(file.name, userIdStr);
-  const storagePath = `${folder}/${uniqueFileName}`;
-  const fileType: 'image' | 'video' = file.type.startsWith('video/') ? 'video' : 'image';
-
-  // 1. Real client-side Firebase SDK upload if configured
-  if (storage && isFirebaseConfigured()) {
-    try {
-      let firebaseAuthUser = auth?.currentUser || null;
-      if (!firebaseAuthUser && auth) {
-        try {
-          firebaseAuthUser = await ensureFirebaseAuthSession(currentUser);
-        } catch {
-          // Continue to attempt upload
-        }
-      }
-
-      const storageRef = ref(storage, storagePath);
-
-      // Attach user login token context and metadata to pass strict production rules
-      const metadata = {
-        contentType: file.type || (fileType === 'video' ? 'video/mp4' : 'image/jpeg'),
-        customMetadata: {
-          uploadedBy: userIdStr,
-          uploaderEmail: effectiveEmail,
-          uploaderName: effectiveName,
-          folder,
-          originalName: file.name,
-          uploadedAt: new Date().toISOString(),
-        },
-      };
-
-      return await new Promise<UploadResult>((resolve, reject) => {
-        const uploadTask = uploadBytesResumable(storageRef, file, metadata);
-
-        uploadTask.on(
-          'state_changed',
-          (snapshot: UploadTaskSnapshot) => {
-            const progress =
-              snapshot.totalBytes > 0
-                ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
-                : 0;
-            onProgress?.(progress);
-          },
-          (error) => {
-            console.warn('Firebase Storage upload error, falling back to local storage:', error);
-            reject(error);
-          },
-          async () => {
-            try {
-              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-              onProgress?.(100);
-              resolve({
-                url: downloadUrl,
-                fileName: uniqueFileName,
-                originalName: file.name,
-                storagePath,
-                type: fileType,
-                size: file.size,
-              });
-            } catch (urlError: any) {
-              reject(new Error('Upload completed but its download URL could not be retrieved.'));
-            }
-          }
-        );
-      });
-    } catch (uploadInitError) {
-      console.warn('Firebase Storage upload initialization notice:', uploadInitError);
-      // Fall through to local data URL fallback
-    }
+/** Caller must revoke on unmount and sign-out; never persist this temporary authenticated URL. */
+export async function resolvePrivateMediaUrl(value: string): Promise<{url: string; revoke: () => void}> {
+  if (!storage) throw new Error('Cloud Storage is unavailable.');
+  const path = privateWorkOrderPath(value, ref(storage).bucket);
+  if (!path) {
+    if (value.startsWith('gs://')) throw new Error('Invalid private attachment.');
+    return {url: value, revoke: () => {}};
   }
-
-  // 2. Seamless local fallback (FileReader Data URL)
-  return new Promise<UploadResult>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      onProgress?.(100);
-      resolve({
-        url: reader.result as string,
-        fileName: uniqueFileName,
-        originalName: file.name,
-        storagePath: `local/${storagePath}`,
-        type: fileType,
-        size: file.size,
-      });
-    };
-    reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-    reader.readAsDataURL(file);
-  });
+  const user = auth?.currentUser;
+  if (!user || user.isAnonymous) throw new Error('Please sign in to view this attachment.');
+  const blob = await getBlob(ref(storage, path), 25 * 1024 * 1024);
+  if (auth?.currentUser?.uid !== user.uid) throw new Error('Your session changed.');
+  const url = URL.createObjectURL(blob);
+  return {url, revoke: () => URL.revokeObjectURL(url)};
 }
 
 export interface NewsletterMediaUploadResult {
@@ -202,6 +140,8 @@ export async function uploadNewsletterPdfToStorage({
   currentUser?: UserProfile | null;
   onProgress?: (progress: { percent: number; message: string }) => void;
 }): Promise<string> {
+  if (pdfFile.size <= 0 || pdfFile.size >= 25 * 1024 * 1024) throw new Error('Choose a nonempty PDF smaller than 25MB.');
+  if (pdfFile.type !== 'application/pdf') throw new Error('Choose a PDF document.');
   onProgress?.({ percent: 20, message: 'Processing PDF document...' });
 
   // 1. Read file as Data URL
@@ -271,7 +211,7 @@ export async function uploadNewsletterPdfToStorage({
         customMetadata: {
           newsletterId,
           originalName: pdfFile.name || 'document.pdf',
-          uploadedBy: currentUser?.name || 'Admin',
+          uploadedBy: auth?.currentUser?.uid || '',
           uploadedAt: new Date().toISOString(),
         },
       });

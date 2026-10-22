@@ -38,29 +38,14 @@ export function identifiers(user: {
   email?: string;
   name?: string;
 }): string[] {
-  const values = user.id || user.email ? [user.id, user.email] : [user.name];
-  return [
-    ...new Set(
-      values.filter(Boolean).flatMap((value) => {
-        const raw = String(value).trim().toLowerCase();
-        return [raw, raw.replace(/[^a-zA-Z0-9_-]/g, "_")];
-      }),
-    ),
-  ];
+  // Firebase UIDs are case-sensitive. Names, emails and lossy aliases are not identities.
+  return user.id ? [String(user.id)] : [];
 }
-export function participantKey(user: {
-  id?: string | number;
-  email?: string;
-  name?: string;
-}) {
-  const ids = identifiers(user);
-  return ids[1] || ids[0] || "";
+export function participantKey(user: { id?: string | number; email?: string; name?: string }) {
+  return user.id ? String(user.id) : "";
 }
 export function residentKey(user: { id?: string | number; email?: string }) {
-  return String(user.email || user.id || "")
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]/g, "_")
-    .toLowerCase();
+  return participantKey(user);
 }
 export function officeManager(user: UserProfile) {
   return ["admin", "vip"].includes(getUserRole(user));
@@ -68,9 +53,8 @@ export function officeManager(user: UserProfile) {
 export function neighbors(users: UserProfile[], current: UserProfile) {
   return users.filter(
     (u) =>
-      u.approved !== false &&
+      getUserRole(u) === "resident" &&
       String(u.id) !== String(current.id) &&
-      u.email?.toLowerCase() !== current.email?.toLowerCase() &&
       !isAdmin(u) &&
       !isVip(u) &&
       !isCrew(u) &&
@@ -83,6 +67,7 @@ export function readThread(
   data: Record<string, any>,
   user: UserProfile,
 ): Thread | null {
+  if (!getUserRole(user)) return null;
   const mine = identifiers(user);
   let recipient: UserProfile, unread: boolean;
   if (category === "friend") {
@@ -90,13 +75,7 @@ export function readThread(
       ? data.participants
       : [];
     const ids = Array.isArray(data.participantIds) ? data.participantIds : [];
-    if (
-      !ids.some((v: string) => mine.includes(v.toLowerCase())) &&
-      !participants.some((p: UserProfile) =>
-        identifiers(p).some((v) => mine.includes(v)),
-      )
-    )
-      return null;
+    if (data.identityVersion !== 2 || !ids.includes(String(user.id))) return null;
     const other = participants.find(
       (p: UserProfile) => !identifiers(p).some((v) => mine.includes(v)),
     );
@@ -107,15 +86,13 @@ export function readThread(
       role: other.role || "resident",
     };
     unread = (data.unreadBy || []).some((v: string) =>
-      mine.includes(v.toLowerCase()),
+      mine.includes(v),
     );
   } else {
     const manager = category === "office" ? officeManager(user) : isCrew(user);
     if (
       !manager &&
-      String(data.residentId) !== String(user.id) &&
-      data.residentEmail?.toLowerCase() !== user.email?.toLowerCase() &&
-      id !== residentKey(user)
+      String(data.residentId) !== String(user.id)
     )
       return null;
     recipient = manager
@@ -138,7 +115,23 @@ export function readThread(
           : "unreadByResident"
       ];
   }
-  const messages = Array.isArray(data.messages) ? data.messages : [];
+  const stored = Array.isArray(data.messages) ? data.messages : [];
+  if (Number.isInteger(data.hiddenBy?.[String(user.id)]) && data.hiddenBy[String(user.id)] >= stored.length) return null;
+  if (Number.isInteger(data.readBy?.[String(user.id)])) {
+    const seen = data.readBy[String(user.id)];
+    const team = category === "office" ? officeManager(user) : category === "maintenance" && isCrew(user);
+    unread = stored.some((message: Message, index: number) => index >= seen && !messageIsMine(message, user) &&
+      (category === "friend" || team !== (category === "office" ? ["admin", "vip"].includes(message.senderRole) : message.senderRole === "crew")));
+  }
+  // Read receipts are projections only; persisted historical messages stay immutable.
+  const messages = stored.map((message: Message, index: number) => ({ ...message,
+    readBy: [...new Set([...(message.readBy || []), ...Object.entries(data.readBy || {})
+      .filter(([uid, count]) => uid !== message.senderId && typeof count === "number" && count > index &&
+        (category === "friend" || (category === "office" ? ["admin", "vip"].includes(message.senderRole) : message.senderRole === "crew")
+          ? category === "friend" || uid === String(data.residentId)
+          : uid !== String(data.residentId)))
+      .map(([uid]) => uid)])],
+  }));
   return {
     id,
     category,
@@ -182,37 +175,12 @@ export function senderLabel(
 }
 
 export function messageIsMine(message: Message, user: UserProfile) {
-  return identifiers(user).includes(message.senderId.toLowerCase());
-}
-export function receiptMessages(
-  messages: Message[],
-  category: Category,
-  user: UserProfile,
-) {
-  const team =
-    category === "office"
-      ? officeManager(user)
-      : category === "maintenance" && isCrew(user);
-  return messages.map((message) => {
-    const fromTeam =
-      category === "office"
-        ? ["vip", "admin"].includes(message.senderRole)
-        : category === "maintenance" && message.senderRole === "crew";
-    if (
-      messageIsMine(message, user) ||
-      (category !== "friend" && !!team === !!fromTeam)
-    )
-      return message;
-    return {
-      ...message,
-      readBy: [...new Set([...(message.readBy || []), String(user.id)])],
-    };
-  });
+  return identifiers(user).includes(message.senderId);
 }
 
 export function messageAvatar(message: Message, people: UserProfile[]): string {
   const sender = people.find((person) =>
-    identifiers(person).includes(message.senderId.toLowerCase()),
+    identifiers(person).includes(message.senderId),
   );
   return sender?.avatar_url || sender?.avatarUrl || message.senderAvatar || "";
 }

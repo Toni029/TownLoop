@@ -1,3 +1,4 @@
+import { PrivateMediaImage } from '../components/PrivateMediaImage';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -184,7 +185,7 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
       // Requirement 2: Dedicated /work_orders folder and unique naming timestamp_userId_filename
       const result = await uploadMediaToStorage({
         file,
-        folder: 'work_orders',
+        folder: 'work_orders', recordId: String(woId), collection: 'work_orders',
         currentUser,
         onProgress: (percent) => {
           setCrewUploadProgress((prev) => ({ ...prev, [String(woId)]: percent }));
@@ -657,7 +658,7 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                             className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-stone-100 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 shrink-0 cursor-pointer shadow-xs hover:ring-2 hover:ring-emerald-500 transition"
                             title="Click to view full screen"
                           >
-                            <img
+                            <PrivateMediaImage
                               src={photo}
                               alt={`work order photo ${pIdx + 1}`}
                               className="w-full h-full object-cover transition group-hover:scale-105"
@@ -747,7 +748,7 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                                     className="group relative inline-block w-24 h-24 rounded-2xl overflow-hidden border border-stone-200 dark:border-stone-600 bg-stone-100 cursor-pointer shadow-xs hover:ring-2 hover:ring-blue-500 transition"
                                     title="Click to view full screen with zoom in/out"
                                   >
-                                    <img
+                                    <PrivateMediaImage
                                       src={comm.photoUrl}
                                       alt="Crew attached photo"
                                       className="w-full h-full object-cover transition group-hover:scale-105"
@@ -879,7 +880,7 @@ export const WorkOrdersScreen = React.memo(function WorkOrdersScreen({
                                     className="group relative w-16 h-16 rounded-lg overflow-hidden border border-stone-300 dark:border-slate-600 shrink-0 cursor-pointer shadow-xs"
                                     title="Click to zoom in full screen"
                                   >
-                                    <img
+                                    <PrivateMediaImage
                                       src={crewReplyPhoto[wo.id]}
                                       alt="Crew resolution preview"
                                       className="w-full h-full object-cover"

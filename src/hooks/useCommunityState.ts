@@ -1,22 +1,19 @@
 import type React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   PostItem,
   MarketItem,
-  CommentItem,
   MediaAttachment,
   UserProfile,
 } from '../types';
 import {
   saveDiscussionFeedPostToFirestore,
   saveMarketplacePostToFirestore,
-  deleteDiscussionFeedPostFromFirestore,
-  deleteMarketplacePostFromFirestore,
-  updateFirestoreDocument,
 } from '../services/firestoreSync';
 import { subscribeToCommunityDirectory } from '../services/auth';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from '../firebase';
+import { mutateSocial } from '../services/socialIntegrity';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { auth, db, isFirebaseConfigured } from '../firebase';
 import {
   MarketplaceChat,
   subscribeMarketplaceChats,
@@ -25,25 +22,6 @@ import {
 
 const STORAGE_POSTS_KEY = 'portal_discussion_posts';
 const STORAGE_MARKET_KEY = 'portal_marketplace_items';
-const STORAGE_LIKES_KEY = 'townloop_liked_posts_v1';
-
-const INITIAL_POSTS: PostItem[] = [];
-
-function getLikedPostsSet(): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_LIKES_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function saveLikedPostsSet(set: Set<string>) {
-  try {
-    localStorage.setItem(STORAGE_LIKES_KEY, JSON.stringify(Array.from(set)));
-  } catch {}
-}
-
 export interface CommunityState {
   currentUser?: UserProfile | null;
   posts: PostItem[];
@@ -82,16 +60,16 @@ export interface CommunityState {
       author?: string;
     } | null>
   >;
-  toggleLike: (id: number | string) => void;
+  toggleLike: (id: number | string) => Promise<boolean>;
   openCommentsPostId: number | string | null;
   setOpenCommentsPostId: React.Dispatch<React.SetStateAction<number | string | null>>;
   commentInputText: { [postId: string]: string };
   setCommentInputText: React.Dispatch<React.SetStateAction<{ [postId: string]: string }>>;
-  handleAddComment: (postId: number | string) => void;
-  handleModalAddComment: (targetId: number | string, text: string) => void;
+  handleAddComment: (postId: number | string) => Promise<boolean>;
+  handleModalAddComment: (targetId: number | string, text: string, isMarket?: boolean) => Promise<boolean>;
   isItemCreator: (item?: PostItem | MarketItem | null) => boolean;
-  handleDeleteItem: (id: number | string, isMarket?: boolean) => void;
-  handleToggleSoldItem: (id: number | string) => void;
+  handleDeleteItem: (id: number | string, isMarket?: boolean) => Promise<boolean>;
+  handleToggleSoldItem: (id: number | string) => Promise<boolean>;
   handleOpenMessageSeller: (item: MarketItem) => void;
   handleSendMessageToSeller: (
     itemOrRecipient: MarketItem | string,
@@ -100,6 +78,7 @@ export interface CommunityState {
   ) => Promise<void | boolean> | void;
   handleCreatePostSubmit: (payload: {
     type: 'chat' | 'market';
+    recordId?: string;
     title: string;
     description: string;
     price?: string;
@@ -112,32 +91,8 @@ export function useCommunityState(
   currentUser?: UserProfile | null,
   showToast?: (message: string) => void
 ): CommunityState {
-  const [posts, setPosts] = useState<PostItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_POSTS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.warn('Failed to parse cached posts:', e);
-    }
-    return INITIAL_POSTS;
-  });
-
-  const [marketItems, setMarketItems] = useState<MarketItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_MARKET_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.some((it) => it.id === 'market-1' || it.id === 'market-2')) {
-          localStorage.removeItem(STORAGE_MARKET_KEY);
-          return [];
-        }
-        return parsed;
-      }
-    } catch (e) {
-      console.warn('Failed to parse cached marketplace items:', e);
-    }
-    return [];
-  });
+  const [posts, setPosts] = useState<PostItem[]>([]);
+  const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
 
   const [socialView, setSocialView] = useState<'chat' | 'market'>('chat');
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
@@ -167,53 +122,16 @@ export function useCommunityState(
     });
     return () => unsub();
   }, [currentUser]);
-  const [directoryUsers, setDirectoryUsers] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem('portal_community_directory_users');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [];
-  });
-
-  // Instantly seed or update current user in directoryUsers
+  const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
+  // Discard the former persistent cache, which could contain private profile fields.
   useEffect(() => {
-    if (currentUser?.id) {
-      setDirectoryUsers((prev) => {
-        const cleanId = String(currentUser.id);
-        const avatar = currentUser.avatarUrl || currentUser.avatar_url || (currentUser as any).avatar || '';
-        const exists = prev.some((u) => String(u.id) === cleanId || String(u.uid) === cleanId);
-        if (!exists && (avatar || currentUser.name)) {
-          const updated = [{ id: cleanId, name: currentUser.name, email: currentUser.email, avatar }, ...prev];
-          try {
-            localStorage.setItem('portal_community_directory_users', JSON.stringify(updated));
-          } catch {}
-          return updated;
-        }
-        return prev;
-      });
-    }
-  }, [currentUser?.id, currentUser?.avatarUrl, currentUser?.name]);
-
-  // Subscribe to community directory to resolve live profile photos upon login
+    try { localStorage.removeItem('portal_community_directory_users'); } catch {}
+  }, []);
   useEffect(() => {
-    if (!currentUser) return;
-    try {
-      const unsub = subscribeToCommunityDirectory((users) => {
-        if (Array.isArray(users) && users.length > 0) {
-          setDirectoryUsers(users);
-          try {
-            localStorage.setItem('portal_community_directory_users', JSON.stringify(users));
-          } catch {}
-        }
-      });
-      return () => unsub();
-    } catch (e) {
-      console.warn('Failed to subscribe to community directory in useCommunityState:', e);
-    }
-  }, [currentUser?.id, currentUser?.approved]);
+    setDirectoryUsers([]);
+    if (!currentUser || currentUser.approved !== true) return;
+    return subscribeToCommunityDirectory(setDirectoryUsers);
+  }, [currentUser?.id, currentUser?.approved, currentUser?.role]);
 
   const resolveAvatar = useCallback(
     (
@@ -273,31 +191,26 @@ export function useCommunityState(
     [currentUser, directoryUsers]
   );
 
-  // Persist to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_POSTS_KEY, JSON.stringify(posts));
-    } catch (e) {
-      console.warn('Failed to persist discussion posts:', e);
-    }
-  }, [posts]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_MARKET_KEY, JSON.stringify(marketItems));
-    } catch (e) {
-      console.warn('Failed to persist marketplace items:', e);
-    }
-  }, [marketItems]);
+      localStorage.removeItem(STORAGE_POSTS_KEY);
+      localStorage.removeItem(STORAGE_MARKET_KEY);
+      localStorage.removeItem('townloop_liked_posts_v1');
+    } catch {}
+  }, []);
 
   // Firestore live subscriptions
   useEffect(() => {
-    if (!isFirebaseConfigured() || !db) return;
+    if (!isFirebaseConfigured() || !db || currentUser?.approved !== true) {
+      setPosts([]); setMarketItems([]); return;
+    }
     try {
-      const qPosts = query(collection(db, 'discussion_feed'), orderBy('createdAt', 'desc'));
+      const qPosts = query(collection(db, 'discussion_feed'), where('storageDraft', '==', false), orderBy('createdAt', 'desc'));
       const unsubPosts = onSnapshot(
         qPosts,
+        { includeMetadataChanges: true },
         (snapshot) => {
+          if (snapshot.metadata.hasPendingWrites) return;
           const remotePosts: PostItem[] = snapshot.docs.map((doc) => {
             const d = doc.data();
             const rawAvatar = d.authorAvatar || d.author_avatar || d.avatarUrl || d.avatar_url || d.photoUrl || d.photoURL || d.avatar || d.userAvatar || '';
@@ -320,7 +233,7 @@ export function useCommunityState(
               mediaUrl: d.mediaUrl,
               media: d.media || (d.mediaUrl ? [{ type: 'image', url: d.mediaUrl }] : []),
               likes: d.likes || 0,
-              liked: getLikedPostsSet().has(String(doc.id)),
+              liked: !!currentUser?.id && d.likedBy?.[String(currentUser.id)] === true,
               comments: (d.comments || []).map((c: any) => ({
                 ...c,
                 authorAvatar: resolveAvatar(c.authorAvatar || c.avatarUrl || c.avatar, c.authorId || c.userId, c.authorEmail || c.email, c.author),
@@ -328,14 +241,17 @@ export function useCommunityState(
             };
           });
           setPosts(remotePosts);
+          setSelectedDetailPost(selected => selected ? remotePosts.find(post => String(post.id) === String(selected.id)) || null : null);
         },
         (err) => console.warn('Firestore discussion listener error:', err)
       );
 
-      const qMarket = query(collection(db, 'marketplace_posts'), orderBy('createdAt', 'desc'));
+      const qMarket = query(collection(db, 'marketplace_posts'), where('storageDraft', '==', false), orderBy('createdAt', 'desc'));
       const unsubMarket = onSnapshot(
         qMarket,
+        { includeMetadataChanges: true },
         (snapshot) => {
+          if (snapshot.metadata.hasPendingWrites) return;
           const remoteMarket: MarketItem[] = snapshot.docs.map((doc) => {
             const d = doc.data();
             const rawAvatar = d.authorAvatar || d.author_avatar || d.avatarUrl || d.avatar_url || d.photoUrl || d.photoURL || d.avatar || d.userAvatar || '';
@@ -344,11 +260,7 @@ export function useCommunityState(
             const author = d.author || 'Resident';
             const resolvedAvatar = resolveAvatar(rawAvatar, authorId, authorEmail, author);
 
-            const isOwner = Boolean(
-              (currentUser?.id && String(authorId) === String(currentUser.id)) ||
-              (currentUser?.email && authorEmail && authorEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
-              (currentUser?.name && author && author.toLowerCase() === currentUser.name.toLowerCase())
-            );
+            const isOwner = !!currentUser?.id && authorId === String(currentUser.id);
 
             return {
               id: doc.id,
@@ -374,6 +286,7 @@ export function useCommunityState(
             };
           });
           setMarketItems(remoteMarket);
+          setSelectedDetailMarket(selected => selected ? remoteMarket.find(item => String(item.id) === String(selected.id)) || null : null);
         },
         (err) => console.warn('Firestore marketplace listener error:', err)
       );
@@ -385,7 +298,7 @@ export function useCommunityState(
     } catch (err) {
       console.warn('Failed to attach Firestore community listeners:', err);
     }
-  }, [currentUser?.id, currentUser?.email, currentUser?.name, resolveAvatar]);
+  }, [currentUser?.id, currentUser?.approved, resolveAvatar]);
 
   // Sync avatar updates when directory or current user profile picture changes
   useEffect(() => {
@@ -419,164 +332,73 @@ export function useCommunityState(
     );
   }, [directoryUsers, currentUser, resolveAvatar]);
 
-  const toggleLike = useCallback((id: number | string) => {
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (String(p.id) === String(id)) {
-          const nextLiked = !p.liked;
-          const nextLikes = nextLiked ? p.likes + 1 : Math.max(0, p.likes - 1);
-          const set = getLikedPostsSet();
-          if (nextLiked) set.add(String(id));
-          else set.delete(String(id));
-          saveLikedPostsSet(set);
+  const actorUid = useCallback(() => {
+    const uid = auth?.currentUser?.uid;
+    if (!db || !uid || currentUser?.approved !== true || uid !== String(currentUser.id))
+      throw Error('Please sign in to an approved account.');
+    return uid;
+  }, [currentUser]);
+  const commentAttempts = useRef(new Map<string, string>());
+  const sendComment = useCallback(async (collection: 'discussion_feed' | 'marketplace_posts', id: string, text: string) => {
+    const uid = actorUid();
+    const key = JSON.stringify([uid, collection, id, text.trim()]);
+    const commentId = commentAttempts.current.get(key) || crypto.randomUUID();
+    commentAttempts.current.set(key, commentId);
+    await mutateSocial(db!, uid, collection, id, 'comment', { text, commentId });
+    commentAttempts.current.delete(key);
+  }, [actorUid]);
+  const toggleLike = useCallback(async (id: number | string) => {
+    try {
+      const item = posts.find(post => String(post.id) === String(id));
+      if (!item) return false;
+      await mutateSocial(db!, actorUid(), 'discussion_feed', String(id), 'like', { liked: !item.liked });
+      return true;
+    } catch (error) { showToast?.(error instanceof Error ? error.message : 'Could not update reaction.'); return false; }
+  }, [posts, actorUid, showToast]);
 
-          updateFirestoreDocument('discussion_feed', id, { likes: nextLikes });
-
-          return { ...p, liked: nextLiked, likes: nextLikes };
-        }
-        return p;
-      })
-    );
-  }, []);
-
-  const handleAddComment = useCallback(
-    (postId: number | string) => {
-      const text = (commentInputText[String(postId)] || '').trim();
-      if (!text) return;
-
-      const myAvatar =
-        currentUser?.avatarUrl ||
-        currentUser?.avatar_url ||
-        (currentUser as any)?.avatar ||
-        '';
-
-      const newComment: CommentItem = {
-        id: `c-${Date.now()}`,
-        author: currentUser?.name || 'Resident',
-        authorAvatar: myAvatar,
-        authorId: currentUser?.id,
-        authorEmail: currentUser?.email,
-        unit: currentUser?.address || currentUser?.apartmentNumber || 'Unit 208',
-        text,
-        timeAgo: 'Just now',
-      };
-
-      setPosts((prev) =>
-        prev.map((p) => {
-          if (String(p.id) === String(postId)) {
-            const updatedComments = [...(p.comments || []), newComment];
-            updateFirestoreDocument('discussion_feed', postId, { comments: updatedComments });
-            return { ...p, comments: updatedComments };
-          }
-          return p;
-        })
-      );
-
-      setCommentInputText((prev) => ({ ...prev, [String(postId)]: '' }));
+  const handleAddComment = useCallback(async (postId: number | string) => {
+    const text = (commentInputText[String(postId)] || '').trim();
+    if (!text) return false;
+    try {
+      await sendComment('discussion_feed', String(postId), text);
+      setCommentInputText(previous => previous[String(postId)]?.trim() === text ? { ...previous, [String(postId)]: '' } : previous);
       showToast?.('Comment posted!');
-    },
-    [commentInputText, currentUser, showToast]
-  );
+      return true;
+    } catch (error) { showToast?.(error instanceof Error ? error.message : 'Could not post comment.'); return false; }
+  }, [commentInputText, sendComment, showToast]);
 
-  const handleModalAddComment = useCallback(
-    (targetId: number | string, text: string) => {
-      if (!text.trim()) return;
-
-      const myAvatar =
-        currentUser?.avatarUrl ||
-        currentUser?.avatar_url ||
-        (currentUser as any)?.avatar ||
-        '';
-
-      const newComment: CommentItem = {
-        id: `c-${Date.now()}`,
-        author: currentUser?.name || 'Resident',
-        authorAvatar: myAvatar,
-        authorId: currentUser?.id,
-        authorEmail: currentUser?.email,
-        unit: currentUser?.address || currentUser?.apartmentNumber || 'Unit 208',
-        text: text.trim(),
-        timeAgo: 'Just now',
-      };
-
-      if (selectedDetailPost && String(selectedDetailPost.id) === String(targetId)) {
-        const updatedComments = [...(selectedDetailPost.comments || []), newComment];
-        const updatedPost = {
-          ...selectedDetailPost,
-          comments: updatedComments,
-        };
-        setSelectedDetailPost(updatedPost);
-        setPosts((prev) =>
-          prev.map((p) => (String(p.id) === String(targetId) ? updatedPost : p))
-        );
-        updateFirestoreDocument('discussion_feed', targetId, { comments: updatedComments });
-      }
-
-      if (selectedDetailMarket && String(selectedDetailMarket.id) === String(targetId)) {
-        const updatedComments = [...(selectedDetailMarket.comments || []), newComment];
-        const updatedMarket = {
-          ...selectedDetailMarket,
-          comments: updatedComments,
-        };
-        setSelectedDetailMarket(updatedMarket);
-        setMarketItems((prev) =>
-          prev.map((m) => (String(m.id) === String(targetId) ? updatedMarket : m))
-        );
-        updateFirestoreDocument('marketplace_posts', targetId, { comments: updatedComments });
-      }
-
+  const handleModalAddComment = useCallback(async (targetId: number | string, text: string, isMarket?: boolean) => {
+    if (!text.trim()) return false;
+    const market = isMarket ?? (selectedDetailMarket != null && String(selectedDetailMarket.id) === String(targetId));
+    try {
+      await sendComment(market ? 'marketplace_posts' : 'discussion_feed', String(targetId), text);
       showToast?.('Comment posted!');
-    },
-    [currentUser, selectedDetailPost, selectedDetailMarket, showToast]
-  );
+      return true;
+    } catch (error) { showToast?.(error instanceof Error ? error.message : 'Could not post comment.'); return false; }
+  }, [selectedDetailMarket, sendComment, showToast]);
 
-  const isItemCreator = useCallback(
-    (item?: PostItem | MarketItem | null): boolean => {
-      if (!item || !currentUser) return false;
-      if (item.authorId && String(item.authorId) === String(currentUser.id)) return true;
-      if (item.author && item.author === currentUser.name) return true;
-      return false;
-    },
-    [currentUser]
-  );
+  const isItemCreator = useCallback((item?: PostItem | MarketItem | null) =>
+    !!item && !!currentUser?.id && item.authorId === String(currentUser.id), [currentUser]);
 
-  const handleDeleteItem = useCallback(
-    (id: number | string, _isMarket?: boolean) => {
-      setPosts((prev) => prev.filter((p) => String(p.id) !== String(id)));
-      setMarketItems((prev) => prev.filter((m) => String(m.id) !== String(id)));
-      if (selectedDetailPost && String(selectedDetailPost.id) === String(id)) {
-        setSelectedDetailPost(null);
-      }
-      if (selectedDetailMarket && String(selectedDetailMarket.id) === String(id)) {
-        setSelectedDetailMarket(null);
-      }
-      deleteDiscussionFeedPostFromFirestore(id);
-      deleteMarketplacePostFromFirestore(id);
+  const handleDeleteItem = useCallback(async (id: number | string, isMarket?: boolean) => {
+    try {
+      const market = isMarket ?? marketItems.some(item => String(item.id) === String(id));
+      await mutateSocial(db!, actorUid(), market ? 'marketplace_posts' : 'discussion_feed', String(id), 'delete');
+      if (market) setSelectedDetailMarket(null); else setSelectedDetailPost(null);
       showToast?.('Item deleted');
-    },
-    [selectedDetailPost, selectedDetailMarket, showToast]
-  );
+      return true;
+    } catch (error) { showToast?.(error instanceof Error ? error.message : 'Could not delete item.'); return false; }
+  }, [marketItems, actorUid, showToast]);
 
-  const handleToggleSoldItem = useCallback(
-    (id: number | string) => {
-      setMarketItems((prev) =>
-        prev.map((item) => {
-          if (String(item.id) === String(id)) {
-            const nextSold = !item.sold;
-            const updated = { ...item, sold: nextSold, claimed: nextSold };
-            if (selectedDetailMarket && String(selectedDetailMarket.id) === String(id)) {
-              setSelectedDetailMarket(updated);
-            }
-            updateFirestoreDocument('marketplace_posts', id, { sold: nextSold, claimed: nextSold });
-            return updated;
-          }
-          return item;
-        })
-      );
+  const handleToggleSoldItem = useCallback(async (id: number | string) => {
+    try {
+      const item = marketItems.find(item => String(item.id) === String(id));
+      if (!item) return false;
+      await mutateSocial(db!, actorUid(), 'marketplace_posts', String(id), 'sold', { sold: !item.sold });
       showToast?.('Listing status updated');
-    },
-    [selectedDetailMarket, showToast]
-  );
+      return true;
+    } catch (error) { showToast?.(error instanceof Error ? error.message : 'Could not update listing.'); return false; }
+  }, [marketItems, actorUid, showToast]);
 
   const handleOpenMessageSeller = useCallback((item: MarketItem) => {
     setSelectedMessageSellerItem(item);
@@ -623,117 +445,19 @@ export function useCommunityState(
     [currentUser, showToast]
   );
 
-  const handleCreatePostSubmit = useCallback(
-    async (payload: {
-      type: 'chat' | 'market';
-      title: string;
-      description: string;
-      price?: string;
-      media: MediaAttachment[];
-      mediaUrl?: string;
-    }) => {
-      const author = currentUser?.name || 'Resident';
-      const unit = currentUser?.address || currentUser?.apartmentNumber || 'Unit 208';
-      const authorId = currentUser?.id || 'resident';
-      const authorEmail = currentUser?.email || '';
-      const authorAvatar =
-        currentUser?.avatarUrl ||
-        currentUser?.avatar_url ||
-        (currentUser as any)?.avatar ||
-        '';
-
-      if (payload.type === 'chat') {
-        const tempId = `post-${Date.now()}`;
-        const newPost: PostItem = {
-          id: tempId,
-          author,
-          authorAvatar,
-          authorId,
-          authorEmail,
-          unit,
-          timeAgo: 'Just now',
-          tag: 'General',
-          title: payload.title || payload.description.slice(0, 35) || 'Community Post',
-          content: payload.description,
-          media: payload.media,
-          mediaUrl: payload.mediaUrl || (payload.media.length > 0 ? payload.media[0].url : undefined),
-          likes: 0,
-          liked: false,
-          comments: [],
-        };
-
-        setPosts((prev) => [newPost, ...prev]);
-        setIsCreatePostModalOpen(false);
-
-        try {
-          const fid = await saveDiscussionFeedPostToFirestore({
-            content: newPost.content,
-            title: newPost.title,
-            mediaUrl: newPost.mediaUrl || '',
-            userId: String(authorId),
-            author,
-            authorAvatar,
-            authorEmail,
-            unit,
-          });
-          if (fid) {
-            setPosts((prev) =>
-              prev.map((p) => (p.id === tempId ? { ...p, id: fid } : p))
-            );
-          }
-        } catch (err) {
-          console.warn('Failed to save post to Firestore:', err);
-        }
-        showToast?.('Community post shared!');
-      } else {
-        const tempId = `market-${Date.now()}`;
-        const newMarketItem: MarketItem = {
-          id: tempId,
-          title: payload.title,
-          price: payload.price || 'FREE',
-          description: payload.description,
-          author,
-          authorAvatar,
-          authorId,
-          authorEmail,
-          unit,
-          timeAgo: 'Just now',
-          isOwner: true,
-          claimed: false,
-          sold: false,
-          media: payload.media,
-          mediaUrl: payload.mediaUrl || (payload.media.length > 0 ? payload.media[0].url : undefined),
-          photoUrl: payload.mediaUrl || (payload.media.length > 0 ? payload.media[0].url : undefined),
-        };
-
-        setMarketItems((prev) => [newMarketItem, ...prev]);
-        setIsCreatePostModalOpen(false);
-
-        try {
-          const fid = await saveMarketplacePostToFirestore({
-            title: newMarketItem.title,
-            description: newMarketItem.description,
-            price: newMarketItem.price,
-            mediaUrl: newMarketItem.mediaUrl || '',
-            userId: String(authorId),
-            author,
-            authorAvatar,
-            authorEmail,
-            unit,
-          });
-          if (fid) {
-            setMarketItems((prev) =>
-              prev.map((m) => (m.id === tempId ? { ...m, id: fid } : m))
-            );
-          }
-        } catch (err) {
-          console.warn('Failed to save marketplace post to Firestore:', err);
-        }
-        showToast?.('Marketplace listing created!');
-      }
-    },
-    [currentUser, showToast]
-  );
+  const handleCreatePostSubmit = useCallback(async (payload: {
+    type: 'chat' | 'market'; recordId?: string; title: string; description: string;
+    price?: string; media: MediaAttachment[]; mediaUrl?: string;
+  }) => {
+    const userId = actorUid();
+    const common = { id: payload.recordId, title: payload.title, userId,
+      media: payload.media, mediaUrl: payload.mediaUrl || payload.media[0]?.url || '' };
+    const id = payload.type === 'chat'
+      ? await saveDiscussionFeedPostToFirestore({ ...common, content: payload.description })
+      : await saveMarketplacePostToFirestore({ ...common, description: payload.description, price: payload.price || 'FREE' });
+    if (!id) throw Error('Could not publish your post. Your draft is still available.');
+    showToast?.(payload.type === 'chat' ? 'Community post shared!' : 'Marketplace listing created!');
+  }, [actorUid, showToast]);
 
   return {
     currentUser,

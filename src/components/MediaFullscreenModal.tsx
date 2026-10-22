@@ -1,3 +1,4 @@
+import { PrivateMediaImage } from './PrivateMediaImage';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -391,7 +392,7 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
               </div>
             </div>
           ) : (
-            <img
+            <PrivateMediaImage
               src={currentMedia.url}
               alt={currentMedia.name || title || 'Fullscreen picture'}
               className="max-w-[95vw] max-h-[85vh] object-contain select-none pointer-events-none rounded-lg shadow-2xl"
@@ -509,7 +510,7 @@ export const MediaFullscreenModal: React.FC<MediaFullscreenModalProps> = ({
                 }`}
               >
                 {item.type === 'image' ? (
-                  <img
+                  <PrivateMediaImage
                     src={item.url}
                     alt="thumbnail"
                     className="w-full h-full object-cover"

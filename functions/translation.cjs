@@ -15,7 +15,7 @@ exports.translateWorkOrder = onRequest({ region: 'us-central1', secrets: [key], 
   catch { return res.status(401).json({ error: 'Your session has expired. Please sign in again.' }); }
   try {
     const profile = (await getFirestore().collection('users').doc(uid).get()).data();
-    if (!profile || profile.approved === false || !['admin', 'vip', 'crew'].includes(profile.role))
+    if (!profile || profile.approved !== true || !['admin', 'vip', 'crew'].includes(profile.role))
       return res.status(403).json({ error: 'Translation requires an approved Admin, VIP, or Crew account.' });
     const { title, description = '', comments = [], targetLang = 'es' } = req.body || {};
     if (typeof title !== 'string' || typeof description !== 'string' || !Array.isArray(comments) || comments.length > 50 || comments.some(v => typeof v !== 'string') || !['es', 'en'].includes(targetLang))

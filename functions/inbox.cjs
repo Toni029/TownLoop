@@ -40,16 +40,13 @@ async function send(event, collection) {
   const profiles = new Map();
   const add = doc => { if (doc.exists) profiles.set(doc.id, { ...doc.data(), id: doc.id }); };
   if (collection === 'resident_chats') {
-    // Existing web/native participant metadata uses sanitized identifiers plus email.
-    for (const p of (after.participants || []).slice(0, 2)) {
-      if (typeof p.id === 'string' && p.id && !p.id.includes('/')) add(await db.doc(`users/${p.id}`).get());
-      if (typeof p.email === 'string' && p.email) (await db.collection('users').where('email', '==', p.email).limit(2).get()).docs.forEach(add);
+    for (const uid of (after.participantIds || []).slice(0, 2)) {
+      if (typeof uid === 'string' && uid && !uid.includes('/')) add(await db.doc(`users/${uid}`).get());
     }
   } else {
     const roles = collection === 'office_chats' ? ['admin', 'vip'] : ['crew'];
     (await db.collection('users').where('role', 'in', roles).get()).docs.forEach(add);
     if (typeof after.residentId === 'string' && after.residentId && !after.residentId.includes('/')) add(await db.doc(`users/${after.residentId}`).get());
-    if (typeof after.residentEmail === 'string' && after.residentEmail) (await db.collection('users').where('email', '==', after.residentEmail).limit(2).get()).docs.forEach(add);
   }
   for (const recipient of recipients(collection, after, [...profiles.values()], sender.id)) {
     const devices = await db.collection('notification_devices').where('uid', '==', recipient.id).get();

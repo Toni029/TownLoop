@@ -410,7 +410,7 @@ export function AdminMenu({
                                 gap: 6,
                               }}
                             >
-                              {["resident", "crew", "staff", "vip", "admin"]
+                              {["resident", "crew", "vip", "admin"]
                                 .filter((r) => r !== p.role)
                                 .map((role) => (
                                   <View key={role}>

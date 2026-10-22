@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from '../firebase';
 import { UserProfile, UserRole } from '../types';
 import { normalizeUserProfile, logoutUser } from '../services/auth';
@@ -67,21 +67,6 @@ export function useAuth(): UseAuthReturn {
               setCurrentUser(profile);
               setIsLoading(false);
             } else {
-              // Try matching by email in users collection if doc by UID is not yet indexed
-              try {
-                if (fbUser.email && db) {
-                  const q = query(collection(db, 'users'), where('email', '==', fbUser.email.toLowerCase()));
-                  const emailSnap = await getDocs(q);
-                  if (!emailSnap.empty) {
-                    const profile = normalizeUserProfile(fbUser.uid, emailSnap.docs[0].data(), fbUser);
-                    setCurrentUser(profile);
-                    setIsLoading(false);
-                    return;
-                  }
-                }
-              } catch (e) {
-                console.warn('[useAuth] Notice checking email match in users collection:', e);
-              }
               const fallbackProfile = normalizeUserProfile(fbUser.uid, null, fbUser);
               setCurrentUser(fallbackProfile);
               setIsLoading(false);

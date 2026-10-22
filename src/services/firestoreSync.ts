@@ -1,3 +1,4 @@
+import { mutateSocial, type SocialCollection } from "./socialIntegrity";
 import { allocateWorkOrder } from "../data/allocateWorkOrder";
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
@@ -19,9 +20,10 @@ import {
   getDocs,
   writeBatch,
   serverTimestamp,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, auth, isFirebaseConfigured } from '../firebase';
-import { PostItem, MarketItem, WorkOrderItem, WorkOrderComment, UserProfile, CommunityRsvpEvent, PinnedHighlight, NewsletterConfig } from '../types';
+import { PostItem, MarketItem, WorkOrderItem, WorkOrderComment, UserProfile, CommunityRsvpEvent, PinnedHighlight, NewsletterConfig, MediaAttachment } from '../types';
 
 type CollectionName = 'marketplace_posts' | 'discussion_feed' | 'work_orders' | 'community_events' | 'community_highlights';
 
@@ -69,98 +71,61 @@ async function deleteDocument(name: CollectionName, id: string | number): Promis
   }
 }
 
-/**
- * Requirement 1: Marketplace
- * When getDownloadURL() returns the link, save a document to a Firestore collection
- * named marketplace_posts containing: title, description, price, createdAt, userId, and mediaUrl.
- */
-export interface SaveMarketplacePostParams {
-  title: string;
-  description: string;
-  price: string;
-  mediaUrl: string;
-  userId: string;
-  id?: string;
-  author?: string;
-  authorAvatar?: string;
-  authorEmail?: string;
-  unit?: string;
-  sold?: boolean;
-  claimed?: boolean;
+type SocialParams = {
+  id?: string; title?: string; mediaUrl: string; media?: MediaAttachment[];
+  userId: string; author?: string; authorAvatar?: string; authorEmail?: string; unit?: string;
   comments?: any[];
+};
+export interface SaveMarketplacePostParams extends SocialParams {
+  title: string; description: string; price: string; sold?: boolean; claimed?: boolean;
 }
-
-export async function saveMarketplacePostToFirestore(
-  params: SaveMarketplacePostParams
-): Promise<string | null> {
-  if (!isFirebaseConfigured() || !db) {
-    return null;
-  }
-
-  const docPayload = {
-    title: params.title || 'Marketplace Item',
-    description: params.description || '',
-    price: params.price || 'FREE',
-    createdAt: serverTimestamp(),
-    userId: params.userId || (auth?.currentUser?.uid ? String(auth.currentUser.uid) : 'resident'),
-    mediaUrl: params.mediaUrl || '',
-    // Contextual metadata for rich UI display
-    author: params.author || 'Resident',
-    authorAvatar: params.authorAvatar || '',
-    authorEmail: params.authorEmail || '',
-    unit: params.unit || 'TownLoop Resident',
-    sold: Boolean(params.sold || params.claimed),
-    claimed: Boolean(params.claimed || params.sold),
-    comments: params.comments || [],
-  };
-
-  return saveDocument('marketplace_posts', params, docPayload);
+export interface SaveDiscussionFeedParams extends SocialParams {
+  content: string; tag?: string; likes?: number;
 }
-
-/**
- * Requirement 2: Discussion Feed
- * Save a document to a Firestore collection named discussion_feed containing:
- * content, createdAt, userId, and mediaUrl.
- */
-export interface SaveDiscussionFeedParams {
-  content: string;
-  mediaUrl: string;
-  userId: string;
-  id?: string;
-  title?: string;
-  author?: string;
-  authorAvatar?: string;
-  authorEmail?: string;
-  unit?: string;
-  tag?: string;
-  likes?: number;
-  comments?: any[];
+async function saveSocialDocument(name: 'discussion_feed' | 'marketplace_posts', params: SaveDiscussionFeedParams | SaveMarketplacePostParams): Promise<string> {
+  const uid = auth?.currentUser?.uid;
+  if (!isFirebaseConfigured() || !db || !uid) throw Error('Please sign in before publishing.');
+  const reference = params.id ? doc(db, name, params.id) : doc(collection(db, name));
+  await runTransaction(db, async transaction => {
+    const [profileSnapshot, existing] = await Promise.all([
+      transaction.get(doc(db, 'users', uid)), transaction.get(reference),
+    ]);
+    const profile = profileSnapshot.data();
+    if (auth?.currentUser?.uid !== uid || !profile || profile.approved !== true || !['resident', 'admin', 'vip', 'crew'].includes(profile.role))
+      throw Error('An approved account is required.');
+    const content = name === 'discussion_feed' ? {
+      content: (params as SaveDiscussionFeedParams).content.trim(),
+      tag: (params as SaveDiscussionFeedParams).tag || 'Community',
+    } : {
+      description: (params as SaveMarketplacePostParams).description.trim(),
+      price: (params as SaveMarketplacePostParams).price || 'FREE',
+    };
+    const editable = { ...content, title: params.title?.trim() || 'Community Post',
+      media: params.media || [], mediaUrl: params.mediaUrl || '', updatedAt: serverTimestamp() };
+    const before = existing.data();
+    if (existing.exists() && before?.storageDraft !== true) {
+      if (before?.storageDraft !== false) throw Error('This item needs a compatibility review.');
+      if ((before.userId ?? before.authorId) !== uid && !['admin', 'vip'].includes(profile.role))
+        throw Error('Only the author or office can edit this item.');
+      transaction.update(reference, editable);
+      return;
+    }
+    if (before && (before.userId !== uid || !(before.storageDraftExpiresAt instanceof Timestamp) || before.storageDraftExpiresAt.toMillis() <= Date.now()))
+      throw Error('This upload draft expired or belongs to another account. Start a new form.');
+    // Replace the hidden upload parent atomically; never expose a draft or retain its expiry fields.
+    transaction.set(reference, { ...editable, userId: uid, storageDraft: false,
+      author: profile.name || 'Resident', authorAvatar: profile.avatarUrl || profile.avatar_url || '',
+      authorEmail: '', unit: 'TownLoop Resident', createdAt: serverTimestamp(), comments: [],
+      ...(name === 'discussion_feed' ? { likes: 0, likedBy: {} } : { sold: false, claimed: false }),
+    });
+  });
+  return reference.id;
 }
-
-export async function saveDiscussionFeedPostToFirestore(
-  params: SaveDiscussionFeedParams
-): Promise<string | null> {
-  if (!isFirebaseConfigured() || !db) {
-    return null;
-  }
-
-  const docPayload = {
-    content: params.content || '',
-    createdAt: serverTimestamp(),
-    userId: params.userId || (auth?.currentUser?.uid ? String(auth.currentUser.uid) : 'resident'),
-    mediaUrl: params.mediaUrl || '',
-    // Contextual metadata for rich UI display
-    title: params.title || (params.content ? params.content.slice(0, 45) : 'Community Post'),
-    author: params.author || 'Resident',
-    authorAvatar: params.authorAvatar || '',
-    authorEmail: params.authorEmail || '',
-    unit: params.unit || 'TownLoop Resident',
-    tag: params.tag || 'Community',
-    likes: params.likes || 0,
-    comments: params.comments || [],
-  };
-
-  return saveDocument('discussion_feed', params, docPayload);
+export async function saveMarketplacePostToFirestore(params: SaveMarketplacePostParams): Promise<string | null> {
+  return saveSocialDocument('marketplace_posts', params);
+}
+export async function saveDiscussionFeedPostToFirestore(params: SaveDiscussionFeedParams): Promise<string | null> {
+  return saveSocialDocument('discussion_feed', params);
 }
 
 /**
@@ -196,11 +161,13 @@ export async function saveWorkOrderToFirestore(
     return null;
   }
 
-  const finalUserId = params.userId || currentUser?.id
-    ? String(params.userId || currentUser?.id)
-    : (auth?.currentUser?.uid ? String(auth.currentUser.uid) : 'resident');
+  const authenticatedUser = auth?.currentUser;
+  if (!authenticatedUser || authenticatedUser.isAnonymous) throw new Error('Please sign in before submitting a work order.');
+  if (params.userId && params.userId !== authenticatedUser.uid) throw new Error('Work order ownership does not match your account.');
+  const finalUserId = authenticatedUser.uid;
 
   const docPayload = {
+    storageDraft: false,
     description: params.description || '',
     status: params.status || 'Pending', // Default to 'Pending' as requested
     createdAt: serverTimestamp(),
@@ -222,12 +189,12 @@ export async function saveWorkOrderToFirestore(
   };
 
   if (params.id != null) {
-    // Updating a historical ticket must preserve its assigned number and code.
     const existing = await getDoc(doc(db, 'work_orders', String(params.id)));
     if (existing.exists()) {
-      const { code: _code, ...updates } = docPayload;
-      await updateDoc(existing.ref, updates);
-      return existing.id;
+      if (existing.data().userId !== finalUserId) throw new Error('This work order belongs to another account.');
+      // A retried submission must never reset a published ticket's service state,
+      // immutable owner/time, or reserved number. Drafts go through the allocator.
+      if (existing.data().storageDraft !== true) return existing.id;
     }
   }
   const reference = params.id != null ? doc(db, 'work_orders', String(params.id)) : doc(collection(db, 'work_orders'));
@@ -235,18 +202,25 @@ export async function saveWorkOrderToFirestore(
   return reference.id;
 }
 
+async function deleteSocialDocument(name: SocialCollection, id: string | number): Promise<boolean> {
+  const uid = auth?.currentUser?.uid;
+  if (!db || !uid) return false;
+  try { await mutateSocial(db, uid, name, String(id), 'delete'); return true; }
+  catch (error) { console.warn('Could not delete social item:', error); return false; }
+}
+
 /**
  * Delete a post from marketplace_posts
  */
 export async function deleteMarketplacePostFromFirestore(id: string | number): Promise<boolean> {
-  return deleteDocument('marketplace_posts', id);
+  return deleteSocialDocument('marketplace_posts', id);
 }
 
 /**
  * Delete a post from discussion_feed
  */
 export async function deleteDiscussionFeedPostFromFirestore(id: string | number): Promise<boolean> {
-  return deleteDocument('discussion_feed', id);
+  return deleteSocialDocument('discussion_feed', id);
 }
 
 /**
@@ -331,6 +305,7 @@ export async function savePostToFirestore(
     title: post.title,
     content: post.content,
     mediaUrl: firstMediaUrl,
+    media: post.media || [],
     userId: String(post.authorId || ''),
     author: post.author,
     authorAvatar: post.authorAvatar,
@@ -352,6 +327,7 @@ export async function saveMarketItemToFirestore(
     description: item.description,
     price: item.price,
     mediaUrl: firstMediaUrl,
+    media: item.media || [],
     userId: String(item.authorId || ''),
     author: item.author,
     authorAvatar: item.authorAvatar,

@@ -32,7 +32,7 @@ export interface WorkOrdersState {
   setNewWoCategory: React.Dispatch<React.SetStateAction<string>>;
   newWoPhotos: string[];
   setNewWoPhotos: React.Dispatch<React.SetStateAction<string[]>>;
-  handleWorkOrderSubmit: (e: React.FormEvent) => Promise<void> | void;
+  handleWorkOrderSubmit: (e: React.FormEvent, recordId?: string) => Promise<void> | void;
   handleMarkAsDone: (id: number | string) => void;
   handleCompleteWithReply: (id: number | string, text: string, photoUrl?: string) => void;
   handleReopenWorkOrder: (id: number | string) => void;
@@ -111,8 +111,8 @@ export function useWorkOrders(
     let unsubscribe = () => {};
     try {
       const q = canViewAllWorkOrders(currentUser)
-        ? query(collection(db, 'work_orders'), orderBy('createdAt', 'desc'))
-        : query(collection(db, 'work_orders'), where('userId', '==', String(currentUser.id)));
+        ? query(collection(db, 'work_orders'), where('storageDraft', '==', false), orderBy('createdAt', 'desc'))
+        : query(collection(db, 'work_orders'), where('storageDraft', '==', false), where('userId', '==', String(currentUser.id)));
       unsubscribe = onSnapshot(
         q,
         (snapshot) => {
@@ -165,7 +165,7 @@ export function useWorkOrders(
   }, [currentUser?.id, currentUser?.approved, currentUser?.role]);
 
   const handleWorkOrderSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: React.FormEvent, recordId?: string) => {
       e.preventDefault();
       if (!newWoTitle.trim()) return;
 
@@ -198,6 +198,7 @@ export function useWorkOrders(
       try {
         const firestoreId = await saveWorkOrderToFirestore(
           {
+            id: recordId,
             title: newOrder.title,
             description: newOrder.description,
             category: newOrder.category,
@@ -223,6 +224,7 @@ export function useWorkOrders(
       } catch (err) {
         console.warn('Error syncing work order to Firestore:', err);
         showToast?.(err instanceof Error ? err.message : 'Work order was not saved. Please retry.');
+        throw err;
       }
 
     },

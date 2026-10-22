@@ -87,7 +87,9 @@ export async function uploadFile(input: {
         if (result.status < 200 || result.status >= 300) throw uploadHttpError(result.status);
       }
       checkSession();
-      const url = await deadline(getDownloadURL(reference), 20_000, 'Getting photo link');
+      const url = path.startsWith('work_orders/')
+        ? `gs://${reference.bucket}/${path}`
+        : await deadline(getDownloadURL(reference), 20_000, 'Getting photo link');
       checkSession();
       progress(1);
       return url;

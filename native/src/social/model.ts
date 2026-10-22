@@ -6,7 +6,7 @@ import type {
   MediaAttachment,
 } from "../../../src/types";
 import { marketLeft } from '../../../src/services/marketplaceChatIdentity';
-export type Post = PostItem & { createdAt: number };
+export type Post = PostItem & { createdAt: number; likedBy: Record<string, boolean> };
 export type Listing = MarketItem & { createdAt: number };
 export interface Chat {
   id: string;
@@ -109,6 +109,7 @@ export function readPost(id: string, d: Record<string, any>): Post {
     media: mediaFor(d),
     likes: Number(d.likes) || 0,
     liked: false,
+    likedBy: d.likedBy && typeof d.likedBy === "object" ? d.likedBy : {},
     comments: commentsFor(d),
     createdAt: time(d.createdAt),
   };

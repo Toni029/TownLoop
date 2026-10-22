@@ -34,6 +34,7 @@ interface CreatePostModalProps {
   currentUser?: UserProfile | null;
   onSubmit: (data: {
     type: 'chat' | 'market';
+    recordId: string;
     title: string;
     description: string;
     price?: string;
@@ -69,6 +70,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const dragControls = useDragControls();
   const reduceMotion = useReducedMotion();
 
+  const draftRef = useRef<{ id: string; uid: string } | null>(null);
+  if (!draftRef.current) draftRef.current = { id: crypto.randomUUID(), uid: auth?.currentUser?.uid || '' };
   const submittingRef = useRef(false);
   const pendingUploadsRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -76,7 +79,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setIsClosing(false);
-      setType(defaultType);
+      // Preserve an unfinished draft; an empty form follows the selected social tab.
+      if (!title && !description && mediaList.length === 0 && pendingUploadsRef.current === 0) setType(defaultType);
       setUploadError(null);
       setIsUploading(pendingUploadsRef.current > 0);
       setIsSubmitting(submittingRef.current);
@@ -87,7 +91,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   }, [isOpen, defaultType]);
 
   const handleClose = () => {
-    if (isClosing) return;
+    if (isClosing || isUploading || isSubmitting) return;
     setIsClosing(true);
     setTimeout(() => {
       onClose();
@@ -121,7 +125,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     }
 
     // Session Safeguard - explicitly verify login state before attempting upload
-    const hasAuthSession = Boolean(auth?.currentUser || currentUser?.id);
+    const hasAuthSession = !!auth?.currentUser && currentUser?.approved === true && auth.currentUser.uid === String(currentUser.id);
     if (!hasAuthSession) {
       setUploadError(
         'Session Safeguard: You must be logged in to an active account before uploading media files to Cloud Storage.'
@@ -135,17 +139,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setUploadingFileName(file.name);
 
     try {
+      const uid = auth?.currentUser?.uid;
+      if (!uid || draftRef.current?.uid && draftRef.current.uid !== uid) throw Error('Your session changed. Reopen a new form before uploading.');
+      draftRef.current!.uid = uid;
       const folder = type === 'market' ? 'marketplace' : 'feed';
       const result = await uploadMediaToStorage({
         file,
         folder,
+        recordId: draftRef.current!.id,
+        collection: type === 'market' ? 'marketplace_posts' : 'discussion_feed',
         currentUser,
         onProgress: (percent) => {
           setUploadProgress(percent);
         },
       });
 
-      // Attach uploaded media to list (do NOT write database document prematurely until form submission)
+      // The upload parent stays hidden until the acknowledged publish transaction.
       setMediaList((prev) => [
         ...prev,
         {
@@ -210,8 +219,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const firstMediaUrl = mediaList.length > 0 ? mediaList[0].url : '';
 
     try {
+      const uid = auth?.currentUser?.uid;
+      if (!uid || draftRef.current?.uid && draftRef.current.uid !== uid) throw Error('Your session changed. This draft has not been published.');
+      draftRef.current!.uid = uid;
       await onSubmit({
         type,
+        recordId: draftRef.current!.id,
         title: title.trim(),
         description: description.trim(),
         price: formattedPrice,
@@ -219,7 +232,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         mediaUrl: firstMediaUrl || undefined,
       });
 
-      // Reset fields upon successful submission
+      // Reset only after the server acknowledges publication.
+      draftRef.current = { id: crypto.randomUUID(), uid: auth?.currentUser?.uid || '' };
       setTitle('');
       setDescription('');
       setPrice('');
@@ -384,6 +398,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             <div className="grid grid-cols-2 gap-2 bg-stone-100 dark:bg-slate-800/90 p-1.5 rounded-2xl border border-stone-200 dark:border-slate-700">
               <button
                 type="button"
+                disabled={isUploading || isSubmitting || mediaList.length > 0}
                 onClick={() => setType('chat')}
                 className={`py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   type === 'chat'
@@ -396,6 +411,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               </button>
               <button
                 type="button"
+                disabled={isUploading || isSubmitting || mediaList.length > 0}
                 onClick={() => setType('market')}
                 className={`py-2 px-3 rounded-xl font-black text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   type === 'market'

@@ -23,9 +23,6 @@ import {
   updateDoc,
   collection,
   onSnapshot,
-  getDocs,
-  query,
-  where,
   serverTimestamp
 } from 'firebase/firestore';
 import {
@@ -76,82 +73,10 @@ export function normalizeUserProfile(uid: string, data: any, fbUser?: FirebaseUs
     fbUser?.photoURL ||
     '';
 
-  // Role and Badges resolution from Firestore user document
-  const rawRole = String(
-    data?.role ||
-    data?.userRole ||
-    data?.user_role ||
-    (Array.isArray(data?.roles) ? data.roles[0] : '') ||
-    data?.badge ||
-    (Array.isArray(data?.badges) ? data.badges[0] : '') ||
-    data?.type ||
-    ''
-  ).toLowerCase().trim();
-
-  const isAdminFlag = Boolean(
-    data?.isAdmin === true ||
-    data?.is_admin === true ||
-    data?.admin === true ||
-    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('admin')) ||
-    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('admin')) ||
-    rawRole === 'admin' ||
-    rawRole === 'master admin' ||
-    rawRole === 'master_admin' ||
-    rawRole === 'administrator'
-  );
-
-  const isStaffFlag = Boolean(
-    data?.isStaff === true ||
-    data?.is_staff === true ||
-    data?.staff === true ||
-    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('staff')) ||
-    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('staff')) ||
-    rawRole === 'staff'
-  );
-
-  const isVipFlag = Boolean(
-    data?.isVip === true ||
-    data?.is_vip === true ||
-    data?.vip === true ||
-    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('vip')) ||
-    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('vip')) ||
-    rawRole === 'vip' ||
-    rawRole === 'vip resident' ||
-    rawRole === 'vip_resident'
-  );
-
-  const isCrewFlag = Boolean(
-    data?.isCrew === true ||
-    data?.is_crew === true ||
-    data?.crew === true ||
-    (Array.isArray(data?.roles) && data.roles.map((r: any) => String(r).toLowerCase()).includes('crew')) ||
-    (Array.isArray(data?.badges) && data.badges.map((b: any) => String(b).toLowerCase()).includes('crew')) ||
-    rawRole === 'crew' ||
-    rawRole === 'maintenance' ||
-    rawRole === 'maintenance crew'
-  );
-
-  let role: UserRole = '';
-  if (isAdminFlag) {
-    role = 'admin';
-  } else if (isStaffFlag) {
-    role = 'staff';
-  } else if (isVipFlag) {
-    role = 'vip';
-  } else if (isCrewFlag) {
-    role = 'crew';
-  } else if (rawRole === 'resident') {
-    role = 'resident';
-  } else if (['admin', 'staff', 'vip', 'crew', 'resident'].includes(rawRole)) {
-    role = rawRole as UserRole;
-  } else if (data?.approved !== false && rawRole !== '') {
-    role = 'resident';
-  }
-
-  // Admins, Staff, and VIPs are automatically approved
-  const approved = (isAdminFlag || isStaffFlag || isVipFlag)
-    ? true
-    : (data?.approved !== undefined ? Boolean(data.approved) : true);
+  // Canonical role and explicit approval are the only authorization inputs.
+  const role: UserRole = ['resident', 'crew', 'vip', 'admin'].includes(data?.role)
+    ? data.role : '';
+  const approved = data?.approved === true;
 
   let cachedSignupAddr = '';
   if (typeof window !== 'undefined') {
@@ -186,10 +111,10 @@ export function normalizeUserProfile(uid: string, data: any, fbUser?: FirebaseUs
     avatar_url: avatarUrl,
     avatarUrl,
     approved,
-    isAdmin: role === 'admin' || isAdminFlag,
-    isStaff: role === 'staff' || isStaffFlag,
-    isVip: role === 'vip' || isVipFlag,
-    isCrew: role === 'crew' || isCrewFlag,
+    isAdmin: approved && role === 'admin',
+    isStaff: false,
+    isVip: approved && role === 'vip',
+    isCrew: approved && role === 'crew',
     created_at: data?.createdAt || data?.created_at || new Date().toISOString(),
     createdAt: data?.createdAt || data?.created_at || new Date().toISOString()
   };
@@ -217,13 +142,6 @@ export async function loginUser(email: string, password: string): Promise<UserPr
       const snap = await getDoc(userDocRef);
       if (snap.exists()) {
         userData = snap.data();
-      } else {
-        // Fallback: check if user document is saved under matching email
-        const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
-        const emailSnap = await getDocs(q);
-        if (!emailSnap.empty) {
-          userData = emailSnap.docs[0].data();
-        }
       }
     } catch (err) {
       console.warn('Notice reading user profile from Firestore:', err);
@@ -413,6 +331,7 @@ export async function setAdminApprovalStatus(
   role?: UserRole
 ): Promise<boolean> {
   const uidStr = String(userId);
+  if (role !== undefined && !['resident', 'crew', 'vip', 'admin'].includes(role)) return false;
   const updatePayload: Record<string, any> = { approved };
   if (role !== undefined) {
     updatePayload.role = role;
@@ -441,7 +360,7 @@ export async function approveUserAndAssignResident(userId: string | number): Pro
 }
 
 /**
- * Subscribes to all registered community users in Firestore for the Admin Panel
+ * Uses private profiles for approved office managers and safe projections for other members.
  */
 export function subscribeToCommunityDirectory(
   callback: (users: Array<{
@@ -459,98 +378,62 @@ export function subscribeToCommunityDirectory(
     interests?: string[];
   }>) => void
 ): () => void {
-  const notifyMergedList = (firestoreUsers: any[] = []) => {
-    const userMapById = new Map<string, any>();
-    const emailToId = new Map<string, string>();
-
-    const upsert = (u: any) => {
-      if (!u || !u.id) return;
-      const cleanId = String(u.id).trim();
-      const cleanEmail = (u.email || '').toLowerCase().trim();
-
-      // Check if we already have this user registered under their email
-      let targetId = cleanId;
-      if (cleanEmail && emailToId.has(cleanEmail)) {
-        targetId = emailToId.get(cleanEmail)!;
-      }
-
-      if (userMapById.has(targetId)) {
-        const existing = userMapById.get(targetId);
-        userMapById.set(targetId, {
-          ...existing,
-          ...u,
-          id: targetId, // preserve canonical unique ID
-        });
-      } else {
-        userMapById.set(cleanId, {
-          ...u,
-          id: cleanId,
-        });
-        if (cleanEmail) {
-          emailToId.set(cleanEmail, cleanId);
-        }
-      }
-    };
-
-    firestoreUsers.forEach((u) => {
-      upsert(u);
-    });
-
-    callback(Array.from(userMapById.values()));
-  };
-
-  let unsubscribeFirestore = () => {};
-
-  if (isFirebaseConfigured() && db) {
-    try {
-      const usersCol = collection(db, 'users');
-      unsubscribeFirestore = onSnapshot(
-        usersCol,
-        (snapshot) => {
-          const list = snapshot.docs.map((docSnap) => {
-            const data = docSnap.data();
-            const isApproved = data.approved !== false;
-            const rawR = String(data.role || '').toLowerCase().trim();
-            let resolvedRole: UserRole = '';
-            if (data.isAdmin === true || rawR === 'admin' || rawR === 'master admin') resolvedRole = 'admin';
-            else if (data.isStaff === true || rawR === 'staff') resolvedRole = 'staff';
-            else if (data.isVip === true || rawR === 'vip') resolvedRole = 'vip';
-            else if (rawR === 'crew') resolvedRole = 'crew';
-            else if (rawR === 'resident') resolvedRole = 'resident';
-            else if (isApproved && ['admin', 'staff', 'vip', 'crew', 'resident'].includes(data.role)) resolvedRole = data.role as UserRole;
-
-            return {
-              id: docSnap.id,
-              name: data.name || 'Resident',
-              email: data.email || '',
-              unit: data.address || data.unit || 'TownLoop Community',
-              role: resolvedRole as UserRole,
-              approved: isApproved,
-              avatar: data.avatarUrl || data.avatar_url || data.avatar || '',
-              createdAt: data.createdAt,
-              phone: data.phone || '',
-              wing: data.wing || '',
-              address: data.address || data.unit || '',
-              interests: data.interests || ['Community'],
-            };
-          });
-          notifyMergedList(list);
-        },
-        (error) => {
-          console.warn('Community directory listener notice:', error);
-          notifyMergedList([]);
-        }
-      );
-    } catch (err) {
-      console.warn('Could not bind directory listener:', err);
-      notifyMergedList([]);
-    }
-  } else {
-    notifyMergedList([]);
+  if (!isFirebaseConfigured() || !auth || !db) {
+    callback([]);
+    return () => {};
   }
-
+  let stopProfile = () => {};
+  let stopDirectory = () => {};
+  let generation = 0;
+  let directoryGeneration = 0;
+  const stopAuth = onAuthStateChanged(auth, fbUser => {
+    const authGeneration = ++generation;
+    stopProfile();
+    directoryGeneration++;
+    stopDirectory();
+    callback([]);
+    if (!fbUser) return;
+    stopProfile = onSnapshot(doc(db, 'users', fbUser.uid), profile => {
+      if (authGeneration !== generation) return;
+      const directoryVersion = ++directoryGeneration;
+      stopDirectory();
+      callback([]);
+      const own = profile.data();
+      if (!own || own.approved !== true) return;
+      // Full profiles are needed only by the Admin/VIP approval and review tools.
+      const privateAccess = ['admin', 'vip'].includes(own.role);
+      stopDirectory = onSnapshot(collection(db, privateAccess ? 'users' : 'resident_directory'), snapshot => {
+        if (authGeneration !== generation || directoryVersion !== directoryGeneration) return;
+        callback(snapshot.docs.filter(document => privateAccess || (document.data().uid === document.id && document.data().approved === true)).map(document => {
+          const data = document.data();
+          return {
+            id: document.id,
+            name: data.name || 'Resident',
+            email: privateAccess ? data.email || '' : '',
+            unit: privateAccess ? data.address || data.unit || '' : '',
+            role: (['resident', 'crew', 'vip', 'admin'].includes(data.role) ? data.role : '') as UserRole,
+            approved: data.approved === true,
+            avatar: data.avatarUrl || data.avatar_url || '',
+            ...(privateAccess ? {
+              createdAt: data.createdAt, phone: data.phone || '',
+              wing: data.wing || '', address: data.address || data.unit || '',
+              interests: data.interests || [],
+            } : {}),
+          };
+        }));
+      }, () => callback([]));
+    }, () => {
+      if (authGeneration !== generation) return;
+      directoryGeneration++;
+      stopDirectory();
+      callback([]);
+    });
+  });
   return () => {
-    unsubscribeFirestore();
+    generation++;
+    stopAuth();
+    stopProfile();
+    stopDirectory();
   };
 }
 
@@ -581,21 +464,6 @@ export function subscribeToAuth(callback: (user: UserProfile | null) => void): (
               const normalized = normalizeUserProfile(fbUser.uid, snap.data(), fbUser);
               callback(normalized);
             } else {
-              // Check by email in users collection if doc by UID is not yet initialized
-              try {
-                if (fbUser.email && db) {
-                  const q = query(collection(db, 'users'), where('email', '==', fbUser.email.toLowerCase()));
-                  const emailSnap = await getDocs(q);
-                  if (!emailSnap.empty) {
-                    const matchedData = emailSnap.docs[0].data();
-                    const normalized = normalizeUserProfile(fbUser.uid, matchedData, fbUser);
-                    callback(normalized);
-                    return;
-                  }
-                }
-              } catch (e) {
-                console.warn('Notice matching user by email in Firestore:', e);
-              }
               const normalized = normalizeUserProfile(fbUser.uid, null, fbUser);
               callback(normalized);
             }
@@ -685,6 +553,7 @@ export async function updateResidentProfile(params: Partial<UserProfile>): Promi
  * Updates a user's role in Firestore or LocalStorage (for admin management)
  */
 export async function updateUserRoleInDb(userId: string | number, role: UserRole): Promise<boolean> {
+  if (!['resident', 'crew', 'vip', 'admin'].includes(role)) return false;
   const uidStr = String(userId);
 
   if (isFirebaseConfigured() && db) {

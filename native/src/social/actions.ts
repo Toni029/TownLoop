@@ -1,3 +1,4 @@
+import { mutateSocial } from "../../../src/services/socialIntegrity";
 import {sendMarketInquiry, mutateMarketChat} from "../../../src/services/marketplaceChatProtocol";
 import {
   collection,
@@ -7,18 +8,12 @@ import {
 } from "firebase/firestore";
 import type {
   MediaAttachment,
-  CommentItem,
   UserProfile,
 } from "../../../src/types";
-import { canDeleteAnyPost } from "../../../src/utils/permissions";
 import { db } from "../lib/firebase";
 import { approvedUser } from "../news/actions";
 import { singleFlight } from "../news/model";
 import {
-  readPost,
-  readListing,
-  owns,
-  appendComment,
   formatPrice,
 } from "./model";
 export type SocialKind = "post" | "listing";
@@ -44,19 +39,18 @@ export async function publishSocial(
     const user = await approvedUser();
     const reference = doc(db, collectionFor(kind), id);
     await runTransaction(db, async (tx) => {
-      if ((await tx.get(reference)).exists()) return;
+      const previous = await tx.get(reference);
+      if (previous.exists() && previous.data().storageDraft !== true) return;
+      if (previous.exists() && previous.data().userId !== String(user.id)) throw Error('Draft ownership does not match.');
       const base = {
+        storageDraft: false,
         title: draft.title.trim(),
         createdAt: serverTimestamp(),
         userId: String(user.id),
         author: user.name,
         authorAvatar: avatar(user),
-        authorEmail: user.email,
-        unit:
-          user.address ||
-          user.apartmentNumber ||
-          user.unit ||
-          "TownLoop Resident",
+        authorEmail: '',
+        unit: "TownLoop Resident",
         media: draft.media,
         mediaUrl: draft.media[0]?.url || "",
         comments: [],
@@ -70,6 +64,7 @@ export async function publishSocial(
               content: draft.description.trim(),
               tag: "Community",
               likes: 0,
+              likedBy: {},
             }
           : {
               ...base,
@@ -95,55 +90,7 @@ export async function changeSocial(
 ) {
   return runSocial(`${kind}:${id}`, async () => {
     const user = await approvedUser();
-    const reference = doc(db, collectionFor(kind), id);
-    const commentId = payload.commentId || newSocialId();
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(reference);
-      if (!snap.exists()) throw Error("This item is no longer available.");
-      const item =
-        kind === "post"
-          ? readPost(id, snap.data())
-          : readListing(id, snap.data());
-      if (action === "delete") {
-        if (!owns(item, user) && !canDeleteAnyPost(user))
-          throw Error(
-            "Only the author, administrators and VIP residents can delete this item.",
-          );
-        tx.delete(reference);
-        return;
-      }
-      if (action === "sold") {
-        if (kind !== "listing" || !owns(item, user))
-          throw Error("Only the seller can change availability.");
-        tx.update(reference, { sold: !!payload.sold, claimed: !!payload.sold });
-        return;
-      }
-      if (action === "like") {
-        if (kind !== "post")
-          throw Error("Only discussion posts have reactions.");
-        tx.update(reference, {
-          likes: Math.max(
-            0,
-            ("likes" in item ? item.likes : 0) + (payload.liked ? 1 : -1),
-          ),
-        });
-        return;
-      }
-      if (!payload.text?.trim()) throw Error("Please enter a comment.");
-      const comment: CommentItem = {
-        id: commentId,
-        author: user.name,
-        authorId: String(user.id),
-        authorEmail: user.email,
-        authorAvatar: avatar(user),
-        unit: user.address || user.unit || "TownLoop Resident",
-        text: payload.text.trim(),
-        timeAgo: "Just now",
-      };
-      tx.update(reference, {
-        comments: appendComment(item.comments || [], comment),
-      });
-    });
+    await mutateSocial(db, String(user.id), collectionFor(kind), id, action, payload);
   });
 }
 // Both clients use the same UID-only, transactional Marketplace protocol.

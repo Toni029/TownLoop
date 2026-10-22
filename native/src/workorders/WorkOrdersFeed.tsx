@@ -1,10 +1,10 @@
+import { PrivateImage } from '../components/PrivateImage';
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState, useMemo, useCallback, memo } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
-  Image,
   Pressable,
 
   View,
@@ -345,7 +345,7 @@ const OrderCard = memo(function OrderCard({
     setUploading(true);
     setError("");
     try {
-      const photos = await pickAndUpload("work_orders", setProgress, false);
+      const photos = await pickAndUpload("work_orders", setProgress, false, {recordId: String(order.id), collection: "work_orders"});
       if (photos[0]) setPhoto(photos[0].url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to upload photo.");
@@ -678,7 +678,7 @@ const OrderCard = memo(function OrderCard({
                 onPress={() => setMedia({ urls: order.photos!, index })}
                 style={{ width: "100%", height: 190, borderRadius: 16, overflow: "hidden", backgroundColor: "#0c0a09", alignSelf: "center" }}
               >
-                <Image
+                <PrivateImage
                   source={{ uri }}
                   resizeMode="cover"
                   style={{ width: "100%", height: "100%" }}
@@ -744,7 +744,7 @@ const OrderCard = memo(function OrderCard({
                     onPress={() => setMedia({ urls: [c.photoUrl!], index: 0 })}
                     style={{ width: "100%", height: 190, borderRadius: 16, overflow: "hidden", backgroundColor: "#0c0a09", alignSelf: "center" }}
                   >
-                    <Image
+                    <PrivateImage
                       source={{ uri: c.photoUrl }}
                       resizeMode="cover"
                       style={{ width: "100%", height: "100%" }}
@@ -802,7 +802,7 @@ const OrderCard = memo(function OrderCard({
                   />
                   {uploading && <Copy>Uploading photo… {progress}%</Copy>}
                   {!!photo && (
-                    <Image
+                    <PrivateImage
                       source={{ uri: photo }}
                       style={{ width: 100, height: 100, borderRadius: 12 }}
                     />

@@ -32,3 +32,6 @@ exports.cleanupCompletedWorkOrders = onSchedule({ schedule: 'every 60 minutes', 
 Object.assign(exports, require('./inbox.cjs'));
 
 Object.assign(exports, require("./translation.cjs"));
+
+// Prepared privacy projection; deploy only with reviewed directory backfill/rules rollout.
+Object.assign(exports, require("./profilePrivacy.cjs"));

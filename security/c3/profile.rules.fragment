@@ -1,0 +1,10 @@
+// Integrate with the canonical approval/manager helpers in firestore.rules.
+// users/{uid}: get own profile OR isManager(); list isManager() only.
+// Private profile writes retain the reviewed H2 field/role/approval rules.
+match /resident_directory/{uid} {
+  allow get: if isApproved() && (!exists(/databases/$(database)/documents/resident_directory/$(uid)) || resource.data.uid == uid);
+  allow list: if isApproved();
+  allow create, update, delete: if false;
+}
+// Admin SDK trigger writes are trusted and bypass client security rules.
+// Use only strict approved==true and canonical roles in isApproved/isManager.

@@ -103,7 +103,7 @@ export interface InboxMessage {
 }
 
 export interface ResidentFriend {
-  id: number;
+  id: string;
   name: string;
   apt: string;
   wing: string;
@@ -148,6 +148,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   // Compose State
   const [composeRecipient, setComposeRecipient] = useState<{
+    id?: string;
+    avatar?: string;
     name: string;
     category: MessageCategory;
     role?: string;
@@ -272,7 +274,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
             return true;
           })
           .map((u, idx) => ({
-            id: idx + 1,
+            id: String(u.id),
             name: u.name || 'Neighbor',
             apt: u.unit || u.address || 'TownLoop Resident',
             wing: u.wing || '',
@@ -659,7 +661,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       setActiveFriendChat(null);
     }
 
-    showToast('Conversation deleted');
+    showToast('Conversation hidden');
   };
 
   const handleOpenMessage = (msg: InboxMessage) => {
@@ -793,33 +795,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
         setActiveFriendChat(foundChat);
         markFriendChatRead(foundChat.id, currentUser);
       } else {
-        const myKey = getCleanParticipantKey(currentUser);
-        const otherKey = msg.from.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_');
-        const fallbackChat: ResidentChat = {
-          id: msg.friendChatId || getFriendChatDocId(myKey, otherKey),
-          participantIds: [myKey, otherKey],
-          participants: [
-            { id: myKey, name: effectiveName, email: effectiveEmail, avatar: profilePhotoUrl },
-            { id: otherKey, name: msg.from, phone: msg.senderPhone, apt: msg.senderApt, avatar: msg.senderAvatar }
-          ],
-          subject: msg.subject || 'Conversation',
-          lastMessage: msg.body,
-          updatedAt: Date.now(),
-          unreadBy: [],
-          messages: [
-            {
-              id: `msg_${Date.now()}`,
-              senderId: otherKey,
-              senderName: msg.from,
-              senderRole: 'Resident',
-              senderAvatar: msg.senderAvatar,
-              body: msg.body.replace(/^You: "/, '').replace(/"$/, ''),
-              createdAt: Date.now(),
-              time: msg.time,
-            }
-          ]
-        };
-        setActiveFriendChat(fallbackChat);
+        showToast('This legacy conversation needs an identity migration before it can be opened.');
+        return;
       }
       if (typeof msg.id === 'number') {
         markMessageAsRead(msg.id);
@@ -840,6 +817,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     setActiveMaintenanceChat(null);
     setActiveFriendChat(null);
     setComposeRecipient({
+      id: friend.id,
+      avatar: friend.photo,
       name: friend.name,
       category: 'friend',
       role: `Resident (${friend.apt})`,
@@ -908,7 +887,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
   const handleSendComposedMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (composeRecipient.category === 'friend' && !composeRecipient.name.trim()) {
+    if (composeRecipient.category === 'friend' && !composeRecipient.id) {
       showToast('Please select a neighbor / friend to send your message to');
       return;
     }
@@ -965,7 +944,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       // 3. Persist to Firestore maintenance_chats
       sendMaintenanceChatMessage({
         resident: residentTarget,
-        sender: currentUser || { id: 'resident', name: effectiveName, role: 'resident' },
+        sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: 'resident' },
         body: messageBody,
         subject: messageSubject,
       }).catch(err => console.warn('Maintenance chat sync warning:', err));
@@ -1023,7 +1002,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
       sendOfficeChatMessage({
         resident: residentTarget,
-        sender: currentUser || { id: 'resident', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
+        sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
         body: messageBody,
         subject: messageSubject,
       }).catch(err => console.warn('Office chat sync warning:', err));
@@ -1041,9 +1020,9 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     const messageSubject = composeSubject.trim() || 'Conversation';
 
     const updatedChat = await sendFriendChatMessage({
-      sender: currentUser || { id: 'resident', name: effectiveName, role: 'resident', avatar_url: profilePhotoUrl, phone: effectivePhone, address: effectiveAddress },
+      sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: 'resident', avatar_url: profilePhotoUrl, phone: effectivePhone, address: effectiveAddress },
       recipient: {
-        id: composeRecipient.name.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_'),
+        id: composeRecipient.id,
         name: composeRecipient.name,
         email: '',
         avatar: '',
@@ -1129,7 +1108,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
     try {
       const updatedChat = await sendFriendChatMessage({
-      sender: currentUser || { id: 'resident', name: effectiveName, role: 'resident', avatar_url: profilePhotoUrl, phone: effectivePhone, address: effectiveAddress },
+      sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: 'resident', avatar_url: profilePhotoUrl, phone: effectivePhone, address: effectiveAddress },
       recipient: {
         id: other.id,
         name: other.name,
@@ -1253,7 +1232,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
       await sendMaintenanceChatMessage({
         resident: residentTarget,
-        sender: currentUser || { id: 'resident', name: effectiveName, role: userIsCrew ? 'crew' : 'resident' },
+        sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: userIsCrew ? 'crew' : 'resident' },
         body: replyContent,
         subject: activeMaintenanceChat?.subject || 'Maintenance Service Request',
       });
@@ -1336,7 +1315,7 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
 
       await sendOfficeChatMessage({
         resident: residentTarget,
-        sender: currentUser || { id: 'resident', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
+        sender: currentUser || { id: 'resident', email: '', name: effectiveName, role: userIsVip ? 'vip' : 'resident' },
         body: replyContent,
         subject: activeOfficeChat?.subject || 'Office Inquiry',
       });
@@ -1885,8 +1864,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                               type="button"
                               onClick={(e) => handleDeleteMessage(msg, e)}
                               className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-100/70 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 transition cursor-pointer shrink-0 ml-0.5"
-                              title="Delete conversation"
-                              aria-label="Delete conversation"
+                              title="Hide conversation"
+                              aria-label="Hide conversation"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1964,8 +1943,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     type="button"
                     onClick={(e) => handleDeleteMessage(selectedMessage, e)}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-300 transition cursor-pointer shrink-0"
-                    title="Delete conversation"
-                    aria-label="Delete conversation"
+                    title="Hide conversation"
+                    aria-label="Hide conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -2154,8 +2133,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     type="button"
                     onClick={(e) => handleDeleteMessage(selectedMessage, e)}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-300 transition cursor-pointer shrink-0"
-                    title="Delete conversation"
-                    aria-label="Delete conversation"
+                    title="Hide conversation"
+                    aria-label="Hide conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -2352,8 +2331,8 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                     type="button"
                     onClick={(e) => handleDeleteMessage(selectedMessage, e)}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 dark:hover:text-rose-300 transition cursor-pointer shrink-0"
-                    title="Delete conversation"
-                    aria-label="Delete conversation"
+                    title="Hide conversation"
+                    aria-label="Hide conversation"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -2794,13 +2773,15 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
                             className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 backdrop-blur-2xl border border-stone-200 dark:border-slate-700/90 rounded-2xl shadow-xl overflow-hidden p-1.5 max-h-60 overflow-y-auto space-y-1 hide-scrollbar"
                           >
                             {residents.map((r) => {
-                              const isSelected = r.name === composeRecipient.name;
+                              const isSelected = r.id === composeRecipient.id;
                               return (
                                 <button
                                   key={r.id}
                                   type="button"
                                   onClick={() => {
                                     setComposeRecipient({
+                                      id: r.id,
+                                      avatar: r.photo,
                                       name: r.name,
                                       category: 'friend',
                                       role: `Resident (${r.apt})`,

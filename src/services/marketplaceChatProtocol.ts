@@ -151,7 +151,7 @@ export async function sendMarketInquiry(
     const sellerId = item.userId || item.authorId;
     if (typeof sellerId !== "string" || !sellerId || sellerId === uid)
       throw Error("A verified seller account is required.");
-    const sellerSnap = await tx.get(doc(db, "users", sellerId)),
+    const sellerSnap = await tx.get(doc(db, "resident_directory", sellerId)),
       seller = sellerSnap.data();
     if (
       !seller ||

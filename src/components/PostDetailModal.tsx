@@ -37,12 +37,12 @@ interface PostDetailModalProps {
   post: PostItem | null;
   marketItem: MarketItem | null;
   isOwner?: boolean;
-  onToggleLikePost?: (postId: number) => void;
-  onAddComment: (itemId: number, isMarket: boolean, text: string) => void | boolean | Promise<void | boolean>;
-  onToggleSoldMarketItem?: (itemId: number) => void;
+  onToggleLikePost?: (postId: number | string) => void;
+  onAddComment: (itemId: number | string, isMarket: boolean, text: string) => void | boolean | Promise<void | boolean>;
+  onToggleSoldMarketItem?: (itemId: number | string) => void;
   onMessageSeller?: (item: MarketItem) => void;
-  onClaimMarketItem?: (itemId: number) => void;
-  onDeletePost?: (itemId: number, isMarket: boolean) => void;
+  onClaimMarketItem?: (itemId: number | string) => void;
+  onDeletePost?: (itemId: number | string, isMarket: boolean) => void | boolean | Promise<void | boolean>;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -77,7 +77,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   }, [isOpen, post?.id, marketItem?.id]);
 
   const handleClose = () => {
-    if (isClosing) return;
+    if (isClosing || submittingRef.current) return;
     setIsClosing(true);
     setTimeout(() => {
       onClose();
@@ -225,10 +225,15 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                   <span className="text-[11px] font-semibold text-rose-700 dark:text-rose-300 whitespace-nowrap">Delete?</span>
                   <button
                     id="confirm-delete-post-btn"
-                    onClick={() => {
-                      onDeletePost(currentItem.id, isMarket);
-                      setConfirmDelete(false);
-                      onClose();
+                    onClick={async () => {
+                      if (submittingRef.current) return;
+                      submittingRef.current = true;
+                      try {
+                        if (await onDeletePost(currentItem.id, isMarket) !== false) {
+                          setConfirmDelete(false);
+                          onClose();
+                        }
+                      } finally { submittingRef.current = false; }
                     }}
                     className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white hover:bg-rose-700 cursor-pointer shadow-2xs"
                   >

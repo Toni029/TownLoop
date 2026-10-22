@@ -1,7 +1,8 @@
+import { PrivateImage } from '../components/PrivateImage';
 import { CategoryPicker } from "./CategoryPicker";
 import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState } from "react";
-import { Image, View } from "react-native";
+import { View } from "react-native";
 import { Trash2 } from "lucide-react-native";
 import { WORK_ORDER_CATEGORIES } from "../../../src/data/workOrderCategories";
 import {
@@ -41,7 +42,7 @@ export function RequestEditor({
     setError("");
     setProgress(0);
     try {
-      const files = await pickAndUpload("work_orders", setProgress, false);
+      const files = await pickAndUpload("work_orders", setProgress, false, {recordId: id, collection: "work_orders"});
       setPhotos((p) => [...p, ...files.map((f) => f.url)]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to attach photos.");
@@ -129,7 +130,7 @@ export function RequestEditor({
         <View style={s.row}>
           {photos.map((uri, index) => (
             <View key={`${uri}-${index}`} style={{ gap: 4 }}>
-              <Image
+              <PrivateImage
                 source={{ uri }}
                 accessibilityLabel={`Attached photo ${index + 1}`}
                 style={{ width: 90, height: 90, borderRadius: 12 }}

@@ -47,6 +47,7 @@ export function CreateEditor({
         kind === "post" ? "feed" : "marketplace",
         setProgress,
         camera,
+        { recordId: id, collection: kind === 'post' ? 'discussion_feed' : 'marketplace_posts' },
       );
       setMedia((p) => [...p, ...files]);
     } catch (e) {
@@ -114,8 +115,8 @@ export function CreateEditor({
                 accessibilityLabel={
                   value === "post" ? "Discussion Feed" : "Buy / Free / Sell"
                 }
-                accessibilityState={{ selected, disabled: busy }}
-                disabled={busy}
+                accessibilityState={{ selected, disabled: busy || media.length > 0 }}
+                disabled={busy || media.length > 0}
                 onPress={() => setKind(value)}
                 hitSlop={6}
                 style={{

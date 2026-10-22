@@ -111,7 +111,7 @@ export function PortalModals({
         marketItem={selectedDetailMarket}
         isOwner={isItemCreator(selectedDetailMarket || selectedDetailPost) || canDeleteAnyPost(community.currentUser)}
         onToggleLikePost={toggleLike}
-        onAddComment={handleModalAddComment}
+        onAddComment={(id, isMarket, text) => handleModalAddComment(id, text, isMarket)}
         onToggleSoldMarketItem={handleToggleSoldItem}
         onMessageSeller={handleOpenMessageSeller}
         onDeletePost={handleDeleteItem}

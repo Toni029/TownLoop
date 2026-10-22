@@ -1,6 +1,9 @@
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import {
   collection,
+  FieldPath,
+  getDocs,
+  limit,
   doc,
   onSnapshot,
   query,
@@ -12,7 +15,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import type { UserProfile } from "../../../src/types";
-import { isCrew, canAccessAdminPanel } from "../../../src/utils/permissions";
+import { getUserRole, isCrew, canAccessAdminPanel } from "../../../src/utils/permissions";
 import { auth, db } from "../lib/firebase";
 import { approvedUser } from "../news/actions";
 import { useLiveCollection } from "../lib/liveCollection";
@@ -25,7 +28,6 @@ import {
   residentKey,
   readThread,
   officeManager,
-  receiptMessages,
   profileChanges,
   accountDetails,
   type ProfileDetails,
@@ -36,12 +38,14 @@ export function readPerson(id: string, data: Record<string, any>): UserProfile {
   return { ...data, ...readProfile(data), id } as UserProfile;
 }
 export function useProfileData(user: UserProfile | null) {
-  const directory = useLiveCollection("users", readPerson, "");
+  // Only office managers receive private profiles for approvals and profile reviews.
+  const privateDirectory = user?.approved === true && ["admin", "vip"].includes(user.role || "");
+  const directory = useLiveCollection(privateDirectory ? "users" : "resident_directory", readPerson, "");
   const [attempt, retry] = useState(0);
   const uid = user ? String(user.id) : "";
   const email = user?.email || "";
   const role = user?.role || "";
-  const approved = !!user && user.approved !== false;
+  const approved = !!getUserRole(user);
   const manager = !!user && officeManager(user);
   const crew = !!user && isCrew(user);
   const key = `${uid}:${email}:${role}:${approved}:${manager}:${crew}:${attempt}`;
@@ -62,13 +66,14 @@ export function useProfileData(user: UserProfile | null) {
                 base,
                 where(
                   "participantIds",
-                  "array-contains-any",
-                  identifiers({ id: uid, email }).slice(0, 30),
+                  "array-contains",
+                  uid,
                 ),
+                where("identityVersion", "==", 2),
               )
             : (category === "office" ? manager : crew)
               ? base
-              : doc(base, residentKey({ id: uid, email }));
+              : query(base, where("residentId", "==", uid));
         return subscribeSafely<Thread[]>(
           (next, fail) =>
             onSnapshot(
@@ -131,27 +136,7 @@ export async function markRead(thread: Thread) {
       !readThread(thread.category, thread.id, snap.data(), user)
     )
       throw new Error("This conversation is no longer available.");
-    tx.update(reference, {
-      messages: receiptMessages(
-        snap.data().messages || [],
-        thread.category,
-        user,
-      ),
-    });
-    if (thread.category === "friend")
-      tx.update(reference, {
-        unreadBy: (snap.data().unreadBy || []).filter(
-          (v: string) => !identifiers(user).includes(v.toLowerCase()),
-        ),
-      });
-    else
-      tx.update(reference, {
-        [thread.category === "office" && officeManager(user)
-          ? "unreadByVip"
-          : thread.category === "maintenance" && isCrew(user)
-            ? "unreadByCrew"
-            : "unreadByResident"]: false,
-      });
+    tx.update(reference, new FieldPath("readBy", String(user.id)), (snap.data().messages || []).length);
   });
 }
 export async function deleteThread(thread: Thread) {
@@ -162,7 +147,7 @@ export async function deleteThread(thread: Thread) {
     if (!snap.exists()) return;
     if (!readThread(thread.category, thread.id, snap.data(), user))
       throw Error("You cannot access this conversation.");
-    tx.delete(reference);
+    tx.update(reference, new FieldPath("hiddenBy", String(user.id)), (snap.data().messages || []).length);
   });
 }
 export async function sendMessage(
@@ -189,27 +174,22 @@ export async function sendMessage(
     (category === "friend" && String(target.id) === String(user.id))
   )
     throw new Error("Select a neighbor first.");
-  const id =
+  let id =
     thread?.id ||
     (category === "friend"
       ? [participantKey(user), participantKey(target)].sort().join("_vs_")
       : residentKey(target));
+  if (!thread && category !== "friend") {
+    const matches = await getDocs(query(collection(db, collectionName[category]), where("residentId", "==", String(target.id)), limit(2)));
+    id = matches.docs.find(item => item.id === id)?.id || matches.docs[0]?.id || id;
+  }
   const now = Date.now(),
     message = {
       id: `msg_${now}_${Math.random().toString(36).slice(2, 9)}`,
       senderId: category === "friend" ? participantKey(user) : String(user.id),
       senderName: user.name,
-      senderRole: options.officeRequest ? user.role :
-        category === "friend"
-          ? user.role
-          : category === "office" && manager
-            ? user.role === "admin"
-              ? "admin"
-              : "vip"
-            : category === "maintenance" && manager
-              ? "crew"
-              : "resident",
-      senderAvatar: user.avatar_url || user.avatarUrl || "",
+      senderRole: getUserRole(user),
+      senderAvatar: user.avatar_url ?? user.avatarUrl ?? "",
       body: body.trim(),
       createdAt: now,
       time: new Date(now).toLocaleTimeString([], {
@@ -221,7 +201,7 @@ export async function sendMessage(
     const ref = doc(db, collectionName[category], id),
       snap = await tx.get(ref),
       existing = snap.data() || {};
-    if (snap.exists() && !readThread(category, id, existing, user))
+    if (snap.exists() && !readThread(category, id, { ...existing, hiddenBy: {} }, user))
       throw new Error("You do not have access to this conversation.");
     if (auth.currentUser?.uid !== String(user.id))
       throw new Error("Your session changed. Sign in again.");
@@ -233,41 +213,29 @@ export async function sendMessage(
         subject.trim().slice(0, 160) || existing.subject || "Conversation",
     };
     if (category === "friend") {
-      if (options.officeDirect) patch.officeDirect = true;
-      patch.participantIds = [
-        ...new Set([
-          ...(existing.participantIds || []),
-          ...identifiers(user),
-          ...identifiers(target),
-        ]),
-      ];
-      patch.participants =
-        existing.participants ||
-        [user, target].map((p) => ({
-          id: participantKey(p),
-          name: p.name,
-          email: p.email || "",
-          avatar: p.avatar_url || p.avatarUrl || "",
-          phone: p.phone || "",
-          apt: p.address || "",
-          role: p.role,
+      if (options.officeDirect && !snap.exists()) patch.officeDirect = true;
+      if (!snap.exists()) {
+        patch.identityVersion = 2;
+        patch.participantIds = [String(user.id), String(target.id)];
+        patch.participants = [user, target].map((p) => ({
+          id: String(p.id), name: p.name, avatar: p.avatar_url || p.avatarUrl || "", role: getUserRole(p),
         }));
+      }
       patch.unreadBy = [
         ...new Set([
           ...(existing.unreadBy || []).filter(
-            (v: string) => !identifiers(user).includes(v.toLowerCase()),
+            (v: string) => !identifiers(user).includes(v),
           ),
           participantKey(target),
         ]),
       ];
     } else {
-      Object.assign(patch, {
-        residentId: String(target.id),
-        residentName: target.name,
-        residentEmail: target.email || "",
-        residentApt: target.address || target.unit || "",
-        residentPhone: target.phone || "",
+      if (!snap.exists()) Object.assign(patch, {
+        residentId: String(target.id), residentName: target.name,
+        residentEmail: "", residentApt: "", residentPhone: "",
         residentAvatar: target.avatar_url || target.avatarUrl || "",
+      });
+      Object.assign(patch, {
         unreadByResident: !!manager,
         [category === "office" ? "unreadByVip" : "unreadByCrew"]: !manager,
       });
@@ -323,7 +291,7 @@ export async function manageResident(
     throw new Error("Use another administrator to change your own access.");
   if (
     patch.role &&
-    !["resident", "crew", "staff", "vip", "admin"].includes(patch.role)
+    !["resident", "crew", "vip", "admin"].includes(patch.role)
   )
     throw new Error("Invalid role.");
   await updateDoc(doc(db, "users", id), patch);

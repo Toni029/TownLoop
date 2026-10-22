@@ -27,7 +27,7 @@ export async function approvedUser(manager = false): Promise<UserProfile> {
     name: snapshot.data()?.name || user.displayName || "Resident",
     email: snapshot.data()?.email || user.email || "",
   } as UserProfile;
-  if (!snapshot.exists() || profile.approved === false)
+  if (!snapshot.exists() || profile.approved !== true || !['admin', 'vip', 'crew', 'resident'].includes(profile.role || ''))
     throw new Error("Your account must be approved.");
   if (manager && !canManageNewsletter(profile))
     throw new Error("Only administrators and VIP residents can manage News.");

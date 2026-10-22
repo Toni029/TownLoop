@@ -1,3 +1,5 @@
+import { PrivateMediaImage } from '../PrivateMediaImage';
+import { collection, doc } from 'firebase/firestore';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -23,7 +25,7 @@ import type { WorkOrdersState } from '../../hooks/useWorkOrders';
 import { WORK_ORDER_CATEGORIES } from '../../data/workOrderCategories';
 import { UserProfile } from '../../types';
 import { uploadMediaToStorage } from '../../services/storage';
-import { auth } from '../../firebase';
+import { auth, db } from '../../firebase';
 import { saveWorkOrderToFirestore } from '../../services/firestoreSync';
 
 type WorkOrderModalProps = Pick<
@@ -55,6 +57,10 @@ export function WorkOrderModal({
   setNewWoPhotos,
   currentUser,
 }: WorkOrderModalProps) {
+  const [recordId] = useState(() => {
+    if (!db) throw new Error('The work order service is unavailable.');
+    return doc(collection(db, 'work_orders')).id;
+  });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -145,7 +151,7 @@ export function WorkOrderModal({
       try {
         const result = await uploadMediaToStorage({
           file,
-          folder: 'work_orders',
+          folder: 'work_orders', recordId, collection: 'work_orders',
           currentUser,
           onProgress: (percent) => {
             setUploadProgress(percent);
@@ -174,7 +180,7 @@ export function WorkOrderModal({
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      await handleWorkOrderSubmit(e);
+      await handleWorkOrderSubmit(e, recordId);
     } catch (err) {
       console.error('Failed to submit work order:', err);
       setErrorMessage(err instanceof Error ? err.message : 'Could not submit your work order. Please try again.');
@@ -524,7 +530,7 @@ export function WorkOrderModal({
                         key={idx}
                         className="group relative aspect-square rounded-xl overflow-hidden border border-stone-200 dark:border-slate-700 bg-stone-100 dark:bg-slate-800 shadow-xs"
                       >
-                        <img
+                        <PrivateMediaImage
                           src={photoUrl}
                           alt={`Attached photo ${idx + 1}`}
                           className="w-full h-full object-cover"

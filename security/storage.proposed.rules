@@ -34,9 +34,13 @@ service firebase.storage {
     function order(metadata) {
       return firestore.get(/databases/(default)/documents/work_orders/$(metadata.recordId)).data;
     }
+    function liveUploadParent(item) {
+      return item.get('storageDraft', true) == false ||
+        (item.userId == request.auth.uid && item.storageDraftExpiresAt > request.time);
+    }
     function orderAccess(metadata) {
       return approved() && validLink(metadata, 'work_orders') &&
-        (staff() || order(metadata).userId == request.auth.uid);
+        ((staff() && order(metadata).get('storageDraft', true) == false) || order(metadata).userId == request.auth.uid);
     }
     function socialLink(metadata, folder) {
       return (folder == 'feed' &&
@@ -49,23 +53,34 @@ service firebase.storage {
       return item.get('userId', item.get('authorId', '')) == request.auth.uid;
     }
 
+    function socialRead(metadata) {
+      let item = firestore.get(/databases/(default)/documents/$(metadata.collection)/$(metadata.recordId)).data;
+      return item.get('storageDraft', true) == false || item.get('userId', item.get('authorId', '')) == request.auth.uid;
+    }
+    function socialUpload(metadata) {
+      return liveUploadParent(firestore.get(/databases/(default)/documents/$(metadata.collection)/$(metadata.recordId)).data);
+    }
+
     match /work_orders/{fileName} {
       allow get: if orderAccess(resource.metadata);
       allow create: if newUpload() && image() && orderAccess(request.resource.metadata) &&
-        order(request.resource.metadata).status != 'Done';
+        order(request.resource.metadata).get('status', '') != 'Done' && liveUploadParent(order(request.resource.metadata));
       // Never replace bytes or relabel ownership of an existing attachment.
       allow update: if false;
       // Crew cannot delete. Residents cannot remove completed-ticket attachments.
       // Admin/VIP may remove orphaned legacy attachments during reviewed cleanup.
       allow delete: if manager() || (approved() && validLink(resource.metadata, 'work_orders') &&
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'resident' &&
-        order(resource.metadata).userId == request.auth.uid && order(resource.metadata).status != 'Done');
+        order(resource.metadata).userId == request.auth.uid && order(resource.metadata).get('status', '') != 'Done');
     }
 
     match /{folder}/{fileName} {
-      allow get: if folder in ['feed', 'marketplace'] && approved();
+      allow get: if folder in ['feed', 'marketplace'] && approved() &&
+        (resource.metadata.get('securityVersion', '') != '1' ||
+          (socialLink(resource.metadata, folder) && socialRead(resource.metadata)));
       allow create: if folder in ['feed', 'marketplace'] && newUpload() && media() &&
-        socialLink(request.resource.metadata, folder) && socialOwner(request.resource.metadata);
+        socialLink(request.resource.metadata, folder) && socialOwner(request.resource.metadata) &&
+        socialUpload(request.resource.metadata);
       allow update: if false;
       allow delete: if folder in ['feed', 'marketplace'] &&
         (manager() || (approved() && socialLink(resource.metadata, folder) && socialOwner(resource.metadata)));
@@ -73,8 +88,7 @@ service firebase.storage {
 
     match /newsletters/{editionId}/document.pdf {
       allow get: if approved();
-      // Existing web uploader uses a display name in uploadedBy. Authorization
-      // here intentionally comes from the authenticated profile, not that value.
+      // Authorization comes from the authenticated profile; metadata is descriptive.
       allow create, update: if manager() && bounded() && request.resource.contentType == 'application/pdf';
       allow delete: if manager();
     }

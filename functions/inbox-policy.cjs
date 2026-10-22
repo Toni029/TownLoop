@@ -1,25 +1,22 @@
 const collections = { resident_chats: 'friend', office_chats: 'office', maintenance_chats: 'maintenance' };
-function aliases(p) {
-  return [...new Set([p.id, p.email].filter(Boolean).flatMap(v => {
-    const raw = String(v).trim().toLowerCase(); return [raw, raw.replace(/[^a-zA-Z0-9_-]/g, '_')];
-  }))];
-}
-const approved = p => !!p && p.approved === true;
+const { isDeepStrictEqual } = require('node:util');
+function aliases(p) { return typeof p?.id === 'string' && p.id ? [p.id] : []; }
+const approved = p => !!p && p.approved === true && ['resident', 'admin', 'vip', 'crew'].includes(p.role);
 function member(collection, chat, user) {
   if (!approved(user)) return false;
   const ids = aliases(user);
-  if (collection === 'resident_chats') return (chat.participantIds || []).some(id => ids.includes(String(id).toLowerCase()));
+  if (collection === 'resident_chats') return chat.identityVersion === 2 && (chat.participantIds || []).some(id => ids.includes(id));
   const staff = collection === 'office_chats' ? ['admin', 'vip'].includes(user.role) : user.role === 'crew';
-  return staff || String(chat.residentId) === user.id || (!!user.email && chat.residentEmail?.toLowerCase() === user.email.toLowerCase());
+  return staff || chat.residentId === user.id;
 }
 function appendedMessage(before, after, sender) {
   const old = before?.messages || [], next = after?.messages || [];
   if (!approved(sender) || next.length !== old.length + 1) return null;
   const msg = next.at(-1);
   if (!msg || typeof msg.id !== 'string' || !msg.id || typeof msg.body !== 'string' || !msg.body.trim() || msg.body.length > 10000) return null;
-  if (!aliases(sender).includes(String(msg.senderId).toLowerCase())) return null;
+  if (msg.senderId !== sender.id || msg.senderRole !== sender.role || msg.senderName !== (sender.name || 'Resident')) return null;
   // Read receipts/history edits must not create notifications or replay old IDs.
-  if (old.some((m, i) => m.id === msg.id || next[i]?.id !== m.id)) return null;
+  if (old.some(m => m.id === msg.id) || !isDeepStrictEqual(old, next.slice(0, -1))) return null;
   return msg;
 }
 function recipients(collection, chat, profiles, senderId) {

@@ -1,0 +1,93 @@
+    // H1: exact UIDs; legacy email/sanitized-only memberships need reviewed migration.
+    function chatResident(data) { return data.get('residentId', '') == request.auth.uid; }
+    function chatTeam(kind) {
+      return kind == 'office' ? currentProfile().role in ['admin', 'vip'] : currentProfile().role == 'crew';
+    }
+    function chatAccess(kind, data) {
+      return isApproved() && (kind == 'friend'
+        ? data.get('identityVersion', 0) == 2 && data.get('participantIds', []).hasAny([request.auth.uid])
+        : chatResident(data) || chatTeam(kind));
+    }
+    function chatApprovedUid(uid) {
+      let user = get(/databases/$(database)/documents/users/$(uid)).data;
+      return uid is string && uid.size() > 0 && user.approved == true &&
+        user.role in ['resident', 'admin', 'vip', 'crew'];
+    }
+    function validAppend(before, next) {
+      let after = next.messages;
+      let last = after[after.size() - 1];
+      return before is list && after is list && after.size() == before.size() + 1 &&
+        !before.hasAny([last]) && after.removeAll([last]) == before &&
+        last.keys().hasOnly(['id', 'senderId', 'senderName', 'senderRole', 'senderAvatar', 'body', 'createdAt', 'time']) &&
+        last.id is string && last.id.size() > 0 && last.id.size() <= 200 &&
+        last.body is string && last.body.size() > 0 && last.body.size() <= 10000 && last.body.matches('(?s).*[^\\s].*') &&
+        last.senderId == request.auth.uid && last.senderRole == currentProfile().role &&
+        last.senderName == currentProfile().get('name', 'Resident') &&
+        last.get('senderAvatar', '') == currentProfile().get('avatar_url', currentProfile().get('avatarUrl', '')) &&
+        last.createdAt is int && last.createdAt >= 0 && last.time is string && last.time.size() <= 100 &&
+        next.lastMessage == last.body && next.updatedAt == last.createdAt &&
+        next.subject is string && next.subject.size() > 0 && next.subject.size() <= 160;
+    }
+    function ownChatCursor(old, next, field) {
+      let before = old.get(field, {});
+      let after = next.get(field, {});
+      return before is map && after is map &&
+        after.diff(before).affectedKeys().hasOnly([request.auth.uid]) &&
+        (after == before || (after.get(request.auth.uid, -1) is int && after[request.auth.uid] == next.messages.size()));
+    }
+    function chatCursors(old, next) {
+      return ownChatCursor(old, next, 'readBy') && ownChatCursor(old, next, 'hiddenBy');
+    }
+    function chatCreate(kind, chatId) {
+      let next = request.resource.data;
+      return chatAccess(kind, next) && next.id == chatId &&
+        next.keys().hasOnly(kind == 'friend'
+          ? ['id', 'identityVersion', 'participantIds', 'participants', 'subject', 'lastMessage', 'updatedAt', 'unreadBy', 'messages', 'officeDirect']
+          : ['id', 'residentId', 'residentName', 'residentEmail', 'residentApt', 'residentPhone', 'residentAvatar', 'subject', 'lastMessage', 'updatedAt', 'unreadByResident', 'unreadByVip', 'unreadByCrew', 'messages']) &&
+        (kind == 'friend'
+          ? (next.participantIds is list && next.participantIds.size() == 2 && next.participantIds[0] != next.participantIds[1] &&
+             chatApprovedUid(next.participantIds[0]) && chatApprovedUid(next.participantIds[1]) &&
+             next.participants is list && next.participants.size() == 2 &&
+             next.participants[0].id == next.participantIds[0] && next.participants[1].id == next.participantIds[1] &&
+             next.unreadBy == next.participantIds.removeAll([request.auth.uid]) && next.get('officeDirect', false) is bool)
+          : (next.residentId == chatId && chatApprovedUid(next.residentId) &&
+             next.residentName is string && next.residentName.size() <= 300 &&
+             next.residentEmail == '' && next.residentApt == '' && next.get('residentPhone', '') == '' &&
+             next.unreadByResident is bool && next.get(kind == 'office' ? 'unreadByVip' : 'unreadByCrew', false) is bool)) &&
+        validAppend([], next);
+    }
+    function chatUpdate(kind) {
+      let old = resource.data;
+      let next = request.resource.data;
+      let changes = next.diff(old).affectedKeys();
+      return chatAccess(kind, old) &&
+        ((changes.hasOnly(['readBy', 'hiddenBy']) && chatCursors(old, next)) ||
+         (changes.hasOnly(kind == 'friend'
+            ? ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadBy', 'readBy']
+            : ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadByResident', 'unreadByVip', 'unreadByCrew', 'readBy']) &&
+          ownChatCursor(old, next, 'readBy') && validAppend(old.get('messages', []), next) &&
+          (kind == 'friend'
+            ? next.unreadBy == old.participantIds.removeAll([request.auth.uid])
+            : next.unreadByResident is bool && next.get(kind == 'office' ? 'unreadByVip' : 'unreadByCrew', false) is bool)));
+    }
+    match /maintenance_chats/{chatId} {
+      allow get: if isApproved() && ((!exists(/databases/$(database)/documents/maintenance_chats/$(chatId)) && (chatId == request.auth.uid || chatTeam('maintenance'))) || chatAccess('maintenance', resource.data));
+      allow list: if chatAccess('maintenance', resource.data);
+      allow create: if chatCreate('maintenance', chatId);
+      allow update: if chatUpdate('maintenance');
+      allow delete: if false;
+    }
+    match /office_chats/{chatId} {
+      allow get: if isApproved() && ((!exists(/databases/$(database)/documents/office_chats/$(chatId)) && (chatId == request.auth.uid || chatTeam('office'))) || chatAccess('office', resource.data));
+      allow list: if chatAccess('office', resource.data);
+      allow create: if chatCreate('office', chatId);
+      allow update: if chatUpdate('office');
+      allow delete: if false;
+    }
+    match /resident_chats/{chatId} {
+      allow get: if isApproved() && (!exists(/databases/$(database)/documents/resident_chats/$(chatId)) || chatAccess('friend', resource.data));
+      allow list: if chatAccess('friend', resource.data);
+      allow create: if chatCreate('friend', chatId);
+      allow update: if chatUpdate('friend');
+      allow delete: if false;
+    }

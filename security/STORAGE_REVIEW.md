@@ -139,3 +139,54 @@ References:
 - https://firebase.google.com/docs/storage/security/rules-conditions
 - https://firebase.google.com/docs/reference/security/storage
 - https://firebase.google.com/docs/storage/web/download-files
+
+## October 21 local C2 implementation (not deployed)
+
+The common native/web uploaders now attach authenticated UID, securityVersion,
+recordId and collection. They authorize a one-hour hidden parent draft before
+uploading; published records use storageDraft:false. Firestore rules must enforce
+immutable ownership, bounded immutable draft expiry and owner-only finalization.
+All public record queries must exclude drafts. Strict less-than 25 MiB remains.
+Uploads fail visibly on permission errors; web media no longer falls back to data
+URLs. Native WorkOrder proof uses the existing ticket's ID before completing it.
+
+New WorkOrder references are gs:// object identities. Native PrivateImage and web
+resolvePrivateMediaUrl fetch authenticated bytes and remove temporary local URLs
+on release/sign-out. Legacy Firebase WorkOrder URLs are parsed only for the
+configured bucket, stripped of tokens and fetched using Storage Rules. Native
+private cache files are removed when the view closes or the account changes.
+These client changes do not revoke any historical or newly server-generated
+Firebase download token. Rules alone cannot make existing bearer links private.
+
+**Deployment remains blocked:** reviewed metadata/reference backfill for every
+historical WorkOrder; published-record storageDraft:false backfill; Firestore
+and Storage coordinated rules; device/browser authenticated download testing
+(including bucket CORS for web SDK bytes); explicit Admin SDK token revocation
+for WorkOrder objects, including a bucket policy preventing regeneration by
+privileged systems; IAM review; retention/orphan cleanup under trusted backend.
+No live migration, deployment, token change or identity creation was performed.
+Never infer ownership from historical uploadedBy or filenames. Stage and review
+legacy mapping from authorized parent records, then verify each object exists and
+has exactly one consistent record association before writing linkage metadata.
+
+Offline mapping review tool: `node security/plan-workorder-storage-migration.mjs
+reviewed-snapshot.json`. Input: `{bucket, records:[{id,data}],
+objects:[{name,metadata:{uploadedBy}}]}` from a separately authorized export. Output
+is a JSON **plan only**, never a mutation. It rejects missing/ambiguous parent
+links, draft parents, duplicate objects and missing uploader metadata. It does
+not invent historical uploader attribution (staff proof can belong to a resident
+record), and token revocation stays a separately approved action. Review any
+historical uploadedBy value as untrusted; parent reference controls access.
+
+Published-marker backfill plan: `node security/plan-published-record-backfill.mjs
+reviewed-records.json`. Input envelope: `{records:[{collection,id,data,
+reviewedPublished:true,updateTime:"<exported document updateTime>"}]}`. The review
+flag and updateTime belong to the offline envelope, not the application's schema.
+Supported existing collections: work_orders, discussion_feed, marketplace_posts,
+posts and marketItems. Output patches change **only storageDraft:false**, with a
+snapshot-updateTime precondition. Existing drafts are always skipped; unreviewed,
+ownerless, malformed-marker or unsupported records are blocked. No SDK/network
+operations exist in this tool. Apply a separately approved, reviewed backfill
+before releasing marker-filtered clients/rules; otherwise historical records
+will disappear from queries. Preserve owners, timestamps, ticket reservations,
+media references, social content and existing application fields.
