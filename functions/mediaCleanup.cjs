@@ -31,7 +31,7 @@ for (const collection of Object.keys(FOLDERS)) {
 }
 // Covers an upload completing after the parent-deletion trigger has already listed its folder.
 // Storage events must use the existing bucket's US-EAST1 location, even when this export is not selected.
-exports.cleanupLateOrphanMedia = onObjectFinalized({ ...options, region: 'us-east1', retry: true }, async event => {
+exports.cleanupLateOrphanMedia = onObjectFinalized({ ...options, bucket: 'cc-livingcommunity-app.firebasestorage.app', region: 'us-east1', retry: true }, async event => {
   const object = event.data, custom = object.metadata;
   if (!custom || !FOLDERS[custom.collection] || !/^[A-Za-z0-9_-]{1,128}$/.test(custom.recordId || '') ||
       typeof custom.uploadedBy !== 'string' || !custom.uploadedBy || custom.uploadedBy.includes('/')) return;
