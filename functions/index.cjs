@@ -41,3 +41,6 @@ Object.assign(exports, require('./safety.cjs'));
 
 // Prepared locally; do not deploy without owner-approved deletion/media policies.
 Object.assign(exports, require('./accountDeletion.cjs'), require('./mediaCleanup.cjs'));
+
+// C2 authorization projection only; separate explicit deployment approval required.
+Object.assign(exports, require('./storageWebAccess.cjs'));

@@ -1,0 +1,1 @@
+{"firestore":{"rules":"security/release/firestore.coordinated.rules"},"storage":{"rules":"security/c2/storage.compatible.rules"},"emulators":{"firestore":{"port":8896},"storage":{"port":9198},"ui":{"enabled":false},"singleProjectMode":true}}

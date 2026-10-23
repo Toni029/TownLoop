@@ -1,0 +1,30 @@
+{
+  "status": "PREPARED_NOT_DEPLOYED",
+  "project": "cc-livingcommunity-app",
+  "bucket": "cc-livingcommunity-app.firebasestorage.app",
+  "metadataCheck": {
+    "objects": 25,
+    "workOrderAttachmentsMissingLinks": 10,
+    "uniquelyVerifiedLinks": 4,
+    "held": 6,
+    "mediaBodiesDownloaded": 0,
+    "commentBodiesRead": 0
+  },
+  "sha256": {
+    "firebase.c2-emulator.json": "9a541673433020a2a10b2e41400487a8fb203dc7bc439a22a36bed3fa039c6c8",
+    "functions/index.cjs": "a17132182055e71ec2adeed17009b992fdadea16e6c620bccb549c48186280e2",
+    "functions/storageWebAccess.cjs": "bab4a5426197362e2d8c00b2be10ef096094a61e3a57283c327b2d7ba52c6925",
+    "functions/storageWebAccessPolicy.cjs": "b10a5149c0ccd57ee196251cb4953a197a3224373800918e75d324a7a62f5b48",
+    "security/c2/EXECUTION.md": "b92402eb0424ac85c07e61093aaca881d9bfdfe6a1fcc15118cd068d43cdeb78",
+    "security/c2/activate-web-access.mjs": "358b429dc4394fc8f19da5ed549143e8fb7859b7cbbf8f989b61f965b1234207",
+    "security/c2/apply-backfill.mjs": "7cd957caaec42db5b4a9fe5d90a2b080d29531730de46c33c2c766608f278ac9",
+    "security/c2/compatibility.test.mjs": "80fe6ca8de1a7d841e31b16faa126f4e62e18937c9f959158454521b4166ecdf",
+    "security/c2/firebase.c2.json": "947037a9fb74516b53f88e84b587dc883ae16db956a70ec59193077928448ca1",
+    "security/c2/linkage.mjs": "9b0155186e6c225c38954f60fe13b9812744d6fad462872445df6d61ad6171ee",
+    "security/c2/prepare-plan.mjs": "5839a5354c13190329a109d77b86bb4bfd7bca658dd099d7799c91f31b0b98e8",
+    "security/c2/scan-metadata.mjs": "250f39dd509b07658f4160d6991a4127d2b7c860604510027ed60a9ebf6d543e",
+    "security/c2/source-authorization.json": "d8a1506d121df98b5859a7a1c3b0f98b33d8f02bcc136c1f6798508d428d6f16",
+    "security/c2/storage.compatible.rules": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9",
+    "security/c2/storage.rules.test.mjs": "1776077f5a33ab2247c1693bed8aefdb018c6ac1de4e4b1c7a9457a4cf6e0cda"
+  }
+}
