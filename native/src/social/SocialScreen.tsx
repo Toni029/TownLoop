@@ -1,3 +1,4 @@
+import { feedDiagnosticsEnabled, shareFeedTrace } from '../monitoring/feedUploadTrace';
 import {
   useCallback,
   useMemo,
@@ -125,6 +126,7 @@ export default function SocialScreen() {
   const currentError = data.error;
   return (
     <View style={{ flex: 1 }}>
+      {feedDiagnosticsEnabled && <Action label="Share photo diagnostics" onPress={() => void shareFeedTrace()} />}
       <SocialFeed
         posts={resolvedPosts}
         listings={resolvedListings}

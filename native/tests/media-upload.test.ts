@@ -132,3 +132,10 @@ test('completed transfer is reported before link resolution failure for duplicat
  await assert.rejects(h.upload({uri:'file:///photo.jpg',size:200,path:'marketplace/photo.jpg',uid:'resident',metadata:{},progress:()=>{},onTransferred:()=>{transferred=true;}}),/Link unavailable/);
  assert.equal(transferred,true);assert.ok(h.cleaned());
 });
+
+test('feed diagnostic callback brackets the real native transport without exposing payloads', async () => {
+  const h = harness(); const stages: string[] = [];
+  await h.upload({ uri: 'file:///cache/photo.jpg', size: 100, path: 'feed/fixture.jpg', uid: 'resident',
+    metadata: { contentType: 'image/jpeg' }, progress: () => {}, trace: (stage: string) => stages.push(stage) });
+  assert.deepEqual(stages, ['token_start', 'token_done', 'session_start', 'session_done', 'native_transfer_start', 'native_transfer_done', 'url_start', 'url_done']);
+});

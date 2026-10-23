@@ -1,3 +1,4 @@
+import type { FeedStage } from '../monitoring/feedUploadTrace';
 import { Platform } from 'react-native';
 import * as FS from 'expo-file-system/legacy';
 import { getDownloadURL, ref, uploadBytesResumable, type UploadMetadata } from 'firebase/storage';
@@ -19,6 +20,7 @@ export async function uploadedFileURL(path: string, uid: string): Promise<string
 /** Same Firebase endpoint/metadata and user token as the JS SDK; native streams a file instead of a JS byte array. */
 export async function uploadFile(input: {
   uri: string; webFile?: Blob; size: number; path: string; metadata: UploadMetadata;
+  trace?: (stage: FeedStage) => void;
   uid: string; progress: (fraction: number) => void; onTransferred?: () => void;
 }): Promise<string> {
   const { uid, path, metadata, progress } = input;
@@ -60,11 +62,14 @@ export async function uploadFile(input: {
           }), 120_000, 'Photo upload', cancel);
         } finally { unsubscribe(); }
       } else {
+        input.trace?.('token_start');
         const token = await deadline(user.getIdToken(), 20_000, 'Signing in for upload');
+        input.trace?.('token_done');
         checkSession();
         const controller = new AbortController();
         cancel = () => controller.abort();
         // These headers and the JSON mapping match Firebase Storage's resumable protocol.
+        input.trace?.('session_start');
         const start = await deadline(fetch(
           `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(reference.bucket)}/o?name=${encodeURIComponent(path)}`,
           {
@@ -79,6 +84,7 @@ export async function uploadFile(input: {
             body: JSON.stringify({ name: path, contentType: metadata.contentType, metadata: metadata.customMetadata }),
           },
         ), 30_000, 'Starting photo upload', cancel);
+        input.trace?.('session_done');
         if (!start.ok) throw uploadHttpError(start.status);
         const sessionUrl = start.headers.get('X-Goog-Upload-URL');
         if (!sessionUrl || new URL(sessionUrl).protocol !== 'https:') throw new Error('Firebase did not return a secure upload session. Please retry.');
@@ -93,14 +99,18 @@ export async function uploadFile(input: {
           },
         }, event => report(event.totalBytesSent / Math.max(1, event.totalBytesExpectedToSend)));
         cancel = () => { void task.cancelAsync().catch(() => {}); };
+        input.trace?.('native_transfer_start');
         const result = await deadline(task.uploadAsync(), 120_000, 'Photo upload', cancel);
+        input.trace?.('native_transfer_done');
         if (!result) throw new Error('Photo upload was cancelled. Please retry.');
         if (result.status < 200 || result.status >= 300) throw uploadHttpError(result.status);
       }
       checkSession();
       input.onTransferred?.();
+      input.trace?.('url_start');
       const url = await uploadedFileURL(path, uid);
       checkSession();
+      input.trace?.('url_done');
       progress(1);
       return url;
     };
