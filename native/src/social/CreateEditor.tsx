@@ -1,6 +1,5 @@
-import { beginFeedTrace, feedStage } from '../monitoring/feedUploadTrace';
 import { usePresentation } from "../shell/TownLoopShell";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { Image, View, Pressable } from "react-native";
 import { Trash2, MessageSquare, Tag } from "lucide-react-native";
@@ -39,11 +38,8 @@ export function CreateEditor({
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const lock = useRef(false);
-  useEffect(() => () => { if (initialKind === 'post') feedStage('ui_unmount'); }, [initialKind]);
-  useEffect(() => { if (kind === 'post') feedStage('ui_commit'); }, [busy, pendingMedia, media, kind]);
   async function upload(camera = false, retry = false) {
     if (lock.current) return;
-    if (kind === 'post') beginFeedTrace();
     lock.current = true;
     setBusy(true);
     setError("");
@@ -55,24 +51,20 @@ export function CreateEditor({
         camera,
         { recordId: id, collection: kind === 'post' ? 'discussion_feed' : 'marketplace_posts' },
         {
-          trace: kind === 'post' ? feedStage : undefined,
           assets: retry ? pendingMedia : undefined,
-          onSelected: assets => { if (kind === 'post') feedStage('selection_state'); setPendingMedia(assets); },
+          onSelected: assets => setPendingMedia(assets),
           onUploaded: (file, asset) => {
-            if (kind === 'post') feedStage('uploaded_state');
             setMedia(previous => [...previous, file]);
             setPendingMedia(previous => previous.filter(item => item !== asset));
           },
         },
       );
     } catch (e) {
-      if (kind === 'post') feedStage('error', e);
       setError(e instanceof Error ? e.message : "Unable to attach media.");
     } finally {
       lock.current = false;
       setBusy(false);
       setProgress(null);
-      if (kind === 'post') feedStage('complete');
     }
   }
   async function publish() {
@@ -85,9 +77,7 @@ export function CreateEditor({
     setBusy(true);
     setError("");
     try {
-      if (kind === 'post') feedStage('publish_start');
       await publishSocial(id, kind, { title, description, price, media });
-      if (kind === 'post') feedStage('publish_done');
       onSaved(kind);
       onClose();
     } catch (e) {
@@ -112,7 +102,7 @@ export function CreateEditor({
       busy={busy}
       onClose={onClose}
     >
-      <View style={{ gap: 6 }} onLayout={() => { if (kind === 'post') feedStage('ui_layout'); }}>
+      <View style={{ gap: 6 }}>
         <Copy weight="bold">Post Category</Copy>
         <View
           style={[

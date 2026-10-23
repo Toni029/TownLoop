@@ -1,9 +1,9 @@
 import { Alert, Linking, Pressable, Text, View } from 'react-native';
 import { PRIVACY_URL, TERMS_URL } from '../../../src/data/legal';
 
-export function LegalLinks({ dark = false }: { dark?: boolean }) {
+export function LegalLinks({ dark = false, vertical = false }: { dark?: boolean; vertical?: boolean }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+    <View style={{ flexDirection: vertical ? 'column' : 'row', flexWrap: 'wrap', gap: vertical ? 0 : 16 }}>
       {[[PRIVACY_URL, 'Privacy Policy'], [TERMS_URL, 'Terms of Use']].map(([url, label]) => (
         <Pressable key={url} accessibilityRole="link" onPress={() => void Linking.openURL(url).catch(() => Alert.alert('Unable to open link', `Please open ${url} in your browser.`))}
           style={{ minHeight: 48, justifyContent: 'center' }}>

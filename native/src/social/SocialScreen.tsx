@@ -1,6 +1,7 @@
-import { feedDiagnosticsEnabled, shareFeedTrace } from '../monitoring/feedUploadTrace';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -30,6 +31,10 @@ import { CreateEditor } from "./CreateEditor";
 import { Inbox, MessageSeller } from "./Inbox";
 export default function SocialScreen() {
   const user = useResident();
+  useEffect(() => {
+    // Retire the one temporary diagnostic record; resident content is untouched.
+    void AsyncStorage.removeItem('townloop:preview:feed-upload-trace:v1').catch(() => {});
+  }, []);
   const posts = useLiveCollection("discussion_feed", readPost);
   const listings = useLiveCollection("marketplace_posts", readListing);
   const directory = useLiveCollection("resident_directory", readPerson, "");
@@ -126,7 +131,6 @@ export default function SocialScreen() {
   const currentError = data.error;
   return (
     <View style={{ flex: 1 }}>
-      {feedDiagnosticsEnabled && <Action label="Share photo diagnostics" onPress={() => void shareFeedTrace()} />}
       <SocialFeed
         posts={resolvedPosts}
         listings={resolvedListings}

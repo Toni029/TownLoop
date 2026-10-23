@@ -41,7 +41,6 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
       </Stack.Protected>
       <Stack.Protected guard={!!community && !!user && !registrationInProgress && !!profile?.approved}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="account" options={{ title: "Account" }} />
       </Stack.Protected>
     </Stack>
     </StartupLoading>

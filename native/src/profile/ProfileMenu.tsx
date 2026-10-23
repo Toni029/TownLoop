@@ -348,12 +348,10 @@ function Avatar({
 export function ProfileMenu({
   open,
   onClose,
-  onAccount,
   onUnread,
 }: {
   open: boolean;
   onClose: () => void;
-  onAccount: () => void;
   onUnread: (count: number) => void;
 }) {
   const user = useResident(),
@@ -2315,26 +2313,11 @@ export function ProfileMenu({
                             <Text style={[s.rowTitle,{color:ink}]}>{account?.emergencyContactName || 'Not provided'}</Text></View>
                           <ChevronRight size={18} color={muted}/>
                         </Pressable>
-                        <LegalLinks dark={dark}/>
                         <Action
                           title="Edit Profile"
                           onPress={editProfile}
                         />
-                        <Pressable
-                          accessibilityRole="button"
-                          onPress={() => close(onAccount)}
-                          style={{ alignItems: "center", padding: 8 }}
-                        >
-                          <Text
-                            style={{
-                              fontFamily: "JakartaBold",
-                              fontSize: 12,
-                              color: dark ? "#34d399" : "#047857",
-                            }}
-                          >
-                            Open Account / Profile
-                          </Text>
-                        </Pressable>
+                        <LegalLinks dark={dark} vertical />
                       </>
                     )}
                     {view === "logoutConfirm" && (

@@ -60,13 +60,11 @@ export function TownLoopShell({
   name,
   role,
   photo,
-  onAccount,
   children,
 }: PropsWithChildren<{
   name: string;
   role: string;
   photo?: string;
-  onAccount: () => void;
 }>) {
   const { width } = useWindowDimensions();
   const framed = Platform.OS === "web" && width >= 640;
@@ -123,7 +121,6 @@ export function TownLoopShell({
                 name={name}
                 role={role}
                 photo={photo}
-                onAccount={onAccount}
               />
               <View style={{ flex: 1 }}>{children}</View>
             </LinearGradient>
@@ -137,12 +134,10 @@ export function PortalHeader({
   name,
   role,
   photo,
-  onAccount,
 }: {
   name: string;
   role: string;
   photo?: string;
-  onAccount: () => void;
 }) {
   const presentation = usePresentation();
   const dark = presentation?.dark ?? false;
@@ -477,7 +472,6 @@ export function PortalHeader({
       <ProfileMenu
         open={menu}
         onClose={() => setMenu(false)}
-        onAccount={onAccount}
         onUnread={setUnread}
       />
     </SafeAreaView>

@@ -1,3 +1,4 @@
+import { ProfileMenu } from '../profile/ProfileMenu';
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { Component, useEffect, useState, type PropsWithChildren } from "react";
 import {
@@ -21,12 +22,10 @@ export function HomeScreen({
   uid,
   name,
   role,
-  onAccount,
 }: {
   uid: string;
   name: string;
   role: string;
-  onAccount: () => void;
 }) {
   const presentation = usePresentation();
   const [localDark, setDark] = useState(false);
@@ -38,7 +37,6 @@ export function HomeScreen({
         uid={uid}
         name={name}
         role={role}
-        onAccount={onAccount}
         dark={dark}
         embedded={!!presentation}
         toggleTheme={() =>
@@ -52,7 +50,6 @@ function HomeContent({
   uid,
   name,
   role,
-  onAccount,
   dark,
   toggleTheme,
   embedded,
@@ -60,7 +57,6 @@ function HomeContent({
   uid: string;
   name: string;
   role: string;
-  onAccount: () => void;
   dark: boolean;
   toggleTheme: () => void;
   embedded: boolean;
@@ -70,6 +66,7 @@ function HomeContent({
     {today,greeting} = useHeaderTime(),
     reduced = useReducedMotion();
   const [toast, setToast] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
   const opacity = useState(() => new Animated.Value(0))[0];
   useEffect(() => {
     Animated.timing(opacity, {
@@ -152,7 +149,7 @@ function HomeContent({
                 icon={User}
                 iconOnly
                 label="Your account"
-                onPress={onAccount}
+                onPress={() => setProfileOpen(true)}
               />
               <Action
                 icon={dark ? Sun : Moon}
@@ -168,6 +165,7 @@ function HomeContent({
           </Row>
         </View>
       )}
+      {!embedded && profileOpen && <ProfileMenu open onClose={() => setProfileOpen(false)} onUnread={() => {}} />}
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{

@@ -1,11 +1,10 @@
-import {feedStage} from './feedUploadTrace';
 import React, {type PropsWithChildren} from 'react';
 import {Pressable,Text,View} from 'react-native';
 import {recordDiagnostic} from './diagnostics';
 export class AppErrorBoundary extends React.Component<PropsWithChildren,{failed:boolean}> {
  state={failed:false};
  static getDerivedStateFromError(){return {failed:true};}
- componentDidCatch(){feedStage('render_error');recordDiagnostic('react_render_failure');}
+ componentDidCatch(){recordDiagnostic('react_render_failure');}
  render(){
   if(!this.state.failed)return this.props.children;
   return <View style={{flex:1,justifyContent:'center',padding:32,gap:16,backgroundColor:'#f7f3ea'}}>

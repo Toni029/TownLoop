@@ -1,5 +1,5 @@
 import { ScreenMotion } from "../../motion/ScreenMotion";
-import { Tabs, router } from "expo-router";
+import { Tabs } from "expo-router";
 import { NewsProvider } from "../../lib/news";
 import { useSession } from "../../lib/session";
 import {
@@ -24,7 +24,6 @@ export default function TabLayout() {
       name={profile?.name || "Resident"}
       role={profile?.role || "resident"}
       photo={photo}
-      onAccount={() => router.push("/account")}
     >
       <Tabs
         screenLayout={({ children }) => <ScreenMotion><BlurScene>{children}</BlurScene></ScreenMotion>}
