@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { AppState, Platform, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -13,7 +13,17 @@ const sourceHeight = 720;
 let launchFinished = false;
 let launchPlaybackFinished = false;
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
-const hideSplash = () => { void SplashScreen.hideAsync().catch(() => undefined); };
+const hideSplash = () => {
+  try { void SplashScreen.hideAsync().catch(() => undefined); } catch { /* Splash failure must not crash navigation. */ }
+};
+
+// Optional startup decoration must never replace the app with its global error UI.
+class StartupAnimationBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onFailure(); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 function LaunchVideo({ onComplete }: { onComplete: () => void }) {
   const [frameReady, setFrameReady] = useState(false);
@@ -32,9 +42,11 @@ function LaunchVideo({ onComplete }: { onComplete: () => void }) {
     const stop = () => {
       if (!active) return;
       active = false;
-      player.pause();
+      try { player.pause(); } catch { /* The native player may already be unavailable. */ }
       onComplete();
     };
+    // Covers an unresolved prepare promise or a decoder that never emits a frame/end.
+    const watchdog = setTimeout(stop, 4500);
     const state = AppState.addEventListener('change', next => {
       if (next !== 'active') stop();
     });
@@ -50,8 +62,12 @@ function LaunchVideo({ onComplete }: { onComplete: () => void }) {
     } else stop();
     return () => {
       active = false;
-      state.remove(); ended.remove(); status.remove();
-      player.pause();
+      clearTimeout(watchdog);
+      state.remove();
+      for (const listener of [ended, status]) {
+        try { listener.remove(); } catch { /* Expo may have released the SharedObject first. */ }
+      }
+      // useVideoPlayer owns release. Its cleanup runs first; never call pause here.
     };
   }, [player, onComplete]);
   return <>
@@ -75,12 +91,20 @@ export function StartupLoading({ ready, children }: { ready: boolean; children: 
     setPlaybackFinished(true);
   }, []);
   useEffect(() => {
-    SplashScreen.setOptions({ fade: !reduced, duration: reduced ? 0 : 180 });
+    try { SplashScreen.setOptions({ fade: !reduced, duration: reduced ? 0 : 180 }); } catch { /* Optional native fade. */ }
   }, [reduced]);
   useEffect(() => {
     const timeout = setTimeout(hideSplash, 1200);
     return () => clearTimeout(timeout);
   }, []);
+  useEffect(() => {
+    if (!ready) return;
+    // Do not depend solely on an onLayout callback to remove startup decoration.
+    launchFinished = true;
+    setFinished(true);
+    finishPlayback();
+    hideSplash();
+  }, [ready, finishPlayback]);
   return <View style={styles.page}>
     {ready && <View style={{ flex: 1 }} onLayout={() => {
       launchFinished = true;
@@ -92,7 +116,7 @@ export function StartupLoading({ ready, children }: { ready: boolean; children: 
       style={styles.overlay} accessibilityLabel="Starting TownLoop" accessibilityRole="progressbar">
       <View style={{ width: mediaWidth, aspectRatio: sourceWidth / sourceHeight }}>
         <Image source={!reduced && !finished && !playbackFinished ? require('../../assets/startup/first-frame.png') : require('../../assets/startup/poster.png')} style={styles.media} resizeMode="contain" fadeDuration={0} onLoad={hideSplash} />
-        {!reduced && !finished && !playbackFinished && <LaunchVideo onComplete={finishPlayback} />}
+        {!reduced && !finished && !playbackFinished && <StartupAnimationBoundary onFailure={finishPlayback}><LaunchVideo onComplete={finishPlayback} /></StartupAnimationBoundary>}
         {/* Feather only the empty cream perimeter; logo and animation remain intact. */}
         <LinearGradient pointerEvents="none" colors={[cream, '#f3eddf00']} style={styles.topEdge} />
         <LinearGradient pointerEvents="none" colors={['#f3eddf00', cream]} style={styles.bottomEdge} />
