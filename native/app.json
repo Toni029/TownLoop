@@ -69,7 +69,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#f3eddf",
+          "backgroundColor": "#f3ebdc",
           "image": "./assets/startup/native-splash.png",
           "imageWidth": 240,
           "resizeMode": "contain"
@@ -88,7 +88,7 @@
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
-    "backgroundColor": "#f7f3ea",
+    "backgroundColor": "#f3ebdc",
     "runtimeVersion": {
       "policy": "fingerprint"
     },

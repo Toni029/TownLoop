@@ -1,13 +1,21 @@
-# Startup reliability correction (local; not released)
+# Single original startup — local correction
 
-Current implementation: native Expo splash → actual MP4 in expo-video (Android ExoPlayer with startup-only MediaSession opt-out) → React/Reanimated fade into existing navigation. This is not a replacement native animation.
+## Confirmed cause of inconsistent visuals
 
-Confirmed local defect: expo-video's `useVideoPlayer` invokes Expo's `useReleasingSharedObjectWithLifecycle`. Its earlier effect releases the SharedObject on unmount. TownLoop's subsequent effect cleanup invoked `player.pause()` on that released object. Expo Android defines the resulting exception as “Cannot use shared object that was already released.” The startup regression test was run red with the original component and Expo's release-before-cleanup ordering; it threw at the real component's cleanup call.
+The previous implementation ended startup immediately when authentication/fonts/community were ready, regardless of video completion. The shared motion preference initially reported true until its async lookup completed. Both timing paths could skip the player. An explicit end-frame poster was shown for reduced motion, completion and failures; the native splash also displayed a logo frame. These were real branches in `StartupLoading`, not an alternate generated video. Two regression checks failed before this correction: early readiness removed the animation, and neutral fallback still contained an Image.
 
-Correction: let the hook own release; never pause in cleanup; tolerate removal of listeners after release. A failed pause still completes startup. A startup-only React boundary contains player setup/render/effect failures. A 4.5-second watchdog replaces stalled playback with the existing poster; normal app readiness ends startup immediately and no longer depends solely on layout. Authentication/readiness checks are preserved, not bypassed. The original MP4, cream, size, native patch and fade are unchanged.
+## Current implementation
 
-Verification: seven focused component checks cover constructor configuration, background/resume without replay, Reduce Motion, cold module launch/remount, release-before-cleanup, unresolved preparation, pause/render failure fallback, and readiness without layout. These use native lifecycle fixtures, not a physical Android run. TypeScript and diff checks pass.
+Native neutral cream splash → exact original MP4 in expo-video/ExoPlayer → existing Home/login. React/Reanimated provides only the final screen fade. Source identity, codec metadata, hashes, scaling and audio behavior are recorded in `assets/startup/README.md`.
 
-The finished EAS Preview build `26feaf48-c696-4e7f-aca3-5bd1603fa4b1` records bundled commit `fb1a602` and fingerprint `a6551ff3ee4b0d2b0c6797653fc556f234494d65`. The corrected source produces that exact fingerprint. An OTA can repair this JS lifecycle defect in that APK; the previously published `f190bde…` update is incompatible and does not overwrite it.
+A separately resolved motion preference avoids conflating “unknown” with “enabled”. Ready navigation mounts underneath while successful video playback completes. A process-level claim prevents multiple player instances across root remounts. Backgrounding ends playback without resuming it. Reduced motion and failures use only neutral cream. The video surface remains hidden until its first frame, avoiding an initial black decoder surface; no poster or gradient obscures original frames.
 
-Missing evidence: no connected-device crash log or error-boundary stack was available. The lifecycle defect is demonstrated; attribution of every physical-phone freeze/black frame to it is not proven. Native process crashes or JS-thread stalls cannot be recovered by a React boundary/watchdog. If symptoms remain after an approved compatible OTA, obtain the cold-launch AndroidRuntime/FATAL EXCEPTION stack, React error message/component stack, and actual running update/runtime ID with private values redacted. Do not clear app data or rebuild speculatively.
+The prior release-before-cleanup fix remains: expo-video owns release and cleanup never calls pause on a released SharedObject. Errors stay inside the startup boundary. Preparation/playback remains capped at 4.5 seconds; motion lookup at one second. Failed playback proceeds to the app as soon as its existing initialization gate is ready. Authentication/navigation are not bypassed. JS safeguards cannot recover a native process crash or blocked JS thread.
+
+## Focused verification
+
+Actual component code runs in deterministic hook/native lifecycle fixtures: fast/late initialization, repeated simulated fresh process launch, root remount, background/resume, successful playback, decoder/prepare failure, pause/render failure, released-player cleanup, reduced motion and unresolved preference. Asset identity and neutral splash pixels are checked; the existing native opt-out patch is verified unchanged. This is simulated verification, not physical-device playback or FPS testing. ADB lists no connected devices; no current Android crash logs are available. Cold launch, force-close/relaunch, background/resume and Bluetooth behavior still need phone verification after an approved release.
+
+## Release boundary
+
+No build or publication is performed. The JS behavior can be backported to the installed runtime, but that APK retains its compiled logo splash. The complete requested neutral-native-splash experience requires a new Android APK (and future iOS build). Do not force this changed native fingerprint onto `a6551ff3ee4b0d2b0c6797653fc556f234494d65`. Preserve the original source and recovery checkpoint `recovery/before-single-startup-20261023`.
