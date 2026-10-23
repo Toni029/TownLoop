@@ -1,34 +1,64 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { AppState, Image, StyleSheet, View } from 'react-native';
-import { SplashScreen } from 'expo-router';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { AppState, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeOut } from 'react-native-reanimated';
 import { useReducedMotion } from '../home/hooks';
 
-const cream = '#f4eee0';
-// Preserve launch state across auth changes and navigation remounts.
+const cream = '#f3eddf';
+const sourceWidth = 1280;
+const sourceHeight = 720;
+// Preserve launch state across authentication and navigation remounts.
 let launchFinished = false;
+let launchPlaybackFinished = false;
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 const hideSplash = () => { void SplashScreen.hideAsync().catch(() => undefined); };
 
-function LaunchVideo() {
+function LaunchVideo({ onComplete }: { onComplete: () => void }) {
   const [frameReady, setFrameReady] = useState(false);
-  const player = useVideoPlayer(require('../../assets/startup/startup.mp4'), video => {
+  // Configure before loading any source; muting after construction is too late
+  // to control all native playback initialization.
+  const player = useVideoPlayer(null, video => {
     video.muted = true;
+    video.volume = 0;
+    video.audioMixingMode = 'mixWithOthers';
+    video.showNowPlayingNotification = false;
+    video.staysActiveInBackground = false;
     video.loop = false;
-    video.play();
   });
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      if (state !== 'active') player.pause();
-      else if (player.currentTime < player.duration) player.play();
+    let active = true;
+    const stop = () => {
+      if (!active) return;
+      active = false;
+      player.pause();
+      onComplete();
+    };
+    const state = AppState.addEventListener('change', next => {
+      if (next !== 'active') stop();
     });
-    return () => subscription.remove();
-  }, [player]);
+    const ended = player.addListener('playToEnd', stop);
+    const status = player.addListener('statusChange', event => {
+      if (event.status === 'error') stop();
+    });
+    if (AppState.currentState !== 'background') {
+      void player.replaceAsync(require('../../assets/startup/startup.mp4')).then(() => {
+        if (active && AppState.currentState === 'active') player.play();
+        else stop();
+      }).catch(stop);
+    } else stop();
+    return () => {
+      active = false;
+      state.remove(); ended.remove(); status.remove();
+      player.pause();
+    };
+  }, [player, onComplete]);
   return <>
     <VideoView player={player} style={styles.media} contentFit="contain" surfaceType="textureView" nativeControls={false}
+      allowsPictureInPicture={false} fullscreenOptions={{ enable: false }} useExoShutter={false}
       onFirstFrameRender={() => setFrameReady(true)} />
-    {!frameReady && <Image source={require('../../assets/startup/first-frame.png')} style={styles.media} resizeMode="contain" />}
+    {!frameReady && <Image source={require('../../assets/startup/first-frame.png')} style={styles.media} resizeMode="contain" fadeDuration={0} />}
   </>;
 }
 
@@ -36,8 +66,18 @@ function LaunchVideo() {
 export function StartupLoading({ ready, children }: { ready: boolean; children: ReactNode }) {
   const reduced = useReducedMotion();
   const [finished, setFinished] = useState(launchFinished);
+  const [playbackFinished, setPlaybackFinished] = useState(launchPlaybackFinished);
+  const { width, height, scale } = useWindowDimensions();
+  // Preserve the complete landscape composition, with no upscaling beyond source pixels.
+  const mediaWidth = Math.min(width, height * sourceWidth / sourceHeight, sourceWidth / Math.max(1, scale));
+  const finishPlayback = useCallback(() => {
+    launchPlaybackFinished = true;
+    setPlaybackFinished(true);
+  }, []);
   useEffect(() => {
-    // Defensive fallback if a platform never reports the poster layout/load.
+    SplashScreen.setOptions({ fade: !reduced, duration: reduced ? 0 : 180 });
+  }, [reduced]);
+  useEffect(() => {
     const timeout = setTimeout(hideSplash, 1200);
     return () => clearTimeout(timeout);
   }, []);
@@ -45,12 +85,20 @@ export function StartupLoading({ ready, children }: { ready: boolean; children: 
     {ready && <View style={{ flex: 1 }} onLayout={() => {
       launchFinished = true;
       setFinished(true);
+      finishPlayback();
       hideSplash();
     }}>{children}</View>}
-    {(!finished || !ready) && <Animated.View exiting={reduced ? undefined : FadeOut.duration(180)}
+    {(!finished || !ready) && <Animated.View exiting={reduced ? undefined : FadeOut.duration(200)}
       style={styles.overlay} accessibilityLabel="Starting TownLoop" accessibilityRole="progressbar">
-      <Image source={require('../../assets/startup/poster.png')} style={styles.media} resizeMode="contain" onLoad={hideSplash} />
-      {!reduced && !finished && <LaunchVideo />}
+      <View style={{ width: mediaWidth, aspectRatio: sourceWidth / sourceHeight }}>
+        <Image source={!reduced && !finished && !playbackFinished ? require('../../assets/startup/first-frame.png') : require('../../assets/startup/poster.png')} style={styles.media} resizeMode="contain" fadeDuration={0} onLoad={hideSplash} />
+        {!reduced && !finished && !playbackFinished && <LaunchVideo onComplete={finishPlayback} />}
+        {/* Feather only the empty cream perimeter; logo and animation remain intact. */}
+        <LinearGradient pointerEvents="none" colors={[cream, '#f3eddf00']} style={styles.topEdge} />
+        <LinearGradient pointerEvents="none" colors={['#f3eddf00', cream]} style={styles.bottomEdge} />
+        <LinearGradient pointerEvents="none" colors={[cream, '#f3eddf00']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.leftEdge} />
+        <LinearGradient pointerEvents="none" colors={['#f3eddf00', cream]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.rightEdge} />
+      </View>
     </Animated.View>}
   </View>;
 }
@@ -58,4 +106,8 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: cream },
   overlay: { ...StyleSheet.absoluteFill, backgroundColor: cream, alignItems: 'center', justifyContent: 'center' },
   media: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
+  topEdge: { position: 'absolute', top: 0, left: 0, right: 0, height: 16 },
+  bottomEdge: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 16 },
+  leftEdge: { position: 'absolute', top: 0, left: 0, bottom: 0, width: 16 },
+  rightEdge: { position: 'absolute', top: 0, right: 0, bottom: 0, width: 16 },
 });
