@@ -1,0 +1,18 @@
+{
+  "project": "cc-livingcommunity-app",
+  "bucket": "cc-livingcommunity-app.firebasestorage.app",
+  "approval": "Owner security-first quarantine 2026-10-23",
+  "planDigest": "7e8d261f97c18b502c0465ecb859527b1c45af69b655689febe6f04e4d98dd6b",
+  "linked": 4,
+  "quarantined": 6,
+  "objectSha256": [
+    "1b4bdad9f2ed271b0a5a4c68b248802537c1871091a2e29aef9fef1da7b6fefc",
+    "29cfb7e486e711801757c0028556fca997ec558dcbc395c00d09b256e7b78ccf",
+    "4c24ef36d61c64820485df8d40f4d8f278f4e1c108e03bbf0654ce79d52ac1bc",
+    "61a9b06aa3111dd750a0d8e8ffa5870cf61ea61c95d6598d0d892685273d1ecc",
+    "95574f37dd1862130a574b6be17bb208b653876c10196ca8de606193f2ff3fd1",
+    "c486281548f818b97c07223bd1e47fbf134ab4eff56e1a72b41bc8e15f15e7ed"
+  ],
+  "cleanup": "disabled; unlinked and pre-cutover objects excluded",
+  "bearerTokens": "preserved; still bearer capabilities"
+}

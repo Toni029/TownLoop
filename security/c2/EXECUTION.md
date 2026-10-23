@@ -32,3 +32,29 @@ Existing token URLs remain bearer capabilities. Securing Storage SDK access and 
 ## Local verification
 
 Focused planner/apply tests cover unique/missing/conflicting parents, idempotency, preserved tokens/metadata, parent/object preconditions and canonical web roles. Storage+Firestore loopback tests cover native owner/Crew access, denied strangers/anonymous uploads/overwrites, named-only legacy upload/own read, pre-cutover forged uploader denial, manager-only PDFs and revocation priority. Only synthetic data is used; no Firebase Authentication accounts are created. No APK or website build is needed.
+
+## Owner-approved security-first quarantine (2026-10-23)
+
+Four verified links were applied with an aggregate receipt; six unresolved historical
+objects remain byte-for-byte and metadata-for-metadata unchanged. Strict rules deny
+ordinary SDK reads of unlinked pre-cutover Work Order objects. Existing bearer URLs
+are deliberately NOT revoked or made private. Cleanup stays inactive; `trustedMedia`
+also excludes all unlinked files and all pre-cutover files, including backfilled ones.
+
+Activation may use `--approved-quarantine --quarantine-plan PRIVATE_ORIGINAL_PLAN`
+with the four-applied/six-held receipt. It checks the original plan digest and exact
+scope and rejects unexpected link metadata. No parent is guessed. The membership
+projection writes only the existing server-only Storage policy, not resident records.
+
+Recovery is operational, IAM-administrator-only (not a blanket app Admin read rule):
+`recover-quarantine.mjs --quarantine-plan PRIVATE_ORIGINAL_PLAN --review` checks
+metadata only. A separately approved quarantine-only verified plan may be applied with
+`--restore --verified-plan PRIVATE_PLAN --approve DIGEST`. Exact parent URLs and
+object/parent preconditions are rechecked by the existing executor. Embedded reference
+reads require `--approved-embedded-reference-extraction`. No automatic sends or file
+bodies are involved. Cloud Logging permission is mandatory; audit intent is persisted
+before review/restoration and outcome afterward. A failed outcome log requires operator
+reconciliation; never blindly retry. Logs contain only operation IDs, hashes, and counts.
+Authenticated operators need bucket administrator getIamPolicy/update permissions,
+actual object read/update authorization, and log-entry create permission; application users cannot invoke this local administrative channel.
+Do not grant additional IAM access automatically. Existing URLs/tokens are preserved.
