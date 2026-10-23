@@ -20,8 +20,9 @@ function harness() {
  }};
  const player: any = new Proxy({
   play() { calls.push('play'); },
+  attachToNativeView() { if (released) throw Error('Cannot use shared object that was already released'); },
   pause() { if (released) throw Error('SharedObject already released'); calls.push('pause'); },
-  replaceAsync: async () => { calls.push('load'); },
+  replaceAsync: async (source: any) => { calls.push(source === null ? 'unload' : 'load'); },
   addListener(name: string, fn: any) { videoListeners[name] = fn; return { remove() {} }; },
  }, { set(target: any, key: string, value) { calls.push(`${key}:${value}`); target[key] = value; return true; } });
  const nextSlot = () => { const list = slots.get(owner)!; const index = cursor++; return { list, index }; };
@@ -60,7 +61,11 @@ function harness() {
    useWindowDimensions: () => ({ width: 412, height: 892, scale: 3 }),
   },
   'expo-splash-screen': { preventAutoHideAsync: async () => {}, hideAsync: async () => { calls.push('hideSplash'); }, setOptions() {} },
-  'expo-video': { VideoView: 'VideoView', useVideoPlayer(source: any, setup: any, options: any) {
+  'expo-video': { VideoView: 'VideoView', createVideoPlayer(source: any, options: any) {
+   calls.push(`disableAudioSession:${options?.disableAudioSession}`);
+   calls.push(source === null ? 'empty-player' : 'source-in-constructor');
+   return player;
+  }, useVideoPlayer(source: any, setup: any, options: any) {
    const [instance] = hooks.useState(() => {
     calls.push(`disableAudioSession:${options?.disableAudioSession}`);
     calls.push(source === null ? 'empty-player' : 'source-in-constructor'); setup(player); return player;
@@ -172,7 +177,7 @@ test('stalled prepare and decoder error both unblock ready navigation', async ()
   assert.equal(find(await root(h, true), 'AnimatedView'), undefined);
  }
 });
-test('release-before-cleanup remains safe and pause/render errors finish locally', async () => {
+test('startup teardown and pause/render errors finish locally', async () => {
  const h = harness(); let completed = 0;
  h.LaunchVideo({ onComplete() { completed++; } }); h.effects(); await settle();
  h.player.pause = () => { throw Error('Native player unavailable'); }; h.background(); assert.equal(completed, 1);
@@ -192,4 +197,11 @@ test('bundled MP4 is byte-identical to approved original and native splash is un
  const png = readFileSync(new URL('../assets/startup/native-splash.png', import.meta.url));
  assert.equal(png.readUInt32BE(16), 1); assert.equal(png.readUInt32BE(20), 1);
  assert.deepEqual([...inflateSync(png.subarray(41, 41 + png.readUInt32BE(33)))], [0, 243, 235, 220]);
+});
+
+test('queued Fabric view attachment still receives a live startup player after React unmount', async () => {
+ const h = harness(); h.LaunchVideo({ onComplete() {} }); h.effects(); await settle();
+ h.unmount('LaunchVideo');
+ assert.doesNotThrow(() => h.player.attachToNativeView());
+ assert.ok(h.calls.includes('unload'), 'decoder source must be unloaded without invalidating the object');
 });

@@ -1,7 +1,7 @@
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, AppState, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { createVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import Animated, { FadeOut } from 'react-native-reanimated';
 
 const cream = '#f3ebdc';
@@ -11,6 +11,27 @@ const sourceHeight = 720;
 let launchFinished = false;
 let launchPlaybackFinished = false;
 let launchPlaybackClaimed = false;
+// Fabric can apply queued view props after React effects unmount. Keep this one
+// startup object valid for the process; unload its source, not its shared-object ID.
+let startupPlayer: VideoPlayer | undefined;
+function getStartupPlayer() {
+  if (startupPlayer) return startupPlayer;
+  const video = createVideoPlayer(null, Platform.OS === 'android' ? { disableAudioSession: true } : undefined);
+  try {
+    video.muted = true;
+    video.volume = 0;
+    video.audioMixingMode = 'mixWithOthers';
+    video.showNowPlayingNotification = false;
+    video.staysActiveInBackground = false;
+    video.loop = false;
+  } catch (error) {
+    // No view has received this failed construction, so releasing here is safe.
+    try { video.release(); } catch {}
+    throw error;
+  }
+  startupPlayer = video;
+  return video;
+}
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 const hideSplash = () => {
   try { void SplashScreen.hideAsync().catch(() => undefined); } catch { /* Splash failure must not crash navigation. */ }
@@ -45,18 +66,16 @@ class StartupAnimationBoundary extends Component<{ children: ReactNode; onFailur
 
 function LaunchVideo({ onComplete }: { onComplete: (playedToEnd?: boolean) => void }) {
   const [frameReady, setFrameReady] = useState(false);
-  // Configure before loading any source; muting after construction is too late
-  // to control all native playback initialization.
-  const player = useVideoPlayer(null, video => {
-    video.muted = true;
-    video.volume = 0;
-    video.audioMixingMode = 'mixWithOthers';
-    video.showNowPlayingNotification = false;
-    video.staysActiveInBackground = false;
-    video.loop = false;
-  }, Platform.OS === 'android' ? { disableAudioSession: true } : undefined);
+  const [player] = useState(getStartupPlayer);
   useEffect(() => {
     let active = true;
+    let loading: Promise<void> | undefined;
+    const unload = () => {
+      try {
+        player.pause();
+        void player.replaceAsync(null).catch(() => undefined);
+      } catch { /* Decoder failure must not block navigation or cleanup. */ }
+    };
     const stop = (playedToEnd = false) => {
       if (!active) return;
       active = false;
@@ -73,7 +92,8 @@ function LaunchVideo({ onComplete }: { onComplete: (playedToEnd?: boolean) => vo
       if (event.status === 'error') stop();
     });
     if (AppState.currentState !== 'background') {
-      void player.replaceAsync(require('../../assets/startup/startup.mp4')).then(() => {
+      loading = player.replaceAsync(require('../../assets/startup/startup.mp4'));
+      void loading.then(() => {
         if (active && AppState.currentState === 'active') player.play();
         else stop();
       }).catch(() => stop());
@@ -83,9 +103,12 @@ function LaunchVideo({ onComplete }: { onComplete: (playedToEnd?: boolean) => vo
       clearTimeout(watchdog);
       state.remove();
       for (const listener of [ended, status]) {
-        try { listener.remove(); } catch { /* Expo may have released the SharedObject first. */ }
+        try { listener.remove(); } catch { /* A native decoder failure must not prevent listener cleanup. */ }
       }
-      // useVideoPlayer owns release. Its cleanup runs first; never call pause here.
+      unload();
+      // A slow prepare can finish after unmount; clear that source again if it does.
+      void loading?.then(unload, unload);
+      // Never invalidate the ID while Fabric may still be attaching/detaching a view.
     };
   }, [player, onComplete]);
   return <>
