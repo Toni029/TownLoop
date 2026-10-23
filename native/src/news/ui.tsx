@@ -168,7 +168,7 @@ export function Action({
                   ? 30
                   : 36,
         paddingHorizontal: iconOnly ? 0 : compact ? 12 : 14,
-        paddingVertical:
+        paddingVertical: iconOnly ? 0 :
           size === "large"
             ? 11
             : size === "small"
@@ -180,8 +180,8 @@ export function Action({
                   : 8,
         borderRadius: radius ?? (compact || square ? 12 : 99),
         maxWidth,
-        backgroundColor: bg,
-        borderWidth: 1,
+        backgroundColor: iconOnly ? "transparent" : bg,
+        borderWidth: iconOnly ? 0 : 1,
         borderColor: tone === "glass" ? "#ffffff33" : bg,
         flexDirection: "row",
         alignItems: "center",
@@ -191,7 +191,11 @@ export function Action({
         transform: [{ scale: pressed ? 0.98 : 1 }],
       })}
     >
-      {Icon && <Icon size={iconOnly ? 16 : 15} color={fg} />}
+      {Icon && (iconOnly ? (
+        <View pointerEvents="none" accessible={false} style={{ width: 29, height: 29, borderRadius: 8, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+          <Icon size={13} color={fg} />
+        </View>
+      ) : <Icon size={15} color={fg} />)}
       {!iconOnly && <Copy
         weight="bold"
         style={{

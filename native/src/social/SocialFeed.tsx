@@ -295,12 +295,14 @@ export function ListingActions({
   busy,
   onAction,
   onMessage,
+  pickupInfo = false,
 }: {
   item: Listing;
   user: UserProfile | null;
   busy: boolean;
   onAction: SocialAction;
   onMessage: (item: Listing) => void;
+  pickupInfo?: boolean;
 }) {
   const dark = !!usePresentation()?.dark;
   const sold = !!(item.sold || item.claimed);
@@ -316,7 +318,8 @@ export function ListingActions({
         },
       ]}
     >
-      <Copy style={{ color: "#78716c", fontSize: 11 }}>Porch pickup</Copy>
+      {pickupInfo ? <Copy style={{ color: "#78716c", fontSize: 11 }}>Porch pickup</Copy>
+        : <Pill label={sold ? "Sold" : "Available"} tone={sold ? "stone" : "green"} />}
       {owns(item, user) ? (
         <Pressable
           accessibilityRole="button"
@@ -675,11 +678,11 @@ export function SocialFeed({
                   },
                 ]}
               >
-                <View style={[s.row, { justifyContent: "space-between" }]}>
-                  <View style={[s.row, { flex: 1, minWidth: 100 }]}>
+                <View style={[s.row, { justifyContent: "space-between", flexWrap: "nowrap" }]}>
+                  <View style={[s.row, { flex: 1, minWidth: 0, flexWrap: "nowrap" }]}>
                     <Avatar uri={item.authorAvatar} name={item.author} />
-                    <View style={{ flex: 1 }}>
-                      <Copy weight="bold">{item.author}</Copy>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Copy weight="bold" style={{ flexShrink: 1 }}>{item.author}</Copy>
                       <Copy
                         style={{
                           fontSize: 10,
@@ -691,10 +694,6 @@ export function SocialFeed({
                       </Copy>
                     </View>
                   </View>
-                  <Pill
-                    label={item.sold ? "Sold" : "Available"}
-                    tone={item.sold ? "stone" : "green"}
-                  />
                   <Pill
                     solid
                     label={item.price}
@@ -1064,6 +1063,7 @@ export function Detail({
       )}
       {listing && (
         <ListingActions
+          pickupInfo
           item={listing}
           user={user}
           busy={busy}

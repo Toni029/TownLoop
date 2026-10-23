@@ -8,14 +8,18 @@ const ui=ts.createSourceFile('ui.tsx',readFileSync(new URL('../src/news/ui.tsx',
 const action=ui.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='Action')!;
 const exports:any={};
 vm.runInNewContext(ts.transpileModule(action.getText(ui),{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS}}).outputText,
- {exports,usePresentation:()=>({dark:false}),Pressable:'Pressable',Copy:'Copy',require:()=>({jsx,jsxs:jsx})});
+ {exports,usePresentation:()=>({dark:false}),Pressable:'Pressable',Copy:'Copy',View:'View',require:()=>({jsx,jsxs:jsx})});
 test('icon-only Report retains green flag, accessible name and touch target without visible text',()=>{
  const node=exports.Action({label:'Report',icon:'Flag',tone:'light',compact:true,iconOnly:true,onPress(){}});
  assert.equal(node.props.accessibilityLabel,'Report');
  const children=[node.props.children].flat().filter(Boolean);
  assert.equal(children.length,1);
- assert.equal(children[0].type,'Flag');
- assert.equal(children[0].props.color,'#064e3b');
+ assert.equal(children[0].type,'View');
+ assert.equal(children[0].props.style.width,29);
+ assert.equal(children[0].props.style.height,29);
+ assert.equal(children[0].props.children.type,'Flag');
+ assert.equal(children[0].props.children.props.size,13);
+ assert.equal(children[0].props.children.props.color,'#064e3b');
  const style=node.props.style({pressed:false});
  assert.ok(style.minHeight>=44&&style.width>=44);
  const normal=exports.Action({label:'Keep existing action',onPress(){}});
