@@ -10,9 +10,9 @@ function harness() {
  const modules:Record<string,any>={
   react:{useEffect:(fn:any)=>effects.push(fn),useState:(value:any)=>[typeof value==='function'?value():value,()=>{}],useRef:(value:any)=>({current:value}),useCallback:(fn:any)=>fn},
   'react/jsx-runtime':{jsx,jsxs:jsx},
-  'react-native':{AppState:{currentState:'active',addEventListener:(_event:any,fn:any)=>{stateListeners.push(fn);return{remove(){}};}},Image:'Image',View:'View',StyleSheet:{absoluteFill:{position:'absolute'},create:(x:any)=>x},useWindowDimensions:()=>({width:412,height:892,scale:3})},
+  'react-native':{Platform:{OS:'android'},AppState:{currentState:'active',addEventListener:(_event:any,fn:any)=>{stateListeners.push(fn);return{remove(){}};}},Image:'Image',View:'View',StyleSheet:{absoluteFill:{position:'absolute'},create:(x:any)=>x},useWindowDimensions:()=>({width:412,height:892,scale:3})},
   'expo-splash-screen':{preventAutoHideAsync:async()=>{},hideAsync:async()=>{calls.push('hideSplash');},setOptions(){}},
-  'expo-video':{VideoView:'VideoView',useVideoPlayer:(source:any,setup:any)=>{calls.push(source===null?'empty-player':'source-in-constructor');setup(player);return player;}},
+  'expo-video':{VideoView:'VideoView',useVideoPlayer:(source:any,setup:any,options:any)=>{calls.push(`disableAudioSession:${options?.disableAudioSession}`);calls.push(source===null?'empty-player':'source-in-constructor');setup(player);return player;}},
   'expo-linear-gradient':{LinearGradient:'LinearGradient'},
   'react-native-reanimated':{default:{View:'AnimatedView'},FadeOut:{duration:()=>({})}},
   '../home/hooks':{useReducedMotion:()=>reduced},
@@ -27,7 +27,8 @@ function harness() {
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 test('startup configures non-interrupting playback before asynchronously loading the MP4',async()=>{
  const h=harness();h.LaunchVideo({onComplete(){}});h.effects();await settle();
- assert.equal(h.calls[0],'empty-player');
+ assert.ok(h.calls.includes('empty-player'));
+ assert.ok(h.calls.includes('disableAudioSession:true'));
  for(const setting of ['muted:true','volume:0','audioMixingMode:mixWithOthers','showNowPlayingNotification:false','staysActiveInBackground:false'])assert.ok(h.calls.indexOf(setting)>=0&&h.calls.indexOf(setting)<h.calls.indexOf('load'),setting);
  assert.ok(h.calls.indexOf('load')<h.calls.indexOf('play'));
 });

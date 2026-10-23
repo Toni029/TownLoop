@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { AppState, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AppState, Platform, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,7 +26,7 @@ function LaunchVideo({ onComplete }: { onComplete: () => void }) {
     video.showNowPlayingNotification = false;
     video.staysActiveInBackground = false;
     video.loop = false;
-  });
+  }, Platform.OS === 'android' ? { disableAudioSession: true } : undefined);
   useEffect(() => {
     let active = true;
     const stop = () => {
