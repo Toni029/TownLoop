@@ -1,5 +1,6 @@
 import { usePresentation } from "../shell/TownLoopShell";
 import { useRef, useState } from "react";
+import type { ImagePickerAsset } from "expo-image-picker";
 import { Image, View, Pressable } from "react-native";
 import { Trash2, MessageSquare, Tag } from "lucide-react-native";
 import type { MediaAttachment } from "../../../src/types";
@@ -32,24 +33,32 @@ export function CreateEditor({
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [media, setMedia] = useState<MediaAttachment[]>([]);
+  const [pendingMedia, setPendingMedia] = useState<ImagePickerAsset[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const lock = useRef(false);
-  async function upload(camera = false) {
+  async function upload(camera = false, retry = false) {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
     setError("");
     setProgress(0);
     try {
-      const files = await pickAndUpload(
+      await pickAndUpload(
         kind === "post" ? "feed" : "marketplace",
         setProgress,
         camera,
         { recordId: id, collection: kind === 'post' ? 'discussion_feed' : 'marketplace_posts' },
+        {
+          assets: retry ? pendingMedia : undefined,
+          onSelected: setPendingMedia,
+          onUploaded: (file, asset) => {
+            setMedia(previous => [...previous, file]);
+            setPendingMedia(previous => previous.filter(item => item !== asset));
+          },
+        },
       );
-      setMedia((p) => [...p, ...files]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to attach media.");
     } finally {
@@ -60,6 +69,10 @@ export function CreateEditor({
   }
   async function publish() {
     if (lock.current) return;
+    if (pendingMedia.length) {
+      setError("Retry or remove the selected photos before publishing.");
+      return;
+    }
     lock.current = true;
     setBusy(true);
     setError("");
@@ -115,8 +128,8 @@ export function CreateEditor({
                 accessibilityLabel={
                   value === "post" ? "Discussion Feed" : "Buy / Free / Sell"
                 }
-                accessibilityState={{ selected, disabled: busy || media.length > 0 }}
-                disabled={busy || media.length > 0}
+                accessibilityState={{ selected, disabled: busy || media.length > 0 || pendingMedia.length > 0 }}
+                disabled={busy || media.length > 0 || pendingMedia.length > 0}
                 onPress={() => setKind(value)}
                 hitSlop={6}
                 style={{
@@ -158,7 +171,7 @@ export function CreateEditor({
         label={kind === "post" ? "Subject / Title" : "Item Name"}
         value={title}
         onChangeText={setTitle}
-        editable={!busy}
+        editable={!busy || progress !== null}
         placeholder={
           kind === "post"
             ? "e.g. Neighborhood update"
@@ -179,7 +192,7 @@ export function CreateEditor({
           value={price}
           onChangeText={setPrice}
           onBlur={() => setPrice(formatPrice(price))}
-          editable={!busy}
+          editable={!busy || progress !== null}
           placeholder="FREE or $25"
         />
       )}
@@ -192,7 +205,7 @@ export function CreateEditor({
         }
         value={description}
         onChangeText={setDescription}
-        editable={!busy}
+        editable={!busy || progress !== null}
         multiline
         style={{
           minHeight: 90,
@@ -210,7 +223,7 @@ export function CreateEditor({
         <UploadTarget
           label="Tap to upload photos or videos"
           note="Supports JPG, PNG, WebP, MP4, MOV up to 25MB"
-          disabled={busy}
+          disabled={busy || pendingMedia.length > 0}
           onUpload={() => void upload()}
           onCamera={() => void upload(true)}
         />
@@ -220,6 +233,22 @@ export function CreateEditor({
           </Copy>
         )}
       </View>
+      {!!pendingMedia.length && (
+        <View style={{ gap: 8 }}>
+          <View style={s.row}>
+            {pendingMedia.map((asset, index) => (
+              <View key={`${asset.uri}-${index}`} style={{ gap: 6 }}>
+                {asset.type !== "video" && (
+                  <Image source={{ uri: asset.uri }} style={{ width: 96, height: 96, borderRadius: 12 }} accessibilityLabel="Selected photo awaiting upload" />
+                )}
+                <Action label="Remove selected media" icon={Trash2} tone="rose" compact disabled={busy}
+                  onPress={() => setPendingMedia(previous => previous.filter((_, i) => i !== index))} />
+              </View>
+            ))}
+          </View>
+          {!busy && <Action label="Retry selected media" onPress={() => void upload(false, true)} />}
+        </View>
+      )}
       {!!media.length && (
         <View style={s.row}>
           {media.map((m, i) => (
@@ -264,7 +293,7 @@ export function CreateEditor({
         radius={16}
         label={
           busy
-            ? "Publishing…"
+            ? progress !== null ? "Uploading media…" : "Publishing…"
             : kind === "post"
               ? "Publish Post to Discussion Feed"
               : "Publish Item to Marketplace"

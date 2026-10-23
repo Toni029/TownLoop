@@ -8,7 +8,7 @@ import { deadline, uploadHttpError } from '../src/media/deadline.ts';
 const source = ts.transpileModule(readFileSync(new URL('../src/media/uploadFile.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-function harness(status = 200) {
+function harness(status = 200, linkFails = false) {
   const calls: any[] = [];
   let onAuth: (user: any) => void = () => {};
   const user = { uid: 'resident', getIdToken: async () => 'test-user-token' };
@@ -29,7 +29,7 @@ function harness(status = 200) {
     'firebase/auth': { onAuthStateChanged: (_auth: any, fn: any) => { onAuth = fn; return () => { unsubscribed = true; }; } },
     'firebase/storage': {
       ref: (_storage: any, path: string) => ({ bucket: 'existing-bucket', fullPath: path }),
-      getDownloadURL: async (ref: any) => `https://example.invalid/${ref.fullPath}`,
+      getDownloadURL: async (ref: any) => { if (linkFails) throw Error('Link unavailable'); return `https://example.invalid/${ref.fullPath}`; },
       uploadBytesResumable: () => { throw Error('Native must never use browser Blob upload'); },
     },
     '../lib/firebase': { auth, storage: {} },
@@ -53,7 +53,7 @@ for (const folder of ['work_orders', 'feed', 'marketplace']) {
       metadata: { contentType: 'image/jpeg', customMetadata: { uploadedBy: 'resident', folder } },
       progress: (value: number) => progress.push(value),
     });
-    assert.equal(url, `https://example.invalid/${path}`);
+    assert.equal(url, folder === 'work_orders' ? `gs://existing-bucket/${path}` : `https://example.invalid/${path}`);
     assert.equal(h.calls[0].options.headers.Authorization, 'Firebase test-user-token');
     assert.equal(JSON.parse(h.calls[0].options.body).metadata.folder, folder);
     assert.equal(JSON.parse(h.calls[0].options.body).name, path);
@@ -105,14 +105,15 @@ for (const folder of ['work_orders', 'feed', 'marketplace']) {
       },
       'expo-image-manipulator': { SaveFormat: { JPEG: 'jpeg' }, manipulateAsync: async (_uri: string, transforms: any, options: any) => { transformations.push({ transforms, options }); return { uri: 'file:///cache/prepared.jpg' }; } },
       'expo-file-system/legacy': { cacheDirectory: 'file:///cache/', copyAsync: async () => {}, getInfoAsync: async () => ({ exists: true, size: 2_000_000 }), deleteAsync: async (uri: string) => { removed.push(uri); } },
-      '../lib/firebase': { auth: { currentUser: { uid: 'resident' } } },
+      '../../../src/services/mediaAuthorization': { ensureMediaDraft: async () => {} },
+      '../lib/firebase': { db: {}, auth: { currentUser: { uid: 'resident' } } },
       '../news/actions': { approvedUser: async () => ({ id: 'resident', name: 'Resident', email: 'test@example.invalid' }) },
       '../media/deadline': { deadline },
       '../media/uploadFile': { uploadFile: async (input: any) => { uploads.push(input); return 'https://example.invalid/persistent-photo'; } },
     };
     const exports: any = {};
     vm.runInNewContext(pickerSource, { exports, require: (key: string) => modules[key] });
-    const result = await exports.pickAndUpload(folder, () => {});
+    const result = await exports.pickAndUpload(folder, () => {}, false, { recordId: 'draft', collection: folder === 'feed' ? 'discussion_feed' : folder === 'marketplace' ? 'marketplace_posts' : 'work_orders' });
     assert.equal(uploads.length, 1);
     assert.ok(uploads[0].path.startsWith(`${folder}/`));
     assert.equal(uploads[0].metadata.contentType, 'image/jpeg');
@@ -125,3 +126,9 @@ for (const folder of ['work_orders', 'feed', 'marketplace']) {
     assert.ok(removed.every(uri => uri.startsWith('file:///cache/')));
   });
 }
+
+test('completed transfer is reported before link resolution failure for duplicate-free retry', async () => {
+ const h=harness(200,true);let transferred=false;
+ await assert.rejects(h.upload({uri:'file:///photo.jpg',size:200,path:'marketplace/photo.jpg',uid:'resident',metadata:{},progress:()=>{},onTransferred:()=>{transferred=true;}}),/Link unavailable/);
+ assert.equal(transferred,true);assert.ok(h.cleaned());
+});

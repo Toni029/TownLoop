@@ -5,10 +5,21 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, storage } from '../lib/firebase';
 import { deadline, uploadHttpError } from './deadline';
 
+/** Retry link resolution after a completed transfer without uploading the file again. */
+export async function uploadedFileURL(path: string, uid: string): Promise<string> {
+  const check = () => { if (auth.currentUser?.uid !== uid) throw new Error('Your session changed. Please sign in again.'); };
+  check();
+  const reference = ref(storage, path);
+  const url = path.startsWith('work_orders/') ? `gs://${reference.bucket}/${path}`
+    : await deadline(getDownloadURL(reference), 20_000, 'Getting photo link');
+  check();
+  return url;
+}
+
 /** Same Firebase endpoint/metadata and user token as the JS SDK; native streams a file instead of a JS byte array. */
 export async function uploadFile(input: {
   uri: string; webFile?: Blob; size: number; path: string; metadata: UploadMetadata;
-  uid: string; progress: (fraction: number) => void;
+  uid: string; progress: (fraction: number) => void; onTransferred?: () => void;
 }): Promise<string> {
   const { uid, path, metadata, progress } = input;
   const user = auth.currentUser;
@@ -87,9 +98,8 @@ export async function uploadFile(input: {
         if (result.status < 200 || result.status >= 300) throw uploadHttpError(result.status);
       }
       checkSession();
-      const url = path.startsWith('work_orders/')
-        ? `gs://${reference.bucket}/${path}`
-        : await deadline(getDownloadURL(reference), 20_000, 'Getting photo link');
+      input.onTransferred?.();
+      const url = await uploadedFileURL(path, uid);
       checkSession();
       progress(1);
       return url;

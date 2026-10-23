@@ -14,11 +14,25 @@ async function upload(name,metadata,uid,{type='image/jpeg',owner=false,provider=
  const url=r.headers.get('X-Goog-Upload-URL');assert.equal(new URL(url).host,'127.0.0.1:9198');
  const done=await fetch(url,{method:'POST',headers:{...headers,'Content-Type':type,'X-Goog-Upload-Command':'upload, finalize','X-Goog-Upload-Offset':'0'},body:Buffer.from('test')});return done.status;
 }
+// Same blank-content draft schema and server timestamp used by ensureMediaDraft.
+async function createClientDraft(collection,id,uid){
+ const r=await fetch(fire+':commit',{method:'POST',headers:{Authorization:'Bearer '+jwt(uid),'Content-Type':'application/json'},body:JSON.stringify({writes:[{update:{name:`projects/${project}/databases/(default)/documents/${collection}/${id}`,fields:{userId:{stringValue:uid},storageDraft:{booleanValue:true},storageDraftExpiresAt:{timestampValue:new Date(Date.now()+3600000).toISOString()}}},updateTransforms:[{fieldPath:'createdAt',setToServerValue:'REQUEST_TIME'}]}]})});
+ assert.equal(r.status,200,'Approved client can create its empty attachment draft');
+}
 const get=(name,uid)=>fetch(store+'/v0/b/'+bucket+'/o/'+encodeURIComponent(scoped(name)),{headers:uid?{Authorization:'Firebase '+jwt(uid)}:{}}).then(r=>r.status);
 const ok=status=>assert.ok(status>=200&&status<300,'Expected allow; got '+status);
 const denied=status=>assert.ok([401,403].includes(status),'Expected deny; got '+status);
 test('native and unchanged web uploads share strict ownership without trusting historical uploader metadata',async()=>{
  for(const [uid,role]of [['Alice','resident'],['Bob','resident'],['Crew','crew'],['Admin','admin'],['Vip','vip']])await seed('users/'+uid,{approved:true,role});
+ for(const uid of ['Alice','Crew','Admin','Vip'])for(const [folder,collection]of [['work_orders','work_orders'],['feed','discussion_feed'],['marketplace','marketplace_posts']]){
+  const id=`draft_${uid}_${folder}_${run}`;
+  await createClientDraft(collection,id,uid);
+  const metadata={securityVersion:'1',collection,recordId:id,uploadedBy:uid,folder};
+  ok(await upload(`${folder}/${uid}_photo_first.jpg`,metadata,uid));
+  ok(await get(`${folder}/${uid}_photo_first.jpg`,uid));
+  denied(await upload(`${folder}/${uid}_intruder.jpg`,{...metadata,uploadedBy:'Bob'},'Bob'));
+ }
+
  await seed('work_orders/ticket',{userId:'Alice',storageDraft:false,status:'Queued'});
  await seed('storage_web_authorization/policy',{members:{Web:{approved:true,role:'resident'},WebVip:{approved:true,role:'vip'},Alice:{approved:true,role:'admin'}}});
  const link=uid=>({uploadedBy:uid,recordId:'ticket',collection:'work_orders',securityVersion:'1'});
