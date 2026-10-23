@@ -117,6 +117,7 @@ export function Action({
   tone = "green",
   compact = false,
   square = false,
+  iconOnly = false,
   size = "default",
   radius,
   maxWidth,
@@ -129,6 +130,7 @@ export function Action({
     "green" | "emerald" | "glass" | "sky" | "amber" | "rose" | "light" | "dark";
   compact?: boolean;
   square?: boolean;
+  iconOnly?: boolean;
   size?: "default" | "small" | "short" | "large";
   radius?: number;
   maxWidth?: number;
@@ -154,7 +156,8 @@ export function Action({
       onPress={onPress}
       hitSlop={compact && tone === "rose" ? 9 : 6}
       style={({ pressed }) => ({
-        minHeight:
+        width: iconOnly ? 44 : undefined,
+        minHeight: iconOnly ? 44 :
           size === "large"
             ? 44
             : size === "small"
@@ -164,7 +167,7 @@ export function Action({
                 : compact && tone === "rose"
                   ? 30
                   : 36,
-        paddingHorizontal: compact ? 12 : 14,
+        paddingHorizontal: iconOnly ? 0 : compact ? 12 : 14,
         paddingVertical:
           size === "large"
             ? 11
@@ -188,8 +191,8 @@ export function Action({
         transform: [{ scale: pressed ? 0.98 : 1 }],
       })}
     >
-      {Icon && <Icon size={15} color={fg} />}
-      <Copy
+      {Icon && <Icon size={iconOnly ? 16 : 15} color={fg} />}
+      {!iconOnly && <Copy
         weight="bold"
         style={{
           color: fg,
@@ -199,7 +202,7 @@ export function Action({
         }}
       >
         {label}
-      </Copy>
+      </Copy>}
     </Pressable>
   );
 }

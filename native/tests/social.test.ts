@@ -187,3 +187,13 @@ test('indexed avatars preserve current-user precedence, email fallback and histo
   const record = {authorId:'one',comments:[{id:'c',author:'Neighbor',authorId:'one',text:'Hello',timestamp:'Now'}]};
   assert.deepEqual(withAvatar(record,[person],current,resolve),withAvatar(record,[person],current));
 });
+
+test('zero-price inputs save and display exactly like an empty FREE listing', () => {
+  for (const value of ['0', '$0', '0.00', '$0.00', '  $ 00.000  ', '.00', '$.00', '0,00', '$0,000.00']) {
+    assert.equal(formatPrice(value), 'FREE', `Save ${value} as FREE`);
+    assert.equal(readListing('existing', { price: value }).price, 'FREE', `Display ${value} as FREE`);
+    assert.equal(readChat('chat', { itemPrice: value }).itemPrice, 'FREE');
+  }
+  assert.equal(formatPrice('0.50'), '$0.50');
+  assert.equal(readListing('paid', {price:'$25'}).price, '$25');
+});

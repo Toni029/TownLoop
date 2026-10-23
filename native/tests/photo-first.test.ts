@@ -54,6 +54,7 @@ function editor(kind: 'post' | 'listing', pendingDraft = false, failUpload = fal
     for (const child of [node.props?.children].flat(Infinity)) { const found = walk(type, child, predicate); if (found) return found; }
   }
   return { render, find: (type: string) => walk(type, render()),
+    field: (label: string) => walk('Field', render(), props => props.label === label),
     action: (label: string) => walk('Action', render(), props => props.label === label),
     ready: () => { pendingDraft = false; failUpload = false; },
     pickerCalls: () => pickerCalls, linkReads: () => linkReads, drafts, uploads };
@@ -115,3 +116,20 @@ for (const kind of ['post', 'listing'] as const) {
     assert.equal(h.action('Retry selected media'), undefined);
   });
 }
+
+test('Discussion Feed keeps title, description and controls responsive during photo-first recovery', async () => {
+ const h=editor('post',true);
+ h.find('UploadTarget').props.onUpload();
+ h.field('Subject / Title').props.onChangeText('Community update');
+ h.field('Post Content & Discussion Details').props.onChangeText('Keep these details');
+ assert.equal(h.field('Subject / Title').props.editable,true);
+ assert.equal(h.field('Post Content & Discussion Details').props.editable,true);
+ await new Promise(resolve=>setTimeout(resolve,30));
+ assert.equal(h.render().props.busy,false);
+ assert.equal(h.field('Subject / Title').props.value,'Community update');
+ assert.equal(h.field('Post Content & Discussion Details').props.value,'Keep these details');
+ h.ready();h.action('Retry selected media').props.onPress();
+ await new Promise(resolve=>setTimeout(resolve,25));
+ assert.equal(h.render().props.busy,false);assert.equal(h.uploads.length,1);
+ assert.equal(h.find('Image').props.source.uri,'https://example.invalid/photo');
+});

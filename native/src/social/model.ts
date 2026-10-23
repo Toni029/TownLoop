@@ -118,7 +118,7 @@ export function readListing(id: string, d: Record<string, any>): Listing {
   return {
     id,
     title: d.title || "Market Item",
-    price: d.price || "FREE",
+    price: formatPrice(String(d.price ?? "")),
     description: d.description || "",
     author: d.author || "Resident",
     authorAvatar: avatar(d),
@@ -173,7 +173,9 @@ export function withAvatar<
 }
 export function formatPrice(value: string) {
   const v = value.trim();
-  return !v || v.toUpperCase() === "FREE"
+  const amount = v.replace(/^\$\s*/, "").replace(/[,\s]/g, "");
+  const zero = /^(?:0+(?:\.0*)?|\.0+)$/.test(amount);
+  return !v || v.toUpperCase() === "FREE" || zero
     ? "FREE"
     : /^\d/.test(v)
       ? `$${v}`
@@ -208,6 +210,7 @@ export function readChat(id: string, d: Record<string, any>): Chat {
   return {
     ...d,
     id,
+    itemPrice: formatPrice(String(d.itemPrice ?? "")),
     messages: Array.isArray(d.messages) ? d.messages : [],
     deletedBy: Array.isArray(d.deletedBy) ? d.deletedBy : [],
     updatedAt: time(d.updatedAt),

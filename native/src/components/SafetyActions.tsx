@@ -24,7 +24,7 @@ export function SafetyActions({ target, allowBlock = false }: { target: SafetyTa
   }
   return <View style={{ gap: 5 }}>
     <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-      <Action compact tone="light" icon={Flag} label={target.kind === 'user' ? 'Report user' : target.kind === 'comment' ? 'Report comment' : 'Report'} onPress={() => {setError('');setOpen(true);}} />
+      <Action compact iconOnly tone="light" icon={Flag} label={target.kind === 'user' ? 'Report user' : target.kind === 'comment' ? 'Report comment' : 'Report'} onPress={() => {setError('');setOpen(true);}} />
       {allowBlock && !!other && <Action compact tone="light" icon={ShieldOff} label={blocked ? 'Unblock user' : 'Block user'} disabled={busy} onPress={() => void block()} />}
     </View>
     {!!notice && <Copy accessibilityLiveRegion="polite">{notice}</Copy>}{!!error && !open && <ErrorNotice message={error} />}
