@@ -27,7 +27,7 @@ function fixture() {
  let finishProcessing: (image: any) => void = () => {};
  let failProcessing: (error: Error) => void = () => {};
  const pickerResult: any = { canceled: false, assets: [asset] };
- const processing = new Promise((resolve, reject) => { finishProcessing = resolve; failProcessing = reject; });
+ let processing: Promise<any> = new Promise((resolve, reject) => { finishProcessing = resolve; failProcessing = reject; });
  const media = load('../src/components/media.ts', {
   'react-native': { Platform: { OS: 'android' } },
   'expo-image-picker': { launchImageLibraryAsync: async () => { pickerCalls++; return pickerResult; } },
@@ -63,6 +63,7 @@ function fixture() {
  const field = (label: string) => nodes(render()).find(node => node.type === 'Field' && node.props.label === label);
  return { render, field, asset, drafts, publications, pickerResult,
   confirm: () => nodes(render()).find(node => node.type === 'UploadTarget').props.onUpload(),
+  recover: () => { processing = Promise.resolve({ uri: 'file:///cache/recovered.jpg' }); },
   finish: () => finishProcessing({ uri: 'file:///cache/processed.jpg' }), fail: () => failProcessing(Error('Fixture processing failure')),
   stats: () => ({ closes, saves, uploads, pickerCalls }),
  };
@@ -82,21 +83,33 @@ for (const filled of [false, true]) {
   h.field('Subject / Title').props.onChangeText('Edited after choosing');
   h.field('Post Content & Discussion Details').props.onChangeText('Body after choosing');
   await tick(); assert.equal(h.field('Subject / Title').props.value, 'Edited after choosing');
+  assert.equal(nodes(h.render()).find(n=>n.type==='Action' && n.props.label==='Retry selected media'),undefined, 'a successfully staged selection is not a failed upload');
+  assert.equal(h.drafts.length, 0, 'choosing a feed photo must not wait on a draft write');
+  assert.equal(h.render().props.busy, false, 'picker return must release sheet controls before processing');
+  nodes(h.render()).find(node => node.type === 'Action' && node.props.label === 'Publish Post to Discussion Feed').props.onPress();
+  await tick();
   assert.equal(h.drafts.length, 1); assert.equal(h.drafts[0].link.collection, 'discussion_feed');
   h.finish(); await tick();
   const done = h.render(); assert.equal(done.props.busy, false);
   assert.equal(nodes(done).find(node => node.type === 'Image')?.props.source.uri, 'https://example.invalid/uploaded.jpg');
-  assert.equal(h.publications.length, 0, 'selecting media never publishes the post');
-  assert.equal(h.stats().closes, 0); assert.equal(h.stats().saves, 0); assert.equal(h.stats().uploads, 1);
+  assert.equal(h.publications.length, 1, 'explicit Publish uploads the staged photo and publishes once');
+  assert.equal(h.stats().closes, 1); assert.equal(h.stats().saves, 1); assert.equal(h.stats().uploads, 1);
  });
 }
 test('processing error releases loading and keeps selected photo/text for recovery', async () => {
- const h = fixture(); h.field('Subject / Title').props.onChangeText('Retain title'); h.confirm(); await tick(); h.fail(); await tick();
+ const h = fixture(); h.field('Subject / Title').props.onChangeText('Retain title'); h.field('Post Content & Discussion Details').props.onChangeText('Retain body'); h.confirm(); await tick();
+ nodes(h.render()).find(node => node.type === 'Action' && node.props.label === 'Publish Post to Discussion Feed').props.onPress(); await tick(); h.fail(); await tick();
  const tree = h.render(); assert.equal(tree.props.busy, false);
  assert.equal(h.field('Subject / Title').props.value, 'Retain title');
  assert.equal(nodes(tree).find(node => node.type === 'Image')?.props.source.uri, h.asset.uri);
  assert.match(nodes(tree).find(node => node.type === 'ErrorNotice')?.props.message, /processing failure/);
  assert.equal(h.stats().uploads, 0); assert.equal(h.stats().closes, 0);
+ h.recover();
+ nodes(h.render()).find(node => node.type === 'Action' && node.props.label === 'Retry selected media').props.onPress(); await tick();
+ assert.equal(h.render().props.busy, false); assert.equal(h.stats().pickerCalls, 1);
+ assert.equal(h.stats().uploads, 1); assert.equal(h.publications.length, 0);
+ nodes(h.render()).find(node => node.type === 'Action' && node.props.label === 'Publish Post to Discussion Feed').props.onPress(); await tick();
+ assert.equal(h.publications.length, 1); assert.equal(h.stats().uploads, 1, 'recovered media is not uploaded twice');
 });
 test('cancellation releases form and text validation runs only on explicit Publish', async () => {
  const h = fixture(); h.pickerResult.canceled = true; h.pickerResult.assets = null;
@@ -107,4 +120,16 @@ test('cancellation releases form and text validation runs only on explicit Publi
  tree = h.render(); assert.equal(tree.props.busy, false);
  assert.match(nodes(tree).find(node => node.type === 'ErrorNotice')?.props.message, /title and description/);
  assert.equal(h.stats().closes, 0); assert.equal(h.publications.length, 0);
+});
+
+test('cancel then retry selects locally; missing text validation starts no draft or transfer', async () => {
+ const h=fixture(); h.pickerResult.canceled=true; h.pickerResult.assets=null;
+ h.confirm(); await tick(); assert.equal(h.render().props.busy,false);
+ h.pickerResult.canceled=false; h.pickerResult.assets=[h.asset];
+ h.confirm(); await tick();
+ assert.equal(h.stats().pickerCalls,2); assert.equal(h.stats().uploads,0); assert.equal(h.drafts.length,0);
+ assert.equal(nodes(h.render()).find(n=>n.type==='Image')?.props.source.uri,h.asset.uri);
+ nodes(h.render()).find(n=>n.type==='Action' && n.props.label==='Publish Post to Discussion Feed').props.onPress(); await tick();
+ assert.equal(h.render().props.busy,false); assert.equal(h.drafts.length,0); assert.equal(h.stats().uploads,0);
+ assert.match(nodes(h.render()).find(n=>n.type==='ErrorNotice')?.props.message,/title and description/);
 });

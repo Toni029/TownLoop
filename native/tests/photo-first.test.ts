@@ -59,7 +59,8 @@ function editor(kind: 'post' | 'listing', pendingDraft = false, failUpload = fal
     ready: () => { pendingDraft = false; failUpload = false; },
     pickerCalls: () => pickerCalls, linkReads: () => linkReads, drafts, uploads };
 }
-for (const kind of ['post', 'listing'] as const) {
+// Discussion selection is staged until explicit Post; covered by feed-picker-editor.
+for (const kind of ['listing'] as const) {
   test(`${kind}: attach photo with empty text, preserving fields and releasing busy state`, async () => {
     const h = editor(kind);
     h.find('UploadTarget').props.onUpload();
@@ -128,7 +129,7 @@ test('Discussion Feed keeps title, description and controls responsive during ph
  assert.equal(h.render().props.busy,false);
  assert.equal(h.field('Subject / Title').props.value,'Community update');
  assert.equal(h.field('Post Content & Discussion Details').props.value,'Keep these details');
- h.ready();h.action('Retry selected media').props.onPress();
+ h.ready();h.action('Publish Post to Discussion Feed').props.onPress();
  await new Promise(resolve=>setTimeout(resolve,25));
  assert.equal(h.render().props.busy,false);assert.equal(h.uploads.length,1);
  assert.equal(h.find('Image').props.source.uri,'https://example.invalid/photo');

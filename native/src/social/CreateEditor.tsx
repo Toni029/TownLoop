@@ -52,6 +52,7 @@ export function CreateEditor({
         { recordId: id, collection: kind === 'post' ? 'discussion_feed' : 'marketplace_posts' },
         {
           assets: retry ? pendingMedia : undefined,
+          selectOnly: kind === "post" && !retry,
           onSelected: assets => setPendingMedia(assets),
           onUploaded: (file, asset) => {
             setMedia(previous => [...previous, file]);
@@ -69,15 +70,32 @@ export function CreateEditor({
   }
   async function publish() {
     if (lock.current) return;
-    if (pendingMedia.length) {
+    if (kind !== "post" && pendingMedia.length) {
       setError("Retry or remove the selected photos before publishing.");
+      return;
+    }
+    if (kind === "post" && (!title.trim() || !description.trim())) {
+      setError("Please provide a title and description.");
       return;
     }
     lock.current = true;
     setBusy(true);
     setError("");
     try {
-      await publishSocial(id, kind, { title, description, price, media });
+      let attachments = media;
+      if (kind === "post" && pendingMedia.length) {
+        setProgress(0);
+        const uploaded = await pickAndUpload("feed", setProgress, false,
+          { recordId: id, collection: "discussion_feed" }, {
+            assets: pendingMedia,
+            onUploaded: (file, asset) => {
+              setMedia(previous => [...previous, file]);
+              setPendingMedia(previous => previous.filter(item => item !== asset));
+            },
+          });
+        attachments = [...media, ...uploaded];
+      }
+      await publishSocial(id, kind, { title, description, price, media: attachments });
       onSaved(kind);
       onClose();
     } catch (e) {
@@ -85,6 +103,7 @@ export function CreateEditor({
     } finally {
       lock.current = false;
       setBusy(false);
+      setProgress(null);
     }
   }
   return (
@@ -246,7 +265,7 @@ export function CreateEditor({
               </View>
             ))}
           </View>
-          {!busy && <Action label="Retry selected media" onPress={() => void upload(false, true)} />}
+          {!busy && (kind !== "post" || !!error) && <Action label="Retry selected media" onPress={() => void upload(false, true)} />}
         </View>
       )}
       {!!media.length && (

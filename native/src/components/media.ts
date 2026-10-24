@@ -20,6 +20,7 @@ export async function pickAndUpload(
   link?: MediaRecordLink,
   selection?: {
     assets?: Picker.ImagePickerAsset[];
+    selectOnly?: boolean;
     onSelected?: (assets: Picker.ImagePickerAsset[]) => void;
     onUploaded?: (file: MediaAttachment, asset: Picker.ImagePickerAsset) => void;
   },
@@ -41,6 +42,8 @@ export async function pickAndUpload(
     : await Picker.launchImageLibraryAsync(options);
   if (selected.canceled || !selected.assets?.length) return [];
   selection?.onSelected?.(selected.assets);
+  // Discussion drafts stage local selections; no processing or backend work until Post.
+  if (selection?.selectOnly) return [];
   if (!link) throw new Error("An attachment must be linked to its record before uploading.");
   await deadline(ensureMediaDraft(db, link, String(user.id)), 20_000, 'Preparing photo upload');
   const results: MediaAttachment[] = [];
