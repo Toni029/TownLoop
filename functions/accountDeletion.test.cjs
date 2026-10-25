@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial } = require('./accountDeletionPolicy.cjs');
 function harness(initial, authorizeProcessing = false) {
-  if (authorizeProcessing) for (const [path, job] of Object.entries(initial)) if (path.startsWith("account_deletion_jobs/") && !path.includes("/inventory/")) job.review = { decision: "approved", reviewerId: "fixture-manager", reviewedAt:Date.now(), policyReference: initial["deletion_policies/account"]?.approvalReference || "owner-approved-ticket", ...job.review };
+  if (authorizeProcessing) for (const [path, job] of Object.entries(initial)) if (path.startsWith("account_deletion_jobs/") && !path.includes("/inventory/")) job.review = { decision: "approved", processingAuthorized: true, reviewerId: "fixture-manager", reviewedAt:Date.now(), policyReference: initial["deletion_policies/account"]?.approvalReference || "owner-approved-ticket", ...job.review };
   const records = new Map(Object.entries(initial));
   const snapshot = path => ({ id: path.split('/').at(-1), ref: doc(path), exists: records.has(path), data: () => records.get(path) });
   function doc(path) { return { path, get: async () => snapshot(path), update: async patch => {
@@ -36,7 +36,7 @@ function harness(initial, authorizeProcessing = false) {
   };
   const exports = {}, context = { exports, module: { exports }, require: name => {
     if (name === './accountDeletionRetention.cjs') return require(name);
-    if (name === './accountDeletionV2.cjs') { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date});return module.exports; }
+    if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
     if (name === './accountDeletionPolicy.cjs') return require(name);
     if (name === 'node:crypto') return require(name);
     if (name === 'firebase-functions/v2/https') return { onCall: (_, fn) => fn, HttpsError: class extends Error { constructor(code, message) { super(message); this.code = code; } } };
@@ -194,9 +194,9 @@ for (const role of ['resident','crew','Admin']) test(`${role} cannot review dele
  const h=harness(reviewFixture(role)); await assert.rejects(h.review(reviewInput('bob',decision())),e=>e.code==='permission-denied'); assert.deepEqual(h.authCalls,[]);
 });
 for (const role of ['admin','vip']) test(`${role}: independent approval queues only, creates audit, and is idempotent`,async()=>{
- const h=harness(reviewFixture(role)); const result=await h.review(reviewInput('bob',decision())); assert.equal(result.status,'queued');
+ const h=harness(reviewFixture(role)); const result=await h.review(reviewInput('bob',decision())); assert.equal(result.status,'approved_held');
  assert.equal([...h.records.keys()].filter(k=>k.startsWith(`account_deletion_jobs/${jobIdFor('alice')}/reviews/`)).length,1);
- assert.equal((await h.review(reviewInput('bob',decision()))).status,'queued');
+ assert.equal((await h.review(reviewInput('bob',decision()))).status,'approved_held');
  assert.equal(h.records.get(`account_deletion_jobs/${jobIdFor('alice')}`).phase,'requested'); assert.deepEqual(h.authCalls,[]);
  await assert.rejects(h.review(reviewInput('bob',decision('rejected'))),e=>e.code==='failed-precondition');
 });
@@ -210,9 +210,10 @@ test('rejection and own-status are available without authorizing deletion or exp
  const retry=await h.requestOnly({...reviewInput('alice'),auth:{uid:'alice',token:{auth_time:Date.now()/1000}},data:{confirmation:'DELETE',requestOnly:true}});
  assert.equal(retry.status,'rejected','duplicate must return the real existing status'); assert.deepEqual(h.authCalls,[]);
 });
-test('unsupported retention blocks approval and residents cannot read the review queue',async()=>{
+test('incomplete processing policy allows held review only; residents cannot read review queue',async()=>{
  const h=harness(reviewFixture()); h.records.set('deletion_policies/account',{ownerApproved:true,approvalReference:'fixture-policy',collections:Object.fromEntries(SHARED.map(c=>[c,{action:'retain',reason:'Synthetic',retentionDays:60}]))});
- await assert.rejects(h.review(reviewInput('bob',decision())),e=>e.code==='failed-precondition');
+ assert.equal((await h.review(reviewInput('bob',decision()))).status,'approved_held');
+ assert.equal(h.records.get(`account_deletion_jobs/${jobIdFor('alice')}`).review.processingAuthorized,false);
  await assert.rejects(h.list(reviewInput('alice')),e=>e.code==='permission-denied');
 });
 test('operator activation and a separate valid approval are both required, even with a complete policy',async()=>{
@@ -283,4 +284,26 @@ test('60-day completed audit expiry is bounded, retryable and preserves unrelate
  const initial={'account_deletion_jobs/job':{uid:'alice',phase:'retention_receipts',status:'retention_pending',createdAt:created,policyVersion:2},'deletion_policies/account':supportedPolicy(),'account_deletion_jobs/job/inventory/one':{state:'redacted',expireRecord:true,path:'moderation_audit/one'},'moderation_audit/one':{status:'handled',deletionExpiresAt:due},'moderation_audit/other':{status:'handled'}};
  const h=harness(initial,true);for(let i=0;i<4;i++)await h.run(h.db,h.auth,h.ref);
  assert.equal(h.records.has('moderation_audit/one'),false);assert.ok(h.records.has('moderation_audit/other'));assert.equal(h.records.has(h.ref.path),false);assert.deepEqual(h.authCalls,[]);
+});
+
+test('review approval cannot activate processing even when all worker flags are enabled',async()=>{
+ const h=harness(reviewFixture(),true),ref=h.db.doc(`account_deletion_jobs/${jobIdFor('alice')}`);
+ delete h.records.get(ref.path).review;
+ await h.review(reviewInput('bob',decision()));
+ await h.run(h.db,h.auth,ref);
+ assert.equal(h.records.get(ref.path).status,'approved_held');
+ assert.equal(h.records.get(ref.path).phase,'requested');
+ assert.deepEqual(h.authCalls,[]);
+ assert.equal((await h.status(reviewInput('alice'))).processingHeld,true);
+});
+
+test('three-business-day reminder is distinct from seven-day escalation and does not process',async()=>{
+ // Six calendar days always exceeds three weekdays but is before seven calendar days.
+ const created=Date.now()-6*86400000;
+ const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'requested',status:'requested',createdAt:created,lastAttemptAt:1}},true);
+ delete h.records.get(h.ref.path).review;
+ await h.escalate();
+ const job=h.records.get(h.ref.path);
+ assert.equal(job.reviewOverdue,true);assert.equal(job.escalated,false);assert.equal(job.escalationReason,'review_due');
+ assert.equal(job.status,'requested');assert.deepEqual(h.authCalls,[]);
 });

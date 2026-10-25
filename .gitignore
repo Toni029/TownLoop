@@ -9,3 +9,6 @@ coverage/
 
 # Resident uploads are runtime data, not application source.
 /data/uploads/
+
+# Generated isolated review-only deployment artifact
+/.release/

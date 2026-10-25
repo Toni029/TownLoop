@@ -42,6 +42,7 @@ export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved'
 export function deletionStatusText(request: DeletionRequestStatus): string {
   const labels: Record<string, string> = {
     delayed:'Request delayed for a documented legal/security reason; original deadlines remain in effect.', needs_review:'Processing needs office review; unresolved items have not been marked complete.', failed:'Processing interrupted; a retry is pending.', retention_pending:'Personal-data processing completed; minimal receipts await scheduled expiry.', none: 'No deletion request submitted.', requested: 'Awaiting Admin/VIP review.',
+    approved_held: 'Approved. Deletion processing remains on hold.',
     queued: 'Approved. Awaiting authorized processing.', processing: 'Deletion processing is in progress.',
     pending_owner_approval: 'Awaiting an approved retention policy.',
     identity_complete_media_pending: 'Account removed; associated media cleanup is pending.',

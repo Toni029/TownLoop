@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Action, Copy, ErrorNotice, Field } from '../news/ui';
 import { listAccountDeletionRequests, reviewAccountDeletionRequest, deletionStatusText, type DeletionReviewItem } from '../lib/accountDeletion';
 
-/** Review only: approvals queue work; this panel never executes deletion. */
+/** Review only: approvals remain held; this panel never executes deletion. */
 export function AccountDeletionRequests() {
   const [requests, setRequests] = useState<DeletionReviewItem[]>([]);
   const [policyReady, setPolicyReady] = useState(false);
@@ -30,7 +30,7 @@ export function AccountDeletionRequests() {
   return <View style={{ gap: 12 }}>
     <Copy weight="bold">Account deletion requests</Copy>
     <Copy>Oldest pending requests first, 50 per page. Review within 3 business days; unresolved requests escalate after 7 calendar days. Approval targets processing within 7 days. Workers remain held until activation.</Copy>
-    {!policyReady && <Copy>Approval is held until the owner-approved retention policy is supported. Requests remain available for review or rejection.</Copy>}
+    {!policyReady && <Copy>Deletion processing remains held. You may review requests; approval does not authorize deletion.</Copy>}
     {!!error && <ErrorNotice message={error} />}
     <Action compact label={busy ? 'Loading requests…' : 'Refresh deletion requests'} disabled={busy} onPress={() => void refresh()} />
     {!busy && !requests.length && <Copy>No pending deletion requests.</Copy>}
@@ -47,7 +47,7 @@ export function AccountDeletionRequests() {
         <Field label="Delay review date (ISO date and time with timezone)" value={delayDates[item.jobId] || ''} onChangeText={value=>setDelayDates(p=>({...p,[item.jobId]:value}))} editable={!busy} />
         {(['approved', 'rejected', 'delayed'] as const).map(decision => {
           const key = `${item.jobId}:${decision}`;
-          return <Action key={decision} compact label={`${confirmation === key ? 'Confirm ' : ''}${decision === 'approved' ? 'approve request' : decision === 'delayed' ? 'document delay' : 'record requester withdrawal'}`} disabled={busy || !notes[item.jobId]?.trim() || (decision === 'approved' && !policyReady) || (decision !== 'approved' && (!references[item.jobId]?.trim() || !reasonCategories[item.jobId]))} onPress={() => confirmation === key ? void review(item, decision) : setConfirmation(key)} />;
+          return <Action key={decision} compact label={`${confirmation === key ? 'Confirm ' : ''}${decision === 'approved' ? 'approve request' : decision === 'delayed' ? 'document delay' : 'record requester withdrawal'}`} disabled={busy || !notes[item.jobId]?.trim() || (decision !== 'approved' && (!references[item.jobId]?.trim() || !reasonCategories[item.jobId]))} onPress={() => confirmation === key ? void review(item, decision) : setConfirmation(key)} />;
         })}
       </>}
     </View>)}
