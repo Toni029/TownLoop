@@ -4,7 +4,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getFirestore, FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const { createHash } = require('node:crypto');
-const { FOLDERS, linkedMedia, approvedMediaPolicy, trustedMedia } = require('./mediaCleanupPolicy.cjs');
+const { FOLDERS, linkedMedia, approvedMediaPolicy, trustedMedia, parentBlocksCleanup } = require('./mediaCleanupPolicy.cjs');
 const database = process.env.TOWNLOOP_FIRESTORE_DATABASE_ID || '(default)';
 const options = { region: 'us-central1', maxInstances: 1, timeoutSeconds: 300 };
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -22,6 +22,7 @@ async function enqueue(db, parent, eventId) {
 }
 for (const collection of Object.keys(FOLDERS)) {
   exports[`cleanupDeleted_${collection}`] = onDocumentDeleted({ ...options, database, document: `${collection}/{recordId}`, retry: true }, async event => {
+    if (process.env.TOWNLOOP_MEDIA_CLEANUP_ENABLED !== 'true') return;
     const data = event.data?.data();
     // Ownershipless legacy data cannot authorize Storage destruction.
     const uid = data?.userId ?? data?.authorId;
@@ -32,6 +33,7 @@ for (const collection of Object.keys(FOLDERS)) {
 // Covers an upload completing after the parent-deletion trigger has already listed its folder.
 // Storage events must use the existing bucket's US-EAST1 location, even when this export is not selected.
 exports.cleanupLateOrphanMedia = onObjectFinalized({ ...options, bucket: 'cc-livingcommunity-app.firebasestorage.app', region: 'us-east1', retry: true }, async event => {
+  if (process.env.TOWNLOOP_MEDIA_CLEANUP_ENABLED !== 'true') return;
   const object = event.data, custom = object.metadata;
   if (!custom || !FOLDERS[custom.collection] || !/^[A-Za-z0-9_-]{1,128}$/.test(custom.recordId || '') ||
       typeof custom.uploadedBy !== 'string' || !custom.uploadedBy || custom.uploadedBy.includes('/')) return;
@@ -41,6 +43,7 @@ exports.cleanupLateOrphanMedia = onObjectFinalized({ ...options, bucket: 'cc-liv
   if (!(await db.doc(`${parent.collection}/${parent.recordId}`).get()).exists) await enqueue(db, parent, event.id);
 });
 exports.resumeMediaCleanup = onSchedule({ ...options, schedule: 'every 15 minutes', timeZone: 'Etc/UTC' }, async () => {
+  if (process.env.TOWNLOOP_MEDIA_CLEANUP_ENABLED !== 'true') return;
   const db = getFirestore(database), bucket = getStorage().bucket();
   const jobs = await db.collection('media_cleanup_jobs').where('status', '==', 'queued').orderBy('lastAttemptAt').limit(10).get();
   for (const job of jobs.docs) {
@@ -51,7 +54,7 @@ exports.resumeMediaCleanup = onSchedule({ ...options, schedule: 'every 15 minute
       if (!approvedMediaPolicy(policy, parent.collection)) {
         await job.ref.update({ lastAttemptAt: FieldValue.serverTimestamp(), lastError: 'pending_owner_policy_and_trusted_upload_cutover' }); continue;
       }
-      if ((await db.doc(`${parent.collection}/${parent.recordId}`).get()).exists) {
+      if (parentBlocksCleanup(await db.doc(`${parent.collection}/${parent.recordId}`).get(), parent)) {
         await job.ref.update({ status: 'parent_restored', lastAttemptAt: FieldValue.serverTimestamp() }); continue;
       }
       const [files, next] = await bucket.getFiles({ prefix: `${FOLDERS[parent.collection]}/`, autoPaginate: false, maxResults: 100, ...(parent.pageToken ? { pageToken: parent.pageToken } : {}) });
@@ -62,7 +65,7 @@ exports.resumeMediaCleanup = onSchedule({ ...options, schedule: 'every 15 minute
         if (!linkedMedia(metadata, parent)) continue;
         if (!trustedMedia(metadata, parent, policy)) { reviewRequired = true; continue; }
         // Recheck immediately before destruction; generation guards object replacement races.
-        if ((await db.doc(`${parent.collection}/${parent.recordId}`).get()).exists) throw Error('Parent restored');
+        if (parentBlocksCleanup(await db.doc(`${parent.collection}/${parent.recordId}`).get(), parent)) throw Error('Parent restored');
         try { await file.delete({ ifGenerationMatch: metadata.generation, ignoreNotFound: true }); }
         catch (error) { if (error.code !== 404) throw error; }
       }
@@ -71,6 +74,7 @@ exports.resumeMediaCleanup = onSchedule({ ...options, schedule: 'every 15 minute
   }
 });
 exports.expireMediaDrafts = onSchedule({ ...options, schedule: 'every 60 minutes', timeZone: 'Etc/UTC' }, async () => {
+  if (process.env.TOWNLOOP_MEDIA_CLEANUP_ENABLED !== 'true') return;
   const db = getFirestore(database);
   // Cursor retained server-side so fresh/invalid drafts cannot starve older records.
   for (const collection of Object.keys(FOLDERS)) {

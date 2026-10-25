@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { clearResidentHomeData } from '../localData/nativeStorage';
 import { app, auth } from './firebase';
 import { reauthenticateDeletionGoogle } from './accountDeletionGoogle';
 
@@ -27,24 +28,25 @@ export async function requestAccountDeletion(password: string, confirmation: str
 
 /** Exact account-scoped keys only; never clear another account's data or all AsyncStorage. */
 export async function clearDeletedAccountCaches(uid: string): Promise<void> {
-  await AsyncStorage.multiRemove([`townloop:home:v1:${uid}`, `townloop:social:liked:${uid}`]);
+  await clearResidentHomeData(uid);
+  await AsyncStorage.multiRemove([`townloop:social:liked:${uid}`]);
 }
 
-export type DeletionRequestStatus = { status: string; jobId?: string; createdAt?: number | null; reviewedAt?: number | null; reason?: string; processingHeld?: boolean };
+export type DeletionRequestStatus = { status: string; jobId?: string; createdAt?: number | null; reviewedAt?: number | null; reason?: string; processingHeld?: boolean; reviewDueAt?: number; escalateAt?: number; retentionDueAt?: number; completionDueAt?: number | null; reviewOverdue?: boolean; escalated?: boolean; processingOverdue?: boolean; retentionOverdue?: boolean };
 export type DeletionReviewItem = DeletionRequestStatus & { jobId: string; name: string; canReview: boolean; isOwnRequest: boolean };
 const deletionCall = <T, R>(name: string, data: T) => httpsCallable<T, R>(getFunctions(app, 'us-central1'), name)(data).then(result => result.data);
 export const getAccountDeletionStatus = () => deletionCall<Record<string, never>, DeletionRequestStatus>('getAccountDeletionStatus', {});
 export const listAccountDeletionRequests = (cursor?: string) => deletionCall<{cursor?: string}, { requests: DeletionReviewItem[]; policyReady: boolean; nextCursor: string | null }>('listAccountDeletionRequests', cursor ? {cursor} : {});
-export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved' | 'rejected', reason: string) =>
-  deletionCall('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision });
+export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved' | 'rejected' | 'delayed', reason: string, context?: {reasonCategory?:string;reasonReference?:string;delayUntil?:number}) =>
+  deletionCall('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision, ...context });
 export function deletionStatusText(request: DeletionRequestStatus): string {
   const labels: Record<string, string> = {
-    none: 'No deletion request submitted.', requested: 'Awaiting Admin/VIP review.',
+    delayed:'Request delayed for a documented legal/security reason; original deadlines remain in effect.', needs_review:'Processing needs office review; unresolved items have not been marked complete.', failed:'Processing interrupted; a retry is pending.', retention_pending:'Personal-data processing completed; minimal receipts await scheduled expiry.', none: 'No deletion request submitted.', requested: 'Awaiting Admin/VIP review.',
     queued: 'Approved. Awaiting authorized processing.', processing: 'Deletion processing is in progress.',
     pending_owner_approval: 'Awaiting an approved retention policy.',
     identity_complete_media_pending: 'Account removed; associated media cleanup is pending.',
     complete: 'Deletion processing completed under the approved retention policy.',
-    rejected: 'Request rejected. Contact the community office if you need a further review.',
+    rejected: 'Request closed after documented withdrawal. Contact the office if this is incorrect.',
   };
   return labels[request.status] || 'Request requires office review.';
 }

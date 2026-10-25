@@ -1,0 +1,30 @@
+{
+  "status": "OWNER_APPROVED_LOCAL_PREPARATION_ONLY_NOT_A_FIRESTORE_IMPORT",
+  "workersEnabled": false,
+  "account": {
+    "ownerApproved": true,
+    "policyVersion": 2,
+    "approvalReference": "townloop-request-deletion-2026-10-25",
+    "reviewBusinessDays": 3,
+    "reviewTimezone": "America/New_York",
+    "businessDays": "Monday-Friday; no holiday calendar is configured",
+    "escalationCalendarDays": 7,
+    "completionCalendarDays": 7,
+    "retentionDays": 60,
+    "retentionAnchor": "original request, never reset by delay or retry",
+    "quarantinedLegacyFiles": "Preserve all six until independent resolution; never included in automatic cleanup",
+    "exceptions": "Documented legal/security case and finite expiry; no indefinite automatic hold",
+    "activationApproved": false,
+    "identityCoverageVerified": false,
+    "mediaCoverageVerified": false,
+    "databaseScopeVerified": false
+  },
+  "remainingActivationGates": [
+    "Resolve schema/identity-specific needs_review receipts before claiming complete deletion",
+    "Verify trusted Storage cutover and exact linkage for avatars and removed-comment attachments",
+    "Verify compatible deletion scope for the existing named web database without switching databases",
+    "Configure review staffing and escalation notifications",
+    "Verify offline/revoked-session cleanup proof and legacy browser data ownership",
+    "Apply and verify the separately approved 60-day backup lifecycle"
+  ]
+}

@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial } = require('./accountDeletionPolicy.cjs');
 function harness(initial, authorizeProcessing = false) {
-  if (authorizeProcessing) for (const [path, job] of Object.entries(initial)) if (path.startsWith("account_deletion_jobs/") && !path.includes("/inventory/")) job.review = { decision: "approved", reviewerId: "fixture-manager", policyReference: initial["deletion_policies/account"]?.approvalReference || "owner-approved-ticket" };
+  if (authorizeProcessing) for (const [path, job] of Object.entries(initial)) if (path.startsWith("account_deletion_jobs/") && !path.includes("/inventory/")) job.review = { decision: "approved", reviewerId: "fixture-manager", reviewedAt:Date.now(), policyReference: initial["deletion_policies/account"]?.approvalReference || "owner-approved-ticket", ...job.review };
   const records = new Map(Object.entries(initial));
   const snapshot = path => ({ id: path.split('/').at(-1), ref: doc(path), exists: records.has(path), data: () => records.get(path) });
   function doc(path) { return { path, get: async () => snapshot(path), update: async patch => {
@@ -35,6 +35,8 @@ function harness(initial, authorizeProcessing = false) {
     return { uid: token === 'valid' ? 'alice' : 'bob', auth_time: Date.now() / 1000 };
   };
   const exports = {}, context = { exports, module: { exports }, require: name => {
+    if (name === './accountDeletionRetention.cjs') return require(name);
+    if (name === './accountDeletionV2.cjs') { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date});return module.exports; }
     if (name === './accountDeletionPolicy.cjs') return require(name);
     if (name === 'node:crypto') return require(name);
     if (name === 'firebase-functions/v2/https') return { onCall: (_, fn) => fn, HttpsError: class extends Error { constructor(code, message) { super(message); this.code = code; } } };
@@ -42,9 +44,9 @@ function harness(initial, authorizeProcessing = false) {
     if (name === 'firebase-admin/firestore') return { getFirestore: () => db, FieldPath: { documentId: () => '__name__' }, FieldValue: { serverTimestamp: () => 'server-time', delete: () => null } };
     if (name === 'firebase-admin/auth') return { getAuth: () => auth };
     throw Error(`Unexpected import: ${name}`);
-  }, process: { env: { TOWNLOOP_ACCOUNT_DELETION_ENABLED: authorizeProcessing ? 'true' : 'false' } }, Date };
+  }, process: { env: { TOWNLOOP_ACCOUNT_DELETION_ENABLED: authorizeProcessing ? 'true' : 'false', TOWNLOOP_DELETION_REVIEW_MONITOR_ENABLED: authorizeProcessing ? 'true' : 'false' } }, Date };
   vm.runInNewContext(fs.readFileSync(require.resolve('./accountDeletion.cjs'), 'utf8') + '\nmodule.exports.run = processJob;', context);
-  return { records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, status: context.module.exports.getAccountDeletionStatus, list: context.module.exports.listAccountDeletionRequests, review: context.module.exports.reviewAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
+  return { records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, escalate:context.module.exports.escalateAccountDeletionRequests, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, status: context.module.exports.getAccountDeletionStatus, list: context.module.exports.listAccountDeletionRequests, review: context.module.exports.reviewAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
 }
 test('deletion request requires exact confirmation and recent authentication, not just a refreshed token', () => {
   const now = 100000000, auth = { uid: 'alice', token: { auth_time: now / 1000 } };
@@ -185,15 +187,15 @@ test('a submitted request cannot enter destructive processing without individual
 });
 
 const reviewInput = (actor = 'bob', data = {}) => ({ auth: {uid:actor}, rawRequest:{headers:{authorization:`Bearer ${actor === 'alice' ? 'valid' : 'wrong-account'}`}}, data });
-const supportedPolicy = () => ({ownerApproved:true,approvalReference:'fixture-policy',collections:Object.fromEntries(SHARED.map(c=>[c,{action:'retain',reason:'Synthetic explicit policy'}]))});
+const supportedPolicy = () => ({ownerApproved:true,policyVersion:2,identityCoverageVerified:true,mediaCoverageVerified:true,databaseScopeVerified:true,retentionDays:60,reviewBusinessDays:3,escalationCalendarDays:7,completionCalendarDays:7,approvalReference:require('./accountDeletionRetention.cjs').POLICY_ID,collections:Object.fromEntries(SHARED.map(c=>[c,{action:'retain',reason:'Synthetic explicit policy'}]))});
 const reviewFixture = (role='admin', approved=true) => ({'users/bob':{role,approved},'users/alice':{role:'resident',approved:true},[`account_deletion_jobs/${jobIdFor('alice')}`]:{uid:'alice',phase:'requested',status:'requested'},'deletion_policies/account':supportedPolicy()});
-const decision = (choice='approved') => ({jobId:jobIdFor('alice'),decision:choice,confirmation:choice,reason:'Synthetic review reason'});
+const decision = (choice='approved') => ({jobId:jobIdFor('alice'),decision:choice,confirmation:choice,reason:'Synthetic review reason',reasonCategory:'requester_withdrawal',reasonReference:'fixture-case'});
 for (const role of ['resident','crew','Admin']) test(`${role} cannot review deletion requests`,async()=>{
  const h=harness(reviewFixture(role)); await assert.rejects(h.review(reviewInput('bob',decision())),e=>e.code==='permission-denied'); assert.deepEqual(h.authCalls,[]);
 });
 for (const role of ['admin','vip']) test(`${role}: independent approval queues only, creates audit, and is idempotent`,async()=>{
  const h=harness(reviewFixture(role)); const result=await h.review(reviewInput('bob',decision())); assert.equal(result.status,'queued');
- assert.ok(h.records.has(`account_deletion_jobs/${jobIdFor('alice')}/reviews/initial`));
+ assert.equal([...h.records.keys()].filter(k=>k.startsWith(`account_deletion_jobs/${jobIdFor('alice')}/reviews/`)).length,1);
  assert.equal((await h.review(reviewInput('bob',decision()))).status,'queued');
  assert.equal(h.records.get(`account_deletion_jobs/${jobIdFor('alice')}`).phase,'requested'); assert.deepEqual(h.authCalls,[]);
  await assert.rejects(h.review(reviewInput('bob',decision('rejected'))),e=>e.code==='failed-precondition');
@@ -226,4 +228,59 @@ test('status rejects revoked sessions and manager queue returns only review-safe
  const result=await h.list(reviewInput('bob',{}));assert.equal(result.requests.length,1);
  assert.equal(result.requests[0].name,'Fixture resident');assert.equal(result.requests[0].uid,undefined);assert.equal(result.requests[0].phone,undefined);
  assert.equal(result.policyReady,true);
+});
+test('v2 canonical deletion is retryable, preserves the other participant and ticket reservations, and retains receipts only until expiry',async()=>{
+ const id=jobIdFor('alice'),other={id:'m2',senderId:'bob',body:'Other private message'};
+ const initial=reviewFixture();initial['account_deletion_jobs/'+id].createdAt=Date.now();
+ initial['work_orders/one']={userId:'alice',code:'1234',status:'Done',description:'private',comments:[]};
+ initial['work_order_numbers/1234']={orderId:'one'};
+ initial['resident_chats/shared']={identityVersion:2,participantIds:['alice','bob'],messages:[{id:'m1',senderId:'alice',body:'remove'},other]};
+ initial['posts/other']={userId:'bob',comments:[{authorId:'alice',text:'remove'},{authorId:'bob',text:'keep'}]};
+ const h=harness(initial,true),ref=h.db.doc('account_deletion_jobs/'+id);
+ for(let i=0;i<40;i++)await h.run(h.db,h.auth,ref);
+ assert.equal(h.records.has('users/alice'),false);assert.ok(h.records.has('users/bob'));
+ assert.equal(h.records.get('work_orders/one').code,'1234');assert.equal(h.records.get('work_orders/one').userId,undefined);assert.ok(h.records.has('work_order_numbers/1234'));
+ assert.equal(h.records.get('posts/other').comments.length,1);assert.equal(h.records.get('resident_chats/shared').messages[1].body,other.body);
+ assert.equal(h.records.get(ref.path).status,'retention_pending');assert.equal(h.authCalls.filter(([x])=>x==='delete').length,1);
+});
+test('delays require a legitimate case, finite review date, and do not reset original deadlines',async()=>{
+ const initial=reviewFixture();initial['account_deletion_jobs/'+jobIdFor('alice')].createdAt=Date.now();const h=harness(initial);
+ const input={...decision('delayed'),reasonCategory:'legal_obligation',reasonReference:'fixture-case',delayUntil:Date.now()+86400000};
+ await h.review(reviewInput('bob',input));await h.review(reviewInput('bob',input));
+ assert.equal([...h.records.keys()].filter(k=>k.includes('/reviews/')).length,1);
+ assert.equal(h.records.get('account_deletion_jobs/'+jobIdFor('alice')).status,'delayed');assert.deepEqual(h.authCalls,[]);
+ await assert.rejects(h.review(reviewInput('bob',{...input,reasonReference:'bad',delayUntil:Infinity})),e=>e.code==='invalid-argument');
+ await assert.rejects(h.review(reviewInput('bob',{...decision('rejected'),reasonCategory:'security_investigation'})),e=>e.code==='failed-precondition');
+});
+test('failed jobs remain scheduled and retry their durable phase',async()=>{
+ const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'private',status:'failed',createdAt:Date.now(),failureCount:1}},true);
+ // The earlier failure occurred before private erasure; retry must remain eligible.
+ await h.schedule();assert.notEqual(h.records.get(h.ref.path).status,'failed');assert.ok(h.authCalls.some(([x])=>x==='delete'));
+});
+test('expired completed and withdrawn receipts erase only their own minimal records, never user accounts',async()=>{
+ const created=Date.now()-61*86400000,due=require('./accountDeletionRetention.cjs').deadlines(created).retentionDueAt;
+ const h=harness({'users/alice':{approved:true},'account_deletion_jobs/job':{uid:'alice',phase:'requested',status:'rejected',createdAt:created},'account_deletion_jobs/job/reviews/review':{decision:'rejected'},'users/bob':{approved:true}},true);
+ await h.run(h.db,h.auth,h.ref);await h.run(h.db,h.auth,h.ref);assert.equal(h.records.has(h.ref.path),false);assert.ok(h.records.has('users/alice'));assert.deepEqual(h.authCalls,[]);
+});
+test('seven-day review escalation is durable, idempotent, and never approves or deletes',async()=>{
+ const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'requested',status:'requested',createdAt:Date.now()-8*86400000,lastAttemptAt:1},'users/alice':{approved:true}},true);
+ delete h.records.get(h.ref.path).review;
+ await h.escalate();await h.escalate();assert.equal(h.records.get(h.ref.path).escalated,true);assert.equal([...h.records.keys()].filter(k=>k.includes('/reviews/')).length,1);
+ assert.equal(h.records.get(h.ref.path).status,'requested');assert.deepEqual(h.authCalls,[]);assert.ok(h.records.has('users/alice'));
+});
+test('review monitoring is disabled by default',async()=>{
+ const h=harness({'account_deletion_jobs/job':{uid:'alice',status:'requested',createdAt:Date.now()-8*86400000}});
+ await h.escalate();assert.equal(h.records.get(h.ref.path).escalated,undefined);
+});
+test('a transient Auth failure is recorded and the next scheduled invocation retries successfully',async()=>{
+ const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'auth',status:'queued',createdAt:Date.now()}},true);
+ let first=true;h.auth.deleteUser=async uid=>{if(first){first=false;throw Error('synthetic transient failure');}h.authCalls.push(['delete',uid]);};
+ await h.schedule();assert.equal(h.records.get(h.ref.path).status,'failed');assert.equal(h.records.get(h.ref.path).failureCount,1);
+ await h.schedule();assert.equal(h.records.get(h.ref.path).status,'complete');assert.equal(h.authCalls.filter(([x])=>x==='delete').length,1);
+});
+test('60-day completed audit expiry is bounded, retryable and preserves unrelated audit records',async()=>{
+ const created=Date.now()-61*86400000,due=require('./accountDeletionRetention.cjs').deadlines(created).retentionDueAt;
+ const initial={'account_deletion_jobs/job':{uid:'alice',phase:'retention_receipts',status:'retention_pending',createdAt:created,policyVersion:2},'deletion_policies/account':supportedPolicy(),'account_deletion_jobs/job/inventory/one':{state:'redacted',expireRecord:true,path:'moderation_audit/one'},'moderation_audit/one':{status:'handled',deletionExpiresAt:due},'moderation_audit/other':{status:'handled'}};
+ const h=harness(initial,true);for(let i=0;i<4;i++)await h.run(h.db,h.auth,h.ref);
+ assert.equal(h.records.has('moderation_audit/one'),false);assert.ok(h.records.has('moderation_audit/other'));assert.equal(h.records.has(h.ref.path),false);assert.deepEqual(h.authCalls,[]);
 });

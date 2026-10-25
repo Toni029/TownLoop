@@ -42,6 +42,7 @@ function approvedSharedSocialRetention(policy, collection) {
 }
 // Requests remain usable until the operator has a complete supported processing policy.
 function accountPolicyReady(policy) {
+  if (policy?.policyVersion === 2) return require('./accountDeletionRetention.cjs').policyReady(policy);
   return SHARED.every(collection => {
     const entry = policy?.collections?.[collection];
     if (entry?.retentionDays != null || entry?.expiresAfterDays != null) return false;

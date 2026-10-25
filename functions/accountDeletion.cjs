@@ -2,6 +2,8 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
+const retention = require('./accountDeletionRetention.cjs');
+const { processRetentionStep } = require('./accountDeletionV2.cjs');
 const { randomUUID } = require('node:crypto');
 const { accountPolicyReady, jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention } = require('./accountDeletionPolicy.cjs');
 const database = process.env.TOWNLOOP_FIRESTORE_DATABASE_ID || '(default)';
@@ -21,7 +23,7 @@ exports.requestAccountDeletion = onCall({ ...options, timeoutSeconds: 60 }, asyn
   const status = await db.runTransaction(async tx => {
     const existing = await tx.get(ref);
     if (!existing.exists) tx.create(ref, { uid: verified.uid, phase: 'requested', status: 'requested',
-      createdAt: FieldValue.serverTimestamp(), lastAttemptAt: FieldValue.serverTimestamp(), collectionIndex: 0, cursor: '', inventoryComplete: false });
+      createdAt: FieldValue.serverTimestamp(), ...retention.deadlines(Date.now()), lastAttemptAt: FieldValue.serverTimestamp(), collectionIndex: 0, cursor: '', inventoryComplete: false });
     return existing.exists ? existing.data().status : 'requested';
   });
   return { jobId, status };
@@ -50,7 +52,9 @@ async function managerSession(request) {
 function requestSummary(id, job) {
   return { jobId: id, status: job.status, createdAt: job.createdAt?.toMillis?.() || null,
     reviewedAt: job.review?.reviewedAt?.toMillis?.() || null,
-    reason: job.review?.decision === 'rejected' ? job.review.reason : '',
+    ...retention.deadlines(job.createdAt, job.review?.decision === 'approved' ? job.review.reviewedAt : null),
+    reason: ['rejected','delayed'].includes(job.review?.decision) ? job.review.reason : '',
+    escalationReason: job.escalationReason || '', nextReviewAt: job.review?.nextReviewAt || null,
     processingHeld: process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED !== 'true' };
 }
 exports.getAccountDeletionStatus = onCall({ ...options, timeoutSeconds: 60 }, async request => {
@@ -61,7 +65,7 @@ exports.getAccountDeletionStatus = onCall({ ...options, timeoutSeconds: 60 }, as
 exports.listAccountDeletionRequests = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   await managerSession(request);
   const db = getFirestore(database);
-  let query = db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'pending_owner_approval', 'queued']).orderBy('lastAttemptAt').limit(50);
+  let query = db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'pending_owner_approval', 'queued', 'delayed', 'processing', 'needs_review', 'identity_complete_media_pending', 'retention_pending', 'failed']).orderBy('lastAttemptAt').limit(50);
   if (request.data?.cursor) {
     if (!/^[a-f0-9]{64}$/.test(request.data.cursor)) throw new HttpsError('invalid-argument', 'Invalid page.');
     const cursor = await db.doc(`account_deletion_jobs/${request.data.cursor}`).get();
@@ -73,16 +77,18 @@ exports.listAccountDeletionRequests = onCall({ ...options, timeoutSeconds: 60 },
   const requests = await Promise.all(jobs.docs.map(async job => {
     const data = job.data(), profile = (await db.doc(`resident_directory/${data.uid}`).get()).data();
     return { ...requestSummary(job.id, data), name: profile?.name || 'Resident',
-      canReview: data.review?.decision !== 'approved', isOwnRequest: data.uid === request.auth.uid };
+      canReview: !['approved','rejected'].includes(data.review?.decision), isOwnRequest: data.uid === request.auth.uid };
   }));
-  return { requests, policyReady: accountPolicyReady(policy), nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
+  return { requests, policyReady: retention.policyReady(policy), nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
 });
 exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const token = await managerSession(request);
   const { jobId, decision, reason, confirmation } = request.data || {};
-  if (!/^[a-f0-9]{64}$/.test(jobId || '') || !['approved', 'rejected'].includes(decision) || confirmation !== decision ||
+  if (!/^[a-f0-9]{64}$/.test(jobId || '') || !['approved', 'rejected', 'delayed'].includes(decision) || confirmation !== decision ||
       typeof reason !== 'string' || !reason.trim() || reason.length > 1000)
     throw new HttpsError('invalid-argument', 'Confirm the decision and provide a brief reason.');
+  if (decision !== 'approved' && (!retention.REASONS.has(request.data.reasonCategory) || typeof request.data.reasonReference !== 'string' || !request.data.reasonReference.trim() || request.data.reasonReference.length > 200))
+    throw new HttpsError('invalid-argument', 'A legitimate reason category and case/reference are required.');
   const db = getFirestore(database), ref = db.doc(`account_deletion_jobs/${jobId}`);
   return db.runTransaction(async tx => {
     // Re-read canonical role atomically with the decision, preventing stale privileges.
@@ -92,22 +98,44 @@ exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }
       throw new HttpsError('permission-denied', 'Admin/VIP approval is required.');
     if (!current.exists) throw new HttpsError('not-found', 'Request not found.');
     if (job.uid === token.uid) throw new HttpsError('permission-denied', 'Another Admin/VIP must review your request.');
-    if (job.review) {
+    if (job.review?.decision === 'delayed' && decision === 'delayed' && job.review.reviewerId === token.uid && job.review.reasonReference === request.data.reasonReference && job.review.reason === reason.trim()) return requestSummary(jobId, job);
+    if (job.review && job.review.decision !== 'delayed') {
       if (job.review.decision === decision && job.review.reviewerId === token.uid) return requestSummary(jobId, job);
       throw new HttpsError('failed-precondition', 'This request was already reviewed.');
     }
-    if (!['requested', 'pending_owner_approval', 'queued'].includes(job.status) || !['requested', 'disable'].includes(job.phase))
+    if (!['requested', 'pending_owner_approval', 'queued', 'delayed'].includes(job.status) || !['requested', 'disable'].includes(job.phase))
       throw new HttpsError('failed-precondition', 'This request is not awaiting review.');
-    if (decision === 'approved' && !accountPolicyReady(policy))
+    if (decision === 'approved' && !retention.policyReady(policy))
       throw new HttpsError('failed-precondition', 'The owner-approved retention policy is not yet supported. No deletion has started.');
+    if(decision === 'rejected' && request.data.reasonCategory !== 'requester_withdrawal') throw new HttpsError('failed-precondition','Verified requests cannot be arbitrarily denied. Only documented requester withdrawal can close a request without deletion.');
+    const delayUntil = Number(request.data.delayUntil);
+    if(decision === 'delayed' && (!['legal_obligation','security_investigation'].includes(request.data.reasonCategory) || !Number.isFinite(delayUntil) || delayUntil <= Date.now() || delayUntil > retention.deadlines(job.createdAt).retentionDueAt)) throw new HttpsError('invalid-argument','A documented legal/security delay needs a finite review date within the original 60-day window.');
     const review = { decision, reviewerId: token.uid, reviewedAt: FieldValue.serverTimestamp(), reason: reason.trim(),
-      policyReference: decision === 'approved' ? policy.approvalReference : null };
-    const status = decision === 'approved' ? 'queued' : 'rejected';
-    tx.create(ref.collection('reviews').doc('initial'), review);
+      policyReference: decision === 'approved' ? policy.approvalReference : null,
+      reasonCategory: decision === 'approved' ? 'verified_request' : request.data.reasonCategory, reasonReference: decision === 'approved' ? '' : request.data.reasonReference.trim(), ...(decision === 'delayed' ? {nextReviewAt:delayUntil} : {}) };
+    const status = decision === 'approved' ? 'queued' : decision;
+    tx.create(ref.collection('reviews').doc(randomUUID()), { ...review, expiresAt: new Date(retention.deadlines(job.createdAt).retentionDueAt || Date.now()) });
     tx.update(ref, { review, status, lastAttemptAt: FieldValue.serverTimestamp() });
     return { jobId, status };
   });
 });
+
+async function expireDeletionReceipts(db, ref, job) {
+    const due=retention.deadlines(job.createdAt).retentionDueAt;
+    if(!Number.isFinite(due)||Date.now()<due)return;
+    // Bounded erasure of account-linked inventory and review receipts, then the UID-bearing job.
+    for(const name of ['inventory','reviews']) {
+      const page=await ref.collection(name).limit(100).get();
+      if(!page.empty){
+        for(const receipt of page.docs)await db.runTransaction(async tx=>{
+          const live=await tx.get(receipt.ref),data=live.data();
+          if(name==='inventory'&&data?.expireRecord){const recordRef=db.doc(data.path),record=await tx.get(recordRef);if(record.data()?.deletionExpiresAt===due)tx.delete(recordRef);}
+          tx.delete(receipt.ref);
+        });return;
+      }
+    }
+    await db.runTransaction(async tx=>{tx.delete(ref);});return;
+}
 
 async function processJob(db, auth, ref) {
   const snapshot = await ref.get();
@@ -115,10 +143,29 @@ async function processJob(db, auth, ref) {
   const job = snapshot.data(), uid = job.uid;
   // Deployment alone must never activate deletion. Both operator activation and
   // an independent per-request Admin/VIP decision are mandatory at every phase.
-  if (process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED !== 'true' ||
+  if (process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED !== 'true') return;
+  if(job.status==='rejected') { await expireDeletionReceipts(db,ref,job); return; }
+  if (
       job.review?.decision !== 'approved' || typeof job.review.reviewerId !== 'string' ||
-      job.review.reviewerId === uid || !job.review.reviewerId || !job.review.policyReference || job.status === 'rejected') return;
+      job.review.reviewerId === uid || !job.review.reviewerId || !job.review.policyReference) return;
   if (typeof uid !== 'string' || !uid || uid.includes('/')) throw Error('Invalid deletion job');
+  if(job.policyVersion===2 || job.phase?.startsWith('v2_')) { const policy=(await db.doc('deletion_policies/account').get()).data(); if(!retention.policyReady(policy)||policy.approvalReference!==job.review.policyReference){await ref.update({status:'pending_owner_approval',lastError:'policy_changed_or_incomplete'});return;} }
+  if (job.phase === 'v2_verify') {
+    let query=ref.collection('inventory').orderBy(FieldPath.documentId()).limit(100);
+    if(job.verifyCursor)query=query.startAfter(job.verifyCursor);
+    const page=await query.get();
+    for(const receipt of page.docs) {
+      const data=receipt.data();
+      if(!['redacted','already_absent'].includes(data.state)) {await ref.update({status:'needs_review',lastError:data.reason || 'unresolved_inventory_state',escalated:true});return;}
+      if(data.cleanupJobId) {const media=await db.doc(`media_cleanup_jobs/${data.cleanupJobId}`).get();if(media.data()?.status!=='complete'){await ref.update({status:'identity_complete_media_pending',lastError:'media_cleanup_pending'});return;}}
+    }
+    await ref.update(page.size===100?{verifyCursor:page.docs.at(-1).id}:{phase:'retention_receipts',status:'retention_pending',completedAt:FieldValue.serverTimestamp()});return;
+  }
+  if(job.phase==='retention_receipts') { await expireDeletionReceipts(db,ref,job); return; }
+  if (job.phase?.startsWith('v2_') || job.phase === 'requested' || job.phase === 'disable') {
+    const policy = (await db.doc('deletion_policies/account').get()).data();
+    if (policy?.policyVersion === 2 || job.phase?.startsWith('v2_')) { await processRetentionStep(db, auth, ref, job); return; }
+  }
   if (job.phase === 'requested' || job.phase === 'disable') {
     const policy = (await db.doc('deletion_policies/account').get()).data();
     if (!accountPolicyReady(policy) || policy.approvalReference !== job.review.policyReference) {
@@ -150,9 +197,9 @@ async function processJob(db, auth, ref) {
   }
   if (job.phase === 'auth') {
     try { await auth.updateUser(uid, { disabled: true }); await auth.revokeRefreshTokens(uid); await auth.deleteUser(uid); } catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
-    await ref.update({ phase: job.mediaCleanupRequired ? 'media' : 'done', status: job.mediaCleanupRequired ? 'identity_complete_media_pending' : 'complete',
+    await ref.update({ phase: job.policyVersion === 2 ? 'v2_verify' : job.mediaCleanupRequired ? 'media' : 'done', status: job.policyVersion === 2 || job.mediaCleanupRequired ? 'identity_complete_media_pending' : 'complete',
       mediaCleanupStatus: job.mediaCleanupRequired ? 'waiting_for_policy_gated_jobs' : 'no_owned_social_deletion_requested',
-      identityDeletedAt: FieldValue.serverTimestamp(), ...(job.mediaCleanupRequired ? { mediaCursor: '' } : { completedAt: FieldValue.serverTimestamp() }) }); return;
+      identityDeletedAt: FieldValue.serverTimestamp(), ...(job.policyVersion === 2 || job.mediaCleanupRequired ? { mediaCursor: '' } : { completedAt: FieldValue.serverTimestamp() }) }); return;
   }
   if (job.phase === 'media') {
     let query = ref.collection('inventory').orderBy(FieldPath.documentId()).limit(100);
@@ -227,7 +274,7 @@ async function processJob(db, auth, ref) {
 exports.resumeAccountDeletions = onSchedule({ ...options, schedule: 'every 5 minutes', timeZone: 'Etc/UTC' }, async () => {
   if (process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED !== 'true') return;
   const db = getFirestore(database);
-  const jobs = await db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'queued', 'processing', 'pending_owner_approval', 'identity_complete_media_pending']).orderBy('lastAttemptAt').limit(20).get();
+  const jobs = await db.collection('account_deletion_jobs').where('status', 'in', ['queued', 'processing', 'pending_owner_approval', 'identity_complete_media_pending', 'needs_review', 'retention_pending', 'rejected', 'failed']).orderBy('lastAttemptAt').limit(20).get();
   for (const job of jobs.docs) {
     const leaseOwner = randomUUID();
     const claimed = await db.runTransaction(async tx => {
@@ -235,7 +282,7 @@ exports.resumeAccountDeletions = onSchedule({ ...options, schedule: 'every 5 min
       if (!current || current.status === 'complete' || current.leaseUntil > Date.now()) return false;
       // Lease exceeds this invocation's 300-second timeout. A crashed invocation is
       // reclaimable; overlapping cron deliveries cannot advance stale job phases.
-      tx.update(job.ref, { leaseOwner, leaseUntil: Date.now() + 6 * 60000 }); return true;
+      tx.update(job.ref, { ...(current.status === 'failed' ? {status:'processing'} : {}), leaseOwner, leaseUntil: Date.now() + 6 * 60000 }); return true;
     });
     if (!claimed) continue;
     let failed = false;
@@ -245,11 +292,34 @@ exports.resumeAccountDeletions = onSchedule({ ...options, schedule: 'every 5 min
     } catch { failed = true; }
     finally {
       await db.runTransaction(async tx => {
-        if ((await tx.get(job.ref)).data()?.leaseOwner === leaseOwner) tx.update(job.ref, {
-          lastAttemptAt: FieldValue.serverTimestamp(), lastError: failed ? 'retry_required' : FieldValue.delete(),
+        const finalJob=(await tx.get(job.ref)).data();
+        if (finalJob?.leaseOwner === leaseOwner) tx.update(job.ref, {
+          lastAttemptAt: FieldValue.serverTimestamp(), ...(failed ? { status:'failed', lastError:'retry_required', failureCount:(finalJob.failureCount||0)+1 } : {}),
           leaseOwner: FieldValue.delete(), leaseUntil: FieldValue.delete(),
         });
       });
     }
   }
+});
+
+// Non-destructive review escalation is a separate, disabled-by-default worker.
+// It records an office-queue escalation; no email/push or deletion is sent here.
+exports.escalateAccountDeletionRequests = onSchedule({ ...options, schedule: 'every 60 minutes', timeZone: 'America/New_York' }, async () => {
+  if(process.env.TOWNLOOP_DELETION_REVIEW_MONITOR_ENABLED!=='true')return;
+  const db=getFirestore(database), cursor=db.doc('deletion_policies/review_cursor'), state=(await cursor.get()).data();
+  let query=db.collection('account_deletion_jobs').where('status','in',['requested','delayed','queued','processing','failed','needs_review','identity_complete_media_pending']).orderBy('lastAttemptAt').orderBy(FieldPath.documentId()).limit(50);
+  if(state?.lastAttemptAt && state?.lastJobId)query=query.startAfter(state.lastAttemptAt,state.lastJobId);
+  const page=await query.get();
+  for(const job of page.docs)await db.runTransaction(async tx=>{
+    const current=(await tx.get(job.ref)).data();if(!current)return;
+    const dates=retention.deadlines(current.createdAt,current.review?.decision==='approved'?current.review.reviewedAt:null);
+    const delayExpired=current.review?.decision==='delayed'&&Number(current.review.nextReviewAt)<=Date.now();
+    if(!dates.escalated&&!dates.processingOverdue&&!dates.retentionOverdue&&!delayExpired&&!dates.requiresDeadlineReview)return;
+    const reason=dates.retentionOverdue?'retention_overdue':dates.processingOverdue?'processing_overdue':delayExpired?'delay_review_due':'review_escalated';
+    const receipt=job.ref.collection('reviews').doc(`escalation_${reason}`),existing=await tx.get(receipt);
+    if(!existing.exists)tx.create(receipt,{kind:'escalation',reason,createdAt:FieldValue.serverTimestamp(),expiresAt:new Date(dates.retentionDueAt||Date.now())});
+    tx.update(job.ref,{escalated:true,escalationReason:reason});
+  });
+  const last=page.docs.at(-1);
+  await db.runTransaction(async tx=>{tx.set(cursor,page.size===50?{lastAttemptAt:last.data().lastAttemptAt,lastJobId:last.id}:{lastAttemptAt:null,lastJobId:''});});
 });

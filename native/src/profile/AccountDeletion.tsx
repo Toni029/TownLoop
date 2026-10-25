@@ -45,7 +45,7 @@ export function AccountDeletion() {
       <Text style={styles.title}>Request Account Deletion</Text>
     </Pressable>
     {expanded && <View style={styles.fields}>
-      <Text style={styles.body}>Submit a verified request to permanently delete your account and associated data. Sending the request does not immediately delete your account or sign you out. Shared records are handled under the approved retention policy when processing begins.</Text>
+      <Text style={styles.body}>Submit a verified request to permanently delete your account and associated data. Sending the request does not immediately delete your account or sign you out. Admin/VIP review is due within 3 business days, with escalation after 7 calendar days. Approved requests target personal-data processing within 7 days. Ordinary retention/redaction is limited to 60 days from the request. Verified local data is cleared when this device next connects; offline copies cannot be erased remotely.</Text>
       {!accepted && <>
         {needsPassword && <TextInput accessibilityLabel="Current password" placeholder="Current password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!busy} style={styles.input} />}
         <TextInput accessibilityLabel="Type DELETE to confirm the deletion request" placeholder="Type DELETE to confirm" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" autoCorrect={false} editable={!busy} style={styles.input} />
@@ -55,6 +55,7 @@ export function AccountDeletion() {
       </>}
     </View>}
     {accepted && <Text accessibilityLiveRegion="polite" style={styles.body}>{deletionStatusText(request)}{request.reason ? ` ${request.reason}` : ''}</Text>}
+    {accepted && !!request.reviewDueAt && <Text style={styles.body}>Review due: {new Date(request.reviewDueAt).toLocaleString()}{request.escalated ? " — escalated to the office" : ""}.</Text>}
     <Pressable accessibilityRole="button" accessibilityLabel="Refresh deletion request status" disabled={busy || checking} onPress={() => void refresh()}><Text style={styles.body}>{checking ? 'Checking status…' : 'Refresh request status'}</Text></Pressable>
     {!!message && <Text accessibilityRole="alert" style={styles.body}>{message}</Text>}
   </View>;

@@ -24,7 +24,9 @@ test('older binaries keep auth/home usable without ever requiring the missing Se
   });
   assert.equal(module.exports.hasProtectedStorage, false);
   assert.equal(module.exports.authPersistenceStorage, asyncStorage);
-  assert.equal(module.exports.protectedHomeStorage, asyncStorage);
+  assert.equal(await module.exports.protectedHomeStorage.getItem('unrelated'),null);
   await module.exports.clearResidentHomeData('resident-a');
   assert.deepEqual(removed, ['townloop:home:v1:resident-a']);
+  await assert.rejects(module.exports.protectedHomeStorage.setItem('townloop:home:v1:resident-a','late write'),/removed/);
+  await module.exports.protectedHomeStorage.setItem('townloop:home:v1:resident-b','other account');
 });

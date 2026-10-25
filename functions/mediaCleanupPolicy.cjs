@@ -23,3 +23,10 @@ function trustedMedia(metadata, parent, policy) {
   return Number.isFinite(created) && created >= policy.trustedUploadsAfter.toMillis();
 }
 module.exports = { FOLDERS, linkedMedia, approvedMediaPolicy, trustedMedia };
+
+function parentBlocksCleanup(snapshot, job) {
+  if(!snapshot.exists)return false;
+  const data=snapshot.data();
+  return job.detached!==true || data.personalDataRemoved!==true || !!data.userId || !!data.userEmail || !!data.photoUrl || (data.photos?.length||0)>0 || (data.comments?.length||0)>0;
+}
+module.exports.parentBlocksCleanup=parentBlocksCleanup;

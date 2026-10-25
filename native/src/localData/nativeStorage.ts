@@ -18,12 +18,18 @@ function secretStorage(allowBackgroundAuth = false): KeyValueStorage | null {
 }
 const secrets = secretStorage();
 export const hasProtectedStorage = secrets !== null;
-export const protectedHomeStorage: KeyValueStorage = secrets
+const homeStorage: KeyValueStorage = secrets
   ? createProtectedStorage(secrets, AsyncStorage, readHome)
   : AsyncStorage;
+const removedHomeKeys = new Set<string>();
+export const protectedHomeStorage: KeyValueStorage = {
+  getItem: key => removedHomeKeys.has(key) ? Promise.resolve(null) : homeStorage.getItem(key),
+  setItem: (key, value) => removedHomeKeys.has(key) ? Promise.reject(new Error('This account data has been removed.')) : homeStorage.setItem(key,value),
+  removeItem: key => homeStorage.removeItem(key),
+};
 // Firebase's supported RN Persistence interface requires get/set/remove. Chunking
 // avoids treating arbitrarily large token-bearing Firebase JSON as one Keychain item.
 const authSecrets = secretStorage(true);
 export const authPersistenceStorage = authSecrets ? createProtectedStorage(authSecrets, AsyncStorage) : AsyncStorage;
 /** Explicit account deletion only. Ordinary sign out preserves this resident's records. */
-export const clearResidentHomeData = (uid: string) => protectedHomeStorage.removeItem(storageKey(uid));
+export const clearResidentHomeData = (uid: string) => { const key=storageKey(uid); removedHomeKeys.add(key); return homeStorage.removeItem(key); };

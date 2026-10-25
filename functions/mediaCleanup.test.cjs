@@ -21,3 +21,10 @@ test('legacy forgeable metadata cannot delete media without approved policy and 
   for (const value of [undefined, {}, { ...policy, ownerApproved: false }, { ...policy, trustedUploadsAfter: '2026-10-21' }, { ...policy, collections: {} }]) assert.equal(trustedMedia(postCutover, parent, value), false);
   for (const value of [{ ...object, timeCreated: '2026-10-21T11:59:59Z' }, { ...object, metadata: { ...object.metadata, uploadedAt: '2027-01-01T00:00:00Z' } }, { ...object, timeCreated: 'untrusted' }]) assert.equal(trustedMedia(value, parent, policy), false);
 });
+test('detached cleanup only permits a server-redacted parent with personal/media fields absent',()=>{
+ const {parentBlocksCleanup}=require('./mediaCleanupPolicy.cjs');
+ const snapshot=data=>({exists:true,data:()=>data});
+ assert.equal(parentBlocksCleanup(snapshot({personalDataRemoved:true,comments:[]}),{detached:true}),false);
+ for(const data of [{personalDataRemoved:false},{personalDataRemoved:true,userId:'resident'},{personalDataRemoved:true,photos:['keep']},{personalDataRemoved:true,comments:[{photoUrl:'keep'}]}])assert.equal(parentBlocksCleanup(snapshot(data),{detached:true}),true);
+ assert.equal(parentBlocksCleanup(snapshot({personalDataRemoved:true}),{}),true);
+});
