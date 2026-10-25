@@ -7,3 +7,8 @@ test('build artifact gate rejects missing compiled native option instead of trus
   assert.throws(()=>verifyArtifact(path.join(root,'broken.apk')),/compiled startup/);verifyArtifact(path.join(root,'fixed.apk'));
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('patched video module is explicitly compiled from source, without disabling other prebuilt modules',()=>{
+ const config=require('../package.json').expo.autolinking;
+ assert.deepEqual(config.android.buildFromSource,['expo-video']);
+});

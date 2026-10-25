@@ -2,6 +2,8 @@
 const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const {applyStartupPatch}=require('./patch-startup-video.cjs');
 function prepare() {
+  const settings=require('../package.json').expo?.autolinking?.android?.buildFromSource;
+  if(!Array.isArray(settings)||!settings.includes('expo-video'))throw Error('Patched expo-video must build from source, never the precompiled AAR');
   applyStartupPatch();
   const root=path.dirname(require.resolve('expo-video/package.json'));
   for(const change of require('../patches/startup-video.json'))if(!fs.readFileSync(path.join(root,change.file),'utf8').includes(change.after))throw Error('Native startup opt-out missing before compilation');
