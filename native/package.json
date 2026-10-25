@@ -69,7 +69,9 @@
     "build:development": "eas build --platform android --profile development",
     "build:preview": "eas build --platform android --profile preview",
     "update:preview": "node scripts/publish-preview.cjs",
-    "eas": "eas"
+    "eas": "eas",
+    "eas-build-post-install": "node scripts/verify-native-build.cjs prepare",
+    "eas-build-pre-upload-artifacts": "node scripts/verify-native-build.cjs"
   },
   "private": true,
   "overrides": {
