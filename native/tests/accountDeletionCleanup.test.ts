@@ -14,7 +14,7 @@ function fixture() {
   'react-native':{AppState:{addEventListener:()=>({remove(){}})}},
   'firebase/auth':{onAuthStateChanged:(_a:any,fn:any)=>{onAuth=fn;return()=>{};},reload:async()=>{if(reloadError)throw {code:reloadError};},signOut:async()=>{signedOut.push(auth.currentUser.uid);auth.currentUser=null;}},
   'firebase/firestore':{doc:()=>({}),onSnapshot:(_r:any,fn:any)=>{onProfile=fn;return()=>{};}},
-  './firebase':{auth,db:{}},'./accountDeletion':{clearDeletedAccountCaches:async(uid:string)=>{cleared.push(uid);}},
+  './firebase':{auth,db:{}},'./accountDeletion':{clearDeletedAccountCaches:async(uid:string)=>{cleared.push(uid);},retryPendingAccountCleanup:async()=>{}},
   '../../../src/services/registrationRecovery':{MISSING_REGISTRATION_MESSAGE:'missing'},'./profile':{readProfile:(x:any)=>x,friendlyError:()=> 'error'},
  };
  vm.runInNewContext(source,{exports,require:(name:string)=>modules[name]});exports.SessionProvider({children:null});
@@ -22,7 +22,7 @@ function fixture() {
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('cached deletion flags and ordinary auth errors never erase medications',async()=>{
- for(const code of ['auth/network-request-failed','auth/user-token-expired','auth/user-disabled']){
+ for(const code of ['auth/network-request-failed','auth/user-token-expired']){
   const h=fixture();h.fail(code);h.start();h.snapshot(true);await tick();assert.deepEqual(h.cleared,[]);
  }
 });
@@ -31,4 +31,8 @@ test('authoritative processing flag clears only the confirmed account and signs 
 });
 test('verified missing Auth identity clears that account without signing out a newly switched account',async()=>{
  const h=fixture();h.fail('auth/user-not-found');h.start();h.auth.currentUser={uid:'bob'};await tick();assert.deepEqual(h.cleared,['alice']);assert.deepEqual(h.signedOut,[]);
+});
+
+test('server-confirmed disabled identity clears only its own account after reconnect',async()=>{
+ const h=fixture();h.fail('auth/user-disabled');h.start();h.auth.currentUser={uid:'bob'};await tick();assert.deepEqual(h.cleared,['alice']);assert.deepEqual(h.signedOut,[]);
 });

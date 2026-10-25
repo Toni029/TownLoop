@@ -1,9 +1,9 @@
+import { PrivateImage as Image } from '../components/PrivateImage';
 import { SafetyActions } from "../components/SafetyActions";
 import { usePresentation } from "../shell/TownLoopShell";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   FlatList,
   View,

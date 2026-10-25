@@ -1,7 +1,9 @@
+import { clearPrivateMediaCache } from '../localData/privateMediaCache';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { clearResidentHomeData } from '../localData/nativeStorage';
+import { createAccountCleanupQueue } from '../localData/accountCleanupQueue';
+import { authPersistenceStorage, clearResidentHomeData } from '../localData/nativeStorage';
 import { app, auth } from './firebase';
 import { reauthenticateDeletionGoogle } from './accountDeletionGoogle';
 
@@ -27,10 +29,18 @@ export async function requestAccountDeletion(password: string, confirmation: str
 }
 
 /** Exact account-scoped keys only; never clear another account's data or all AsyncStorage. */
-export async function clearDeletedAccountCaches(uid: string): Promise<void> {
+async function clearAccountFiles(uid: string): Promise<void> {
   await clearResidentHomeData(uid);
+  await clearPrivateMediaCache(uid);
   await AsyncStorage.multiRemove([`townloop:social:liked:${uid}`]);
 }
+
+const cleanupQueue = createAccountCleanupQueue(authPersistenceStorage, clearAccountFiles);
+export const clearDeletedAccountCaches = (uid: string) => cleanupQueue.enqueue(uid);
+export const retryPendingAccountCleanup = async () => {
+  const completed = await cleanupQueue.retry();
+  if (auth.currentUser && completed.includes(auth.currentUser.uid)) await signOut(auth);
+};
 
 export type DeletionRequestStatus = { status: string; jobId?: string; createdAt?: number | null; reviewedAt?: number | null; reason?: string; processingHeld?: boolean; reviewDueAt?: number; escalateAt?: number; retentionDueAt?: number; completionDueAt?: number | null; reviewOverdue?: boolean; escalated?: boolean; processingOverdue?: boolean; retentionOverdue?: boolean };
 export type DeletionReviewItem = DeletionRequestStatus & { jobId: string; name: string; canReview: boolean; isOwnRequest: boolean };

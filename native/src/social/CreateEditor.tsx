@@ -1,7 +1,8 @@
+import { PrivateImage as Image } from '../components/PrivateImage';
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
 import type { ImagePickerAsset } from "expo-image-picker";
-import { Image, View, Pressable, Platform } from "react-native";
+import { View, Pressable, Platform } from "react-native";
 import { Trash2, MessageSquare, Tag } from "lucide-react-native";
 import type { MediaAttachment } from "../../../src/types";
 import {
