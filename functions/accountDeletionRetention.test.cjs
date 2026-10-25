@@ -28,3 +28,11 @@ test('removing a resident comment preserves another crew resolution edit index',
  const record={userId:'b',resolutionAuthorId:'crew',resolutionCommentId:'resolution',resolutionCommentIndex:1,comments:[{id:'resident',authorId:'a',text:'remove'},{id:'resolution',authorId:'crew',text:'keep'}]};
  const result=r.plan('work_orders',record,'a');assert.equal(result.patch.resolutionCommentIndex,0);assert.equal(result.patch.comments[0].id,'resolution');
 });
+
+test('secure Marketplace schema supports exact UID sides without inventing identityVersion',()=>{
+ const {plan}=require('./accountDeletionRetention.cjs');
+ const record={sellerId:'alice',buyerId:'bob',participantIds:['alice','bob'],messages:[{id:'one',senderId:'alice',body:'own'},{id:'two',senderId:'bob',body:'other'}]};
+ const result=plan('marketplace_chats',record,'alice');assert.equal(result.action,'patch');assert.equal(result.patch.messages[1],record.messages[1]);assert.equal(result.patch.messages[0].body,'[Removed]');
+ assert.equal(plan('marketplace_chats',{...record,participantIds:['legacy-name','bob']},'alice').action,'review');
+ assert.equal(plan('marketplace_chats',{...record,messages:[{id:'one',senderId:'unverified-name'}]},'alice').action,'review');
+});

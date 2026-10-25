@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type PropsWithChildren 
 import { reload, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { AppState } from 'react-native';
-import { clearDeletedAccountCaches } from './accountDeletion';
+import { clearDeletedAccountCaches, retryPendingAccountCleanup } from './accountDeletion';
 import { auth, db } from './firebase';
 import { MISSING_REGISTRATION_MESSAGE } from '../../../src/services/registrationRecovery';
 import { friendlyError, readProfile, type ResidentProfile } from './profile';
@@ -31,12 +31,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
                 if(auth.currentUser?.uid===user.uid)await signOut(auth);
             } catch { if(auth.currentUser?.uid===user.uid)setState(s=>({...s,loading:false,error:'Account data cleanup could not finish. Reconnect and retry.'})); }
         }
+        void retryPendingAccountCleanup().catch(() => {
+            setState(s=>({...s,error:'Account data cleanup is pending. Reopen TownLoop to retry.'}));
+        });
         const checkDeletedIdentity = () => {
             const user=auth.currentUser;
             if(user)void reload(user).catch(error=>{
                 // Offline, expired tokens, permission errors and ordinary sign-out
                 // are NOT proof of deletion and must never erase local reminders.
-                if(error?.code==='auth/user-not-found')void clearConfirmedDeletion(user);
+                if(error?.code==='auth/user-not-found'||error?.code==='auth/user-disabled')void clearConfirmedDeletion(user);
             });
         };
         const foreground=AppState.addEventListener('change', state=>{if(state==='active')checkDeletedIdentity();});

@@ -1,3 +1,7 @@
+import { PrivateImage } from './PrivateImage';
+import { authenticatedStoragePath } from '../../../src/services/storageReferences';
+import { storage } from '../lib/firebase';
+import { ref } from 'firebase/storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,12 +39,12 @@ export function MarketplaceGallery({media, initialIndex = 0, title, onClose}: {
   }, [controls, index]);
   useEffect(() => { chrome.set(withTiming(controls ? 1 : 0, timing)); }, [controls, chrome]);
   useEffect(() => {
-    for (const next of [index - 1, index + 1]) if (media[next]) void Image.prefetch(media[next].url).catch(() => {});
+    for (const next of [index - 1, index + 1]) if (media[next] && !authenticatedStoragePath(media[next].url, ref(storage).bucket)) void Image.prefetch(media[next].url).catch(() => {});
   }, [index, media]);
   const imageUri = media[index]?.url;
   useEffect(() => {
     let active = true;
-    if (imageUri) Image.getSize(imageUri, (w, h) => {
+    if (imageUri && !authenticatedStoragePath(imageUri, ref(storage).bucket)) Image.getSize(imageUri, (w, h) => {
       if (active && w > 0 && h > 0) setRatio(w / h);
     }, () => { /* The image's onError presents retry UI. */ });
     return () => { active = false; };
@@ -99,8 +103,8 @@ export function MarketplaceGallery({media, initialIndex = 0, title, onClose}: {
       <Animated.View style={[StyleSheet.absoluteFill, {backgroundColor:'#080b10'}, background]} />
       <GestureDetector gesture={Gesture.Simultaneous(pinch, pan, Gesture.Exclusive(double, tap))}>
         <Animated.View style={[{flex:1}, imageStyle]}>
-          <Image key={`${index}-${retry}`} source={{uri:media[index]?.url}} resizeMode="contain" accessibilityLabel={media[index]?.name || title}
-            style={{width:'100%',height:'100%'}} onLoad={() => setLoaded(true)}
+          <PrivateImage key={`${index}-${retry}`} source={{uri:media[index]?.url}} resizeMode="contain" accessibilityLabel={media[index]?.name || title}
+            style={{width:'100%',height:'100%'}} onLoad={event => { const image = event.nativeEvent?.source; if(image?.width && image?.height) setRatio(image.width/image.height); setLoaded(true); }}
             onError={() => {setError(true); setLoaded(true);}} />
         </Animated.View>
       </GestureDetector>

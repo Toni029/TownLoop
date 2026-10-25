@@ -1,4 +1,5 @@
-import { ensureMediaDraft, privateWorkOrderPath, type MediaRecordLink } from './mediaAuthorization';
+import { authenticatedStoragePath, ownsStorageReference } from './storageReferences';
+import { ensureMediaDraft, type MediaRecordLink } from './mediaAuthorization';
 import { ref, deleteObject, uploadBytesResumable, getDownloadURL, getBlob } from 'firebase/storage';
 import {
   User as FirebaseUser,
@@ -106,9 +107,9 @@ export async function uploadMediaToStorage({
 /** Caller must revoke on unmount and sign-out; never persist this temporary authenticated URL. */
 export async function resolvePrivateMediaUrl(value: string): Promise<{url: string; revoke: () => void}> {
   if (!storage) throw new Error('Cloud Storage is unavailable.');
-  const path = privateWorkOrderPath(value, ref(storage).bucket);
+  const path = authenticatedStoragePath(value, ref(storage).bucket);
   if (!path) {
-    if (value.startsWith('gs://')) throw new Error('Invalid private attachment.');
+    if (value.startsWith('gs://') || ownsStorageReference(value, ref(storage).bucket)) throw new Error('Invalid private attachment.');
     return {url: value, revoke: () => {}};
   }
   const user = auth?.currentUser;

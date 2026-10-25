@@ -1,3 +1,4 @@
+import { PrivateMediaImage } from '../PrivateMediaImage';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -207,7 +208,7 @@ export const Marketplace = React.memo(function Marketplace({
                 {itemMedia.length > 0 ? (
                   itemMedia[0].type === 'image' ? (
                     <>
-                      <img
+                      <PrivateMediaImage
                         src={itemMedia[0].url}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover/thumb:scale-105 transition duration-200"

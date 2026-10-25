@@ -64,7 +64,14 @@ function plan(collection, record, uid) {
     return {action:'patch',patch};
   }
   if(CHATS.has(collection)) {
-    if(record.identityVersion!==2) return {action:'review',reason:'legacy_chat_identity'};
+    // Marketplace's secure protocol uses exact seller/buyer UIDs, not identityVersion.
+    const sides = [record.sellerId, record.buyerId];
+    const canonicalMarketplace = collection === 'marketplace_chats' &&
+      sides.every(id=>typeof id==='string' && id.length>0 && !id.includes('/')) && sides[0]!==sides[1] &&
+      Array.isArray(record.participantIds) && record.participantIds.length===2 &&
+      record.participantIds.every(id=>sides.includes(id)) && new Set(record.participantIds).size===2 &&
+      Array.isArray(record.messages) && record.messages.every(message=>sides.includes(message.senderId));
+    if(record.identityVersion!==2 && !canonicalMarketplace) return {action:'review',reason:'legacy_chat_identity'};
     const alias=pseudonym(uid), patch={lastMessage:'',subject:'Conversation'};
     if(Array.isArray(record.messages)) patch.messages=record.messages.map(message=>message.senderId===uid
       ? {id:message.id,senderId:alias,senderName:'Deleted resident',senderAvatar:'',...(message.body!==undefined?{body:'[Removed]'}:{text:'[Removed]'}),...(message.timestamp!==undefined?{timestamp:message.timestamp}:{}),...(message.createdAt!==undefined?{createdAt:message.createdAt}:{}),...(message.time!==undefined?{time:message.time}:{})}

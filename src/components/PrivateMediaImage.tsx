@@ -3,7 +3,7 @@ import { onIdTokenChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { resolvePrivateMediaUrl } from '../services/storage';
 
-/** Never place persistent WorkOrder bearer links in img.src, including legacy links. */
+/** Never place persistent Firebase bearer links in img.src, including legacy links. */
 export function PrivateMediaImage({src = '', ...props}: React.ImgHTMLAttributes<HTMLImageElement>) {
   const [resolved, setResolved] = useState<{input: string; url: string; uid: string} | null>(null);
   useEffect(() => {

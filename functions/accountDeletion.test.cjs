@@ -34,10 +34,12 @@ function harness(initial, authorizeProcessing = false) {
     if (!['valid', 'wrong-account'].includes(token)) throw Error('revoked');
     return { uid: token === 'valid' ? 'alice' : 'bob', auth_time: Date.now() / 1000 };
   };
+  const warnings = [];
   const exports = {}, context = { exports, module: { exports }, require: name => {
     if (name === './accountDeletionRetention.cjs') return require(name);
     if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
     if (name === './accountDeletionPolicy.cjs') return require(name);
+    if (name === 'firebase-functions') return {logger:{warn:(_message,data)=>warnings.push(data)}};
     if (name === 'node:crypto') return require(name);
     if (name === 'firebase-functions/v2/https') return { onCall: (_, fn) => fn, HttpsError: class extends Error { constructor(code, message) { super(message); this.code = code; } } };
     if (name === 'firebase-functions/v2/scheduler') return { onSchedule: (_, fn) => fn };
@@ -46,7 +48,7 @@ function harness(initial, authorizeProcessing = false) {
     throw Error(`Unexpected import: ${name}`);
   }, process: { env: { TOWNLOOP_ACCOUNT_DELETION_ENABLED: authorizeProcessing ? 'true' : 'false', TOWNLOOP_DELETION_REVIEW_MONITOR_ENABLED: authorizeProcessing ? 'true' : 'false' } }, Date };
   vm.runInNewContext(fs.readFileSync(require.resolve('./accountDeletion.cjs'), 'utf8') + '\nmodule.exports.run = processJob;', context);
-  return { records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, escalate:context.module.exports.escalateAccountDeletionRequests, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, status: context.module.exports.getAccountDeletionStatus, list: context.module.exports.listAccountDeletionRequests, review: context.module.exports.reviewAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
+  return { warnings, records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, escalate:context.module.exports.escalateAccountDeletionRequests, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, status: context.module.exports.getAccountDeletionStatus, list: context.module.exports.listAccountDeletionRequests, review: context.module.exports.reviewAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
 }
 test('deletion request requires exact confirmation and recent authentication, not just a refreshed token', () => {
   const now = 100000000, auth = { uid: 'alice', token: { auth_time: now / 1000 } };
@@ -268,6 +270,7 @@ test('seven-day review escalation is durable, idempotent, and never approves or 
  delete h.records.get(h.ref.path).review;
  await h.escalate();await h.escalate();assert.equal(h.records.get(h.ref.path).escalated,true);assert.equal([...h.records.keys()].filter(k=>k.includes('/reviews/')).length,1);
  assert.equal(h.records.get(h.ref.path).status,'requested');assert.deepEqual(h.authCalls,[]);assert.ok(h.records.has('users/alice'));
+ assert.equal(h.warnings.length,1);assert.equal(h.warnings[0].code,'TOWNLOOP_DELETION_REVIEW_OVERDUE');assert.deepEqual(Object.keys(h.warnings[0]).sort(),['code','newAlerts']);
 });
 test('review monitoring is disabled by default',async()=>{
  const h=harness({'account_deletion_jobs/job':{uid:'alice',status:'requested',createdAt:Date.now()-8*86400000}});

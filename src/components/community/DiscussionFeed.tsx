@@ -1,3 +1,4 @@
+import { PrivateMediaImage } from '../PrivateMediaImage';
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
  * Proprietary and Confidential.
@@ -160,7 +161,7 @@ export const DiscussionFeed = React.memo(function DiscussionFeed({
               title="Click to view full screen with pinch-to-zoom"
             >
               {postMedia[0].type === 'image' ? (
-                <img
+                <PrivateMediaImage
                   src={postMedia[0].url}
                   alt="attached media"
                   className="w-full h-full object-cover group-hover/media:scale-102 transition duration-300"

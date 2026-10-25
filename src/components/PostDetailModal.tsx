@@ -1,3 +1,4 @@
+import { PrivateMediaImage } from './PrivateMediaImage';
 import { SafetyActions } from "./SafetyActions";
 /*
  * Copyright (c) 2026 Antonio Merlano / Seeds4Clix. All rights reserved.
@@ -319,7 +320,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 title="Click to view full screen & pinch-to-zoom"
               >
                 {media[activeMediaIndex].type === 'image' ? (
-                  <img
+                  <PrivateMediaImage
                     src={media[activeMediaIndex].url}
                     alt={media[activeMediaIndex].name || 'Post attachment'}
                     className="w-full h-full object-contain group-hover/media:scale-101 transition duration-200"
@@ -379,7 +380,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                       }`}
                     >
                       {m.type === 'image' ? (
-                        <img
+                        <PrivateMediaImage
                           src={m.url}
                           alt="thumb"
                           className="w-full h-full object-cover"
