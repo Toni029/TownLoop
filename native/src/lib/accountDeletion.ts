@@ -20,6 +20,7 @@ export async function requestAccountDeletion(password: string, confirmation: str
   }
   if (auth.currentUser?.uid !== user.uid) throw new Error('Your session changed. Sign in again.');
   await user.getIdToken(true);
+  if (auth.currentUser?.uid !== user.uid) throw new Error('Your session changed. Sign in again.');
   const request = httpsCallable<{ confirmation: string; requestOnly: boolean }, { jobId: string; status: string }>(getFunctions(app, 'us-central1'), 'submitAccountDeletionRequest');
   return (await request({ confirmation, requestOnly: true })).data;
 }
@@ -27,4 +28,23 @@ export async function requestAccountDeletion(password: string, confirmation: str
 /** Exact account-scoped keys only; never clear another account's data or all AsyncStorage. */
 export async function clearDeletedAccountCaches(uid: string): Promise<void> {
   await AsyncStorage.multiRemove([`townloop:home:v1:${uid}`, `townloop:social:liked:${uid}`]);
+}
+
+export type DeletionRequestStatus = { status: string; jobId?: string; createdAt?: number | null; reviewedAt?: number | null; reason?: string; processingHeld?: boolean };
+export type DeletionReviewItem = DeletionRequestStatus & { jobId: string; name: string; canReview: boolean; isOwnRequest: boolean };
+const deletionCall = <T, R>(name: string, data: T) => httpsCallable<T, R>(getFunctions(app, 'us-central1'), name)(data).then(result => result.data);
+export const getAccountDeletionStatus = () => deletionCall<Record<string, never>, DeletionRequestStatus>('getAccountDeletionStatus', {});
+export const listAccountDeletionRequests = (cursor?: string) => deletionCall<{cursor?: string}, { requests: DeletionReviewItem[]; policyReady: boolean; nextCursor: string | null }>('listAccountDeletionRequests', cursor ? {cursor} : {});
+export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved' | 'rejected', reason: string) =>
+  deletionCall('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision });
+export function deletionStatusText(request: DeletionRequestStatus): string {
+  const labels: Record<string, string> = {
+    none: 'No deletion request submitted.', requested: 'Awaiting Admin/VIP review.',
+    queued: 'Approved. Awaiting authorized processing.', processing: 'Deletion processing is in progress.',
+    pending_owner_approval: 'Awaiting an approved retention policy.',
+    identity_complete_media_pending: 'Account removed; associated media cleanup is pending.',
+    complete: 'Deletion processing completed under the approved retention policy.',
+    rejected: 'Request rejected. Contact the community office if you need a further review.',
+  };
+  return labels[request.status] || 'Request requires office review.';
 }

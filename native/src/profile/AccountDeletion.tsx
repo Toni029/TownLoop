@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { TextInput } from '../keyboard/KeyboardScrollView';
 import { auth } from '../lib/firebase';
-import { requestAccountDeletion } from '../lib/accountDeletion';
+import { requestAccountDeletion, getAccountDeletionStatus, deletionStatusText, type DeletionRequestStatus } from '../lib/accountDeletion';
 
 export function AccountDeletion() {
   const [expanded, setExpanded] = useState(false);
@@ -10,22 +10,38 @@ export function AccountDeletion() {
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [accepted, setAccepted] = useState(false);
+  const [request, setRequest] = useState<DeletionRequestStatus>({ status: 'none' });
+  const accepted = request.status !== 'none';
+  const [checking, setChecking] = useState(false);
+  async function refresh() {
+    const uid = auth.currentUser?.uid;
+    setChecking(true);
+    try { const result = await getAccountDeletionStatus(); if (auth.currentUser?.uid === uid) setRequest(result); }
+    catch { setMessage('Unable to check your request status. Retry or contact the community office.'); }
+    finally { setChecking(false); }
+  }
+  useEffect(() => {
+    let active = true;
+    const uid = auth.currentUser?.uid;
+    void getAccountDeletionStatus().then(result => { if (active && auth.currentUser?.uid === uid) setRequest(result); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const needsPassword = auth.currentUser?.providerData.some(provider => provider.providerId === 'password');
   async function submit() {
     const uid = auth.currentUser?.uid;
     if (!uid || busy || accepted) return;
     setBusy(true); setMessage('');
     try {
-      await requestAccountDeletion(password, confirmation);
-      setPassword(''); setAccepted(true);
-      setMessage('Your account deletion request was submitted. You can continue using TownLoop while it is reviewed and prepared for processing. You do not need to send it again.');
+      const result = await requestAccountDeletion(password, confirmation);
+      if (auth.currentUser?.uid !== uid) return;
+      setRequest(result); setPassword('');
+      setMessage(deletionStatusText(result));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to request deletion. Please retry.');
     } finally { setBusy(false); }
   }
   return <View style={styles.card}>
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} disabled={busy || accepted}>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} disabled={busy}>
       <Text style={styles.title}>Request Account Deletion</Text>
     </Pressable>
     {expanded && <View style={styles.fields}>
@@ -38,6 +54,8 @@ export function AccountDeletion() {
         </Pressable>
       </>}
     </View>}
+    {accepted && <Text accessibilityLiveRegion="polite" style={styles.body}>{deletionStatusText(request)}{request.reason ? ` ${request.reason}` : ''}</Text>}
+    <Pressable accessibilityRole="button" accessibilityLabel="Refresh deletion request status" disabled={busy || checking} onPress={() => void refresh()}><Text style={styles.body}>{checking ? 'Checking status…' : 'Refresh request status'}</Text></Pressable>
     {!!message && <Text accessibilityRole="alert" style={styles.body}>{message}</Text>}
   </View>;
 }

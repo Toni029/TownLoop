@@ -1,3 +1,4 @@
+import { AccountDeletionRequests } from "./AccountDeletionRequests";
 import { ModerationPanel } from "./ModerationPanel";
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { adminDirectory, removeAttendeePatch } from "./adminModel";
@@ -271,7 +272,7 @@ export function AdminMenu({
             </View>
           )}
           {busy && <ActivityIndicator color="#059669" />}
-          {tab === "moderation" && <ModerationPanel/>}
+          {tab === "moderation" && <><ModerationPanel/>{(user.role === "admin" || user.role === "vip") && <AccountDeletionRequests/>}</>}
           {tab === "residents" && (
             <>
               <View
