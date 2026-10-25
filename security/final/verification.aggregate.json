@@ -1,0 +1,226 @@
+{
+  "checkedAt": "2026-10-25T17:06:39.289Z",
+  "project": "cc-livingcommunity-app",
+  "databaseScopes": [
+    {
+      "database": "(default)",
+      "profileIdentityCount": 5
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "profileIdentityCount": 3
+    }
+  ],
+  "sharedExactProfileUids": 3,
+  "defaultParentOwnership": {
+    "work_orders": 9,
+    "discussion_feed": 14,
+    "marketplace_posts": 7
+  },
+  "chatMetadata": [
+    {
+      "database": "(default)",
+      "collection": "resident_chats",
+      "total": 3,
+      "canonicalParticipants": 3,
+      "verifiedResidentId": 0,
+      "unclassified": 0
+    },
+    {
+      "database": "(default)",
+      "collection": "office_chats",
+      "total": 3,
+      "canonicalParticipants": 0,
+      "verifiedResidentId": 3,
+      "unclassified": 0
+    },
+    {
+      "database": "(default)",
+      "collection": "maintenance_chats",
+      "total": 4,
+      "canonicalParticipants": 0,
+      "verifiedResidentId": 4,
+      "unclassified": 0
+    },
+    {
+      "database": "(default)",
+      "collection": "marketplace_chats",
+      "total": 2,
+      "canonicalParticipants": 0,
+      "verifiedResidentId": 0,
+      "unclassified": 2
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "collection": "resident_chats",
+      "total": 0,
+      "canonicalParticipants": 0,
+      "verifiedResidentId": 0,
+      "unclassified": 0
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "collection": "office_chats",
+      "total": 0,
+      "canonicalParticipants": 0,
+      "verifiedResidentId": 0,
+      "unclassified": 0
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "collection": "maintenance_chats",
+      "total": 0,
+      "canonicalParticipants": 0,
+      "verifiedResidentId": 0,
+      "unclassified": 0
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "collection": "marketplace_chats",
+      "total": 0,
+      "canonicalParticipants": 0,
+      "verifiedResidentId": 0,
+      "unclassified": 0
+    }
+  ],
+  "storage": {
+    "total": 41,
+    "quarantined": 6,
+    "verifiedParentOwner": 18,
+    "unverifiedOrNonParentObjects": 17,
+    "folders": {
+      "feed": 13,
+      "marketplace": 9,
+      "newsletters": 5,
+      "work_orders": 14
+    }
+  },
+  "backups": {
+    "(default)": {
+      "pointInTimeRecoveryEnablement": "POINT_IN_TIME_RECOVERY_DISABLED",
+      "versionRetentionPeriod": "3600s",
+      "backupSchedules": []
+    },
+    "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb": {
+      "pointInTimeRecoveryEnablement": "POINT_IN_TIME_RECOVERY_DISABLED",
+      "versionRetentionPeriod": "3600s",
+      "backupSchedules": []
+    },
+    "storage": {
+      "softDeletePolicy": {
+        "retentionDurationSeconds": "604800",
+        "effectiveTime": "2026-09-18T12:45:21.756Z"
+      }
+    },
+    "projectBuckets": [
+      {
+        "isApplicationBucket": true,
+        "isReleaseBackup": false,
+        "softDeletePolicy": {
+          "retentionDurationSeconds": "604800",
+          "effectiveTime": "2026-09-18T12:45:21.756Z"
+        }
+      },
+      {
+        "isApplicationBucket": false,
+        "isReleaseBackup": false,
+        "versioning": {
+          "enabled": true
+        },
+        "softDeletePolicy": {
+          "retentionDurationSeconds": "604800",
+          "effectiveTime": "2026-10-16T17:46:41.495Z"
+        },
+        "lifecycle": {
+          "rule": [
+            {
+              "action": {
+                "type": "Delete"
+              },
+              "condition": {
+                "isLive": false,
+                "numNewerVersions": 3
+              }
+            }
+          ]
+        }
+      },
+      {
+        "isApplicationBucket": false,
+        "isReleaseBackup": false,
+        "softDeletePolicy": {
+          "retentionDurationSeconds": "604800",
+          "effectiveTime": "2026-10-16T17:46:39.944Z"
+        },
+        "lifecycle": {
+          "rule": [
+            {
+              "action": {
+                "type": "Delete"
+              },
+              "condition": {
+                "age": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "isApplicationBucket": false,
+        "isReleaseBackup": false,
+        "softDeletePolicy": {
+          "retentionDurationSeconds": "604800",
+          "effectiveTime": "2026-09-25T18:20:33.805Z"
+        }
+      },
+      {
+        "isApplicationBucket": false,
+        "isReleaseBackup": true,
+        "softDeletePolicy": {
+          "retentionDurationSeconds": "0"
+        },
+        "lifecycle": {
+          "rule": [
+            {
+              "action": {
+                "type": "Delete"
+              },
+              "condition": {
+                "age": 60
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "bucketInventoryComplete": true
+  },
+  "backupSupplement": {
+    "managedBackups": {
+      "count": 0,
+      "inventoryComplete": true
+    },
+    "applicationBucketCors": {}
+  },
+  "loggingConfiguration": {
+    "buckets": [
+      {
+        "systemRequired": false,
+        "retentionDays": 30,
+        "locked": false
+      },
+      {
+        "systemRequired": true,
+        "retentionDays": 400,
+        "locked": true
+      }
+    ],
+    "complete": true
+  },
+  "limits": [
+    "Top-level projections only; no message or comment arrays, nested media arrays, private profiles, medications or image bodies fetched.",
+    "Parent ownership consistency is not a complete deletion inventory or message-redaction proof.",
+    "Existing Marketplace identity metadata compatible for messaging (prior C1); two records remain unclassified for deletion by strict current-profile UID matching. No migration inferred or executed.",
+    "No user identifiers, individual records or bearer tokens are persisted in this report. No real records were modified."
+  ]
+}

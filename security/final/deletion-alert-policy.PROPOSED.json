@@ -1,0 +1,12 @@
+{
+  "displayName": "TownLoop deletion review needs office action",
+  "enabled": false,
+  "combiner": "OR",
+  "conditions": [{
+    "displayName": "New durable overdue review receipt",
+    "conditionMatchedLog": {"filter": "resource.type=\"cloud_run_revision\" AND jsonPayload.code=\"TOWNLOOP_DELETION_REVIEW_OVERDUE\""}
+  }],
+  "alertStrategy": {"notificationRateLimit": {"period": "86400s"}, "autoClose": "604800s"},
+  "notificationChannels": [],
+  "documentation": {"mimeType": "text/markdown", "content": "Admin office: open TownLoop Admin Reports to review overdue deletion requests. Notification contains no resident content. Assign a monitored channel before enabling; this file does not activate a worker."}
+}

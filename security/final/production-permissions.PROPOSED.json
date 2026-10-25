@@ -1,0 +1,17 @@
+{
+  "status": "MERGE_ONLY_FOR_AN_APPROVED_NEW_NATIVE_RELEASE_NOT_AN_OTA",
+  "expo": {
+    "android": {
+      "permissions": ["android.permission.ACCESS_NETWORK_STATE"],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "allowBackup": false
+    }
+  },
+  "preserve": "Keep system picker, legitimately used optional CAMERA, existing backup exclusions, signing, package and separate Preview/Production channels. Verify merged manifest and picker on Android <=12 before distributing."
+}

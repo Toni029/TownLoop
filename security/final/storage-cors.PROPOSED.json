@@ -1,0 +1,32 @@
+[
+  {
+    "origin": [
+      "https://townloop.web.app",
+      "https://townloop.firebaseapp.com"
+    ],
+    "method": [
+      "GET",
+      "HEAD",
+      "POST",
+      "PUT",
+      "DELETE"
+    ],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Content-Range",
+      "Accept-Ranges",
+      "Authorization",
+      "X-Firebase-GMPID",
+      "X-Firebase-AppCheck",
+      "X-Firebase-Storage-Version",
+      "ETag",
+      "X-Goog-Upload-Protocol",
+      "X-Goog-Upload-Command",
+      "X-Goog-Upload-Offset",
+      "X-Goog-Upload-Header-Content-Type",
+      "X-Goog-Upload-Header-Content-Length"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

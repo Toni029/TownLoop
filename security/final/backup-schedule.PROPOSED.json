@@ -1,0 +1,10 @@
+{
+  "status": "PROPOSED_ONLY_NO_LIVE_CHANGE",
+  "project": "cc-livingcommunity-app",
+  "databaseSchedules": [
+    {"database": "(default)", "createBody": {"retention": "5184000s", "dailyRecurrence": {}}},
+    {"database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb", "createBody": {"retention": "5184000s", "dailyRecurrence": {}}}
+  ],
+  "pitr": "Optional separately approved seven-day recovery, currently disabled. No activation implied.",
+  "restoreGate": "Isolate a restore, reapply approved deletion/redaction receipts before allowing clients, and reverify role/privacy rules. Never restore expired identities to normal app access."
+}
