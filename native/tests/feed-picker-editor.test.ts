@@ -20,17 +20,19 @@ function nodes(tree: any): any[] {
  return [tree, ...nodes(tree.props?.children)];
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
-function fixture() {
+function fixture(initialKind = 'post') {
  let cursor = 0, closes = 0, saves = 0, uploads = 0, pickerCalls = 0;
  const slots: any[] = [], drafts: any[] = [], publications: any[] = [];
  const asset = { uri: 'content://fixture/photo', type: 'image', width: 4000, height: 3000, fileSize: 8000000, fileName: 'fixture.jpg' };
  let finishProcessing: (image: any) => void = () => {};
  let failProcessing: (error: Error) => void = () => {};
+ let picker: (() => Promise<any>) | undefined;
+ const cleanups: (()=>void)[] = [];
  const pickerResult: any = { canceled: false, assets: [asset] };
  let processing: Promise<any> = new Promise((resolve, reject) => { finishProcessing = resolve; failProcessing = reject; });
  const media = load('../src/components/media.ts', {
   'react-native': { Platform: { OS: 'android' } },
-  'expo-image-picker': { launchImageLibraryAsync: async () => { pickerCalls++; return pickerResult; } },
+  'expo-image-picker': { launchImageLibraryAsync: async () => { pickerCalls++; return picker ? picker() : pickerResult; } },
   'expo-image-manipulator': { SaveFormat: { JPEG: 'jpeg' }, manipulateAsync: () => processing },
   'expo-file-system/legacy': { cacheDirectory: 'file:///cache/', copyAsync: async () => {}, getInfoAsync: async () => ({ exists: true, size: 100000 }), deleteAsync: async () => {} },
   '../../../src/services/mediaAuthorization': { ensureMediaDraft: async (_db: any, link: any, uid: string) => { drafts.push({ link, uid }); } },
@@ -42,12 +44,13 @@ function fixture() {
  const jsx = (type: any, props: any) => ({ type, props });
  const { CreateEditor } = load('../src/social/CreateEditor.tsx', {
   react: {
+   useEffect(effect: any) { const index = cursor++; if (!(index in slots)) { slots[index] = true; cleanups.push(effect()); } },
    useState(initial: any) { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
     return [slots[index], (value: any) => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }]; },
    useRef(initial: any) { const index = cursor++; if (!(index in slots)) slots[index] = { current: initial }; return slots[index]; },
   },
   'react/jsx-runtime': { jsx, jsxs: jsx },
-  'react-native': { Image: 'Image', View: 'View', Pressable: 'Pressable' },
+  'react-native': { Image: 'Image', View: 'View', Pressable: 'Pressable', Platform: { OS: 'android' } },
   'lucide-react-native': { Trash2: 'Trash2', MessageSquare: 'MessageSquare', Tag: 'Tag' },
   '../shell/TownLoopShell': { usePresentation: () => ({ dark: false }) },
   '../news/ui': { Action: 'Action', Copy: 'Copy', Field: 'Field', ErrorNotice: 'ErrorNotice', UploadTarget: 'UploadTarget', useNewsStyles: () => ({ row: {}, input: {} }) },
@@ -59,9 +62,10 @@ function fixture() {
    publications.push(draft);
   } },
  });
- function render() { cursor = 0; return CreateEditor({ initialKind: 'post', onClose: () => { closes++; }, onSaved: () => { saves++; } }); }
+ function render() { cursor = 0; return CreateEditor({ initialKind, onClose: () => { closes++; }, onSaved: () => { saves++; } }); }
  const field = (label: string) => nodes(render()).find(node => node.type === 'Field' && node.props.label === label);
  return { render, field, asset, drafts, publications, pickerResult,
+  picker: (fn:()=>Promise<any>) => { picker=fn; }, unmount: () => cleanups.forEach(fn=>fn?.()),
   confirm: () => nodes(render()).find(node => node.type === 'UploadTarget').props.onUpload(),
   recover: () => { processing = Promise.resolve({ uri: 'file:///cache/recovered.jpg' }); },
   finish: () => finishProcessing({ uri: 'file:///cache/processed.jpg' }), fail: () => failProcessing(Error('Fixture processing failure')),
@@ -133,3 +137,45 @@ test('cancel then retry selects locally; missing text validation starts no draft
  assert.equal(h.render().props.busy,false); assert.equal(h.drafts.length,0); assert.equal(h.stats().uploads,0);
  assert.match(nodes(h.render()).find(n=>n.type==='ErrorNotice')?.props.message,/title and description/);
 });
+
+for (const kind of ['post', 'listing']) {
+ test(`${kind}: choosing never locks sheet; cancel/error restores native window and retains form`, async () => {
+  const h=fixture(kind); const label=kind==='post'?'Subject / Title':'Item Name';
+  h.picker(async()=>({canceled:true,assets:null}));
+  for(let i=0;i<3;i++) { h.confirm(); await tick(); assert.equal(h.render().props.busy,false); }
+  assert.equal(h.drafts.length,0); assert.equal(h.stats().uploads,0);
+  h.field(label).props.onChangeText('Keep my text');
+  const body=kind==='post'?'Post Content & Discussion Details':'Details & Pickup Information';
+  h.field(body).props.onChangeText('Keep my description');
+  if(kind==='listing') h.field('Price (Type FREE or $ amount)').props.onChangeText('$25');
+  let finish!: (result:any)=>void;
+  h.picker(()=>new Promise(resolve=>{finish=resolve;}));
+  h.confirm(); await tick();
+  assert.equal(h.render().props.busy,false,'system picker must not disable sheet close/gestures');
+  h.confirm(); await tick(); assert.equal(h.stats().pickerCalls,4,'only one native picker');
+  finish({canceled:true,assets:null}); await tick();
+  assert.equal(h.render().props.nativeWindowKey,4);
+  assert.equal(h.field(label).props.value,'Keep my text');
+  assert.equal(h.field(body).props.value,'Keep my description');
+  if(kind==='listing') assert.equal(h.field('Price (Type FREE or $ amount)').props.value,'$25');
+  assert.equal(h.drafts.length,0); assert.equal(h.stats().uploads,0);
+  h.picker(async()=>{throw Error('Picker unavailable');});
+  h.confirm(); await tick();
+  assert.equal(h.render().props.nativeWindowKey,5); assert.equal(h.render().props.busy,false);
+  h.picker(async()=>({canceled:false,assets:[h.asset]}));
+  h.recover(); h.confirm(); await tick();
+  assert.ok(nodes(h.render()).some(n=>n.type==='Image'),'reopen after failure succeeds');
+  if(kind==='listing') {
+   const photo=nodes(h.render()).find(n=>n.type==='Image').props.source.uri;
+   h.picker(async()=>({canceled:true,assets:null})); h.confirm(); await tick();
+   assert.equal(nodes(h.render()).find(n=>n.type==='Image').props.source.uri,photo,'cancel preserves existing attachment');
+  }
+ });
+ test(`${kind}: late picker selection after closing starts no draft or upload`,async()=>{
+  const h=fixture(kind); let finish!:(result:any)=>void;
+  h.picker(()=>new Promise(resolve=>{finish=resolve;}));
+  h.confirm(); await tick(); h.unmount();
+  finish({canceled:false,assets:[h.asset]}); await tick();
+  assert.equal(h.drafts.length,0); assert.equal(h.stats().uploads,0);
+ });
+}

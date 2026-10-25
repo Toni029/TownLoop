@@ -31,6 +31,7 @@ export function ProductDialog({
   sheet = false,
   serif = false,
   responsiveResize = false,
+  nativeWindowKey = 0,
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
@@ -40,6 +41,7 @@ export function ProductDialog({
   sheet?: boolean;
   serif?: boolean;
   responsiveResize?: boolean;
+  nativeWindowKey?: number;
 }>) {
   const presentation = usePresentation();
   const dark = !!presentation?.dark;
@@ -112,6 +114,7 @@ export function ProductDialog({
   const backdropMotion = useAnimatedStyle(() => ({ opacity: Math.min(1, progress.value) }));
   return (
     <Modal
+      key={nativeWindowKey}
       statusBarTranslucent navigationBarTranslucent
       transparent
       animationType="none"

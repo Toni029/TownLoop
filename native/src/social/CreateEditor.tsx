@@ -1,7 +1,7 @@
 import { usePresentation } from "../shell/TownLoopShell";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ImagePickerAsset } from "expo-image-picker";
-import { Image, View, Pressable } from "react-native";
+import { Image, View, Pressable, Platform } from "react-native";
 import { Trash2, MessageSquare, Tag } from "lucide-react-native";
 import type { MediaAttachment } from "../../../src/types";
 import {
@@ -38,34 +38,61 @@ export function CreateEditor({
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
   const lock = useRef(false);
+  const mounted = useRef(true);
+  const [picking, setPicking] = useState(false);
+  const [nativeWindowKey, setNativeWindowKey] = useState(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   async function upload(camera = false, retry = false) {
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
+    // The external picker is not an upload: leave sheet close/drag and fields usable.
+    setPicking(!retry);
+    setBusy(retry);
     setError("");
-    setProgress(0);
+    setProgress(retry ? 0 : null);
     try {
       await pickAndUpload(
         kind === "post" ? "feed" : "marketplace",
-        setProgress,
+        value => { if (mounted.current) setProgress(value); },
         camera,
         { recordId: id, collection: kind === 'post' ? 'discussion_feed' : 'marketplace_posts' },
         {
           assets: retry ? pendingMedia : undefined,
+          isActive: () => mounted.current,
+          onPickerSettled: outcome => {
+            if (!mounted.current) return;
+            setPicking(false);
+            if (outcome !== 'selected' && Platform.OS === 'android') {
+              // Recreate only the native window/touch dispatch after the external
+              // activity. Editor data, expansion and animation state stay mounted.
+              setNativeWindowKey(value => value + 1);
+            }
+          },
           selectOnly: kind === "post" && !retry,
-          onSelected: assets => setPendingMedia(assets),
+          onSelected: assets => {
+            if (!mounted.current) return;
+            setPendingMedia(assets);
+            setBusy(kind !== 'post' || retry);
+          },
           onUploaded: (file, asset) => {
+            if (!mounted.current) return;
             setMedia(previous => [...previous, file]);
             setPendingMedia(previous => previous.filter(item => item !== asset));
           },
         },
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to attach media.");
+      if (mounted.current) setError(e instanceof Error ? e.message : "Unable to attach media.");
     } finally {
       lock.current = false;
-      setBusy(false);
-      setProgress(null);
+      if (mounted.current) {
+        setPicking(false);
+        setBusy(false);
+        setProgress(null);
+      }
     }
   }
   async function publish() {
@@ -119,6 +146,7 @@ export function CreateEditor({
           : "Share items, furniture, tools & giveaways with TownLoop neighbors."
       }
       busy={busy}
+      nativeWindowKey={nativeWindowKey}
       onClose={onClose}
     >
       <View style={{ gap: 6 }}>
@@ -147,8 +175,8 @@ export function CreateEditor({
                 accessibilityLabel={
                   value === "post" ? "Discussion Feed" : "Buy / Free / Sell"
                 }
-                accessibilityState={{ selected, disabled: busy || media.length > 0 || pendingMedia.length > 0 }}
-                disabled={busy || media.length > 0 || pendingMedia.length > 0}
+                accessibilityState={{ selected, disabled: busy || picking || media.length > 0 || pendingMedia.length > 0 }}
+                disabled={busy || picking || media.length > 0 || pendingMedia.length > 0}
                 onPress={() => setKind(value)}
                 hitSlop={6}
                 style={{
@@ -242,7 +270,7 @@ export function CreateEditor({
         <UploadTarget
           label="Tap to upload photos or videos"
           note="Supports JPG, PNG, WebP, MP4, MOV up to 25MB"
-          disabled={busy || pendingMedia.length > 0}
+          disabled={busy || picking || pendingMedia.length > 0}
           onUpload={() => void upload()}
           onCamera={() => void upload(true)}
         />
@@ -297,7 +325,7 @@ export function CreateEditor({
                 icon={Trash2}
                 tone="rose"
                 compact
-                disabled={busy}
+                disabled={busy || picking}
                 onPress={() =>
                   setMedia((p) => p.filter((_, index) => index !== i))
                 }
@@ -317,7 +345,7 @@ export function CreateEditor({
               ? "Publish Post to Discussion Feed"
               : "Publish Item to Marketplace"
         }
-        disabled={busy}
+        disabled={busy || picking}
         onPress={() => void publish()}
       />
     </ProductDialog>

@@ -21,11 +21,14 @@ export async function pickAndUpload(
   selection?: {
     assets?: Picker.ImagePickerAsset[];
     selectOnly?: boolean;
+    isActive?: () => boolean;
+    onPickerSettled?: (outcome: 'selected' | 'cancelled' | 'error') => void;
     onSelected?: (assets: Picker.ImagePickerAsset[]) => void;
     onUploaded?: (file: MediaAttachment, asset: Picker.ImagePickerAsset) => void;
   },
 ): Promise<MediaAttachment[]> {
   const user = await deadline(approvedUser(), 20_000, 'Checking your account');
+  if (selection?.isActive?.() === false) return [];
   if (camera && !selection?.assets) {
     const permission = await Picker.requestCameraPermissionsAsync();
     if (!permission.granted) throw new Error('Camera access is needed to take a picture. You can also select one from your library.');
@@ -34,13 +37,24 @@ export async function pickAndUpload(
     mediaTypes: folder === 'work_orders' ? ['images'] : ['images', 'videos'],
     allowsMultipleSelection: !camera, quality: 1,
   };
+  if (selection?.isActive?.() === false) return [];
   // Do not time out while the resident is choosing a photo in the system picker.
-  const selected = selection?.assets
-    ? { canceled: false, assets: selection.assets }
-    : camera
-    ? await Picker.launchCameraAsync({ ...options, allowsMultipleSelection: false, mediaTypes: ['images'] })
-    : await Picker.launchImageLibraryAsync(options);
-  if (selected.canceled || !selected.assets?.length) return [];
+  let selected: Picker.ImagePickerResult;
+  if (selection?.assets) {
+    selected = { canceled: false, assets: selection.assets };
+  } else {
+    try {
+      selected = camera
+        ? await Picker.launchCameraAsync({ ...options, allowsMultipleSelection: false, mediaTypes: ['images'] })
+        : await Picker.launchImageLibraryAsync(options);
+    } catch (error) {
+      selection?.onPickerSettled?.('error');
+      throw error;
+    }
+    selection?.onPickerSettled?.(selected.canceled || !selected.assets?.length ? 'cancelled' : 'selected');
+  }
+  // A dismissed editor must not start processing a late native picker result.
+  if (selection?.isActive?.() === false || selected.canceled || !selected.assets?.length) return [];
   selection?.onSelected?.(selected.assets);
   // Discussion drafts stage local selections; no processing or backend work until Post.
   if (selection?.selectOnly) return [];
