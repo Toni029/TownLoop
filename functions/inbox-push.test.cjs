@@ -58,3 +58,8 @@ test('preference revocation before claim, token rotation and expired event are s
  const f=fixture();await f.register();await f.register('b',{token:'ExpoPushToken[new]',previousToken:f.data.token});assert.equal([...f.records.keys()].filter(p=>p.startsWith('notification_devices/')).length,1);
  f.event.time=new Date(f.now-3600001).toISOString();await f.deliver();assert.equal(f.sent.length,0);
 });
+test('registration ignores forged recipient UID and uses only verified callable authentication',async()=>{
+ const h=fixture();await h.register('a',{uid:'b',recipientId:'b'});
+ const device=[...h.records].find(([p])=>p.startsWith('notification_devices/'))[1];
+ assert.equal(device.uid,'a');assert.equal(device.recipientId,undefined);
+});

@@ -1,4 +1,4 @@
-# Native Inbox push — LOCAL, NOT DEPLOYED
+# Native Inbox push — local implementation, no service/app deployment
 
 Scope: default Firestore database in `cc-livingcommunity-app`, Expo project `9f970d26-beed-44d6-a590-9dcdc00e85de`, Android/iOS application ID `com.toni029.townloop`. Original website and its named database are unchanged. No deletion, cleanup, moderation or Admin escalation worker is exported by the isolated package.
 
@@ -16,9 +16,9 @@ Scope: default Firestore database in `cc-livingcommunity-app`, Expo project `9f9
 
 ## Credentials / build prerequisites
 
-1. Register the existing Android package with the existing Firebase project if not already registered; supply its real `google-services.json` as the **EAS file environment variable `GOOGLE_SERVICES_JSON`**, for each intended EAS environment. The config plugin validates project/package and refuses Android EAS builds without the file. Do not commit credentials. No Firebase registration was performed here.
+1. Register the existing Android package with the existing Firebase project if not already registered; supply its real `google-services.json` as the **EAS file environment variable `GOOGLE_SERVICES_JSON`**, for each intended EAS environment. The config plugin validates project/package and refuses Android EAS builds without the file. Do not commit credentials. Android registration and Preview credentials were subsequently prepared; see [credential status and owner steps](./CREDENTIAL_STATUS.md).
 2. Configure **FCM HTTP v1** sending credentials in EAS for this Expo project (least-privilege Firebase Cloud Messaging API Admin service account credential), plus enable the FCM API where required. Obtain owner approval before creating credentials/IAM changes. Android client JSON is not a substitute for the server sending credential.
-3. Apple Developer team membership, matching App ID, Push Notifications capability, valid APNs `.p8` key (key ID/team ID) stored through EAS credentials, and provisioning that includes `aps-environment`. The expo-notifications plugin prepares the entitlement; EAS signing must supply the correct distribution environment. Visible alerts do not require background JS/silent-push capability. No Apple credentials were read or changed.
+3. Apple Developer team membership, matching App ID, Push Notifications capability, valid APNs `.p8` key (key ID/team ID) stored through EAS credentials, and provisioning that includes `aps-environment`. The expo-notifications plugin prepares the entitlement; EAS signing must supply the correct distribution environment. Visible alerts do not require background JS/silent-push capability. Apple credentials remain pending owner login; see [credential status and owner steps](./CREDENTIAL_STATUS.md).
 4. Optional Expo enhanced push security: enable it for the Expo project and provision server-only `EXPO_ACCESS_TOKEN` securely to **all Inbox send/receipt functions**, never client configuration or Git. If unavailable, leave enhanced security off until coordinated. Do not paste credentials into chat.
 5. Both Android and iOS require **new native builds**: expo-notifications and expo-crypto were added using SDK-compatible Expo versions. This is not a d6-runtime OTA. Preserve fingerprint policy; new builds establish new exact runtimes. Preserve existing signing and Preview/Production channel separation. No binary was built here.
 

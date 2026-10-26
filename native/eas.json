@@ -21,7 +21,11 @@
         "credentialsSource": "local"
       },
       "channel": "preview",
-      "environment": "preview"
+      "environment": "preview",
+      "ios": {
+        "simulator": false,
+        "credentialsSource": "remote"
+      }
     },
     "production": {
       "autoIncrement": true,
