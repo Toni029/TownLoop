@@ -2,7 +2,7 @@
 import type { KeyValueStorage } from './chunkedStorage';
 const KEY = 'townloop_account_cleanup_pending_v1';
 const valid = (uid: unknown): uid is string => typeof uid === 'string' && uid.length > 0 && uid.length <= 128 && !/[\u0000-\u001f/]/.test(uid);
-export function createAccountCleanupQueue(storage: KeyValueStorage, clear: (uid: string) => Promise<void>) {
+export function createAccountCleanupQueue(storage: KeyValueStorage, clear: (uid: string) => Promise<void>, onCleared: (uid: string) => Promise<void> = async () => {}) {
   let tail: Promise<unknown> = Promise.resolve();
   const run = <T>(action: () => Promise<T>): Promise<T> => {
     const next = tail.then(action, action); tail = next.catch(() => {}); return next;
@@ -20,6 +20,9 @@ export function createAccountCleanupQueue(storage: KeyValueStorage, clear: (uid:
     for (const uid of [...ids]) {
       try {
         await clear(uid);
+        // Do this per account, even if another account's locked storage fails.
+        // Keep the proof queued if completion/sign-out itself is interrupted.
+        await onCleared(uid);
         completed.push(uid);
         ids = ids.filter(id => id !== uid);
         if (ids.length) await storage.setItem(KEY, JSON.stringify(ids)); else await storage.removeItem(KEY);
