@@ -2,7 +2,7 @@ import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "./SystemBars";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, cancelAnimation, runOnJS, ReduceMotion } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
-import { useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { useEffect, useRef, useState, type ReactNode, type PropsWithChildren } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -24,6 +24,7 @@ import { useReducedMotion } from "../home/hooks";
 export function ProductDialog({
   title,
   subtitle,
+  headerLeading,
   children,
   busy = false,
   onClose,
@@ -35,6 +36,7 @@ export function ProductDialog({
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
+  headerLeading?: ReactNode;
   busy?: boolean;
   onClose: () => void;
   initiallyFull?: boolean;
@@ -223,7 +225,8 @@ export function ProductDialog({
                     },
                   ]}
                 >
-                  <View style={{ flex: 1 }}>
+                  {headerLeading && <View style={{ flexShrink: 0, marginRight: 6 }}>{headerLeading}</View>}
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Copy
                       accessibilityRole="header"
                       weight="bold"

@@ -8,7 +8,6 @@ import {
   FlatList,
   View,
   Share,
-  useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -299,14 +298,12 @@ export function ListingActions({
   busy,
   onAction,
   onMessage,
-  pickupInfo = false,
 }: {
   item: Listing;
   user: UserProfile | null;
   busy: boolean;
   onAction: SocialAction;
   onMessage: (item: Listing) => void;
-  pickupInfo?: boolean;
 }) {
   const dark = !!usePresentation()?.dark;
   const sold = !!(item.sold || item.claimed);
@@ -322,8 +319,7 @@ export function ListingActions({
         },
       ]}
     >
-      {pickupInfo ? <Copy style={{ color: "#78716c", fontSize: 11 }}>Porch pickup</Copy>
-        : <Pill label={sold ? "Sold" : "Available"} tone={sold ? "stone" : "green"} />}
+      <Pill label={sold ? "Sold" : "Available"} tone={sold ? "stone" : "green"} />
       {owns(item, user) ? (
         <Pressable
           accessibilityRole="button"
@@ -515,7 +511,6 @@ export function SocialFeed({
     const values = new Map<string, { text: string; id: string }>();
     return { get: (id: string) => values.get(id), set: (id: string, draft: { text: string; id: string }) => values.set(id, draft) };
   });
-  const { width } = useWindowDimensions();
   const renderPost = (post: Post) => (
               <View
                 key={post.id}
@@ -543,7 +538,6 @@ export function SocialFeed({
                     </View>
                   </Pressable>
                   <Pill label={post.tag} />
-                  <SafetyActions target={{kind:"post",id:String(post.id),authorId:String(post.authorId || "")}}/>
                   {(owns(post, user) || canDeleteAnyPost(user)) && (
                     <DeleteControl
                       busy={busy}
@@ -815,8 +809,8 @@ export function SocialFeed({
                 accessibilityLabel="Marketplace Chats & Inbox"
                 onPress={onInbox}
                 style={[
-                  s.row,
                   {
+                    alignItems: "center",
                     width: 44,
                     minHeight: 44,
                     justifyContent: "center",
@@ -991,68 +985,25 @@ export function Detail({
     <ProductDialog
       title={item.author}
       subtitle={`${item.unit} • ${item.timeAgo}`}
+      headerLeading={<Avatar uri={item.authorAvatar} name={item.author} />}
       onClose={onClose}
       busy={busy}
       initiallyFull
     >
-      <View style={s.row}>
-        <Avatar uri={item.authorAvatar} name={item.author} />
-        {listing ? (
-          <Pill
-            label={listing.sold ? "Sold" : "Available"}
-            tone={listing.sold ? "stone" : "green"}
-          />
-        ) : (
-          <Pill label={post!.tag} />
-        )}
-      </View>
-      {listing ? (
-        <View style={[s.row, { justifyContent: "flex-start", gap: 0 }]}>
-            <Pill
-              solid
-              price
-              label={listing.price}
-              tone={
-                listing.sold
-                  ? "stone"
-                  : listing.price.toUpperCase() === "FREE"
-                    ? "green"
-                    : "amber"
-              }
-            />
-          <SafetyActions target={{kind:"listing",id:String(item.id),authorId:String(item.authorId || "")}}/>
+      {!!(error || shareError) && <ErrorNotice message={error || shareError} />}
+      <View style={[s.row, { alignItems: "flex-start", flexWrap: "nowrap" }]}>
+        <Copy weight="bold" style={{ flex: 1, minWidth: 0, fontSize: 20, lineHeight: 28 }}>
+          {item.title}
+        </Copy>
+        <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0 }}>
+          {listing && <Pill solid price label={listing.price} tone={listing.sold ? "stone" : listing.price.toUpperCase() === "FREE" ? "green" : "amber"} />}
+          <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
           {(owns(item, user) || canDeleteAnyPost(user)) && (
             <DeleteControl compact busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />
           )}
         </View>
-      ) : <>
-      <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
-      <View style={s.row}>
-        <Action
-          label="Share post"
-          icon={Share2}
-          tone="light"
-          onPress={() =>
-            void Share.share({
-              title: item.title,
-              message: `${item.title}\n${post?.content || ""}`,
-            }).catch(() =>
-              setShareError("Unable to share this item. Please try again."),
-            )
-          }
-        />
-        {(owns(item, user) || canDeleteAnyPost(user)) && (
-          <DeleteControl
-            busy={busy}
-            onDelete={() => void onAction(kind, String(item.id), "delete")}
-          />
-        )}
       </View>
-      </>}
-      {!!(error || shareError) && <ErrorNotice message={error || shareError} />}
-      <Copy weight="bold" style={{ fontSize: 20, lineHeight: 28 }}>
-        {item.title}
-      </Copy>
+      {post && <View style={s.row}><Pill label={post.tag} /></View>}
       <Copy style={{ fontSize: 14, lineHeight: 23 }}>
         {post?.content || listing?.description}
       </Copy>
@@ -1078,7 +1029,6 @@ export function Detail({
       )}
       {listing && (
         <ListingActions
-          pickupInfo
           item={listing}
           user={user}
           busy={busy}
@@ -1086,23 +1036,17 @@ export function Detail({
           onMessage={onMessage}
         />
       )}
-      <View style={[s.row, { justifyContent: "flex-start" }]}>
-        {listing && (
+      <View style={[s.row, { justifyContent: "space-between", flexWrap: "nowrap" }]}>
+        <Copy weight="bold" style={{ flexShrink: 1 }}>{item.comments?.length || 0} Comments</Copy>
         <Action
           label="Share post"
           icon={Share2}
           tone="light"
-          onPress={() =>
-            void Share.share({
-              title: item.title,
-              message: `${item.title}\n${listing.description}`,
-            }).catch(() =>
-              setShareError("Unable to share this item. Please try again."),
-            )
-          }
+          onPress={() => void Share.share({
+            title: item.title,
+            message: `${item.title}\n${post?.content || listing?.description || ""}`,
+          }).catch(() => setShareError("Unable to share this item. Please try again."))}
         />
-        )}
-        <Copy weight="bold">{item.comments?.length || 0} Comments</Copy>
       </View>
       <Comments
         comments={item.comments || []}

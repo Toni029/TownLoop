@@ -8,6 +8,7 @@ import {
 } from "react";
 import { View } from "react-native";
 import type { MediaAttachment } from "../../../src/types";
+import { useCommunity } from "../lib/community";
 import { useResident } from "../lib/resident";
 import { useLiveCollection } from "../lib/liveCollection";
 import { Action, Copy, NewsDialog } from "../news/ui";
@@ -23,6 +24,7 @@ import {
   chatSide,
   withAvatar,
   avatarResolver,
+  communityResidentLabel,
   type Listing,
 } from "./model";
 import { changeSocial, changeChat, inquire, type SocialKind } from "./actions";
@@ -31,6 +33,8 @@ import { CreateEditor } from "./CreateEditor";
 import { Inbox, MessageSeller } from "./Inbox";
 export default function SocialScreen() {
   const user = useResident();
+  const { community } = useCommunity();
+  const residentLabel = communityResidentLabel(community);
   useEffect(() => {
     // Retire the one temporary diagnostic record; resident content is untouched.
     void AsyncStorage.removeItem('townloop:preview:feed-upload-trace:v1').catch(() => {});
@@ -54,7 +58,7 @@ export default function SocialScreen() {
     index: number;
     title: string;
     returnTo: typeof selected;
-    marketplace: boolean;
+    keepDetails: boolean;
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -63,11 +67,12 @@ export default function SocialScreen() {
   const resolveAvatar = useMemo(() => avatarResolver(directory.items, user), [directory.items, user]);
   const resolvedPosts = useMemo(() => posts.items.map((p) => ({
     ...withAvatar(p, directory.items, user, resolveAvatar),
+    unit: residentLabel,
     liked: p.likedBy[uid] === true,
-  })), [posts.items, directory.items, user, resolveAvatar, uid]);
+  })), [posts.items, directory.items, user, resolveAvatar, uid, residentLabel]);
   const resolvedListings = useMemo(() => listings.items.map((p) =>
-    withAvatar(p, directory.items, user, resolveAvatar),
-  ), [listings.items, directory.items, user, resolveAvatar]);
+    ({...withAvatar(p, directory.items, user, resolveAvatar), unit: residentLabel}),
+  ), [listings.items, directory.items, user, resolveAvatar, residentLabel]);
   const chats = useMemo(() => orderedChats(inbox.items, uid), [inbox.items, uid]);
   const unread = chats.filter((c) =>
     chatSide(c, uid) === "seller" ? c.unreadForSeller : c.unreadForBuyer,
@@ -115,12 +120,15 @@ export default function SocialScreen() {
     [perform],
   );
   const onMedia = (files: MediaAttachment[], title: string, index = 0) => {
-    setMedia({ files, title, index, returnTo: selected, marketplace: (selected?.kind || view) === "listing" });
-    // Keep listing details mounted underneath the gallery; closing must not replay its entrance.
-    if (selected?.kind !== "listing") setSelected(null);
+    const keepDetails = files[index]?.type === "image";
+    const photos = keepDetails ? files.filter(file => file.type === "image") : files;
+    const photoIndex = keepDetails ? files.slice(0, index).filter(file => file.type === "image").length : index;
+    setMedia({ files: photos, title, index: photoIndex, returnTo: selected, keepDetails });
+    // Image galleries layer above the existing post; closing never replays its entrance.
+    if (!keepDetails) setSelected(null);
     setError("");
   };
-  const Gallery = media?.marketplace && media.files.every(file => file.type === "image") ? MarketplaceGallery : MediaViewer;
+  const Gallery = media?.files.every(file => file.type === "image") ? MarketplaceGallery : MediaViewer;
   const onMessage = (item: Listing) => {
     setSelected(null);
     setError("");
@@ -249,7 +257,7 @@ export default function SocialScreen() {
           initialIndex={media.index}
           title={media.title}
           onClose={() => {
-            if (!media.marketplace) setSelected(media.returnTo);
+            if (!media.keepDetails) setSelected(media.returnTo);
             setMedia(null);
           }}
         />
