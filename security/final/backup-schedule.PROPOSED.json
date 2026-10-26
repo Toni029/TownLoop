@@ -1,10 +1,23 @@
 {
-  "status": "PROPOSED_ONLY_NO_LIVE_CHANGE",
+  "status": "DEFERRED_BY_OWNER_DO_NOT_APPLY",
   "project": "cc-livingcommunity-app",
   "databaseSchedules": [
-    {"database": "(default)", "createBody": {"retention": "5184000s", "dailyRecurrence": {}}},
-    {"database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb", "createBody": {"retention": "5184000s", "dailyRecurrence": {}}}
+    {
+      "database": "(default)",
+      "createBody": {
+        "retention": "5184000s",
+        "dailyRecurrence": {}
+      }
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "createBody": {
+        "retention": "5184000s",
+        "dailyRecurrence": {}
+      }
+    }
   ],
   "pitr": "Optional separately approved seven-day recovery, currently disabled. No activation implied.",
-  "restoreGate": "Isolate a restore, reapply approved deletion/redaction receipts before allowing clients, and reverify role/privacy rules. Never restore expired identities to normal app access."
+  "restoreGate": "Isolate a restore, reapply approved deletion/redaction receipts before allowing clients, and reverify role/privacy rules. Never restore expired identities to normal app access.",
+  "ownerDecision": "2026-10-26: preserve all existing backups and recovery settings; no configuration changes approved"
 }

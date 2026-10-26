@@ -35,11 +35,12 @@ async function clearAccountFiles(uid: string): Promise<void> {
   await AsyncStorage.multiRemove([`townloop:social:liked:${uid}`]);
 }
 
-const cleanupQueue = createAccountCleanupQueue(authPersistenceStorage, clearAccountFiles);
+const cleanupQueue = createAccountCleanupQueue(authPersistenceStorage, clearAccountFiles, async uid => {
+  if (auth.currentUser?.uid === uid) await signOut(auth);
+});
 export const clearDeletedAccountCaches = (uid: string) => cleanupQueue.enqueue(uid);
 export const retryPendingAccountCleanup = async () => {
-  const completed = await cleanupQueue.retry();
-  if (auth.currentUser && completed.includes(auth.currentUser.uid)) await signOut(auth);
+  await cleanupQueue.retry();
 };
 
 export type DeletionRequestStatus = { status: string; jobId?: string; createdAt?: number | null; reviewedAt?: number | null; reason?: string; processingHeld?: boolean; reviewDueAt?: number; escalateAt?: number; retentionDueAt?: number; completionDueAt?: number | null; reviewOverdue?: boolean; escalated?: boolean; processingOverdue?: boolean; retentionOverdue?: boolean };

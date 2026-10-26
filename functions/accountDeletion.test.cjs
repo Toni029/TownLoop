@@ -34,10 +34,11 @@ function harness(initial, authorizeProcessing = false) {
     if (!['valid', 'wrong-account'].includes(token)) throw Error('revoked');
     return { uid: token === 'valid' ? 'alice' : 'bob', auth_time: Date.now() / 1000 };
   };
-  const warnings = [];
+  const warnings = [], adminAlerts = [];
   const exports = {}, context = { exports, module: { exports }, require: name => {
     if (name === './accountDeletionRetention.cjs') return require(name);
-    if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
+    if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs','./accountDeletionMonitor.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
+    if (name === './accountDeletionAdminAlerts.cjs') return {notifyAdmins:async()=>{adminAlerts.push('generic_admin_digest');}};
     if (name === './accountDeletionPolicy.cjs') return require(name);
     if (name === 'firebase-functions') return {logger:{warn:(_message,data)=>warnings.push(data)}};
     if (name === 'node:crypto') return require(name);
@@ -48,7 +49,7 @@ function harness(initial, authorizeProcessing = false) {
     throw Error(`Unexpected import: ${name}`);
   }, process: { env: { TOWNLOOP_ACCOUNT_DELETION_ENABLED: authorizeProcessing ? 'true' : 'false', TOWNLOOP_DELETION_REVIEW_MONITOR_ENABLED: authorizeProcessing ? 'true' : 'false' } }, Date };
   vm.runInNewContext(fs.readFileSync(require.resolve('./accountDeletion.cjs'), 'utf8') + '\nmodule.exports.run = processJob;', context);
-  return { warnings, records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, escalate:context.module.exports.escalateAccountDeletionRequests, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, status: context.module.exports.getAccountDeletionStatus, list: context.module.exports.listAccountDeletionRequests, review: context.module.exports.reviewAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
+  return { warnings, adminAlerts, enableAdminAlerts:()=>{context.process.env.TOWNLOOP_DELETION_ADMIN_ALERTS_ENABLED='true';}, records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, escalate:context.module.exports.escalateAccountDeletionRequests, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, status: context.module.exports.getAccountDeletionStatus, list: context.module.exports.listAccountDeletionRequests, review: context.module.exports.reviewAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
 }
 test('deletion request requires exact confirmation and recent authentication, not just a refreshed token', () => {
   const now = 100000000, auth = { uid: 'alice', token: { auth_time: now / 1000 } };
@@ -309,4 +310,11 @@ test('three-business-day reminder is distinct from seven-day escalation and does
  const job=h.records.get(h.ref.path);
  assert.equal(job.reviewOverdue,true);assert.equal(job.escalated,false);assert.equal(job.escalationReason,'review_due');
  assert.equal(job.status,'requested');assert.deepEqual(h.authCalls,[]);
+});
+
+test('automatic Admin delivery requires both explicit non-destructive monitor flags',async()=>{
+ const input=()=>({'account_deletion_jobs/job':{uid:'alice',status:'requested',createdAt:Date.now()-8*86400000,lastAttemptAt:1}});
+ const disabled=harness(input());disabled.enableAdminAlerts();await disabled.escalate();assert.deepEqual(disabled.adminAlerts,[]);
+ const prepared=harness(input(),true);delete prepared.records.get(prepared.ref.path).review;await prepared.escalate();assert.deepEqual(prepared.adminAlerts,[]);
+ prepared.enableAdminAlerts();await prepared.escalate();assert.deepEqual(prepared.adminAlerts,['generic_admin_digest']);assert.deepEqual(prepared.authCalls,[]);assert.equal(prepared.records.get(prepared.ref.path).status,'requested');
 });

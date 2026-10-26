@@ -1,0 +1,10 @@
+{
+  "id": "01a17571-852a-7f02-a990-c6e3ee81677e",
+  "createdAt": "2026-10-25T23:42:16.362Z",
+  "group": "1857d637-3dfc-48ce-bf25-7eacd0036b94",
+  "branch": "preview",
+  "runtimeVersion": "d6f09b9023171c8bdabd4a8e1da0b41223dff3b9",
+  "platform": "android",
+  "gitCommitHash": "bfb1a85d84b2c8535dfae5c46cf338f7ff7750c3",
+  "verification": "EAS update:view read-only recheck 2026-10-26; GitHub branch ref also matched; phone installation not verified"
+}

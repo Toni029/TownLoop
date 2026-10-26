@@ -17,7 +17,16 @@
     "activationApproved": false,
     "identityCoverageVerified": false,
     "mediaCoverageVerified": false,
-    "databaseScopeVerified": false
+    "databaseScopeVerified": false,
+    "automaticEscalationRoles": [
+      "admin"
+    ],
+    "reviewRoles": [
+      "admin",
+      "vip"
+    ],
+    "audit400DayExceptionApproved": false,
+    "auditLegalBasis": "Not established; owner/legal review required, no application retention extension"
   },
   "remainingActivationGates": [
     "Resolve schema/identity-specific needs_review receipts before claiming complete deletion",
@@ -25,6 +34,13 @@
     "Verify compatible deletion scope for the existing named web database without switching databases",
     "Configure review staffing and escalation notifications",
     "Verify offline/revoked-session cleanup proof and legacy browser data ownership",
-    "Apply and verify the separately approved 60-day backup lifecycle"
-  ]
+    "Disclose verified existing backup expiry and reconcile recovery with completed deletions; no backup change approved"
+  ],
+  "operator": {
+    "name": "Seeds4Clix",
+    "supportEmail": "support@seeds4clic.com",
+    "emailSpellingConfirmed": false,
+    "publicationApproved": false
+  },
+  "backups": "All changes deferred; preserve verified existing configuration"
 }

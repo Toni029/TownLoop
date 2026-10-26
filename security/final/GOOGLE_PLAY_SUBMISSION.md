@@ -61,7 +61,7 @@ is identified in this existing scope; that is not a universal “collects nothin
 
 ## Store and release inputs still needed
 
-- Owner legal/developer name, verified support/privacy contact and public website/deletion URLs.
+- Operator Seeds4Clix; supplied support email `support@seeds4clic.com` spelling/monitoring must be confirmed before publication. No address or additional legal entity information is invented. Approve effective date and public privacy/deletion URLs.
 - App name/descriptions/category, content rating, intended audience, ads/access declarations,
   Health declaration, Data Safety and a working reviewer-access arrangement approved by owner.
   Never create resident accounts for reviewers without authorization or use real resident data.
@@ -90,3 +90,16 @@ Halt rollout on a genuine crash/access regression. Use a higher-version-code cor
 runtime-matched JS update only where compatible; do not downgrade rules, restore public Storage,
 resurrect deleted records or reuse retired bearer tokens as recovery. Default-off destructive
 workers stay off until their separate safety gate and activation approval pass.
+
+## Owner decisions applied October 26, 2026
+
+- Automatic overdue notifications: canonical approved Admin only; VIP can review but is excluded
+  from automatic delivery. Monitoring stays disabled. Review 3 business days, escalation 7 calendar
+  days, processing target 7 days; ordinary retention remains a maximum of 60 days.
+- Backups: changes deferred. Disclose existing verified settings, not proposed daily backups/PITR.
+- No specific applicable legal basis established for an application 400-day exception. Existing
+  fixed Google system audit retention is a provider constraint requiring owner/legal review,
+  not authority to retain chats/photos or application receipts for 400 days. See POLICY_DECISIONS.md.
+- Stage 1 Android cleanup/images OTA is actually published (metadata rechecked October 26):
+  `01a17571-852a-7f02-a990-c6e3ee81677e`, source `bfb1a85`, runtime
+  `d6f09b9023171c8bdabd4a8e1da0b41223dff3b9`. Phone installation remains owner verification.

@@ -2,7 +2,7 @@
 
 Local completion package, not permission to deploy or activate deletion. Builds, resident data,
 Hosting, both database selections, rules, tokens and Production remain unchanged.
-Existing deployed review/Preview checkpoint: `b30cbef`, OTA `01a173ea-79f0-716b-b420-ed7c1e6160c1`.
+Review backend checkpoint: `b30cbef`. Stage 1 Android JS cleanup/images is published from `bfb1a85`, OTA `01a17571-852a-7f02-a990-c6e3ee81677e`, runtime `d6f09b9023171c8bdabd4a8e1da0b41223dff3b9`; EAS metadata rechecked October 26, 2026. No phone-installation claim.
 
 ## Completed corrections and evidence
 
@@ -24,8 +24,9 @@ Existing deployed review/Preview checkpoint: `b30cbef`, OTA `01a173ea-79f0-716b-
   `TOWNLOOP_DELETION_REVIEW_OVERDUE`, no names/UIDs/text/URLs. The existing 3-business-day reminder,
   7-day escalation and completion/retention overdue receipts remain idempotent. Monitor remains
   disabled and undeployed. Cloud Monitoring draft is disabled, rate-limited to one daily alert,
-  and has no notification destination. Existing push-client integration is deferred, not a
-  dependable delivery route. Admin/VIP review access does not imply staff response guarantees.
+  and has no notification destination. A separate local Admin-only dispatcher now rechecks canonical
+  role, approval, Auth disable state and device ownership. Native push registration remains deferred,
+  so delivery cannot be promised or activated yet. VIP review access never grants automatic alerts.
 
 ## Approved metadata/configuration verification (aggregate only)
 
@@ -46,7 +47,8 @@ No records changed. Counts are a point-in-time minimum scope, not a universal er
   rule is asynchronous and does not establish an inventory of all historical copies.
 - Application Storage has 7-day soft deletion and no configured versioning/retention lock in the
   returned settings. Other project bucket configurations were read, not contents. General
-  logging retention is 30 days; the required audit bucket is locked at 400 days. No log bodies read.
+  logging retention is 30 days; the provider-required audit bucket is locked at 400 days. This is
+  a provider constraint, not an established TownLoop legal basis or approved application exception. No log bodies read.
 - Application bucket has no explicit CORS configuration. Prepared browser authenticated reads
   need a real permitted-origin check before release; a proposed origin-scoped configuration preserving upload methods is supplied
   for owner approval, not silently applied.
@@ -70,10 +72,10 @@ No records changed. Counts are a point-in-time minimum scope, not a universal er
    release; a held approval is not completed deletion. The 60-day window is a maximum ordinary
    retention limit, not a fixed waiting period. Delays/withdrawals require the existing legitimate
    reasons. No arbitrary denial or deadline reset.
-5. Backup recovery proposal: optional daily managed backups with 60-day expiry in both scoped
-   databases; preserve current recovery protections. Restore into isolation, reapply approved
-   deletion receipts, then validate permissions before client access. Provider-required audit
-   logging (400 days) needs a documented minimal-data security exception and owner approval.
+5. Owner deferred all backup changes on October 26. Preserve existing settings and disclose verified
+   retention. Restore into isolation, reconcile completed deletions, then validate permissions
+   before client access. No application 400-day exception is approved: a specific applicable legal
+   requirement has not been established. See POLICY_DECISIONS.md; no log-retention changes made.
 
 ## Legacy token retirement — held, separate approval required
 
@@ -135,8 +137,10 @@ an approved new native release, preserve optional camera/system picker, then ins
 2. Release approved client cleanup/authenticated-reader changes to a verified Preview runtime;
    independently verify browser readers/CORS against a separately approved website snapshot.
    No rules changes or token retirement are bundled. Review-only services already run at b30cbef.
-3. Separately approve non-destructive monitor deployment plus one staffed Monitoring destination;
-   test a synthetic aggregate alert without making a resident deletion request.
+3. Separately approve the isolated non-destructive monitor release, Admin-only device registration
+   and delivery verification, and 60-day delivery-receipt expiry configuration. Keep scheduler and
+   delivery flags false until separately approved. Generic office/VIP Monitoring channels are not
+   an authorized substitute. Test synthetic delivery without a real deletion request.
 4. When explicitly approved, apply future native permission fragment and build ONE Preview binary
    to verify native opt-out and release gates. Preserve original video and signing. After tests,
    separately approve the Production AAB/Play closed-test track. Never publish a Preview OTA to
@@ -145,12 +149,13 @@ an approved new native release, preserve optional camera/system picker, then ins
    retention and backup gates and explicit destructive approval. No generic flag flip or self-approval.
    Later, independently approve controlled token retirement. Neither is included in this task.
 
-Owner input: legal operator/contact/effective date; a monitored office destination and staffed
-Admin escalation owner; provider AI/translation handling terms; required audit-log exception;
-Play account type/testing/signing status. Recommended defaults: all approved Admins see office
-queue, one monitored office email receives aggregate alerts; preserve 60-day ordinary policy;
-retain required audit records only for the actual provider minimum. No contact or legal identity
-is invented. Optional managed backups are a cost/recovery choice, not a Google Play mandate.
+Owner decisions applied: Seeds4Clix; supplied `support@seeds4clic.com` must be confirmed for
+spelling and monitoring before public use. No address/legal entity is invented. Automatic alerts
+go only to current authorized Admins; VIP review remains. Backups are deferred. Ordinary retention
+is 60 days; no application 400-day exception has an established applicable legal basis.
+Remaining owner/legal inputs: email confirmation, required legal details/effective date, provider
+AI/translation practices, provider audit constraint, Play account/testing/signing and later scoped
+activation approvals. See POLICY_DECISIONS.md for exact deployment gates.
 
 ## Focused verification
 
