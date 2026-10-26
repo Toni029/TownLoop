@@ -24,18 +24,18 @@ function fixture() {
 }
 function find(node:any,predicate:(node:any)=>boolean):any {if(!node||typeof node!=='object')return;if(predicate(node))return node;for(const child of [node.props?.children].flat(Infinity)){const found=find(child,predicate);if(found)return found;}}
 test('close fades the entire gallery without shrinking or resetting zoom, and finishes only once',()=>{
- const f=fixture(),[alpha,entrance,,offset,scale,x,y, , , ,locked]=f.values;
+ const f=fixture(),[alpha,entrance,,scale,x,y, , , ,locked]=f.values;
  scale.set(2.5);x.set(40);y.set(-30);const size=entrance.get();
  find(f.tree,(n:any)=>n.props?.accessibilityLabel==='Close photo gallery').props.onPress();
- assert.equal(alpha.get(),0);assert.equal(offset.get(),28);assert.equal(scale.get(),2.5);assert.equal(x.get(),40);assert.equal(y.get(),-30);assert.equal(entrance.get(),size);assert.equal(locked.get(),true);
+ assert.equal(alpha.get(),0);assert.equal(scale.get(),2.5);assert.equal(x.get(),40);assert.equal(y.get(),-30);assert.equal(entrance.get(),size);assert.equal(locked.get(),true);
  const scene=find(f.tree,(n:any)=>n.props?.style?.some?.((s:any)=>s.read?.().opacity===0));assert(scene);
- assert.equal(f.animations.length,2);assert.equal(f.animations[1].config.reduceMotion,'system');assert.equal(f.closes(),0);
- f.tree.props.onRequestClose();assert.equal(f.animations.length,2);
- f.animations[1].finish(true);f.animations[1].finish(true);assert.equal(f.closes(),1);
+ assert.equal(f.animations.length,1);assert.equal(f.animations[0].config.reduceMotion,'system');assert.equal(f.closes(),0);
+ f.tree.props.onRequestClose();assert.equal(f.animations.length,1);
+ f.animations[0].finish(true);f.animations[0].finish(true);assert.equal(f.closes(),1);
 });
-test('swipe dismissal continues downward from the gesture position without a scale jump',()=>{
+test('swipe dismissal dissolves in place without a scale or position jump',()=>{
  const f=fixture(),pan=f.gestures.find(g=>g.kind==='pan');pan.onStartValue();pan.onUpdateValue({translationX:0,translationY:150});
- assert.equal(f.values[6].get(),150);pan.onEndValue({translationX:0,translationY:150,velocityY:1200});
- assert.equal(f.values[6].get(),150);assert.equal(f.values[3].get(),682);assert.equal(f.values[4].get(),1);assert.equal(f.animations[0].config.duration,280);
- for(const cleanup of f.cleanups)cleanup();f.animations[1].finish(true);assert.equal(f.closes(),0);
+ assert.equal(f.values[5].get(),150);pan.onEndValue({translationX:0,translationY:150,velocityY:1200});
+ assert.equal(f.values[5].get(),150);assert.equal(f.values[3].get(),1);assert.equal(f.animations.length,1);assert.equal(f.animations[0].config.duration,220);
+ for(const cleanup of f.cleanups)cleanup();f.animations[0].finish(true);assert.equal(f.closes(),0);
 });

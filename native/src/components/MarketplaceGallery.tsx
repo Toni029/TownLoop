@@ -26,7 +26,6 @@ export function MarketplaceGallery({media, initialIndex = 0, title, onClose}: {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const closed = useRef(false), closing = useRef(false);
   const alpha = useSharedValue(0), entrance = useSharedValue(.96), chrome = useSharedValue(1);
-  const dismissOffset = useSharedValue(0);
   const scale = useSharedValue(1), x = useSharedValue(0), y = useSharedValue(0);
   const startScale = useSharedValue(1), startX = useSharedValue(0), startY = useSharedValue(0), locked = useSharedValue(false);
   const photoWidth = Math.min(width, height * ratio), photoHeight = Math.min(height, width / ratio);
@@ -51,18 +50,14 @@ export function MarketplaceGallery({media, initialIndex = 0, title, onClose}: {
     return () => { active = false; };
   }, [imageUri, retry]);
   const finishClose = () => { if (!closed.current) { closed.current = true; onClose(); } };
-  function close(velocityY = 0) {
+  function close() {
     if (closed.current || closing.current) return;
     closing.current = true;
     clearTimeout(timer.current);
     locked.set(true);
     [entrance, scale, x, y].forEach(cancelAnimation);
-    const swiped = y.get() > 0;
-    const distance = swiped ? Math.max(32, height - y.get() + 32) : 28;
-    const duration = swiped && velocityY > 0 ? Math.max(180, Math.min(280, distance / velocityY * 1000)) : 240;
-    const exitTiming = {duration, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System};
-    // Preserve the current zoom/drag position. Fade the entire gallery, never shrink the photo.
-    dismissOffset.set(withTiming(distance, exitTiming));
+    const exitTiming = {duration: 220, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System};
+    // A clean dissolve: preserve the photo's exact size and current gesture position.
     alpha.set(withTiming(0, exitTiming, done => { "worklet"; if (done) runOnJS(finishClose)(); }));
   }
   useEffect(() => {
@@ -71,9 +66,9 @@ export function MarketplaceGallery({media, initialIndex = 0, title, onClose}: {
     return () => {
       closed.current = true;
       clearTimeout(timer.current);
-      [alpha, entrance, chrome, dismissOffset, scale, x, y].forEach(cancelAnimation);
+      [alpha, entrance, chrome, scale, x, y].forEach(cancelAnimation);
     };
-  }, [alpha, entrance, chrome, dismissOffset, scale, x, y]);
+  }, [alpha, entrance, chrome, scale, x, y]);
   function change(next: number) {
     if (closing.current || closed.current) return;
     setLoaded(false); setError(false); setRatio(1); setIndex(next); reveal();
@@ -102,7 +97,7 @@ export function MarketplaceGallery({media, initialIndex = 0, title, onClose}: {
     // eslint-disable-next-line react-hooks/refs
     .onEnd(e => {
       if (locked.get() || scale.get() > 1.01) return;
-      if (y.get() > 120 || (y.get() > 35 && e.velocityY > 900)) { locked.set(true); runOnJS(close)(e.velocityY); return; }
+      if (y.get() > 120 || (y.get() > 35 && e.velocityY > 900)) { locked.set(true); runOnJS(close)(); return; }
       const next = index + (e.translationX < 0 ? 1 : -1);
       if (Math.abs(e.translationX) > Math.max(45, width * .18) && Math.abs(e.translationX) > Math.abs(e.translationY) && next >= 0 && next < media.length) {
         locked.set(true);
@@ -116,7 +111,7 @@ export function MarketplaceGallery({media, initialIndex = 0, title, onClose}: {
   const tap = Gesture.Tap().onEnd((_e, success) => { if (success && !locked.get()) runOnJS(setControls)(!controls); });
   const stageStyle = useAnimatedStyle(() => ({opacity: alpha.value}));
   const background = useAnimatedStyle(() => ({opacity: Math.max(.35, 1 - Math.max(0, y.value) / height)}));
-  const imageStyle = useAnimatedStyle(() => ({transform:[{translateX:x.value},{translateY:y.value + dismissOffset.value},{scale:scale.value * entrance.value}]}));
+  const imageStyle = useAnimatedStyle(() => ({transform:[{translateX:x.value},{translateY:y.value},{scale:scale.value * entrance.value}]}));
   const chromeStyle = useAnimatedStyle(() => ({opacity:chrome.value}));
   return <Modal transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => close()} onShow={() => {if (!closing.current) {alpha.set(withTiming(1, timing)); entrance.set(withTiming(1, timing));}}}>
     <SystemBars dark statusStyle="light" />

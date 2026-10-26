@@ -46,7 +46,7 @@ import {
 import { Collapsible } from "../components/Collapsible";
 import { MarketplaceGallery } from "../components/MarketplaceGallery";
 import { pickAndUpload } from "../components/media";
-import { sortWorkOrders, editableResolution, isResolutionComment, type WorkOrder } from "./model";
+import { pendingQueuePositions, sortWorkOrders, editableResolution, isResolutionComment, type WorkOrder } from "./model";
 import { translateWorkOrder, type TranslatedContent } from "./translator";
 import { Ticket } from "./Ticket";
 export type OrderAction = "delete" | "reopen" | "complete" | "note" | "deleteComment";
@@ -61,8 +61,10 @@ export function WorkOrdersFeed({
   busy,
   onCreate,
   onAction,
+  queuePositions,
 }: {
   orders: WorkOrder[];
+  queuePositions?: ReadonlyMap<string, number>;
   user: UserProfile | null;
   loading: boolean;
   error: string;
@@ -84,11 +86,8 @@ export function WorkOrdersFeed({
   useNewsFonts();
   const [expanded, setExpanded] = useState<string | null>(null);
   const visible = useMemo(() => sortWorkOrders(orders.filter(o => canViewWorkOrder(o, user))), [orders, user]);
-  const positions = useMemo(() => {
-    const result = new Map<string, number>();
-    for (const order of orders) if (order.status !== 'Done') result.set(String(order.id), result.size + 1);
-    return result;
-  }, [orders]);
+  const positions = useMemo(() => canViewAllWorkOrders(user)
+    ? pendingQueuePositions(orders) : new Map(queuePositions), [orders, user, queuePositions]);
   const toggleOrder = useCallback((id: string) => setExpanded(value => value === id ? null : id), []);
   const all = canViewAllWorkOrders(user);
   const mode = isCrew(user)
@@ -307,7 +306,7 @@ const OrderCard = memo(function OrderCard({
 }) {
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
-  const q = { done: order.status === 'Done', inProgress: order.status !== 'Done' && position === 1, place: position || order.placeInLine || 1, ahead: Math.max(0, (position || order.placeInLine || 1) - 1) };
+  const q = { done: order.status === 'Done', inProgress: order.status !== 'Done' && position === 1, place: position, ahead: Math.max(0, position - 1) };
   const [spanish, setSpanish] = useState(false);
   const sourceKey = JSON.stringify([order.title, order.description, order.comments]);
   const [translation, setTranslation] = useState<{ key: string; value: TranslatedContent } | null>(null);
@@ -597,7 +596,7 @@ const OrderCard = memo(function OrderCard({
                 ? "✓ Completed (Done)"
                 : q.inProgress
                   ? "In Progress"
-                  : `Queued #${q.place}`}
+                  : q.place > 0 ? `Queued #${q.place - 1}` : "Queue position updating"}
             </Copy>
           </View>
           {canTranslateWorkOrder(user) && <Pressable

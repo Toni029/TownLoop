@@ -191,12 +191,12 @@ export function Inbox({
           color="#047857"
         />
       )}
-      {selected && <SafetyActions target={{kind:"user",id:otherUid}} allowBlock/>}
       {!!error && <ErrorNotice message={error} retry={retry} />}
       {selected ? (
         <>
+          <View style={[s.row, {justifyContent: "flex-end"}]}>
           <Action
-            label="Inbox"
+            label="Back to inbox"
             icon={ChevronLeft}
             tone="light"
             onPress={() => {
@@ -204,6 +204,8 @@ export function Inbox({
               setText("");
             }}
           />
+          <SafetyActions target={{kind:"user",id:otherUid}} allowBlock blockInReport/>
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`View listing ${selected.itemTitle}`}

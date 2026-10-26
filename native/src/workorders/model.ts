@@ -9,7 +9,12 @@ function submissionTime(value: any): number {
   return typeof value === "string" ? Number(value) || Date.parse(value) || 0 : 0;
 }
 export function sortWorkOrders(orders: WorkOrder[]): WorkOrder[] {
-  return [...orders].sort((a,b) => Number(a.status === "Done") - Number(b.status === "Done") || a.createdAt - b.createdAt || String(a.id).localeCompare(String(b.id)));
+  return [...orders].sort((a,b) => Number(a.status === "Done") - Number(b.status === "Done") || a.createdAt - b.createdAt || (String(a.id)<String(b.id)?-1:String(a.id)>String(b.id)?1:0));
+}
+export function pendingQueuePositions(orders: WorkOrder[]): Map<string, number> {
+  const positions = new Map<string, number>();
+  for (const order of sortWorkOrders(orders)) if (order.status !== 'Done') positions.set(String(order.id), positions.size + 1);
+  return positions;
 }
 export function readWorkOrder(id:string, d:Record<string,any>):WorkOrder {
   return {resolutionNote:d.resolutionNote,resolutionCommentId:d.resolutionCommentId,resolutionCommentIndex:d.resolutionCommentIndex,resolutionAuthorId:d.resolutionAuthorId,id,code:displayWorkOrderCode(d.code || `WO-${id.slice(-4)}`),title:d.title || 'Work Order',description:d.description || '',category:d.category || 'General Maintenance',categoryEmoji:d.categoryEmoji || getCategoryEmoji(d.category || ''),unit:d.unit || 'Resident Unit',placeInLine:d.placeInLine || 1,aheadCount:d.aheadCount || 0,status:d.status || 'Queued',statusNote:d.statusNote || 'Pending review',timeAgo:d.timeAgo || 'Recent',completedAt:typeof d.completedAt?.toDate === 'function' ? d.completedAt.toDate().toISOString() : d.completedAt,completedBy:d.completedBy,photoUrl:d.photoUrl,photos:d.photos || (d.photoUrl ? [d.photoUrl] : []),comments:Array.isArray(d.comments) ? d.comments : [],userId:d.userId,userEmail:d.userEmail,userName:d.userName,createdAt:submissionTime(d.createdAt)};
