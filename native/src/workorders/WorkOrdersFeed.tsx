@@ -1,3 +1,5 @@
+import {relativePostedTime} from '../time/relativePostedTime';
+import {useMinuteNow} from '../time/useMinuteNow';
 import { PrivateImage } from '../components/PrivateImage';
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
@@ -42,7 +44,7 @@ import {
   useNewsFonts,
 } from "../news/ui";
 import { Collapsible } from "../components/Collapsible";
-import { MediaViewer } from "../components/MediaViewer";
+import { MarketplaceGallery } from "../components/MarketplaceGallery";
 import { pickAndUpload } from "../components/media";
 import { sortWorkOrders, editableResolution, isResolutionComment, type WorkOrder } from "./model";
 import { translateWorkOrder, type TranslatedContent } from "./translator";
@@ -76,6 +78,7 @@ export function WorkOrdersFeed({
     photo?: string,
   ) => Promise<boolean>;
 }) {
+  const now = useMinuteNow(orders.some(order => order.status !== "Done"));
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
   useNewsFonts();
@@ -265,6 +268,7 @@ export function WorkOrdersFeed({
           <OrderCard
             key={order.id}
             order={order}
+            now={now}
             position={positions.get(String(order.id)) || 0}
             user={user}
             expanded={expanded === String(order.id)}
@@ -279,6 +283,7 @@ export function WorkOrdersFeed({
 }
 const OrderCard = memo(function OrderCard({
   order,
+  now,
   position,
   user,
   expanded,
@@ -287,6 +292,7 @@ const OrderCard = memo(function OrderCard({
   onAction,
 }: {
   order: WorkOrder;
+  now: number;
   position: number;
   user: UserProfile | null;
   expanded: boolean;
@@ -461,6 +467,7 @@ const OrderCard = memo(function OrderCard({
             >
               {translated?.title || order.title}
             </Copy>
+            {!q.done && !expanded && <Copy style={{color: "#78716c", fontSize: 10, lineHeight: 15}}>{relativePostedTime(order.createdAt, now, "Just requested")}</Copy>}
           </View>
         </Pressable>
         {!expanded && canTranslateWorkOrder(user) && (
@@ -697,7 +704,7 @@ const OrderCard = memo(function OrderCard({
           </Copy>
         </Copy>
         <Copy style={{ color: "#78716c", fontSize: 11, lineHeight: 16.5 }}>
-          {order.statusNote} • {order.timeAgo}
+          {order.statusNote} • {q.done ? order.timeAgo : relativePostedTime(order.createdAt, now, "Just requested")}
           {order.completedAt
             ? ` • ${new Date(order.completedAt).toLocaleString()}`
             : ""}
@@ -821,7 +828,7 @@ const OrderCard = memo(function OrderCard({
         )}
       </Collapsible>
       {media && (
-        <MediaViewer
+        <MarketplaceGallery
           media={media.urls.map((url) => ({ type: "image", url }))}
           initialIndex={media.index}
           title={`${order.code}: ${order.title}`}

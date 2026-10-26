@@ -1,3 +1,5 @@
+import {relativePostedTime} from '../time/relativePostedTime';
+import {useMinuteNow} from '../time/useMinuteNow';
 import { PrivateImage as Image } from '../components/PrivateImage';
 import { SafetyActions } from "../components/SafetyActions";
 import { usePresentation } from "../shell/TownLoopShell";
@@ -172,10 +174,12 @@ function DeleteControl({
   onDelete,
   busy,
   compact = false,
+  confirmation = true,
 }: {
   onDelete: () => void;
   busy: boolean;
   compact?: boolean;
+  confirmation?: boolean;
 }) {
   const [confirm, setConfirm] = useState(false);
   return confirm ? (
@@ -200,9 +204,9 @@ function DeleteControl({
       accessibilityRole="button"
       accessibilityLabel="Delete item"
       disabled={busy}
-      onPress={() => setConfirm(true)}
+      onPress={() => confirmation ? setConfirm(true) : onDelete()}
       hitSlop={compact ? undefined : 12}
-      style={compact ? { width: 44, height: 44, paddingLeft: 6, alignItems: "flex-start", justifyContent: "center" } : { padding: 4 }}
+      style={compact ? { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" } : { padding: 4 }}
     >
       <Trash2 size={14} color="#a8a29e" />
     </Pressable>
@@ -373,12 +377,14 @@ function MediaPreview({
   title,
   onMedia,
   listing = false,
+  taller = false,
   sold = false,
 }: {
   media: MediaAttachment[];
   title: string;
   onMedia: (media: MediaAttachment[], title: string, index?: number) => void;
   listing?: boolean;
+  taller?: boolean;
   sold?: boolean;
 }) {
   const dark = !!usePresentation()?.dark;
@@ -393,7 +399,7 @@ function MediaPreview({
       }}
       style={{
         width: listing ? 80 : "100%",
-        height: listing ? 80 : 190,
+        height: listing ? 80 : taller ? 230 : 190,
         borderRadius: listing ? 12 : 16,
         overflow: "hidden",
         backgroundColor: media.length
@@ -506,6 +512,7 @@ export function SocialFeed({
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
   useNewsFonts();
+  const now = useMinuteNow(view === "listing");
   const [comments, setComments] = useState<string | null>(null);
   const [drafts] = useState(() => {
     const values = new Map<string, { text: string; id: string }>();
@@ -688,7 +695,7 @@ export function SocialFeed({
                           color: "#a8a29e",
                         }}
                       >
-                        ◷ {item.timeAgo}
+                        ◷ {relativePostedTime(item.createdAt, now)}
                       </Copy>
                     </View>
                   </View>
@@ -708,6 +715,7 @@ export function SocialFeed({
                     {(owns(item, user) || canDeleteAnyPost(user)) && (
                       <DeleteControl
                         compact
+                        confirmation={false}
                         busy={busy}
                         onDelete={() =>
                           void onAction("listing", String(item.id), "delete")
@@ -738,8 +746,8 @@ export function SocialFeed({
                     <Copy
                       weight="bold"
                       style={{
-                        fontSize: 14,
-                        lineHeight: 19.25,
+                        fontSize: 15,
+                        lineHeight: 21,
                         textDecorationLine: item.sold ? "line-through" : "none",
                       }}
                     >
@@ -992,14 +1000,14 @@ export function Detail({
     >
       {!!(error || shareError) && <ErrorNotice message={error || shareError} />}
       <View style={[s.row, { alignItems: "flex-start", flexWrap: "nowrap" }]}>
-        <Copy weight="bold" style={{ flex: 1, minWidth: 0, fontSize: 20, lineHeight: 28 }}>
+        <Copy weight="bold" style={{ flex: 1, minWidth: 0, fontSize: listing ? 21 : 20, lineHeight: 29 }}>
           {item.title}
         </Copy>
         <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0 }}>
           {listing && <Pill solid price label={listing.price} tone={listing.sold ? "stone" : listing.price.toUpperCase() === "FREE" ? "green" : "amber"} />}
           <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
           {(owns(item, user) || canDeleteAnyPost(user)) && (
-            <DeleteControl compact busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />
+            <DeleteControl compact confirmation={!listing} busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />
           )}
         </View>
       </View>
@@ -1011,6 +1019,7 @@ export function Detail({
         <MediaPreview
           key={`${m.url}-${index}`}
           media={[m]}
+          taller={!!listing}
           title={item.title}
           onMedia={() => onMedia(mediaFor(item), item.title, index)}
         />
