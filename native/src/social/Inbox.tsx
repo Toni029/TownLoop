@@ -184,7 +184,6 @@ export function Inbox({
       }
       onClose={onClose}
       busy={busy}
-      initiallyFull
     >
       {loading && (
         <ActivityIndicator
