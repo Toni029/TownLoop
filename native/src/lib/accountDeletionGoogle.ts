@@ -1,4 +1,9 @@
-/** The existing native Google provider is not configured in this checkpoint. */
-export async function reauthenticateDeletionGoogle(): Promise<void> {
-  throw new Error('Google account deletion requires the configured Google sign-in flow. Use the TownLoop web deletion page, or a configured Google build.');
+import {reauthenticateWithCredential} from 'firebase/auth';
+import {auth} from './firebase';
+import {getGoogleCredential} from './googleSignIn';
+export async function reauthenticateDeletionGoogle():Promise<void>{
+ const user=auth.currentUser;if(!user)throw Error('Sign in first.');
+ const credential=await getGoogleCredential();if(!credential)throw Error('Google verification was canceled.');
+ if(auth.currentUser?.uid!==user.uid)throw Error('Your session changed. Sign in again.');
+ await reauthenticateWithCredential(user,credential);
 }

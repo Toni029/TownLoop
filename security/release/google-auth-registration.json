@@ -1,0 +1,12 @@
+{
+  "androidPackage": "com.toni029.townloop",
+  "previewBuildId": "9a934883-9957-4a10-95d3-a286f75e01f5",
+  "previewCertificateSHA1": "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
+  "source": "Existing locally cached signed Preview APK; no keystore accessed",
+  "firebaseProject": "cc-livingcommunity-app",
+  "firebaseGoogleProviderEnabled": true,
+  "androidFirebaseAppsRegistered": 0,
+  "iosFirebaseAppsRegistered": 0,
+  "verifiedBy": "Read-only Firebase configuration queries and local APK certificate inspection",
+  "activationApproved": false
+}

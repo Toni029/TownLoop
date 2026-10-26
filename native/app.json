@@ -82,7 +82,8 @@
           "faceIDPermission": false
         }
       ],
-      "./plugins/withLocalDataProtection.cjs"
+      "./plugins/withLocalDataProtection.cjs",
+      "./plugins/with-google-auth.cjs"
     ],
     "web": {
       "bundler": "metro",

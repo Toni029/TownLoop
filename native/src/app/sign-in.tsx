@@ -4,6 +4,7 @@ import { ScreenSystemBars } from "../components/SystemBars";
 import { ResidentRegistration } from "../components/ResidentRegistration";
 import { googleSignIn, googleSignInAvailable } from "../lib/googleSignIn";
 import Svg, { Path } from "react-native-svg";
+import { useSession } from "../lib/session";
 import { useCommunity } from "../lib/community";
 import { useRef, useState } from "react";
 import {
@@ -46,6 +47,8 @@ export default function SignIn() {
   const [mode, setMode] = useState<"signin" | "register">("signin");
   const wide = useWindowDimensions().width >= 640;
   const { community, clearCommunity } = useCommunity();
+  const {setRegistrationInProgress}=useSession();
+  const [googleTermsAccepted,setGoogleTermsAccepted]=useState(false);
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [busy, setBusy] = useState(false),
@@ -554,10 +557,12 @@ export default function SignIn() {
                         setBusy(true);
                         setMessage("");
                         try {
-                          await googleSignIn();
+                          setRegistrationInProgress(true);
+                          await googleSignIn(googleTermsAccepted);
                         } catch (e) {
                           setMessage(friendlyError(e));
                         } finally {
+                          setRegistrationInProgress(false);
                           setBusy(false);
                         }
                       }}
@@ -608,6 +613,10 @@ export default function SignIn() {
                       >
                         Continue with Google
                       </Text>
+                    </Pressable>}
+                    {googleSignInAvailable && <Pressable accessibilityRole="checkbox" accessibilityState={{checked:googleTermsAccepted,disabled:busy}} disabled={busy} onPress={()=>setGoogleTermsAccepted(v=>!v)} style={{minHeight:48,flexDirection:"row",alignItems:"center",gap:10}}>
+                      <Text style={{color:ink,fontSize:22}}>{googleTermsAccepted?'☑':'☐'}</Text>
+                      <Text style={{color:muted,flex:1,fontSize:12}}>For a new Google account, I accept the Terms of Use and acknowledge the Privacy Policy.</Text>
                     </Pressable>}
                   </>
                 )}
