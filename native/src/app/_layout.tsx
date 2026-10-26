@@ -1,3 +1,4 @@
+import { InboxPushProvider } from '../notifications/InboxPushProvider';
 import { AppErrorBoundary } from "../monitoring/AppErrorBoundary";
 import { StartupLoading } from "../components/StartupLoading";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -68,8 +69,10 @@ export default function Root() {
       <AppErrorBoundary>
       <CommunityProvider>
         <SessionProvider>
+          <InboxPushProvider>
           <SystemBars />
           <Navigation fontsReady={fonts || !!error} />
+          </InboxPushProvider>
         </SessionProvider>
       </CommunityProvider>
       </AppErrorBoundary>

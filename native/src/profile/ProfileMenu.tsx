@@ -1,3 +1,5 @@
+import {useInboxPush} from '../notifications/InboxPushProvider';
+import type {InboxTarget} from '../notifications/protocol';
 import { SafetyActions } from "../components/SafetyActions";
 import { LegalLinks } from "../components/LegalLinks";
 import { AccountDeletion } from "./AccountDeletion";
@@ -7,6 +9,7 @@ import { AdminMenu } from "./AdminMenu";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Switch,
   Image,
   FlatList,
   KeyboardAvoidingView,
@@ -349,11 +352,16 @@ export function ProfileMenu({
   open,
   onClose,
   onUnread,
+  notificationTarget,
+  onNotificationOpened,
 }: {
+  notificationTarget?: InboxTarget|null;
+  onNotificationOpened?: ()=>void;
   open: boolean;
   onClose: () => void;
   onUnread: (count: number) => void;
 }) {
+  const push=useInboxPush();
   const user = useResident(),
     presentation = usePresentation(),
     reduced = useReducedMotion();
@@ -446,6 +454,13 @@ export function ProfileMenu({
       glint.value = -1;
     }
   }, [open, progress, shade, glint, scene]);
+  useEffect(()=>{
+    if(!open||!mounted||!notificationTarget||notificationTarget.category==='marketplace')return;
+    const thread=data.threads.find(t=>t.id===notificationTarget.conversationId&&t.category===notificationTarget.category);
+    if(!thread)return;
+    history.current=['menu','inbox'];setSelected({category:thread.category,id:thread.id});
+    setBody('');setView('conversation');onNotificationOpened?.();
+  },[open,mounted,notificationTarget,data.threads,onNotificationOpened]);
   const openingFrame = useRef<number | null>(null);
   function animateOpen() {
     // Wait until the modal has painted its initial pose before starting the spring.
@@ -1284,6 +1299,11 @@ export function ProfileMenu({
                     )}
                     {view === "inbox" && (
                       <>
+                        {Platform.OS!=='web'&&<View style={{flexDirection:'row',alignItems:'center',gap:12,marginBottom:10}}>
+                          <View style={{flex:1}}><Text style={[s.rowTitle,{color:ink}]}>Inbox notifications</Text>
+                            <Text style={{color:muted,fontSize:12}}>{push.status||'Get a private alert when a new message arrives.'}</Text></View>
+                          <Switch accessibilityLabel="Inbox notifications" value={push.enabled} disabled={push.busy} onValueChange={push.toggle} trackColor={{true:'#059669'}}/>
+                        </View>}
                         {data.loading && <ActivityIndicator color="#059669" />}
                         {data.errors.map((e, i) => (
                           <Text key={i} style={s.error}>

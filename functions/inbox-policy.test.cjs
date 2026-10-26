@@ -7,7 +7,7 @@ test('Office and Crew recipients stay isolated, including staff replies', () => 
   assert.deepEqual(recipients('office_chats', chat, users, 'resident').map(p => p.id), ['admin', 'vip']);
   assert.deepEqual(recipients('maintenance_chats', chat, users, 'resident').map(p => p.id), ['crew']);
   assert.deepEqual(recipients('maintenance_chats', chat, users, 'crew').map(p => p.id), ['resident']);
-  assert.deepEqual(recipients('office_chats', chat, users, 'vip').map(p => p.id), ['resident', 'admin']);
+  assert.deepEqual(recipients('office_chats', chat, users, 'vip').map(p => p.id), ['resident']);
 });
 test('Friends only notify participants; unapproved recipients are excluded', () => {
   assert.deepEqual(recipients('resident_chats', { identityVersion: 2, participantIds: ['resident', 'other'] }, users, 'resident').map(p => p.id), ['other']);

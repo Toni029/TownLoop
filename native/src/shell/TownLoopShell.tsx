@@ -1,3 +1,4 @@
+import {useInboxPush} from '../notifications/InboxPushProvider';
 import { tabSelectionFeedback } from "../motion/haptics";
 import { dockBubble } from "./dockGeometry";
 import { PreviewUpdateNotice } from "../development/PreviewUpdateNotice";
@@ -141,6 +142,8 @@ export function PortalHeader({
 }) {
   const presentation = usePresentation();
   const dark = presentation?.dark ?? false;
+  const push=useInboxPush();
+  useEffect(()=>{if(push.target&&push.target.category!=='marketplace')setMenu(true);},[push.target]);
   const [menu, setMenu] = useState(false);
   const [unread, setUnread] = useState(0);
   const [avatarHovered, setAvatarHovered] = useState(false);
@@ -470,6 +473,8 @@ export function PortalHeader({
         </Motion.View>
       </View>
       <ProfileMenu
+        notificationTarget={push.target?.category!=='marketplace'?push.target:null}
+        onNotificationOpened={push.consume}
         open={menu}
         onClose={() => setMenu(false)}
         onUnread={setUnread}

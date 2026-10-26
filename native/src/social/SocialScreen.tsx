@@ -1,3 +1,4 @@
+import {useInboxPush} from '../notifications/InboxPushProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useCallback,
@@ -53,6 +54,8 @@ export default function SocialScreen() {
   const [seller, setSeller] = useState<string | null>(null);
   const [showInbox, setShowInbox] = useState(false);
   const [activeChat, setActiveChat] = useState<string | null>(null);
+  const push=useInboxPush();
+  useEffect(()=>{const t=push.target;if(t?.category!=='marketplace'||!inbox.items.some(c=>c.id===t.conversationId))return;setView('listing');setShowInbox(true);setActiveChat(t.conversationId);push.consume();},[push.target,push.consume,inbox.items]);
   const [media, setMedia] = useState<{
     files: MediaAttachment[];
     index: number;

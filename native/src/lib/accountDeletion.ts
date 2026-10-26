@@ -1,3 +1,4 @@
+import {clearPushAccount} from '../notifications/device';
 import { clearPrivateMediaCache } from '../localData/privateMediaCache';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut } from 'firebase/auth';
@@ -33,6 +34,7 @@ async function clearAccountFiles(uid: string): Promise<void> {
   await clearResidentHomeData(uid);
   await clearPrivateMediaCache(uid);
   await AsyncStorage.multiRemove([`townloop:social:liked:${uid}`]);
+  await clearPushAccount(uid);
 }
 
 const cleanupQueue = createAccountCleanupQueue(authPersistenceStorage, clearAccountFiles, async uid => {
