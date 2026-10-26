@@ -194,8 +194,10 @@ export function Inbox({
       {!!error && <ErrorNotice message={error} retry={retry} />}
       {selected ? (
         <>
-          <View style={[s.row, {justifyContent: "flex-end"}]}>
+          <View style={[s.row, {justifyContent: "space-between", flexWrap: "nowrap"}]}>
+          <View style={{flex: 1, minWidth: 0}}>
           <Action
+            fullWidth
             label="Back to inbox"
             icon={ChevronLeft}
             tone="light"
@@ -204,6 +206,7 @@ export function Inbox({
               setText("");
             }}
           />
+          </View>
           <SafetyActions target={{kind:"user",id:otherUid}} allowBlock blockInReport/>
           </View>
           <Pressable

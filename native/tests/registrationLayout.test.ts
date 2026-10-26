@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';import ts from 'typescript';
+test('registration uses the requested examples and places password between email and street address',()=>{
+ const exports:any={},jsx=(type:any,props:any)=>({type,props});const source=ts.transpileModule(readFileSync(new URL('../src/components/ResidentRegistration.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+ const modules:any={react:{useState:(v:any)=>[v,()=>{}],useEffect:()=>{}},'react/jsx-runtime':{jsx,jsxs:jsx},'react-native':{View:'View',Text:'Text',Pressable:'Pressable'},'../keyboard/KeyboardScrollView':{TextInput:'Input'},'../lib/session':{useSession:()=>({registrationInProgress:false,setRegistrationInProgress(){}})}};
+ vm.runInNewContext(source,{exports,require:(name:string)=>modules[name]||{}});const tree=exports.ResidentRegistration({dark:false,wide:false,busy:false,setBusy(){},onError(){},onSignIn(){}});const fields:any[]=[];
+ function visit(node:any){if(!node||typeof node!=='object')return;if(node.type==='Input')fields.push(node);for(const child of [node.props?.children].flat(Infinity))visit(child);}visit(tree);
+ const labels=fields.map(f=>f.props.accessibilityLabel);assert.equal(labels.indexOf('Create Password (min 6 characters)'),labels.indexOf('Resident Email Address')+1);assert.equal(labels.indexOf('Address (Street Address)'),labels.indexOf('Create Password (min 6 characters)')+1);
+ assert.equal(fields.find(f=>f.props.accessibilityLabel==='Resident Email Address').props.placeholder,'resident@gmail.com');assert.equal(fields.find(f=>f.props.accessibilityLabel==='Address (Street Address)').props.placeholder,'1234 Pines Links St');
+});

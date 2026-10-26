@@ -122,23 +122,23 @@ export function ResidentRegistration({
       {(
         [
           ["name", "Resident Full Name", "e.g. Martha Stewart", User],
-          ["email", "Resident Email Address", "resident@cecilpines.com", Mail],
-          [
-            "address",
-            "Address (Street Address)",
-            "e.g. 6100 Normandy Blvd",
-            MapPin,
-          ],
-          ["phone", "Phone Number (optional)", "(904) 555-0100", Phone],
-          ["emergencyContactName", "Emergency Contact Name (optional)", "Full name", User],
-          ["emergencyContactPhone", "Emergency Contact Phone (optional)", "Phone number", Phone],
-          ["emergencyContactAddress", "Emergency Contact Address (optional)", "Full address", MapPin],
+          ["email", "Resident Email Address", "resident@gmail.com", Mail],
           [
             "password",
             "Create Password (min 6 characters)",
             "At least 6 characters",
             Lock,
           ],
+          [
+            "address",
+            "Address (Street Address)",
+            "1234 Pines Links St",
+            MapPin,
+          ],
+          ["phone", "Phone Number (optional)", "(904) 555-0100", Phone],
+          ["emergencyContactName", "Emergency Contact Name (optional)", "Full name", User],
+          ["emergencyContactPhone", "Emergency Contact Phone (optional)", "Phone number", Phone],
+          ["emergencyContactAddress", "Emergency Contact Address (optional)", "Full address", MapPin],
         ] as const
       ).map(([key, label, placeholder, Icon]) => (
         <View key={key} style={{ gap: 6 }}>

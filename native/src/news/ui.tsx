@@ -121,6 +121,7 @@ export function Action({
   size = "default",
   radius,
   maxWidth,
+  fullWidth = false,
 }: {
   label: string;
   icon?: LucideIcon;
@@ -134,6 +135,7 @@ export function Action({
   size?: "default" | "small" | "short" | "large";
   radius?: number;
   maxWidth?: number;
+  fullWidth?: boolean;
 }) {
   const dark = !!usePresentation()?.dark;
   const tones = {
@@ -156,7 +158,7 @@ export function Action({
       onPress={onPress}
       hitSlop={compact && tone === "rose" ? 9 : 6}
       style={({ pressed }) => ({
-        width: iconOnly ? 44 : undefined,
+        width: fullWidth ? "100%" : iconOnly ? 44 : undefined,
         minHeight: iconOnly ? 44 :
           size === "large"
             ? 44

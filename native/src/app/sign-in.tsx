@@ -296,7 +296,7 @@ export default function SignIn() {
                           alignItems: "center",
                           justifyContent: "center",
                           gap: 8,
-                          paddingHorizontal: 16,
+                          paddingHorizontal: wide ? 16 : 8,
                           paddingVertical: 12,
                           borderRadius: 12,
                           borderWidth: 1,
@@ -317,6 +317,7 @@ export default function SignIn() {
                         })}
                       >
                         <Icon
+                          style={{flexShrink: 0}}
                           size={wide ? 20 : 16}
                           color={
                             selected
@@ -330,6 +331,8 @@ export default function SignIn() {
                         />
                         <Text
                           style={{
+                            flexShrink: 1,
+                            textAlign: "center",
                             fontFamily: "JakartaBold",
                             fontSize: wide ? 16 : 14,
                             color: selected
