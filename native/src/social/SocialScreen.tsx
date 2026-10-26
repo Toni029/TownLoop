@@ -111,7 +111,7 @@ export default function SocialScreen() {
         ? "Comment posted!"
         : operation === "sold"
           ? "Listing status updated"
-          : operation === "delete"
+          : operation === "delete" && kind !== "listing"
             ? "Item deleted"
             : "",
     );
