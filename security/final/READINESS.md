@@ -1,5 +1,10 @@
 # TownLoop final release preparation — 2026-10-25
 
+**Current implementation update:** protocol 3 now implements supported two-database execution,
+completion receipts, Admin exception rechecks and finite cleanup proofs. Earlier “not implemented”
+items below describe the prior checkpoint. Current code/dependencies and the newly verified
+named-database write-security failure are in [PROCESSING_PROTOCOL3.md](PROCESSING_PROTOCOL3.md).
+
 Local completion package, not permission to deploy or activate deletion. Builds, resident data,
 Hosting, both database selections, rules, tokens and Production remain unchanged.
 Review backend checkpoint: `b30cbef`. Stage 1 Android JS cleanup/images is published from `bfb1a85`, OTA `01a17571-852a-7f02-a990-c6e3ee81677e`, runtime `d6f09b9023171c8bdabd4a8e1da0b41223dff3b9`; EAS metadata rechecked October 26, 2026. No phone-installation claim.

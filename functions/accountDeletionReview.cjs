@@ -54,7 +54,7 @@ function requestSummary(id, job) {
     ...retention.deadlines(job.createdAt, job.review?.decision === 'approved' ? job.review.reviewedAt : null),
     reason: ['rejected','delayed'].includes(job.review?.decision) ? job.review.reason : '',
     escalationReason: job.escalationReason || '', nextReviewAt: job.review?.nextReviewAt || null,
-    processingHeld: true };
+    processingHeld: job.review?.processingAuthorized !== true };
 }
 exports.getAccountDeletionStatus = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const token = await verifiedSession(request), id = jobIdFor(token.uid);
@@ -64,7 +64,7 @@ exports.getAccountDeletionStatus = onCall({ ...options, timeoutSeconds: 60 }, as
 exports.listAccountDeletionRequests = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   await managerSession(request);
   const db = getFirestore(database);
-  let query = db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'pending_owner_approval', 'queued', 'approved_held', 'delayed', 'processing', 'needs_review', 'identity_complete_media_pending', 'retention_pending', 'failed']).orderBy('lastAttemptAt').limit(50);
+  let query = db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'pending_owner_approval', 'queued', 'approved_held', 'delayed', 'processing', 'needs_review', 'identity_complete_media_pending', 'retention_pending', 'waiting_for_media', 'failed']).orderBy('lastAttemptAt').limit(50);
   if (request.data?.cursor) {
     if (!/^[a-f0-9]{64}$/.test(request.data.cursor)) throw new HttpsError('invalid-argument', 'Invalid page.');
     const cursor = await db.doc(`account_deletion_jobs/${request.data.cursor}`).get();
@@ -78,7 +78,7 @@ exports.listAccountDeletionRequests = onCall({ ...options, timeoutSeconds: 60 },
     return { ...requestSummary(job.id, data), name: profile?.name || 'Resident',
       canReview: !['approved','rejected'].includes(data.review?.decision), isOwnRequest: data.uid === request.auth.uid };
   }));
-  return { requests, policyReady: retention.policyReady(policy), nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
+  return { requests, policyReady: retention.policyReady(policy), exceptionsAvailable:process.env.TOWNLOOP_SCOPED_DELETION_REVIEW_ENABLED==='true',processingAvailable:process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED==='true'&&process.env.TOWNLOOP_SCOPED_DELETION_ENABLED==='true', nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
 });
 exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const token = await managerSession(request);

@@ -37,3 +37,8 @@ test('no devices does not claim successful delivery',async()=>{
  const h=fixture({admin:{role:'admin',approved:true}});h.records.delete('notification_devices/admin');
  assert.equal((await notifyAdmins(h.db,h.options)).accepted,0);assert.deepEqual(h.sends,[]);
 });
+test('actual push transport sends one content-free Admin payload using a safe HTTP fixture',async()=>{
+ const h=fixture({admin:{role:'admin',approved:true},vip:{role:'vip',approved:true}}),sent=[],original=global.fetch;
+ global.fetch=async(url,options)=>{assert.equal(url,'https://exp.host/--/api/v2/push/send');sent.push(JSON.parse(options.body));return {ok:true,json:async()=>({data:{status:'ok',id:'synthetic-ticket'}})};};
+ try{const result=await notifyAdmins(h.db,{now:h.options.now,identity:h.options.identity});assert.equal(result.accepted,1);assert.equal(sent.length,1);assert.equal(sent[0].to,'ExpoPushToken[admin]');assert.deepEqual(sent[0].data,{type:'deletion_review'});assert.equal(sent[0].ttl,3600);assert.equal(sent[0].body.includes('Admin Reports'),true);}finally{global.fetch=original;}
+});

@@ -12,10 +12,11 @@ const options = { region:'us-central1', maxInstances:1, timeoutSeconds:300 };
 exports.escalateAccountDeletionRequests = onSchedule({ ...options, schedule: 'every 60 minutes', timeZone: 'America/New_York' }, async () => {
   if(process.env.TOWNLOOP_DELETION_REVIEW_MONITOR_ENABLED!=='true')return;
   const db=getFirestore(database);
+  if(process.env.TOWNLOOP_ACCOUNT_PROOF_EXPIRY_ENABLED==='true')await require('./cleanupProof.cjs').expireCleanupDevices(db);
   // Separate owner approval is required for expiry as well as monitoring.
   if(process.env.TOWNLOOP_DELETION_ALERT_EXPIRY_ENABLED==='true')await expireAlertClaims(db);
   const cursor=db.doc('deletion_policies/review_cursor'), state=(await cursor.get()).data();
-  let query=db.collection('account_deletion_jobs').where('status','in',['requested','delayed','queued','approved_held','processing','failed','needs_review','identity_complete_media_pending']).orderBy('lastAttemptAt').orderBy(FieldPath.documentId()).limit(50);
+  let query=db.collection('account_deletion_jobs').where('status','in',['requested','delayed','queued','approved_held','processing','failed','needs_review','identity_complete_media_pending','waiting_for_media']).orderBy('lastAttemptAt').orderBy(FieldPath.documentId()).limit(50);
   if(state?.lastAttemptAt && state?.lastJobId)query=query.startAfter(state.lastAttemptAt,state.lastJobId);
   const page=await query.get();
   let newAlerts=0, overdue=false;

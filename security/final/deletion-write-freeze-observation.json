@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-26",
+  "project": "cc-livingcommunity-app",
+  "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+  "sourceSha256": "29ea681048a0218295555da03caf21c0d8e625a722347e808feeb92cc101fdc0",
+  "anonymousChatWriteCollections": [
+    "maintenance_chats",
+    "office_chats",
+    "resident_chats",
+    "marketplace_chats"
+  ],
+  "anonymousSocialModificationClausesPresent": true,
+  "writeFreezeSafe": false,
+  "residentRecordsRead": 0,
+  "liveChanges": 0
+}

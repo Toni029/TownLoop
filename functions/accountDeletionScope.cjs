@@ -35,4 +35,6 @@ function databaseCompletionReady(job,now=Date.now()) {
       Number.isFinite(completed) && completed<=now && completed>=millis(job.createdAt);
   });
 }
-module.exports={DATABASES,classifyOwnership,databaseCompletionReady};
+const BLOCKED_NAMED_RULES='29ea681048a0218295555da03caf21c0d8e625a722347e808feeb92cc101fdc0';
+function writeFreezeReady(policy){return DATABASES.every(id=>policy?.scopeWriteFreezeVerified?.[id]===true&&/^[a-f0-9]{64}$/.test(policy.scopeRuleHashes?.[id]||''))&&policy.scopeRuleHashes[DATABASES[1]]!==BLOCKED_NAMED_RULES&&Number.isFinite(policy.tokenDrainMs)&&policy.tokenDrainMs>=3900000;}
+module.exports={writeFreezeReady,BLOCKED_NAMED_RULES,DATABASES,classifyOwnership,databaseCompletionReady};

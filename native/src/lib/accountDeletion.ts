@@ -47,11 +47,12 @@ export type DeletionRequestStatus = { status: string; jobId?: string; createdAt?
 export type DeletionReviewItem = DeletionRequestStatus & { jobId: string; name: string; canReview: boolean; isOwnRequest: boolean };
 const deletionCall = <T, R>(name: string, data: T) => httpsCallable<T, R>(getFunctions(app, 'us-central1'), name)(data).then(result => result.data);
 export const getAccountDeletionStatus = () => deletionCall<Record<string, never>, DeletionRequestStatus>('getAccountDeletionStatus', {});
-export const listAccountDeletionRequests = (cursor?: string) => deletionCall<{cursor?: string}, { requests: DeletionReviewItem[]; policyReady: boolean; nextCursor: string | null }>('listAccountDeletionRequests', cursor ? {cursor} : {});
+export const listAccountDeletionRequests = (cursor?: string) => deletionCall<{cursor?: string}, { requests: DeletionReviewItem[]; policyReady: boolean; exceptionsAvailable?:boolean; processingAvailable?:boolean; nextCursor: string | null }>('listAccountDeletionRequests', cursor ? {cursor} : {});
 export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved' | 'rejected' | 'delayed', reason: string, context?: {reasonCategory?:string;reasonReference?:string;delayUntil?:number}) =>
   deletionCall('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision, ...context });
 export function deletionStatusText(request: DeletionRequestStatus): string {
   const labels: Record<string, string> = {
+    waiting_for_media:'Verified record processing is waiting for attachment cleanup; account deletion is not complete.',
     delayed:'Request delayed for a documented legal/security reason; original deadlines remain in effect.', needs_review:'Processing needs office review; unresolved items have not been marked complete.', failed:'Processing interrupted; a retry is pending.', retention_pending:'Personal-data processing completed; minimal receipts await scheduled expiry.', none: 'No deletion request submitted.', requested: 'Awaiting Admin/VIP review.',
     approved_held: 'Approved. Deletion processing remains on hold.',
     queued: 'Approved. Awaiting authorized processing.', processing: 'Deletion processing is in progress.',

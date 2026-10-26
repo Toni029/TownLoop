@@ -1,5 +1,10 @@
 # Operational deletion gates — October 26, 2026
 
+**Current implementation update:** protocol 3 now implements supported two-database execution,
+completion receipts, Admin exception rechecks and finite cleanup proofs. Earlier “not implemented”
+items below describe the prior checkpoint. Current code/dependencies and the newly verified
+named-database write-security failure are in [PROCESSING_PROTOCOL3.md](PROCESSING_PROTOCOL3.md).
+
 Local checkpoint only; all processing/monitoring/expiry flags remain off. No new live scan,
 record changes, migrations, backup changes, public policy publication or deployments.
 

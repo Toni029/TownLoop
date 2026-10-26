@@ -28,3 +28,20 @@ test('detached cleanup only permits a server-redacted parent with personal/media
  for(const data of [{personalDataRemoved:false},{personalDataRemoved:true,userId:'resident'},{personalDataRemoved:true,photos:['keep']},{personalDataRemoved:true,comments:[{photoUrl:'keep'}]}])assert.equal(parentBlocksCleanup(snapshot(data),{detached:true}),true);
  assert.equal(parentBlocksCleanup(snapshot({personalDataRemoved:true}),{}),true);
 });
+test('cross-database cleanup never uses unqualified objects or the six unlinked quarantine fixtures',()=>{
+ const {trustedMedia}=require('./mediaCleanupPolicy.cjs');
+ const policy={ownerApproved:true,approvalReference:'fixture',trustedUploadsAfter:{toMillis:()=>Date.parse('2026-10-21T12:00:00Z')},collections:{work_orders:{action:'delete_linked_media_on_parent_deletion',reason:'fixture'}}};
+ const scoped={...parent,databaseId:'(default)'},recent={...object,timeCreated:'2026-10-22T12:00:00Z'};
+ assert.equal(trustedMedia(recent,scoped,policy),false);assert.equal(trustedMedia({...recent,metadata:{...recent.metadata,databaseId:'website'}},scoped,policy),false);assert.equal(trustedMedia({...recent,metadata:{...recent.metadata,databaseId:'(default)'}},scoped,policy),true);
+ for(let i=0;i<6;i++)assert.equal(linkedMedia({name:`work_orders/quarantine-fixture-${i}`,generation:'1',metadata:{}},scoped),false);
+});
+test('historical media needs exact server-approved generation/scope/request proof and excludes all quarantine hashes',()=>{
+ const {createHash}=require('node:crypto'),key=createHash('sha256').update(object.name).digest('hex');
+ const hashes=Array.from({length:6},(_,i)=>createHash('sha256').update(`quarantine-fixture-${i}`).digest('hex'));
+ const scoped={...parent,databaseId:'(default)',accountDeletionJobId:'fixture-request',expiresAt:new Date(Date.now()+86400000)},legacy={...object,metageneration:'7',timeCreated:'2020-01-01T00:00:00Z'};
+ const proof={databaseId:'(default)',collection:parent.collection,recordId:parent.recordId,ownerUid:parent.uid,accountDeletionJobId:'fixture-request',policyReference:'fixture',generation:object.generation,metageneration:'7',expiresAt:scoped.expiresAt};
+ const policy={ownerApproved:true,approvalReference:'fixture',trustedUploadsAfter:{toMillis:()=>Date.parse('2026-10-21')},collections:{work_orders:{action:'delete_linked_media_on_parent_deletion',reason:'fixture'}},quarantinedObjectHashes:hashes,verifiedLegacyObjects:{[key]:proof}};
+ assert.equal(trustedMedia(legacy,scoped,policy),true);
+ for(const patch of [{ownerUid:'other'},{databaseId:'website'},{generation:'new'},{accountDeletionJobId:'other'},{expiresAt:new Date(1)}])assert.equal(trustedMedia(legacy,scoped,{...policy,verifiedLegacyObjects:{[key]:{...proof,...patch}}}),false);
+ assert.equal(trustedMedia(legacy,scoped,{...policy,quarantinedObjectHashes:[key,...hashes.slice(1)]}),false);
+});

@@ -44,13 +44,16 @@ exports.cleanupLateOrphanMedia = onObjectFinalized({ ...options, bucket: 'cc-liv
 });
 exports.resumeMediaCleanup = onSchedule({ ...options, schedule: 'every 15 minutes', timeZone: 'Etc/UTC' }, async () => {
   if (process.env.TOWNLOOP_MEDIA_CLEANUP_ENABLED !== 'true') return;
-  const db = getFirestore(database), bucket = getStorage().bucket();
+  const scopes=process.env.TOWNLOOP_SCOPED_MEDIA_CLEANUP_ENABLED==='true'?require('./accountDeletionScope.cjs').DATABASES:[database];
+  for(const databaseId of scopes){
+  const db = getFirestore(databaseId), bucket = getStorage().bucket();
   const jobs = await db.collection('media_cleanup_jobs').where('status', '==', 'queued').orderBy('lastAttemptAt').limit(10).get();
   for (const job of jobs.docs) {
-    const parent = job.data();
+    const parent = {...job.data(),databaseId:job.data().databaseId||databaseId};
     try {
       if (!FOLDERS[parent.collection] || typeof parent.recordId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(parent.recordId)) throw Error('Invalid parent');
-      const policy = (await db.doc('deletion_policies/media').get()).data();
+      if(parent.databaseId && parent.databaseId!==databaseId)throw Error('Media scope mismatch');
+      const policy = (await getFirestore('(default)').doc('deletion_policies/media').get()).data();
       if (!approvedMediaPolicy(policy, parent.collection)) {
         await job.ref.update({ lastAttemptAt: FieldValue.serverTimestamp(), lastError: 'pending_owner_policy_and_trusted_upload_cutover' }); continue;
       }
@@ -62,15 +65,18 @@ exports.resumeMediaCleanup = onSchedule({ ...options, schedule: 'every 15 minute
       for (const file of files) {
         let metadata;
         try { [metadata] = await file.getMetadata(); } catch (error) { if (error.code === 404) continue; throw error; }
-        if (!linkedMedia(metadata, parent)) continue;
-        if (!trustedMedia(metadata, parent, policy)) { reviewRequired = true; continue; }
+        const hash=require('node:crypto').createHash('sha256').update(metadata.name||'').digest('hex');
+        if (require('./deletionMediaProvenance.json').quarantinedObjectHashes.includes(hash)) {reviewRequired=reviewRequired||parent.objectHashes?.includes(hash)===true;continue;}
+        if (!linkedMedia(metadata, parent)&&!parent.objectHashes?.includes(hash)) continue;
+        if (!metadata.metageneration || !trustedMedia(metadata, parent, policy)) { reviewRequired = true; continue; }
         // Recheck immediately before destruction; generation guards object replacement races.
         if (parentBlocksCleanup(await db.doc(`${parent.collection}/${parent.recordId}`).get(), parent)) throw Error('Parent restored');
-        try { await file.delete({ ifGenerationMatch: metadata.generation, ignoreNotFound: true }); }
+        try { await file.delete({ ifGenerationMatch: metadata.generation, ifMetagenerationMatch:metadata.metageneration, ignoreNotFound: true }); }
         catch (error) { if (error.code !== 404) throw error; }
       }
       await job.ref.update({ pageToken: next?.pageToken || '', reviewRequired, status: next?.pageToken ? 'queued' : reviewRequired ? 'pending_legacy_review' : 'complete', lastAttemptAt: FieldValue.serverTimestamp(), lastError: FieldValue.delete() });
     } catch { await job.ref.update({ lastAttemptAt: FieldValue.serverTimestamp(), lastError: 'retry_required' }); }
+  }
   }
 });
 exports.expireMediaDrafts = onSchedule({ ...options, schedule: 'every 60 minutes', timeZone: 'Etc/UTC' }, async () => {

@@ -28,7 +28,15 @@
     "audit400DayExceptionApproved": false,
     "auditLegalBasis": "Not established; owner/legal review required, no application retention extension",
     "perAccountDatabaseCompletionRequired": true,
-    "alertExpiryActivationApproved": false
+    "alertExpiryActivationApproved": false,
+    "supportedProcessingProtocol": 3,
+    "tokenDrainMs": 3900000,
+    "scopeWriteFreezeVerified": {
+      "(default)": false,
+      "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb": false
+    },
+    "scopeRuleHashes": {},
+    "processingProtocolActivationApproved": false
   },
   "remainingActivationGates": [
     "Resolve schema/identity-specific needs_review receipts before claiming complete deletion",
@@ -45,5 +53,12 @@
     "publicationApproved": false,
     "mailboxMonitoringVerified": false
   },
-  "backups": "All changes deferred; preserve verified existing configuration"
+  "backups": "All changes deferred; preserve verified existing configuration",
+  "cleanupProofProtocol": {
+    "prepared": true,
+    "backendEnabled": false,
+    "clientOptInEnabled": false,
+    "expiryWorkerEnabled": false,
+    "maximumDays": 60
+  }
 }

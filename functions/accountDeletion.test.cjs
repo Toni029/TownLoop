@@ -37,7 +37,7 @@ function harness(initial, authorizeProcessing = false) {
   };
   const warnings = [], adminAlerts = [];
   const exports = {}, context = { exports, module: { exports }, require: name => {
-    if (name === './accountDeletionRetention.cjs' || name === './accountDeletionScope.cjs') return require(name);
+    if (name === './deletionMediaReferences.cjs' || name === './accountDeletionRetention.cjs' || name === './accountDeletionScope.cjs') return require(name);
     if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs','./accountDeletionMonitor.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
     if (name === './deletionAlertExpiry.cjs') return {expireAlertClaims:async()=>{}};
     if (name === './accountDeletionAdminAlerts.cjs') return {notifyAdmins:async()=>{adminAlerts.push('generic_admin_digest');}};
@@ -332,4 +332,8 @@ test('shared Auth and private data survive absent or incomplete cross-database p
   h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path)).slice(0,1);
   await h.run(h.db,h.auth,h.ref);assert.deepEqual(h.authCalls,[]);assert.ok(h.records.has('users/alice'));assert.ok(h.records.has('resident_directory/alice'));assert.equal(h.records.get(h.ref.path).lastError,'cross_database_completion_required');
  }
+});
+test('permission failures pause for human repair instead of endlessly retrying',async()=>{
+ const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'auth',status:'queued',createdAt:Date.now()}},true);h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path));
+ let attempts=0;h.auth.deleteUser=async()=>{attempts++;throw Object.assign(Error('synthetic denied'),{code:7});};await h.schedule();assert.equal(h.records.get(h.ref.path).status,'needs_review');await h.schedule();assert.equal(attempts,1);
 });

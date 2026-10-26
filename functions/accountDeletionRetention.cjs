@@ -42,7 +42,7 @@ function withoutOwnComments(record,uid) {
   return {comments:record.comments.filter(c=>!authored(c,uid))};
 }
 /** Return a minimal explicit patch, never recursively erase another person's text. */
-function plan(collection, record, uid) {
+function plan(collection, record, uid, alias=pseudonym(uid)) {
   if(SOCIAL.has(collection)) {
     if(own(record,uid))return {action:'delete_parent'};
     const patch=withoutOwnComments(record,uid);
@@ -72,7 +72,7 @@ function plan(collection, record, uid) {
       record.participantIds.every(id=>sides.includes(id)) && new Set(record.participantIds).size===2 &&
       Array.isArray(record.messages) && record.messages.every(message=>sides.includes(message.senderId));
     if(record.identityVersion!==2 && !canonicalMarketplace) return {action:'review',reason:'legacy_chat_identity'};
-    const alias=pseudonym(uid), patch={lastMessage:'',subject:'Conversation'};
+    const patch={lastMessage:'',subject:'Conversation'};
     if(Array.isArray(record.messages)) patch.messages=record.messages.map(message=>message.senderId===uid
       ? {id:message.id,senderId:alias,senderName:'Deleted resident',senderAvatar:'',...(message.body!==undefined?{body:'[Removed]'}:{text:'[Removed]'}),...(message.timestamp!==undefined?{timestamp:message.timestamp}:{}),...(message.createdAt!==undefined?{createdAt:message.createdAt}:{}),...(message.time!==undefined?{time:message.time}:{})}
       : message);
@@ -91,7 +91,7 @@ function plan(collection, record, uid) {
     const patch={};
     if(Array.isArray(record.attendees)) {patch.attendees=record.attendees.filter(a=>a.id!==uid&&a.userId!==uid);patch.attendeesCount=patch.attendees.length;if(typeof record.spotsLeft==='number')patch.spotsLeft=record.spotsLeft+record.attendees.length-patch.attendees.length;}
     if(record.rsvpMembers)patch.rsvpMembers=Object.fromEntries(Object.entries(record.rsvpMembers).filter(([id])=>id!==uid));
-    if(record.createdBy===uid)patch.createdBy=pseudonym(uid);
+    if(record.createdBy===uid)patch.createdBy=alias;
     if(record.rsvpChange?.attendee?.id===uid)patch.rsvpChange={};
     return {action:'patch',patch};
   }

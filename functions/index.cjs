@@ -44,3 +44,9 @@ Object.assign(exports, require('./accountDeletion.cjs'), require('./mediaCleanup
 
 // C2 authorization projection only; separate explicit deployment approval required.
 Object.assign(exports, require('./storageWebAccess.cjs'));
+
+// Prepared only: cleanup-only proof capabilities and scoped processing operations.
+const cleanupProof=require('./cleanupProof.cjs');
+exports.registerAccountCleanupDevice=cleanupProof.registerAccountCleanupDevice;
+exports.checkAccountCleanupProof=cleanupProof.checkAccountCleanupProof;
+Object.assign(exports,require('./accountDeletionOperations.cjs'));

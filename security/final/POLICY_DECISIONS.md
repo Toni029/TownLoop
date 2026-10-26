@@ -1,5 +1,10 @@
 # Final policy decisions and deployment gates — October 26, 2026
 
+**Current implementation update:** protocol 3 now implements supported two-database execution,
+completion receipts, Admin exception rechecks and finite cleanup proofs. Earlier “not implemented”
+items below describe the prior checkpoint. Current code/dependencies and the newly verified
+named-database write-security failure are in [PROCESSING_PROTOCOL3.md](PROCESSING_PROTOCOL3.md).
+
 Local preparation only. No live data queries/writes, new backups, scheduler activation, token
 revocation, rules, Hosting, native builds, push or OTA publication in this task.
 

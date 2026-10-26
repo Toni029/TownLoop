@@ -39,6 +39,7 @@ async function processJob(db, auth, ref) {
       job.review?.processingAuthorized !== true || job.review?.decision !== 'approved' || typeof job.review.reviewerId !== 'string' ||
       job.review.reviewerId === uid || !job.review.reviewerId || !job.review.policyReference) return;
   if (typeof uid !== 'string' || !uid || uid.includes('/')) throw Error('Invalid deletion job');
+  if(job.processingProtocol===3){await require('./accountDeletionScoped.cjs').advanceScopedDeletion(db,auth,ref,job);return;}
   if(job.policyVersion===2 || job.phase?.startsWith('v2_')) { const policy=(await db.doc('deletion_policies/account').get()).data(); if(!retention.policyReady(policy)||policy.approvalReference!==job.review.policyReference){await ref.update({status:'pending_owner_approval',lastError:'policy_changed_or_incomplete'});return;} }
   if (job.phase === 'v2_verify') {
     let query=ref.collection('inventory').orderBy(FieldPath.documentId()).limit(100);
@@ -169,7 +170,7 @@ async function processJob(db, auth, ref) {
 exports.resumeAccountDeletions = onSchedule({ ...options, schedule: 'every 5 minutes', timeZone: 'Etc/UTC' }, async () => {
   if (process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED !== 'true') return;
   const db = getFirestore(database);
-  const jobs = await db.collection('account_deletion_jobs').where('status', 'in', ['queued', 'processing', 'pending_owner_approval', 'identity_complete_media_pending', 'needs_review', 'retention_pending', 'rejected', 'failed']).orderBy('lastAttemptAt').limit(20).get();
+  const jobs = await db.collection('account_deletion_jobs').where('status', 'in', ['queued', 'processing', 'pending_owner_approval', 'identity_complete_media_pending', 'waiting_for_media', 'retention_pending', 'rejected', 'failed']).orderBy('lastAttemptAt').limit(20).get();
   for (const job of jobs.docs) {
     const leaseOwner = randomUUID();
     const claimed = await db.runTransaction(async tx => {
@@ -180,16 +181,16 @@ exports.resumeAccountDeletions = onSchedule({ ...options, schedule: 'every 5 min
       tx.update(job.ref, { ...(current.status === 'failed' ? {status:'processing'} : {}), leaseOwner, leaseUntil: Date.now() + 6 * 60000 }); return true;
     });
     if (!claimed) continue;
-    let failed = false;
+    let failed = false, humanReview = false;
     try {
       // Enough phases to promptly remove identity; inventories remain bounded per invocation.
       for (let step = 0; step < 8; step++) await processJob(db, getAuth(), job.ref);
-    } catch { failed = true; }
+    } catch (error) { failed = true;humanReview=[7,'permission-denied','auth/insufficient-permission','auth/user-not-found'].includes(error?.code)||['scope_identity_mismatch','missing_redaction_key','unsupported_scope_phase','missing_identity_proof','identity_mismatch'].includes(error?.message); }
     finally {
       await db.runTransaction(async tx => {
         const finalJob=(await tx.get(job.ref)).data();
         if (finalJob?.leaseOwner === leaseOwner) tx.update(job.ref, {
-          lastAttemptAt: FieldValue.serverTimestamp(), ...(failed ? { status:'failed', lastError:'retry_required', failureCount:(finalJob.failureCount||0)+1 } : {}),
+          lastAttemptAt: FieldValue.serverTimestamp(), ...(failed ? { status:humanReview?'needs_review':'failed', lastError:humanReview?'processing_permission_or_schema_requires_review':'retry_required', failureCount:(finalJob.failureCount||0)+1 } : {}),
           leaseOwner: FieldValue.delete(), leaseUntil: FieldValue.delete(),
         });
       });

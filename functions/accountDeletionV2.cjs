@@ -1,18 +1,20 @@
+const {objectHashes}=require('./deletionMediaReferences.cjs');
+const {createHmac}=require('node:crypto');
 const { FieldPath, FieldValue } = require('firebase-admin/firestore');
 const { jobIdFor, SHARED, referencesUid } = require('./accountDeletionPolicy.cjs');
 const retention = require('./accountDeletionRetention.cjs');
 const timestamp = () => FieldValue.serverTimestamp();
 /** Bounded durable phases. Called only through the existing leased, disabled worker. */
-async function processRetentionStep(db, auth, ref, job) {
+async function processRetentionStep(db, auth, ref, job, scope = {}) {
   const uid = job.uid, dates = retention.deadlines(job.createdAt, job.review?.reviewedAt);
   if (dates.requiresDeadlineReview || !Number.isFinite(retention.millis(job.review?.reviewedAt))) { await ref.update({status:'needs_review',lastError:'missing_submission_time'}); return; }
-  const policy = (await db.doc('deletion_policies/account').get()).data();
+  const policy = scope.policy || (await db.doc('deletion_policies/account').get()).data();
   if (!retention.policyReady(policy) || job.review?.policyReference !== policy.approvalReference) {
     await ref.update({status:'pending_owner_approval',lastError:'policy_changed_or_incomplete'}); return;
   }
   if (job.phase === 'requested' || job.phase === 'disable') {
     const profile = await db.doc(`users/${uid}`).get(), batch = db.batch();
-    if(profile.exists) batch.update(profile.ref,{deletionPending:true});
+    if(profile.exists) batch.update(profile.ref,{deletionPending:true,...(scope.databaseId?{approved:false}:{})});
     batch.delete(db.doc(`resident_directory/${uid}`));
     batch.update(ref,{phase:'v2_inventory',status:'processing',collectionIndex:0,cursor:'',...dates});await batch.commit();return;
   }
@@ -30,13 +32,13 @@ async function processRetentionStep(db, auth, ref, job) {
       const current=await tx.get(receipt.ref);if(current.data()?.state!=='pending_redaction')return;
       const path=current.data().path, recordRef=db.doc(path), record=await tx.get(recordRef);
       if(!record.exists){tx.update(receipt.ref,{state:'already_absent'});return;}
-      const before=record.data(), plan=retention.plan(current.data().collection,before,uid);
+      const before=record.data(), plan=retention.plan(current.data().collection,before,uid,scope.redactionKey?`deleted_${createHmac('sha256',scope.redactionKey).update(`${scope.databaseId}/${path}/${uid}`).digest('hex').slice(0,24)}`:undefined);
       if(plan.action==='review'){tx.update(receipt.ref,{state:'needs_review',reason:plan.reason});return;}
       const after=['replace','replace_audit'].includes(plan.action)?plan.data:{...before,...plan.patch};
       if(plan.action!=='delete_parent'&&referencesUid(after,uid)){tx.update(receipt.ref,{state:'needs_review',reason:'unresolved_identity_fields'});return;}
       if(plan.action==='delete_parent') {
         const cleanupJobId=jobIdFor(`account:${ref.path}:${path}`),cleanup=db.doc(`media_cleanup_jobs/${cleanupJobId}`),existing=await tx.get(cleanup);
-        if(!existing.exists)tx.create(cleanup,{collection:current.data().collection,recordId:record.id,uid,accountDeletionJobId:ref.path.split('/').at(-1),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
+        if(!existing.exists)tx.create(cleanup,{collection:current.data().collection,recordId:record.id,uid,accountDeletionJobId:ref.path.split('/').at(-1),...(scope.databaseId?{databaseId:scope.databaseId,expiresAt:new Date(dates.retentionDueAt),objectHashes:objectHashes(before)}:{}),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
         tx.set(db.doc(`media_deletion_tombstones/${current.data().collection}/records/${record.id}`),{deletedAt:timestamp()});
         tx.delete(recordRef);tx.update(receipt.ref,{state:'redacted',cleanupJobId});
       }else{
@@ -49,7 +51,11 @@ async function processRetentionStep(db, auth, ref, job) {
           // scoped cleanup job which rechecks that the personal/media fields stay absent.
           const cleanupJobId=jobIdFor(`detached:${ref.path}:${path}`);
           // Deterministic set is safe on transaction retry; receipt state gates re-entry.
-          tx.set(db.doc(`media_cleanup_jobs/${cleanupJobId}`),{collection:current.data().collection,recordId:record.id,uid,detached:true,accountDeletionJobId:ref.path.split('/').at(-1),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
+          tx.set(db.doc(`media_cleanup_jobs/${cleanupJobId}`),{collection:current.data().collection,recordId:record.id,uid,detached:true,accountDeletionJobId:ref.path.split('/').at(-1),...(scope.databaseId?{databaseId:scope.databaseId,expiresAt:new Date(dates.retentionDueAt),objectHashes:objectHashes(before)}:{}),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
+          tx.update(receipt.ref,{state:'redacted',cleanupJobId});
+        } else if(commentMedia&&scope.databaseId){
+          const cleanupJobId=jobIdFor(`comment:${ref.path}:${path}`),comments=before.comments.filter(c=>c.authorId===uid||c.userId===uid);
+          tx.set(db.doc(`media_cleanup_jobs/${cleanupJobId}`),{collection:current.data().collection,recordId:record.id,uid,databaseId:scope.databaseId,commentAuthorOnly:true,objectHashes:objectHashes({comments}),expiresAt:new Date(dates.retentionDueAt),accountDeletionJobId:ref.path.split('/').at(-1),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
           tx.update(receipt.ref,{state:'redacted',cleanupJobId});
         } else tx.update(receipt.ref,{state:commentMedia?'needs_review':'redacted',...(commentMedia?{reason:'removed_comment_media_requires_exact_link_review'}:{}),...(plan.action==='replace_audit'?{expireRecord:true}:{})});
       }

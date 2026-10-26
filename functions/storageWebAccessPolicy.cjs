@@ -14,6 +14,7 @@ async function syncWebMembership(defaultDb,webDb,uid) {
   const observedAt=snapshot.readTime;
   if(!observedAt)throw Error('Missing authoritative read timestamp');
   if(before?.observedAt&&(before.observedAt.seconds>observedAt.seconds||before.observedAt.seconds===observedAt.seconds&&before.observedAt.nanoseconds>=observedAt.nanoseconds))return;
+  if(!snapshot.exists){if(before){const members={...(current.data()?.members||{})};delete members[uid];tx.update(ref,{members});}return;}
   tx.set(ref,{members:{[uid]:{...webMembership(snapshot.exists?snapshot.data():null),observedAt}}},{merge:true});
  });
 }

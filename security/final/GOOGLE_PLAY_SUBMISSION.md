@@ -103,3 +103,5 @@ workers stay off until their separate safety gate and activation approval pass.
 - Stage 1 Android cleanup/images OTA is actually published (metadata rechecked October 26):
   `01a17571-852a-7f02-a990-c6e3ee81677e`, source `bfb1a85`, runtime
   `d6f09b9023171c8bdabd4a8e1da0b41223dff3b9`. Phone installation remains owner verification.
+
+Prepared protocol 3 adds cleanup-only device identifiers and server credential hashes for security/account-data cleanup, with finite expiry, protected native storage and no deletion authority. It is not active or published. Include the actual released protocol in Device/other IDs and retention answers when activated; no claim of offline remote erasure. Supported two-database execution and Admin exception rechecks are implemented locally; current named-database anonymous chat writes block activation. See PROCESSING_PROTOCOL3.md.

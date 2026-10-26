@@ -1,0 +1,6 @@
+const test=require('node:test'),assert=require('node:assert/strict'),{execFileSync}=require('node:child_process'),path=require('node:path');
+test('operations packaging exports six callables and never loads deletion engines or schedulers',()=>{
+ execFileSync(process.execPath,['tools/prepare-deletion-operations.cjs'],{cwd:__dirname});
+ const output=execFileSync(process.execPath,['-e',`const e=require('./index.cjs');console.log(JSON.stringify({names:Object.keys(e).sort(),forbidden:Object.keys(require.cache).filter(p=>/accountDeletionScoped|accountDeletionV2|mediaCleanup|accountDeletion\\.cjs|v2[/\\\\]scheduler/.test(p))}));`],{cwd:path.resolve(__dirname,'../.release/deletion-operations'),encoding:'utf8',env:{...process.env,GCLOUD_PROJECT:'demo-townloop',FIREBASE_CONFIG:'{"projectId":"demo-townloop"}',TOWNLOOP_FIRESTORE_DATABASE_ID:'(default)',TOWNLOOP_ACCOUNT_DELETION_ENABLED:'true',TOWNLOOP_SCOPED_DELETION_ENABLED:'true'}});
+ const result=JSON.parse(output.trim());assert.deepEqual(result.names,['authorizeAccountDeletionProcessing','checkAccountCleanupProof','listAccountDeletionExceptions','recheckAccountDeletionException','recheckAccountDeletionScope','registerAccountCleanupDevice']);assert.deepEqual(result.forbidden,[]);
+});

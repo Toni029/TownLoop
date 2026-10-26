@@ -14,7 +14,7 @@ function fixture() {
   'react-native':{AppState:{addEventListener:(_event:string,fn:(state:string)=>void)=>{resume=fn;return {remove(){}};}}},
   'firebase/auth':{onAuthStateChanged:(_a:any,fn:any)=>{onAuth=fn;return()=>{};},reload:async()=>{if(reloadError)throw {code:reloadError};},signOut:async()=>{signedOut.push(auth.currentUser.uid);auth.currentUser=null;}},
   'firebase/firestore':{doc:()=>({}),onSnapshot:(_r:any,fn:any)=>{onProfile=fn;return()=>{};}},
-  './firebase':{auth,db:{}},'./accountDeletion':{clearDeletedAccountCaches:async(uid:string)=>{cleared.push(uid);},retryPendingAccountCleanup:async()=>{}},
+  './firebase':{auth,db:{}},'./cleanupProof':{syncCleanupProofs:async()=>{}},'./accountDeletion':{clearDeletedAccountCaches:async(uid:string)=>{cleared.push(uid);},retryPendingAccountCleanup:async()=>{}},
   '../../../src/services/registrationRecovery':{MISSING_REGISTRATION_MESSAGE:'missing'},'./profile':{readProfile:(x:any)=>x,friendlyError:()=> 'error'},
  };
  vm.runInNewContext(source,{exports,require:(name:string)=>modules[name]});exports.SessionProvider({children:null});
