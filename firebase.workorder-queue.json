@@ -1,0 +1,1 @@
+{"functions":[{"source":".release/workorder-queue","codebase":"work-order-retention","runtime":"nodejs22","ignore":["node_modules",".git","*.test.cjs","*.log",".env*"]}]}
