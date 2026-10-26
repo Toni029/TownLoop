@@ -3,6 +3,7 @@ import { reload, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { AppState } from 'react-native';
 import { clearDeletedAccountCaches, retryPendingAccountCleanup } from './accountDeletion';
+import {syncCleanupProofs} from './cleanupProof';
 import { auth, db } from './firebase';
 import { MISSING_REGISTRATION_MESSAGE } from '../../../src/services/registrationRecovery';
 import { friendlyError, readProfile, type ResidentProfile } from './profile';
@@ -36,6 +37,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         });
         const checkDeletedIdentity = () => {
             const user=auth.currentUser;
+            void syncCleanupProofs(user?.uid,clearDeletedAccountCaches).catch(()=>{});
             if(user)void reload(user).catch(error=>{
                 // Offline, expired tokens, permission errors and ordinary sign-out
                 // are NOT proof of deletion and must never erase local reminders.
@@ -48,8 +50,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
             stopProfile();
             stopProfile = () => { };
             setState({ user, profile: null, loading: !!user, error: null });
-            if (!user)
-                return;
+            if (!user){void syncCleanupProofs(undefined,clearDeletedAccountCaches).catch(()=>{});return;}
             checkDeletedIdentity();
             stopProfile = onSnapshot(doc(db, 'users', user.uid), snapshot => {
                 if (current !== generation)
