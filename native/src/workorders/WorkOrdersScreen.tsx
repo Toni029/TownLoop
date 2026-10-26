@@ -1,3 +1,4 @@
+import {useQueuePositions} from './useQueuePositions';
 import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { ProductToast } from '../components/ProductToast';
@@ -10,6 +11,7 @@ import { readWorkOrder } from './model';
 import { changeWorkOrder } from './actions';
 export default function WorkOrdersScreen() {
   const user=useResident();const live=useLiveCollection('work_orders',readWorkOrder);
+  const queuePositions=useQueuePositions(live.items,user);
   const [create,setCreate]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [message,setMessage]=useState('');const lock=useRef(false);
   const act = useCallback(async (id:string,action:OrderAction,text='',photo='') => {
     if(lock.current)return false;lock.current=true;setBusy(true);
@@ -17,5 +19,5 @@ export default function WorkOrdersScreen() {
     catch(e){setError(e instanceof Error ? e.message : 'Unable to update work order.');return false;}
     finally{lock.current=false;setBusy(false);}
   }, []);
-  return <View style={{flex:1}}><WorkOrdersFeed orders={live.items} user={user} loading={live.loading} error={live.error} retry={live.retry} refreshing={live.refreshing} onRefresh={live.refresh} busy={busy} onCreate={()=>setCreate(true)} onAction={act}/>{create && <RequestEditor onClose={()=>setCreate(false)} onSaved={()=>setMessage('Work order request submitted!')}/>}{!!message && <ProductToast key={message} message={message} onDone={()=>setMessage('')}/>}{!!error && <NewsDialog title="Work Orders" onClose={()=>{setError('');setMessage('');}}><Copy>{error}</Copy><Action label="OK" onPress={()=>{setError('');setMessage('');}}/></NewsDialog>}</View>;
+  return <View style={{flex:1}}><WorkOrdersFeed queuePositions={queuePositions} orders={live.items} user={user} loading={live.loading} error={live.error} retry={live.retry} refreshing={live.refreshing} onRefresh={live.refresh} busy={busy} onCreate={()=>setCreate(true)} onAction={act}/>{create && <RequestEditor onClose={()=>setCreate(false)} onSaved={()=>setMessage('Work order request submitted!')}/>}{!!message && <ProductToast key={message} message={message} onDone={()=>setMessage('')}/>}{!!error && <NewsDialog title="Work Orders" onClose={()=>{setError('');setMessage('');}}><Copy>{error}</Copy><Action label="OK" onPress={()=>{setError('');setMessage('');}}/></NewsDialog>}</View>;
 }

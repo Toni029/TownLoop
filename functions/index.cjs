@@ -50,3 +50,6 @@ const cleanupProof=require('./cleanupProof.cjs');
 exports.registerAccountCleanupDevice=cleanupProof.registerAccountCleanupDevice;
 exports.checkAccountCleanupProof=cleanupProof.checkAccountCleanupProof;
 Object.assign(exports,require('./accountDeletionOperations.cjs'));
+
+// Read-only resident queue lookup; deploy separately from all workers.
+exports.getWorkOrderQueuePositions = require("./workOrderQueue.cjs").getWorkOrderQueuePositions;
