@@ -98,9 +98,11 @@ function Pill({
   label,
   tone = "stone",
   solid = false,
+  price = false,
 }: {
   label: string;
   solid?: boolean;
+  price?: boolean;
   tone?: "stone" | "green" | "amber";
 }) {
   const dark = !!usePresentation()?.dark;
@@ -119,7 +121,7 @@ function Pill({
     <View
       style={{
         paddingHorizontal:
-          solid || label === "Available" || label === "Sold" ? 10 : 8,
+          price ? 8 : solid || label === "Available" || label === "Sold" ? 10 : 8,
         paddingVertical: 2,
         borderRadius: 20,
         borderWidth: 1,
@@ -152,12 +154,12 @@ function Pill({
       <Copy
         weight={solid ? "extra" : "semi"}
         style={{
-          fontSize: solid
+          fontSize: price ? 14 : solid
             ? 12
             : label === "Available" || label === "Sold"
               ? 11
               : 10,
-          lineHeight: solid ? 16 : 15,
+          lineHeight: price ? 18 : solid ? 16 : 15,
           color,
         }}
       >
@@ -170,9 +172,11 @@ function Pill({
 function DeleteControl({
   onDelete,
   busy,
+  compact = false,
 }: {
   onDelete: () => void;
   busy: boolean;
+  compact?: boolean;
 }) {
   const [confirm, setConfirm] = useState(false);
   return confirm ? (
@@ -198,8 +202,8 @@ function DeleteControl({
       accessibilityLabel="Delete item"
       disabled={busy}
       onPress={() => setConfirm(true)}
-      hitSlop={12}
-      style={{ padding: 4 }}
+      hitSlop={compact ? undefined : 12}
+      style={compact ? { width: 44, height: 44, paddingLeft: 6, alignItems: "flex-start", justifyContent: "center" } : { padding: 4 }}
     >
       <Trash2 size={14} color="#a8a29e" />
     </Pressable>
@@ -694,26 +698,29 @@ export function SocialFeed({
                       </Copy>
                     </View>
                   </View>
-                  <Pill
-                    solid
-                    label={item.price}
-                    tone={
-                      item.sold
-                        ? "stone"
-                        : item.price.toUpperCase() === "FREE"
-                          ? "green"
-                          : "amber"
-                    }
-                  />
-                  <SafetyActions target={{kind:"listing",id:String(item.id),authorId:String(item.authorId || "")}}/>
-                  {(owns(item, user) || canDeleteAnyPost(user)) && (
-                    <DeleteControl
-                      busy={busy}
-                      onDelete={() =>
-                        void onAction("listing", String(item.id), "delete")
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 0, flexShrink: 0 }}>
+                    <Pill
+                      solid
+                      price
+                      label={item.price}
+                      tone={
+                        item.sold
+                          ? "stone"
+                          : item.price.toUpperCase() === "FREE"
+                            ? "green"
+                            : "amber"
                       }
                     />
-                  )}
+                    {(owns(item, user) || canDeleteAnyPost(user)) && (
+                      <DeleteControl
+                        compact
+                        busy={busy}
+                        onDelete={() =>
+                          void onAction("listing", String(item.id), "delete")
+                        }
+                      />
+                    )}
+                  </View>
                 </View>
                 <View
                   style={[
@@ -801,7 +808,7 @@ export function SocialFeed({
               Neighbors, conversations & marketplace
             </Copy>
           </View>
-          <View style={s.row}>
+          <View style={[s.row, { alignItems: "stretch", flexWrap: "nowrap" }]}>
             {view === "listing" && (
               <Pressable
                 accessibilityRole="button"
@@ -810,8 +817,9 @@ export function SocialFeed({
                 style={[
                   s.row,
                   {
-                    padding: 8,
-                    minHeight: 34,
+                    width: 44,
+                    minHeight: 44,
+                    justifyContent: "center",
                     borderRadius: 16,
                     backgroundColor: dark ? "#1e293b" : "#f5f5f4",
                     borderWidth: 1,
@@ -819,8 +827,7 @@ export function SocialFeed({
                   },
                 ]}
               >
-                <Mail size={16} color="#047857" />
-                {width >= 600 && <Copy weight="bold">Marketplace Chats</Copy>}
+                <Mail size={24} color="#047857" />
                 {unread > 0 && (
                   <View
                     style={{
@@ -991,13 +998,19 @@ export function Detail({
       <View style={s.row}>
         <Avatar uri={item.authorAvatar} name={item.author} />
         {listing ? (
-          <>
-            <Pill
-              label={listing.sold ? "Sold" : "Available"}
-              tone={listing.sold ? "stone" : "green"}
-            />
+          <Pill
+            label={listing.sold ? "Sold" : "Available"}
+            tone={listing.sold ? "stone" : "green"}
+          />
+        ) : (
+          <Pill label={post!.tag} />
+        )}
+      </View>
+      {listing ? (
+        <View style={[s.row, { justifyContent: "flex-start", gap: 0 }]}>
             <Pill
               solid
+              price
               label={listing.price}
               tone={
                 listing.sold
@@ -1007,11 +1020,12 @@ export function Detail({
                     : "amber"
               }
             />
-          </>
-        ) : (
-          <Pill label={post!.tag} />
-        )}
-      </View>
+          <SafetyActions target={{kind:"listing",id:String(item.id),authorId:String(item.authorId || "")}}/>
+          {(owns(item, user) || canDeleteAnyPost(user)) && (
+            <DeleteControl compact busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />
+          )}
+        </View>
+      ) : <>
       <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
       <View style={s.row}>
         <Action
@@ -1021,7 +1035,7 @@ export function Detail({
           onPress={() =>
             void Share.share({
               title: item.title,
-              message: `${item.title}\n${post?.content || listing?.description || ""}`,
+              message: `${item.title}\n${post?.content || ""}`,
             }).catch(() =>
               setShareError("Unable to share this item. Please try again."),
             )
@@ -1034,6 +1048,7 @@ export function Detail({
           />
         )}
       </View>
+      </>}
       {!!(error || shareError) && <ErrorNotice message={error || shareError} />}
       <Copy weight="bold" style={{ fontSize: 20, lineHeight: 28 }}>
         {item.title}
@@ -1071,7 +1086,24 @@ export function Detail({
           onMessage={onMessage}
         />
       )}
-      <Copy weight="bold">{item.comments?.length || 0} Comments</Copy>
+      <View style={[s.row, { justifyContent: "flex-start" }]}>
+        {listing && (
+        <Action
+          label="Share post"
+          icon={Share2}
+          tone="light"
+          onPress={() =>
+            void Share.share({
+              title: item.title,
+              message: `${item.title}\n${listing.description}`,
+            }).catch(() =>
+              setShareError("Unable to share this item. Please try again."),
+            )
+          }
+        />
+        )}
+        <Copy weight="bold">{item.comments?.length || 0} Comments</Copy>
+      </View>
       <Comments
         comments={item.comments || []}
         safetyTarget={{kind,id:String(item.id)}}
