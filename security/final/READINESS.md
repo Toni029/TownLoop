@@ -149,8 +149,8 @@ an approved new native release, preserve optional camera/system picker, then ins
    retention and backup gates and explicit destructive approval. No generic flag flip or self-approval.
    Later, independently approve controlled token retirement. Neither is included in this task.
 
-Owner decisions applied: Seeds4Clix; supplied `support@seeds4clic.com` must be confirmed for
-spelling and monitoring before public use. No address/legal entity is invented. Automatic alerts
+Owner decisions applied: Seeds4Clix; supplied `support@seeds4Clix.com` must be confirmed for
+monitoring before public use. No address/legal entity is invented. Automatic alerts
 go only to current authorized Admins; VIP review remains. Backups are deferred. Ordinary retention
 is 60 days; no application 400-day exception has an established applicable legal basis.
 Remaining owner/legal inputs: email confirmation, required legal details/effective date, provider

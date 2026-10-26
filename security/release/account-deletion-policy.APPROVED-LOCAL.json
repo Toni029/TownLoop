@@ -26,7 +26,9 @@
       "vip"
     ],
     "audit400DayExceptionApproved": false,
-    "auditLegalBasis": "Not established; owner/legal review required, no application retention extension"
+    "auditLegalBasis": "Not established; owner/legal review required, no application retention extension",
+    "perAccountDatabaseCompletionRequired": true,
+    "alertExpiryActivationApproved": false
   },
   "remainingActivationGates": [
     "Resolve schema/identity-specific needs_review receipts before claiming complete deletion",
@@ -38,9 +40,10 @@
   ],
   "operator": {
     "name": "Seeds4Clix",
-    "supportEmail": "support@seeds4clic.com",
-    "emailSpellingConfirmed": false,
-    "publicationApproved": false
+    "supportEmail": "support@seeds4Clix.com",
+    "emailSpellingConfirmed": true,
+    "publicationApproved": false,
+    "mailboxMonitoringVerified": false
   },
   "backups": "All changes deferred; preserve verified existing configuration"
 }

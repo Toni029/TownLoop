@@ -5,8 +5,8 @@ revocation, rules, Hosting, native builds, push or OTA publication in this task.
 
 ## Approved decisions
 
-Operator: **Seeds4Clix**. Supplied support email: **support@seeds4clic.com**. Owner must confirm
-this exact spelling, ownership, monitoring and privacy/deletion handling before public publication.
+Operator: **Seeds4Clix**. Supplied support email: **support@seeds4Clix.com**. Owner confirmed the corrected spelling on October 26. Confirm
+monitoring and privacy/deletion handling before public publication.
 No business address, legal entity form, jurisdiction or policy effective date is invented.
 
 - Admin/VIP can review; neither can self-approve. Automatic alerts are **Admin only**, never VIP.
@@ -107,11 +107,10 @@ that all historical copies or soft-deleted bytes are already purged.
 
 ## Minimum remaining sequence — separate approvals, no automatic execution
 
-1. **Next safe Preview:** isolate just this account-cleanup completion correction onto published
-   `bfb1a85`, push approved source, verify exact installed runtime, publish ONE Android Preview OTA.
-   Do not publish full local HEAD: native expo-video source-build changes require a new binary.
-   Test account switching/interrupted cleanup with fixtures, not real deletion requests. No backend
-   dependency or scheduler activation for that JS correction.
+1. **Completed Preview (October 26):** isolated JS cleanup completion released as `b08c804`,
+   OTA `01a17879-2787-73ab-809e-1509e8fb051e` on runtime
+   `d6f09b9023171c8bdabd4a8e1da0b41223dff3b9`. No new publication needed for it.
+   Do not publish full local HEAD: native expo-video changes require a new binary.
 2. **Admin escalation:** separately approve isolated monitor deployment with flags OFF; establish
    approved Admin device registration/delivery and 60-day receipt-expiry enforcement. Verify
    synthetic recipient exclusion/delivery. Then request separate scheduler/delivery activation.
@@ -128,10 +127,10 @@ that all historical copies or soft-deleted bytes are already purged.
    are not private merely because SDK reads are restricted. No revocation authorized.
 5. **Final binary/Play:** separate approval for ONE Preview APK with compiled startup audio opt-out
    verification and any approved manifest changes; original MP4/signing maintained. Then actual
-   phone checks. Confirm support spelling/legal/policy/provider disclosures, operational deletion,
+   phone checks. Confirm support monitoring/legal/policy/provider disclosures, operational deletion,
    signing, testing and Console declarations before separate Production AAB/Play approval.
 
-Remote Git has curated Stage 1 `bfb1a85`; local branch also preserves unreleased native/backend
+Remote Git has curated Stage 1 `bfb1a85` and cleanup correction `b08c804`; local branch also preserves unreleased native/backend
 checkpoints. Reconcile via reviewed merge/cherry-pick without force-pushing or dropping either
 history. Unrelated pending Marketplace styling and untracked docs are not included in this commit.
 
@@ -143,3 +142,7 @@ review-authorization/delivery-flag checks. Native TypeScript passed. Policy/cont
 configuration assertions passed. All tests used synthetic in-memory data/local artifacts; no
 notification was sent and no resident account/request/file was queried or modified. No new
 phone/emulator test, native build or publication occurred. EAS and GitHub were read-only rechecked.
+
+Current operational gates and verified menu paths: see DELETION_ACTIVATION_GATES.md. The cleanup
+correction above is now published as `b08c804`, OTA `01a17879-2787-73ab-809e-1509e8fb051e`; do not
+republish it or treat the remaining local backend/native work as released.

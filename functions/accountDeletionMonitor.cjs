@@ -1,6 +1,7 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore');
 const retention = require('./accountDeletionRetention.cjs');
+const {expireAlertClaims}=require('./deletionAlertExpiry.cjs');
 const { notifyAdmins } = require('./accountDeletionAdminAlerts.cjs');
 const database = process.env.TOWNLOOP_FIRESTORE_DATABASE_ID || '(default)';
 if(database!=='(default)')throw Error('Deletion review monitor is restricted to the default database.');
@@ -10,7 +11,10 @@ const options = { region:'us-central1', maxInstances:1, timeoutSeconds:300 };
 // Review receipts remain visible to Admin/VIP; automatic delivery is Admin-only.
 exports.escalateAccountDeletionRequests = onSchedule({ ...options, schedule: 'every 60 minutes', timeZone: 'America/New_York' }, async () => {
   if(process.env.TOWNLOOP_DELETION_REVIEW_MONITOR_ENABLED!=='true')return;
-  const db=getFirestore(database), cursor=db.doc('deletion_policies/review_cursor'), state=(await cursor.get()).data();
+  const db=getFirestore(database);
+  // Separate owner approval is required for expiry as well as monitoring.
+  if(process.env.TOWNLOOP_DELETION_ALERT_EXPIRY_ENABLED==='true')await expireAlertClaims(db);
+  const cursor=db.doc('deletion_policies/review_cursor'), state=(await cursor.get()).data();
   let query=db.collection('account_deletion_jobs').where('status','in',['requested','delayed','queued','approved_held','processing','failed','needs_review','identity_complete_media_pending']).orderBy('lastAttemptAt').orderBy(FieldPath.documentId()).limit(50);
   if(state?.lastAttemptAt && state?.lastJobId)query=query.startAfter(state.lastAttemptAt,state.lastJobId);
   const page=await query.get();

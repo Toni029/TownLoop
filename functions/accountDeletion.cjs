@@ -3,6 +3,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const retention = require('./accountDeletionRetention.cjs');
+const {databaseCompletionReady}=require('./accountDeletionScope.cjs');
 const { processRetentionStep } = require('./accountDeletionV2.cjs');
 const { accountPolicyReady, jobIdFor, SHARED, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention } = require('./accountDeletionPolicy.cjs');
 const database = process.env.TOWNLOOP_FIRESTORE_DATABASE_ID || '(default)';
@@ -69,6 +70,11 @@ async function processJob(db, auth, ref) {
     batch.update(ref, { phase: 'inventory', status: 'processing' });
     await batch.commit();
     return;
+  }
+  // Global policy booleans cannot certify per-account named/default database completion.
+  // Stop before private/Auth erasure unless both trusted executor receipts are complete.
+  if (['private','auth'].includes(job.phase) && !databaseCompletionReady(job)) {
+    await ref.update({status:'needs_review',lastError:'cross_database_completion_required'});return;
   }
   if (job.phase === 'private') {
     // Paginated and restart-safe. Never touch delivery/audit records or counters here.

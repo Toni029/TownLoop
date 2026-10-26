@@ -61,7 +61,7 @@ is identified in this existing scope; that is not a universal “collects nothin
 
 ## Store and release inputs still needed
 
-- Operator Seeds4Clix; supplied support email `support@seeds4clic.com` spelling/monitoring must be confirmed before publication. No address or additional legal entity information is invented. Approve effective date and public privacy/deletion URLs.
+- Operator Seeds4Clix; supplied support email `support@seeds4Clix.com` monitoring must be confirmed before publication. No address or additional legal entity information is invented. Approve effective date and public privacy/deletion URLs.
 - App name/descriptions/category, content rating, intended audience, ads/access declarations,
   Health declaration, Data Safety and a working reviewer-access arrangement approved by owner.
   Never create resident accounts for reviewers without authorization or use real resident data.

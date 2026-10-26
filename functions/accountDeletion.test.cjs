@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial } = require('./accountDeletionPolicy.cjs');
+const completedScopes=job=>{job.createdAt ??=Date.now();return require('./accountDeletionScope.cjs').DATABASES.map(databaseId=>({databaseId,uid:job.uid,policyReference:job.review.policyReference,inventoryComplete:true,recordsComplete:true,writesFrozen:true,unresolvedIdentityCount:0,unresolvedMediaCount:0,completedAt:Date.now()}));};
 function harness(initial, authorizeProcessing = false) {
   if (authorizeProcessing) for (const [path, job] of Object.entries(initial)) if (path.startsWith("account_deletion_jobs/") && !path.includes("/inventory/")) job.review = { decision: "approved", processingAuthorized: true, reviewerId: "fixture-manager", reviewedAt:Date.now(), policyReference: initial["deletion_policies/account"]?.approvalReference || "owner-approved-ticket", ...job.review };
   const records = new Map(Object.entries(initial));
@@ -36,8 +37,9 @@ function harness(initial, authorizeProcessing = false) {
   };
   const warnings = [], adminAlerts = [];
   const exports = {}, context = { exports, module: { exports }, require: name => {
-    if (name === './accountDeletionRetention.cjs') return require(name);
+    if (name === './accountDeletionRetention.cjs' || name === './accountDeletionScope.cjs') return require(name);
     if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs','./accountDeletionMonitor.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
+    if (name === './deletionAlertExpiry.cjs') return {expireAlertClaims:async()=>{}};
     if (name === './accountDeletionAdminAlerts.cjs') return {notifyAdmins:async()=>{adminAlerts.push('generic_admin_digest');}};
     if (name === './accountDeletionPolicy.cjs') return require(name);
     if (name === 'firebase-functions') return {logger:{warn:(_message,data)=>warnings.push(data)}};
@@ -89,6 +91,7 @@ test('retryable phases preserve shared history and block private/Auth erasure un
   assert.equal(h.records.get(h.ref.path).status, 'pending_owner_approval');
   assert.ok(h.records.has('users/alice')); assert.equal(h.authCalls.some(([action]) => action === 'delete'), false);
   assert.equal(h.records.get('resident_chats/shared').messages[0].text, 'preserve');
+  h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path));
   h.records.set('deletion_policies/account', { ownerApproved: true, approvalReference: 'owner-approved-ticket', collections: Object.fromEntries(SHARED.map(collection => [collection, { action: 'retain', reason: 'Synthetic approved policy fixture' }])) });
   for (let step = 0; step < SHARED.length + 8; step++) await h.run(h.db, h.auth, h.ref);
   assert.equal(h.records.get(h.ref.path).status, 'complete');
@@ -129,6 +132,7 @@ test('approved social deletion checks current canonical ownership and leaves sha
   assert.equal(h.records.get(`account_deletion_jobs/job/inventory/${jobIdFor('posts/own')}`).state, 'deleted_owned_social');
   assert.equal(h.records.get(`account_deletion_jobs/job/inventory/${jobIdFor('posts/shared')}`).state, 'pending_policy');
   await h.run(h.db, h.auth, h.ref); assert.equal(h.records.get(h.ref.path).status, 'pending_owner_approval');
+  h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path));
   approval.collections.posts.sharedReferences = { action: 'retain', reason: 'Approved other-resident conversation continuity' };
   approval.collections.work_orders = { action: 'retain', reason: 'Approved work-order continuity' };
   for (let step = 0; step < 6; step++) await h.run(h.db, h.auth, h.ref);
@@ -241,6 +245,7 @@ test('v2 canonical deletion is retryable, preserves the other participant and ti
  initial['resident_chats/shared']={identityVersion:2,participantIds:['alice','bob'],messages:[{id:'m1',senderId:'alice',body:'remove'},other]};
  initial['posts/other']={userId:'bob',comments:[{authorId:'alice',text:'remove'},{authorId:'bob',text:'keep'}]};
  const h=harness(initial,true),ref=h.db.doc('account_deletion_jobs/'+id);
+ h.records.get(ref.path).databaseCompletion=completedScopes(h.records.get(ref.path));
  for(let i=0;i<40;i++)await h.run(h.db,h.auth,ref);
  assert.equal(h.records.has('users/alice'),false);assert.ok(h.records.has('users/bob'));
  assert.equal(h.records.get('work_orders/one').code,'1234');assert.equal(h.records.get('work_orders/one').userId,undefined);assert.ok(h.records.has('work_order_numbers/1234'));
@@ -259,6 +264,7 @@ test('delays require a legitimate case, finite review date, and do not reset ori
 test('failed jobs remain scheduled and retry their durable phase',async()=>{
  const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'private',status:'failed',createdAt:Date.now(),failureCount:1}},true);
  // The earlier failure occurred before private erasure; retry must remain eligible.
+ h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path));
  await h.schedule();assert.notEqual(h.records.get(h.ref.path).status,'failed');assert.ok(h.authCalls.some(([x])=>x==='delete'));
 });
 test('expired completed and withdrawn receipts erase only their own minimal records, never user accounts',async()=>{
@@ -279,6 +285,7 @@ test('review monitoring is disabled by default',async()=>{
 });
 test('a transient Auth failure is recorded and the next scheduled invocation retries successfully',async()=>{
  const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'auth',status:'queued',createdAt:Date.now()}},true);
+ h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path));
  let first=true;h.auth.deleteUser=async uid=>{if(first){first=false;throw Error('synthetic transient failure');}h.authCalls.push(['delete',uid]);};
  await h.schedule();assert.equal(h.records.get(h.ref.path).status,'failed');assert.equal(h.records.get(h.ref.path).failureCount,1);
  await h.schedule();assert.equal(h.records.get(h.ref.path).status,'complete');assert.equal(h.authCalls.filter(([x])=>x==='delete').length,1);
@@ -317,4 +324,12 @@ test('automatic Admin delivery requires both explicit non-destructive monitor fl
  const disabled=harness(input());disabled.enableAdminAlerts();await disabled.escalate();assert.deepEqual(disabled.adminAlerts,[]);
  const prepared=harness(input(),true);delete prepared.records.get(prepared.ref.path).review;await prepared.escalate();assert.deepEqual(prepared.adminAlerts,[]);
  prepared.enableAdminAlerts();await prepared.escalate();assert.deepEqual(prepared.adminAlerts,['generic_admin_digest']);assert.deepEqual(prepared.authCalls,[]);assert.equal(prepared.records.get(prepared.ref.path).status,'requested');
+});
+
+test('shared Auth and private data survive absent or incomplete cross-database proof',async()=>{
+ for(const phase of ['private','auth']) {
+  const h=harness({'account_deletion_jobs/job':{uid:'alice',phase,status:'queued',createdAt:Date.now()},'users/alice':{approved:true},'resident_directory/alice':{name:'fixture'}},true);
+  h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path)).slice(0,1);
+  await h.run(h.db,h.auth,h.ref);assert.deepEqual(h.authCalls,[]);assert.ok(h.records.has('users/alice'));assert.ok(h.records.has('resident_directory/alice'));assert.equal(h.records.get(h.ref.path).lastError,'cross_database_completion_required');
+ }
 });
