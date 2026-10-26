@@ -44,8 +44,24 @@ export interface Chat {
     isSystem?: boolean;
   }[];
 }
-const time = (v: any) =>
-  typeof v?.toMillis === "function" ? v.toMillis() : Number(v) || 0;
+const time = (value: any): number => {
+  const seconds = value?.seconds ?? value?._seconds;
+  const result = typeof value?.toMillis === "function" ? value.toMillis()
+    : typeof value?.getTime === "function" ? value.getTime()
+    : typeof seconds === "number" ? seconds * 1000 + (value.nanoseconds ?? value._nanoseconds ?? 0) / 1e6
+    : typeof value === "string" ? Number(value) || Date.parse(value)
+    : Number(value);
+  return Number.isFinite(result) && result > 0 && result <= 8640000000000000 ? result : 0;
+};
+function postedAt(value: unknown): string {
+  const timestamp = time(value);
+  return timestamp ? new Date(timestamp).toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  }) : "Date unavailable";
+}
+export function communityResidentLabel(community: string | null): string {
+  return community === "cecil_pines" ? "Cecil Pines Resident" : "Community Resident";
+}
 export function avatar(d: Record<string, any>): string {
   return (
     d.authorAvatar ||
@@ -101,7 +117,7 @@ export function readPost(id: string, d: Record<string, any>): Post {
     authorId: d.userId || d.authorId || d.uid,
     authorEmail: d.authorEmail || d.email || "",
     unit: d.unit || "TownLoop Resident",
-    timeAgo: d.timeAgo || "Recent",
+    timeAgo: postedAt(d.createdAt),
     tag: d.tag || "Community",
     title: d.title || "Community Post",
     content: d.content || "",
@@ -125,7 +141,7 @@ export function readListing(id: string, d: Record<string, any>): Listing {
     authorId: d.userId || d.authorId || d.uid,
     authorEmail: d.authorEmail || d.email || "",
     unit: d.unit || "TownLoop Resident",
-    timeAgo: d.timeAgo || "Recent",
+    timeAgo: postedAt(d.createdAt),
     isOwner: false,
     claimed: !!(d.claimed || d.sold),
     sold: !!(d.sold || d.claimed),
