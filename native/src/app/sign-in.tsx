@@ -39,6 +39,7 @@ import { auth } from "../lib/firebase";
 import { friendlyError } from "../lib/profile";
 import { CecilPinesMark } from "../components/CecilPinesMark";
 export default function SignIn() {
+  const emailInput = useRef<TextInput | null>(null);
   const passwordInput = useRef<TextInput | null>(null);
   const [focused, setFocused] = useState("");
   const [googleHovered, setGoogleHovered] = useState(false);
@@ -55,10 +56,17 @@ export default function SignIn() {
     muted = dark ? "#94a3b8" : "#7e735e";
   const inputStyle = [
     s.input,
-    dark && {
-      backgroundColor: "#020617",
-      borderColor: "#334155",
-      color: "#fff",
+    dark && { color: "#fff" },
+  ];
+  const inputWrapStyle = (field: "email" | "password") => [
+    s.inputWrap,
+    { minHeight: wide ? 58 : 52 },
+    field === "password" && { paddingRight: 6 },
+    dark && { backgroundColor: "#020617", borderColor: "#334155" },
+    focused === field && {
+      borderColor: dark ? "#10b981" : "#175d3a",
+      backgroundColor: dark ? "#0f172a" : "#fff",
+      boxShadow: "0px 0px 0px 4px rgba(23,93,58,0.15)",
     },
   ];
   async function submit(reset = false) {
@@ -390,10 +398,12 @@ export default function SignIn() {
                       >
                         Resident Email Address
                       </Text>
-                      <View style={s.inputWrap}>
-                        <Mail pointerEvents="none" size={20} color={muted} style={s.inputIcon} />
+                      <Pressable accessible={false} onPress={() => emailInput.current?.focus()} style={inputWrapStyle("email")}>
+                        <View pointerEvents="none" style={s.inputIcon}><Mail size={20} color={muted} /></View>
                         <TextInput
                           accessibilityLabel="Resident Email Address"
+                          ref={emailInput}
+                          underlineColorAndroid="transparent"
                           returnKeyType="next"
                           submitBehavior="submit"
                           onSubmitEditing={() => passwordInput.current?.focus()}
@@ -408,19 +418,14 @@ export default function SignIn() {
                           autoComplete="email"
                           style={[
                             ...inputStyle,
-                            focused === "email" && {
-                              borderColor: dark ? "#10b981" : "#175d3a",
-                              backgroundColor: dark ? "#0f172a" : "#fff",
-                              boxShadow: "0px 0px 0px 4px rgba(23,93,58,0.15)",
-                            },
                             {
                               fontSize: wide ? 18 : 16,
-                              minHeight: wide ? 58 : 52,
+                              minHeight: wide ? 54 : 48,
                               paddingVertical: wide ? 14 : 12,
                             },
                           ]}
                         />
-                      </View>
+                      </Pressable>
                     </View>
                     <View style={s.field}>
                       <View style={s.passwordHeading}>
@@ -448,10 +453,11 @@ export default function SignIn() {
                           </Text>
                         </Pressable>
                       </View>
-                      <View style={s.inputWrap}>
-                        <Lock pointerEvents="none" size={20} color={muted} style={s.inputIcon} />
+                      <Pressable accessible={false} onPress={() => passwordInput.current?.focus()} style={inputWrapStyle("password")}>
+                        <View pointerEvents="none" style={s.inputIcon}><Lock size={20} color={muted} /></View>
                         <TextInput
                           accessibilityLabel="Password"
+                          underlineColorAndroid="transparent"
                           ref={passwordInput}
                           returnKeyType="done"
                           placeholder="Enter your password"
@@ -466,15 +472,9 @@ export default function SignIn() {
                           onSubmitEditing={() => void submit()}
                           style={[
                             ...inputStyle,
-                            focused === "password" && {
-                              borderColor: dark ? "#10b981" : "#175d3a",
-                              backgroundColor: dark ? "#0f172a" : "#fff",
-                              boxShadow: "0px 0px 0px 4px rgba(23,93,58,0.15)",
-                            },
                             {
-                              paddingRight: 48,
                               fontSize: wide ? 18 : 16,
-                              minHeight: wide ? 58 : 52,
+                              minHeight: wide ? 54 : 48,
                               paddingVertical: wide ? 14 : 12,
                             },
                           ]}
@@ -493,7 +493,7 @@ export default function SignIn() {
                             <Eye size={20} color={muted} />
                           )}
                         </Pressable>
-                      </View>
+                      </Pressable>
                     </View>
                     {!!message && (
                       <View
@@ -752,21 +752,29 @@ const s = StyleSheet.create({
   secureText: { fontFamily: "JakartaBold", fontSize: 10 },
   field: { gap: 6 },
   label: { fontFamily: "JakartaBold", fontSize: 14 },
-  inputWrap: { justifyContent: "center" },
-  inputIcon: { position: "absolute", left: 14, zIndex: 1 },
-  input: {
-    width: "100%",
-    minHeight: 56,
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
     borderWidth: 2,
     borderColor: "#d4c8b6",
     borderRadius: 16,
-    paddingLeft: 44,
-    paddingRight: 14,
-    paddingVertical: 12,
     backgroundColor: "#fcfaf5",
+  },
+  inputIcon: { width: 20, height: 20, flexShrink: 0, alignItems: "center", justifyContent: "center" },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 48,
+    paddingHorizontal: 0,
+    paddingVertical: 12,
+    backgroundColor: "transparent",
     fontFamily: "JakartaMedium",
     fontSize: 16,
     color: "#1c1917",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   passwordHeading: {
     flexDirection: "row",
@@ -777,8 +785,8 @@ const s = StyleSheet.create({
   forgot: { minHeight: 44, justifyContent: "center" },
   forgotText: { fontFamily: "Jakarta", fontSize: 12 },
   eye: {
-    position: "absolute",
-    right: 6,
+    width: 44,
+    flexShrink: 0,
     minWidth: 44,
     minHeight: 44,
     justifyContent: "center",
