@@ -44,7 +44,7 @@ import {
   useNewsFonts,
 } from "../news/ui";
 import { Collapsible } from "../components/Collapsible";
-import { MediaViewer } from "../components/MediaViewer";
+import { MarketplaceGallery } from "../components/MarketplaceGallery";
 import { pickAndUpload } from "../components/media";
 import { sortWorkOrders, editableResolution, isResolutionComment, type WorkOrder } from "./model";
 import { translateWorkOrder, type TranslatedContent } from "./translator";
@@ -828,7 +828,7 @@ const OrderCard = memo(function OrderCard({
         )}
       </Collapsible>
       {media && (
-        <MediaViewer
+        <MarketplaceGallery
           media={media.urls.map((url) => ({ type: "image", url }))}
           initialIndex={media.index}
           title={`${order.code}: ${order.title}`}
