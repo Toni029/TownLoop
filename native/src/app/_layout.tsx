@@ -1,6 +1,7 @@
 import { InboxPushProvider } from '../notifications/InboxPushProvider';
 import { AppErrorBoundary } from "../monitoring/AppErrorBoundary";
-import { StartupLoading } from "../components/StartupLoading";
+import { hideNativeSplash } from "../lib/nativeSplash";
+import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useReducedMotion } from "../home/hooks";
 import { CommunityProvider, useCommunity } from "../lib/community";
@@ -21,8 +22,9 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
   const reduced = useReducedMotion();
   const { user, profile, loading, registrationInProgress } = useSession();
   const { community, ready } = useCommunity();
+  if ((loading && !registrationInProgress) || !ready || !fontsReady) return null;
   return (
-    <StartupLoading ready={(!loading || registrationInProgress) && ready && fontsReady}>
+    <View style={{ flex: 1 }} onLayout={hideNativeSplash}>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream },
@@ -44,7 +46,7 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
-    </StartupLoading>
+    </View>
   );
 }
 export default function Root() {

@@ -8,6 +8,3 @@ const manifest = path.join(path.dirname(packageFile), 'android/src/main/AndroidM
 const source = fs.readFileSync(manifest, 'utf8');
 const normalized = source.replace('package="org.reactnative.maskedview"', '');
 if (normalized !== source) fs.writeFileSync(manifest, normalized);
-
-// Startup-specific opt-out is deterministic on local installs and EAS builds.
-require('./patch-startup-video.cjs').applyStartupPatch();

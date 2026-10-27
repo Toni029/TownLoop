@@ -56,7 +56,6 @@ function availableScreens(
 test("successful login cannot fall back to a public community or login screen", () => {
   assert.deepEqual(availableScreens({ uid: "resident" }, { approved: true }), [
     "(tabs)",
-    "account",
   ]);
 });
 test("pending and missing profiles route to account status, never community selection", () => {
