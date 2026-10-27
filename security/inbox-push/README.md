@@ -52,3 +52,7 @@ Notification transport adds Expo Push Service alongside FCM/APNs. Update the unp
 29 fixture checks passed: 13 backend recipient/registration/delivery/receipt checks, 6 native routing/device-lifecycle checks (including executing the actual device module against mocked native boundaries), and 10 existing account-cleanup regressions. TypeScript passed. Expo introspection produced the notification plugin and iOS push entitlement. Android credential validation rejected missing/mismatched files and accepted a synthetic matching fixture; no real credential was used. The six-function isolated export/default-off guard check passed without database or transport access.
 
 Primary integration references: [Expo Notifications API](https://docs.expo.dev/versions/latest/sdk/notifications/), [Expo push transport and credentials](https://docs.expo.dev/push-notifications/sending-notifications/), [Firebase authenticated Firestore event context](https://firebase.google.com/docs/functions/firestore-events).
+
+
+Current iPhone-first and Android-parity gates: [PLATFORM_PREREQUISITES.md](PLATFORM_PREREQUISITES.md).
+This supersedes earlier platform sequencing; neither platform is considered Google-ready until its real configuration passes.

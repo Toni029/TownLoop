@@ -15,4 +15,10 @@ function validateAndroidConfig(data,{webClientId,previewCertificateSHA1},package
  if(!client.oauth_client.some(c=>c.client_type===3&&c.client_id===webClientId))throw Error('Keep the existing Firebase Google web OAuth client.');
  return true;
 }
-module.exports={reversedClientId,validateAndroidConfig};
+function validateIosConfig(data,{iosClientId},bundleIdentifier='com.toni029.townloop'){
+ if(data?.PROJECT_ID!=='cc-livingcommunity-app'||String(data.GCM_SENDER_ID)!=='883715389126')throw Error('Google iOS configuration must use the existing TownLoop Firebase project.');
+ if(typeof data.GOOGLE_APP_ID!=='string'||!/^1:883715389126:ios:[a-fA-F0-9]+$/.test(data.GOOGLE_APP_ID)||data.BUNDLE_ID!==bundleIdentifier)throw Error('Google iOS app or bundle identifier does not match TownLoop.');
+ if(typeof iosClientId!=='string'||!iosClientId.startsWith('883715389126-')||data.CLIENT_ID!==iosClientId||data.REVERSED_CLIENT_ID!==reversedClientId(iosClientId))throw Error('Supply the registered iOS OAuth client and its exact reversed callback scheme.');
+ return true;
+}
+module.exports={reversedClientId,validateAndroidConfig,validateIosConfig};

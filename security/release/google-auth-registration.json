@@ -13,5 +13,10 @@
   "androidFirebaseAppId": "1:883715389126:android:9be9bbe73fece14e27c9c7",
   "androidSHARegistrations": 0,
   "androidOAuthClientsInFirebaseConfig": 0,
-  "verifiedOn": "2026-10-27"
+  "verifiedOn": "2026-10-27",
+  "iosBundleIdentifier": "com.toni029.townloop",
+  "easAppleTeamCount": 0,
+  "easMatchingIosAppIdentifierCount": 0,
+  "easApnsKeyCount": 0,
+  "appleMembershipVerified": false
 }

@@ -29,3 +29,8 @@ test('physical iPhone Preview uses production APNs; development provisioning use
  assert.equal(eas.build.preview.channel,'preview');assert.equal(eas.build.production.channel,'production');
  assert.equal(eas.build.preview.android.credentialsSource,'local');
 });
+test('iPhone push configuration is independent of an unavailable or mismatched Android credential file',()=>{
+ const result=configure({EAS_BUILD_PLATFORM:'ios',EAS_BUILD_PROFILE:'preview',GOOGLE_SERVICES_JSON:'/android-only/file'},false,'wrong-project');
+ assert.equal(result.entitlements['aps-environment'],'production');
+ assert.equal(result.android.googleServicesFile,undefined);
+});

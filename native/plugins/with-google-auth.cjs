@@ -7,7 +7,11 @@ module.exports=config=>{
   if(!fs.existsSync(file))throw Error('Supply the verified Google Android configuration before enabling sign-in.');
   require('./google-oauth.cjs').validateAndroidConfig(JSON.parse(fs.readFileSync(file,'utf8')),oauth,config.android?.package);
  }
- if(!oauth.iosOAuthRegistered||!oauth.iosClientId)return config;
+ if(!oauth.iosOAuthRegistered||process.env.EAS_BUILD_PLATFORM==='android')return config;
+ const fs=require('node:fs'),path=require('node:path');
+ const file=process.env.GOOGLE_SERVICES_PLIST||path.resolve(__dirname,'../credentials/GoogleService-Info.preview.plist');
+ if(!fs.existsSync(file))throw Error('Supply the verified Google iOS configuration before enabling sign-in.');
+ require('./google-oauth.cjs').validateIosConfig(require('@expo/plist').parse(fs.readFileSync(file,'utf8')),oauth,config.ios?.bundleIdentifier);
  const plugin=require('@react-native-google-signin/google-signin/app.plugin.js');
  return (plugin.default||plugin)(config,{iosUrlScheme:require('./google-oauth.cjs').reversedClientId(oauth.iosClientId)});
 };

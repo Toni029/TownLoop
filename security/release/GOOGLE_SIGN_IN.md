@@ -47,3 +47,12 @@ Firebase app is now registered and the Google SDK is in Preview build 49e3b645, 
 are registered. Google readiness stays false pending the verified Android OAuth match. No iOS Firebase
 app/client or Apple signing is configured. The iOS URL-scheme construction is corrected locally; see
 ../inbox-push/RESTORATION_RELEASE.md for exact public fingerprints and owner-only setup steps.
+
+## iPhone-first release gate (2026-10-27)
+
+See [platform prerequisites](../inbox-push/PLATFORM_PREREQUISITES.md) for exact Apple, Firebase,
+Google and EAS owner steps. `native/scripts/verify-google-ios.cjs` validates the actual ignored
+Firebase plist against the project, bundle, app, explicit iOS client and reversed URL scheme.
+The config plugin refuses an enabled but incomplete iOS configuration. Both platform readiness
+flags remain false until actual registration is complete; email/password and approval/consent
+requirements remain unchanged. No credentials were registered or live accounts created.

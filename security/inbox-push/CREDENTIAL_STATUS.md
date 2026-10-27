@@ -57,3 +57,7 @@ build 49e3b645-1d6f-4dbd-aa4d-820f835dc812 packages runtime
 Google provider is enabled, Android Firebase app exists but has zero SHA registrations, and no Firebase
 iOS app exists. No live configuration was changed. See RESTORATION_RELEASE.md for current owner steps,
 local four-category implementation, exact build workflow and deliberately inactive deployment gates.
+
+
+Current iPhone-first and Android-parity gates: [PLATFORM_PREREQUISITES.md](PLATFORM_PREREQUISITES.md).
+This supersedes earlier platform sequencing; neither platform is considered Google-ready until its real configuration passes.

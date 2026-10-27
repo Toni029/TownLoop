@@ -17,7 +17,7 @@ The provider is enabled and the existing web OAuth ID is correct. Read-only Fire
 3. Download the refreshed `google-services.json` from that Firebase Android app. Save it to ignored `native/credentials/google-services.preview.json` with private file permissions. Update the existing **Preview-only** EAS `GOOGLE_SERVICES_JSON` file variable with the same file. Do not edit Production/development variables, paste it into chat, or commit it.
 4. Run the read-only `node native/scripts/verify-google-android.cjs`. Repeat the scoped read-only live certificate/client check, then enable the local Android readiness flag only if both checks agree. The config plugin now rejects an enabled Android provider with a missing/wrong project, app, package, SHA-1 or existing web client. It never enables the flag itself. Existing consent, approved=false resident registration, canonical roles, session isolation and email/password login are unchanged.
 
-The validator currently fails as expected on the old SDK file. Google login is therefore **not configured/ready yet**, and another APK must not be advertised as Google-ready before completing these steps. These console changes need owner action/authorization; none was made here. Apple/APNs/iOS work is unchanged and does not block the Android milestone.
+The validator currently fails as expected on the old SDK file. Google login is therefore **not configured/ready yet**, and another APK must not be advertised as Google-ready before completing these steps. These console changes need owner action/authorization; none was made here. iPhone prerequisites are prepared alongside Android; see PLATFORM_PREREQUISITES.md.
 
 ## Focused verification completed
 
@@ -51,3 +51,7 @@ Index creation precedes callables. Reply rules can precede or follow the callabl
 The next clean managed Preview source includes the exact original native fade/scale from `7ae4520`, neutral splash/fallback, source-compiled startup Bluetooth patch, Google SDK, expo-notifications, four-category settings/routing, and unchanged Firebase protections. Existing signing and `preview` channel remain. Current installed runtime is `00add22145e025fb9329377ce1a2d9d6ecdaf393`; do not force the corrected candidate into it. Final new fingerprint must be established after the refreshed Google config is supplied. Older runtime updates cannot override a different fingerprint.
 
 Google configuration and approval of Stage A are outstanding; **not yet ready to build the complete requested APK**. Native compilation and physical sign-in/push testing still require the separately approved build. Preserve the stale ignored native directory; use a clean managed release checkout. Upon build approval, submit once with `native/scripts/submit-build.cjs`, immediately open the returned exact Expo build page in the default browser, show the clickable link, and stop—no polling, cancellation or restart.
+
+
+Current iPhone-first and Android-parity gates: [PLATFORM_PREREQUISITES.md](PLATFORM_PREREQUISITES.md).
+This supersedes earlier platform sequencing; neither platform is considered Google-ready until its real configuration passes.
