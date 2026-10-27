@@ -22,7 +22,7 @@ export function notifications():typeof import('expo-notifications')|null {
 const call=(data:unknown)=>httpsCallable(getFunctions(app,'us-central1'),'registerInboxDevice',{timeout:10000})(data);
 const prefKey=(uid:string)=>`townloop.inbox.preference.${uid}`;
 const categoriesKey=(uid:string)=>`townloop.notifications.categories.${uid}`;
-const explanationKey=(uid:string)=>`townloop.notifications.explained.${uid}`;
+const permissionAttemptKey='townloop.notifications.permission.requested';
 export async function categoryPreferences(uid:string):Promise<NotificationPreferences>{
  const raw=await SecureStore.getItemAsync(categoriesKey(uid),options);
  if(raw){try{const value=JSON.parse(raw);return Object.fromEntries(notificationCategories.map(k=>[k,value[k]===true])) as NotificationPreferences;}catch{}}
@@ -33,8 +33,31 @@ export const preference=async(uid:string)=>Object.values(await categoryPreferenc
 export async function setCategoryPreference(uid:string,category:NotificationCategory,on:boolean){
  const value=await categoryPreferences(uid);value[category]=on;await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(value),options);
 }
-export const explained=async(uid:string)=>(await SecureStore.getItemAsync(explanationKey(uid),options))==='yes';
-export const markExplained=(uid:string)=>SecureStore.setItemAsync(explanationKey(uid),'yes',options);
+export type NotificationAuthorization='checking'|'unavailable'|'undetermined'|'denied'|'granted'|'provisional';
+function authorization(n:NonNullable<ReturnType<typeof notifications>>,p:Awaited<ReturnType<typeof n.getPermissionsAsync>>):NotificationAuthorization {
+ if(p.ios?.status!=null&&p.ios.status===n.IosAuthorizationStatus?.PROVISIONAL)return 'provisional';
+ return p.granted?'granted':p.status==='undetermined'?'undetermined':'denied';
+}
+export async function getNotificationAuthorization():Promise<NotificationAuthorization>{
+ const n=notifications();return n?authorization(n,await n.getPermissionsAsync()):'unavailable';
+}
+async function prepareChannels(n:NonNullable<ReturnType<typeof notifications>>){
+ if(Platform.OS==='android')for(const [channel,name]of Object.entries({inbox:'Private Inbox',marketplace:'Marketplace messages',discussion:'Discussion replies',workorders:'Work Order updates'}))await n.setNotificationChannelAsync(channel,{name,importance:n.AndroidImportance.HIGH,sound:'default',showBadge:true,lockscreenVisibility:n.AndroidNotificationVisibility.PRIVATE});
+}
+// OS authorization is installation-wide, separate from per-account category choices.
+// Record the attempt before displaying the native prompt; cancellation never loops.
+export async function requestNativeNotificationPermission(uid:string):Promise<NotificationAuthorization>{
+ const n=notifications();if(!n)return 'unavailable';
+ const permission=await n.getPermissionsAsync();
+ if(auth.currentUser?.uid!==uid||permission.status!=='undetermined'||!permission.canAskAgain||
+   (Platform.OS==='android'&&Number(Platform.Version)<33))return authorization(n,permission);
+ if(await SecureStore.getItemAsync(permissionAttemptKey,options)==='yes')return authorization(n,permission);
+ await prepareChannels(n);
+ if(auth.currentUser?.uid!==uid)return authorization(n,permission);
+ await SecureStore.setItemAsync(permissionAttemptKey,'yes',options);
+ if(auth.currentUser?.uid!==uid)return authorization(n,permission);
+ return authorization(n,await n.requestPermissionsAsync({ios:{allowAlert:true,allowSound:true,allowBadge:true}}));
+}
 
 export const setPreference=async(uid:string,on:boolean)=>{await SecureStore.setItemAsync(prefKey(uid),on?'on':'off',options);await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(Object.fromEntries(notificationCategories.map(k=>[k,on]))),options);};
 async function saved():Promise<Registration|null>{const raw=await SecureStore.getItemAsync(key,options);try{return raw?JSON.parse(raw):null;}catch{return null;}}
@@ -54,9 +77,9 @@ export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'
  // Simulator testing retains settings and all native modules, but must not wait
  // on APNs/token registration that requires a configured physical device.
  if(Platform.OS==='ios'&&process.env.EXPO_PUBLIC_TOWNLOOP_IOS_SIMULATOR==='1')return 'simulator';
- if(Platform.OS==='android')for(const [channel,name]of Object.entries({inbox:'Private Inbox',marketplace:'Marketplace messages',discussion:'Discussion replies',workorders:'Work Order updates'}))await n.setNotificationChannelAsync(channel,{name,importance:n.AndroidImportance.HIGH,sound:'default',showBadge:true,lockscreenVisibility:n.AndroidNotificationVisibility.PRIVATE});
+ await prepareChannels(n);
  let permission=await n.getPermissionsAsync();
- if(!permission.granted&&ask&&permission.canAskAgain)permission=await n.requestPermissionsAsync({ios:{allowAlert:true,allowSound:true,allowBadge:true}});
+ if(ask){await requestNativeNotificationPermission(uid);permission=await n.getPermissionsAsync();}
  if(!permission.granted&&permission.ios?.status!==n.IosAuthorizationStatus.PROVISIONAL){await revoke();return 'denied';}
  let install=await SecureStore.getItemAsync(installKey,options);
  if(!install){install=JSON.stringify({installationId:Crypto.randomUUID(),secret:Crypto.randomUUID().replaceAll('-','')+Crypto.randomUUID().replaceAll('-','')});await SecureStore.setItemAsync(installKey,install,options);}
@@ -78,7 +101,7 @@ export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'
 export async function clearPushAccount(uid:string){
  if(Platform.OS==='web')return;
  cleanupEpoch.set(uid,(cleanupEpoch.get(uid)||0)+1);
- await Promise.all([prefKey(uid),categoriesKey(uid),explanationKey(uid)].map(k=>SecureStore.deleteItemAsync(k,options)));
+ await Promise.all([prefKey(uid),categoriesKey(uid),`townloop.notifications.explained.${uid}`].map(k=>SecureStore.deleteItemAsync(k,options)));
  await badgeOperations(()=>SecureStore.deleteItemAsync(ackKey(uid),options));
  await serialized(async()=>{const state=await saved();if(state?.uid!==uid)return;
   await SecureStore.setItemAsync(key,JSON.stringify({...state,enabled:false}),options);

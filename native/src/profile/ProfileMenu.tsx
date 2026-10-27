@@ -44,6 +44,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Camera,
+  Bell,
   Copy,
   Check,
   CheckCheck,
@@ -111,6 +112,7 @@ type MenuView =
   | "conversation"
   | "emergencyContact"
   | "editProfile"
+  | "notifications"
   | "account"
   | "logoutConfirm"
   | "admin";
@@ -130,6 +132,7 @@ function Row({
   tone = "#047857",
   badge,
   danger = false,
+  highlight = false,
 }: {
   title: string;
   subtitle?: string;
@@ -138,6 +141,7 @@ function Row({
   tone?: string;
   badge?: number;
   danger?: boolean;
+  highlight?: boolean;
 }) {
   const { ink, muted, panel, busy, closing, dark } = useContext(MenuStyle);
   const wide = useWindowDimensions().width >= 640;
@@ -152,6 +156,8 @@ function Row({
         {
           backgroundColor: danger
             ? "#e11d48"
+            : highlight
+              ? (dark ? "#78350f" : "#fef3c7")
             : dark
               ? "#1e293bf2"
               : "#fffffff2",
@@ -876,6 +882,7 @@ export function ProfileMenu({
                             compose: "Compose Message",
                             conversation: "Conversation",
                             account: "Resident Account",
+                            notifications: "Notifications",
                             editProfile: "Edit Profile",
                             emergencyContact: "Emergency Contact",
                             logoutConfirm: "Log Out",
@@ -1299,13 +1306,6 @@ export function ProfileMenu({
                     )}
                     {view === "inbox" && (
                       <>
-                        {Platform.OS!=='web'&&<View style={{gap:10,marginBottom:10}}>
-                          {([['inbox','Private Inbox'],['marketplace','Marketplace messages'],['discussion','Discussion replies'],['workorders','Work Order updates']] as const).map(([category,label])=><View key={category} style={{flexDirection:'row',alignItems:'center',gap:12}}>
-                            <Text style={[s.rowTitle,{color:ink,flex:1}]}>{label}</Text>
-                            <Switch accessibilityLabel={`${label} notifications`} value={push.preferences[category]} disabled={push.busy} onValueChange={()=>push.toggle(category)} trackColor={{true:'#059669'}}/>
-                          </View>)}
-                          <Text style={{color:muted,fontSize:12}}>{push.status||'Private alerts without message previews.'}</Text>
-                        </View>}
                         {data.loading && <ActivityIndicator color="#059669" />}
                         {data.errors.map((e, i) => (
                           <Text key={i} style={s.error}>
@@ -2339,8 +2339,24 @@ export function ProfileMenu({
                           title="Edit Profile"
                           onPress={editProfile}
                         />
+                        <Row title="Notifications" icon={Bell} tone="#d97706" highlight onPress={() => go("notifications")} />
                         <LegalLinks dark={dark} vertical />
                       </>
+                    )}
+                    {view === "notifications" && (
+                      <View style={{gap:16}}>
+                        <View style={[panel,{padding:16,borderRadius:16,borderWidth:1,gap:8}]}>
+                          <Text style={[s.rowTitle,{color:ink}]}>Device notification permission</Text>
+                          <Text style={[s.small,{color:muted}]}>{({checking:'Checking device permission…',granted:'Allowed by your device',provisional:'Allowed quietly by your device',denied:'Blocked by your device',undetermined:'Not requested on this device',unavailable:'Unavailable in this app build or browser'})[push.authorization]}</Text>
+                          {push.authorization==='denied'&&<Text style={[s.small,{color:muted}]}>Your preferences are saved, but this device cannot show notifications until you allow them in system settings.</Text>}
+                          {Platform.OS!=='web'&&['denied','undetermined','provisional'].includes(push.authorization)&&<Action title="Open device settings" onPress={()=>void act(()=>Linking.openSettings())}/>}
+                        </View>
+                        {([['inbox','Private inbox'],['marketplace','Marketplace messages'],['discussion','Discussion replies'],['workorders','Work orders updates']] as const).map(([category,label])=><View key={category} style={[panel,{minHeight:60,padding:14,borderRadius:16,borderWidth:1,flexDirection:'row',alignItems:'center',gap:12}]}>
+                          <Text style={[s.rowTitle,{color:ink,flex:1,flexShrink:1}]}>{label}</Text>
+                          <Switch accessibilityLabel={label} value={push.preferences[category]} disabled={push.busy||Platform.OS==='web'} onValueChange={()=>push.toggle(category)} trackColor={{true:'#d97706'}}/>
+                        </View>)}
+                        <Text style={[s.small,{color:muted}]}>{push.status||'Preferences are saved separately for your account.'}</Text>
+                      </View>
                     )}
                     {view === "logoutConfirm" && (
                       <View
