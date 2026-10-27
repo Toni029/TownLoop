@@ -40,3 +40,10 @@ References:
 - https://docs.expo.dev/guides/google-authentication/
 - https://react-native-google-signin.github.io/docs/setting-up/expo
 - https://react-native-google-signin.github.io/docs/original
+
+
+Current 2026-10-27 read-only status supersedes the earlier zero-Android-app observation: the Android
+Firebase app is now registered and the Google SDK is in Preview build 49e3b645, but zero SHA certificates
+are registered. Google readiness stays false pending the verified Android OAuth match. No iOS Firebase
+app/client or Apple signing is configured. The iOS URL-scheme construction is corrected locally; see
+../inbox-push/RESTORATION_RELEASE.md for exact public fingerprints and owner-only setup steps.

@@ -1,3 +1,4 @@
+import {refreshBadge} from '../notifications/device';
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import {
   collection,
@@ -140,6 +141,7 @@ export async function markRead(thread: Thread) {
       throw new Error("This conversation is no longer available.");
     tx.update(reference, new FieldPath("readBy", String(user.id)), (snap.data().messages || []).length);
   });
+  void refreshBadge(String(user.id),{category:thread.category,conversationId:thread.id}).catch(()=>{});
 }
 export async function deleteThread(thread: Thread) {
   const user = await approvedUser();

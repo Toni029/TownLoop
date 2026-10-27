@@ -1,3 +1,4 @@
+import {usePushDocument} from '../notifications/usePushDocument';
 import {useInboxPush} from '../notifications/InboxPushProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -40,22 +41,30 @@ export default function SocialScreen() {
     // Retire the one temporary diagnostic record; resident content is untouched.
     void AsyncStorage.removeItem('townloop:preview:feed-upload-trace:v1').catch(() => {});
   }, []);
-  const posts = useLiveCollection("discussion_feed", readPost);
+  const postSource = useLiveCollection("discussion_feed", readPost);
   const listings = useLiveCollection("marketplace_posts", readListing);
   const directory = useLiveCollection("resident_directory", readPerson, "");
-  const inbox = useLiveCollection("marketplace_chats", readChat, "");
+  const inboxSource = useLiveCollection("marketplace_chats", readChat, "");
+  const pushed=usePushDocument(['discussion','marketplace']);
+  const posts={...postSource,items:useMemo(()=>pushed?.category==='discussion'&&!postSource.items.some(p=>String(p.id)===pushed.id)?[...postSource.items,readPost(pushed.id,pushed.data)]:postSource.items,[postSource.items,pushed])};
+  const inbox={...inboxSource,items:useMemo(()=>pushed?.category==='marketplace'&&!inboxSource.items.some(c=>c.id===pushed.id)?[...inboxSource.items,readChat(pushed.id,pushed.data)]:inboxSource.items,[inboxSource.items,pushed])};
   const uid = String(user?.id || "");
   const [view, setView] = useState<SocialKind>("post");
   const [create, setCreate] = useState(false);
   const [selected, setSelected] = useState<{
     kind: SocialKind;
     id: string;
+    commentId?:string;
   } | null>(null);
   const [seller, setSeller] = useState<string | null>(null);
   const [showInbox, setShowInbox] = useState(false);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const push=useInboxPush();
   useEffect(()=>{const t=push.target;if(t?.category!=='marketplace'||!inbox.items.some(c=>c.id===t.conversationId))return;setView('listing');setShowInbox(true);setActiveChat(t.conversationId);push.consume();},[push.target,push.consume,inbox.items]);
+  useEffect(()=>{const target=push.target;if(target?.category!=='discussion'||!posts.items.some(p=>String(p.id)===target.conversationId))return;
+    setView('post');setSelected({kind:'post',id:target.conversationId,commentId:target.commentId});push.read('discussion',target.conversationId);push.consume();
+  },[push.target,push.consume,push.read,posts.items]);
+  useEffect(()=>{if(selected?.kind==='post')push.read('discussion',selected.id);},[selected,posts.items,push.read]);
   const [media, setMedia] = useState<{
     files: MediaAttachment[];
     index: number;
@@ -189,7 +198,7 @@ export default function SocialScreen() {
         />
       )}
       {selected && item && (
-        <Detail
+        <Detail targetCommentId={selected.commentId}
           error={error}
           kind={selected.kind}
           item={item}

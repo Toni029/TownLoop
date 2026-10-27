@@ -143,7 +143,7 @@ export function PortalHeader({
   const presentation = usePresentation();
   const dark = presentation?.dark ?? false;
   const push=useInboxPush();
-  useEffect(()=>{if(push.target&&push.target.category!=='marketplace')setMenu(true);},[push.target]);
+  useEffect(()=>{if(push.target&&['friend','office','maintenance'].includes(push.target.category))setMenu(true);},[push.target]);
   const [menu, setMenu] = useState(false);
   const [unread, setUnread] = useState(0);
   const [avatarHovered, setAvatarHovered] = useState(false);
@@ -473,7 +473,7 @@ export function PortalHeader({
         </Motion.View>
       </View>
       <ProfileMenu
-        notificationTarget={push.target?.category!=='marketplace'?push.target:null}
+        notificationTarget={push.target&&['friend','office','maintenance'].includes(push.target.category)?push.target:null}
         onNotificationOpened={push.consume}
         open={menu}
         onClose={() => setMenu(false)}

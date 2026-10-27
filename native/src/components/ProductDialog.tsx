@@ -33,6 +33,7 @@ export function ProductDialog({
   serif = false,
   responsiveResize = false,
   nativeWindowKey = 0,
+  revealContentY,
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
@@ -44,6 +45,7 @@ export function ProductDialog({
   serif?: boolean;
   responsiveResize?: boolean;
   nativeWindowKey?: number;
+  revealContentY?: number;
 }>) {
   const presentation = usePresentation();
   const dark = !!presentation?.dark;
@@ -56,6 +58,12 @@ export function ProductDialog({
   const bottomSheet = sheet && width < 640;
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const scroll=useRef<ScrollView|null>(null);
+  useEffect(()=>{
+    if(revealContentY===undefined||!Number.isFinite(revealContentY))return;
+    const frame=requestAnimationFrame(()=>scroll.current?.scrollTo({y:Math.max(0,revealContentY-12),animated:!reduced}));
+    return()=>cancelAnimationFrame(frame);
+  },[revealContentY,reduced]);
   const target = full
     ? availableHeight
     : sheet
@@ -292,7 +300,7 @@ export function ProductDialog({
                   </Pressable>
                 </View>
                 </View></GestureDetector>
-                <ScrollView
+                <ScrollView ref={scroll}
                   keyboardDismissMode="interactive"
                   keyboardShouldPersistTaps="handled"
                   onContentSizeChange={(_, h) => setBodyHeight(h)}

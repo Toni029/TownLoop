@@ -3,7 +3,7 @@ import { collection as collectionRef, doc, getDoc, runTransaction, serverTimesta
 export type SocialCollection = 'posts' | 'discussion_feed' | 'marketItems' | 'marketplace_posts';
 /** A server-read canonical profile and a transaction, never a UI author/role claim. */
 export async function mutateSocial(db: Firestore, uid: string, collection: SocialCollection, id: string,
-  action: 'like' | 'comment' | 'sold' | 'delete', payload: { liked?: boolean; text?: string; commentId?: string; sold?: boolean } = {}) {
+  action: 'like' | 'comment' | 'sold' | 'delete', payload: { liked?: boolean; text?: string; commentId?: string; replyToCommentId?: string; sold?: boolean } = {}) {
   const profile = (await getDoc(doc(db, 'users', uid))).data();
   if (!profile || profile.approved !== true || profile.deletionPending === true || !['resident', 'admin', 'vip', 'crew'].includes(profile.role))
     throw Error('An approved account is required.');
@@ -37,7 +37,15 @@ export async function mutateSocial(db: Firestore, uid: string, collection: Socia
     if (!text || text.length > 10000) throw Error('Enter a comment of up to 10,000 characters.');
     if (!Array.isArray(before.comments)) throw Error('This discussion needs a compatibility review.');
     if (before.comments.some(c => c.id === commentId)) return;
-    tx.update(ref, { comments: [...before.comments, { id: commentId, authorId: uid,
+    let reply = {};
+    if (payload.replyToCommentId) {
+      const index = before.comments.findIndex(c => String(c.id) === payload.replyToCommentId);
+      const parent = before.comments[index];
+      if (collection !== 'discussion_feed' || !parent || typeof parent.authorId !== 'string' || !parent.authorId || parent.authorId.includes('/'))
+        throw Error('This comment cannot receive a direct reply.');
+      reply = {replyToCommentId: payload.replyToCommentId, replyToCommentIndex: index};
+    }
+    tx.update(ref, { comments: [...before.comments, { ...reply, id: commentId, authorId: uid,
       author: profile.name || 'Resident', authorAvatar: profile.avatarUrl || profile.avatar_url || '',
       authorEmail: '', unit: 'TownLoop Resident', text, timeAgo: 'Just now' }], updatedAt: serverTimestamp() });
   });

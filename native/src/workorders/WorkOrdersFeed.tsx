@@ -1,9 +1,10 @@
+import {useInboxPush} from '../notifications/InboxPushProvider';
 import {relativePostedTime} from '../time/relativePostedTime';
 import {useMinuteNow} from '../time/useMinuteNow';
 import { PrivateImage } from '../components/PrivateImage';
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
-import { useRef, useState, useMemo, useCallback, memo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback, memo } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -88,6 +89,11 @@ export function WorkOrdersFeed({
   const visible = useMemo(() => sortWorkOrders(orders.filter(o => canViewWorkOrder(o, user))), [orders, user]);
   const positions = useMemo(() => canViewAllWorkOrders(user)
     ? pendingQueuePositions(orders) : new Map(queuePositions), [orders, user, queuePositions]);
+  const push=useInboxPush();
+  useEffect(()=>{const target=push.target;if(target?.category!=='workorders'||!visible.some(o=>o.id===target.conversationId))return;
+    setExpanded(target.conversationId);push.read('workorders',target.conversationId);push.consume();
+  },[push.target,push.read,push.consume,visible]);
+  useEffect(()=>{if(expanded)push.read('workorders',expanded);},[expanded,orders,push.read]);
   const toggleOrder = useCallback((id: string) => setExpanded(value => value === id ? null : id), []);
   const all = canViewAllWorkOrders(user);
   const mode = isCrew(user)

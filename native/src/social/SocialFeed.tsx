@@ -1,9 +1,10 @@
+import {useInboxPush} from '../notifications/InboxPushProvider';
 import {relativePostedTime} from '../time/relativePostedTime';
 import {useMinuteNow} from '../time/useMinuteNow';
 import { PrivateImage as Image } from '../components/PrivateImage';
 import { SafetyActions } from "../components/SafetyActions";
 import { usePresentation } from "../shell/TownLoopShell";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -50,6 +51,7 @@ export type SocialAction = (
   payload?: {
     text?: string;
     commentId?: string;
+    replyToCommentId?: string;
     liked?: boolean;
     sold?: boolean;
   },
@@ -219,14 +221,23 @@ export function Comments({
   draft,
   onDraftChange,
   safetyTarget,
+  targetCommentId,
+  onTargetLayout,
 }: {
+  targetCommentId?:string;
+  onTargetLayout?:(y:number)=>void;
   safetyTarget?: {kind: "post" | "listing"; id: string};
   draft?: { text: string; id: string };
   onDraftChange?: (draft: { text: string; id: string }) => void;
   comments: CommentItem[];
-  onSubmit: (text: string, id: string) => Promise<boolean>;
+  onSubmit: (text: string, id: string, replyToCommentId?: string) => Promise<boolean>;
   busy: boolean;
 }) {
+  const rootOffset=useRef<number|null>(null),commentOffsets=useRef(new Map<string,number>());
+  const reveal=()=>{const offset=targetCommentId?commentOffsets.current.get(targetCommentId):undefined;if(rootOffset.current!==null&&offset!==undefined)onTargetLayout?.(rootOffset.current+offset+16);};
+  useEffect(()=>{reveal();},[targetCommentId,onTargetLayout]);
+  const push=useInboxPush();
+  const [replyTo,setReplyTo]=useState<string|undefined>();
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
   const [text, setText] = useState(draft?.text || "");
@@ -236,8 +247,8 @@ export function Comments({
     if (submitting || busy || !text.trim()) return;
     setSubmitting(true);
     try {
-      if (await onSubmit(text, id)) {
-        setText("");
+      if (await onSubmit(text, id, replyTo)) {
+        setText("");setReplyTo(undefined);
         const nextId = newSocialId();
         setId(nextId);
         onDraftChange?.({ text: "", id: nextId });
@@ -247,10 +258,11 @@ export function Comments({
     }
   }
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 12 }} onLayout={event=>{rootOffset.current=event.nativeEvent.layout.y;reveal();}}>
       {comments.map((c) => (
         <View
           key={c.id}
+          onLayout={onTargetLayout?event=>{commentOffsets.current.set(String(c.id),event.nativeEvent.layout.y);if(String(c.id)===targetCommentId)reveal();}:undefined}
           style={[s.row, { alignItems: "flex-start", flexWrap: "nowrap" }]}
         >
           <Avatar uri={c.authorAvatar} name={c.author} />
@@ -270,6 +282,7 @@ export function Comments({
               </Copy>
             </Copy>
             <Copy style={{ lineHeight: 20 }}>{c.text}</Copy>
+            {push.repliesAvailable&&safetyTarget?.kind==='post'&&c.authorId&&<Pressable accessibilityLabel={`Reply to ${c.author}`} onPress={()=>setReplyTo(String(c.id))} style={{minHeight:44,justifyContent:'center',alignSelf:'flex-start'}}><Copy style={{color:'#059669',fontSize:12}}>Reply</Copy></Pressable>}
             {safetyTarget && <SafetyActions target={{kind:'comment',id:safetyTarget.id,collection:safetyTarget.kind==='post'?'discussion_feed':'marketplace_posts',commentId:String(c.id),authorId:c.authorId?String(c.authorId):undefined}}/>}
           </View>
         </View>
@@ -279,8 +292,9 @@ export function Comments({
           No comments yet. Start the conversation!
         </Copy>
       )}
+      {replyTo&&<Pressable accessibilityLabel="Cancel reply" onPress={()=>setReplyTo(undefined)}><Copy style={{color:'#059669'}}>Cancel reply</Copy></Pressable>}
       <Field
-        label="Add a comment"
+        label={replyTo?`Reply to ${comments.find(c=>String(c.id)===replyTo)?.author||'comment'}`:"Add a comment"}
         value={text}
         onChangeText={value => { setText(value); onDraftChange?.({ text: value, id }); }}
         editable={!busy && !submitting}
@@ -509,6 +523,7 @@ export function SocialFeed({
   onAction: SocialAction;
   onMessage: (item: Listing) => void;
 }) {
+  const push=useInboxPush();
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
   useNewsFonts();
@@ -623,11 +638,10 @@ export function SocialFeed({
                     accessibilityState={{
                       expanded: comments === String(post.id),
                     }}
-                    onPress={() =>
-                      setComments((v) =>
-                        v === String(post.id) ? null : String(post.id),
-                      )
-                    }
+                    onPress={() => {
+                      if(comments!==String(post.id))push.read('discussion',String(post.id));
+                      setComments(v=>v===String(post.id)?null:String(post.id));
+                    }}
                     style={[
                       s.row,
                       {
@@ -654,10 +668,11 @@ export function SocialFeed({
                       draft={drafts.get(String(post.id))}
                       onDraftChange={draft => drafts.set(String(post.id), draft)}
                       busy={busy}
-                      onSubmit={(text, commentId) =>
+                      onSubmit={(text, commentId, replyToCommentId) =>
                         onAction("post", String(post.id), "comment", {
                           text,
                           commentId,
+                          replyToCommentId,
                         })
                       }
                     />
@@ -965,6 +980,7 @@ export function SocialFeed({
 }
 export function Detail({
   error = "",
+  targetCommentId,
   kind,
   item,
   user,
@@ -976,6 +992,7 @@ export function Detail({
   onMedia,
 }: {
   error?: string;
+  targetCommentId?:string;
   kind: SocialKind;
   item: Post | Listing;
   user: UserProfile | null;
@@ -986,11 +1003,12 @@ export function Detail({
   onMessage: (item: Listing) => void;
   onMedia: (media: MediaAttachment[], title: string, index?: number) => void;
 }) {
+  const [revealContentY,setRevealContentY]=useState<number|undefined>();
   const [shareError, setShareError] = useState("");
   const post = kind === "post" ? (item as Post) : null;
   const listing = kind === "listing" ? (item as Listing) : null;
   return (
-    <ProductDialog
+    <ProductDialog revealContentY={revealContentY}
       title={item.author}
       subtitle={`${item.unit} • ${item.timeAgo}`}
       headerLeading={<Avatar uri={item.authorAvatar} name={item.author} />}
@@ -1057,12 +1075,12 @@ export function Detail({
           }).catch(() => setShareError("Unable to share this item. Please try again."))}
         />
       </View>
-      <Comments
+      <Comments targetCommentId={targetCommentId} onTargetLayout={setRevealContentY}
         comments={item.comments || []}
         safetyTarget={{kind,id:String(item.id)}}
         busy={busy}
-        onSubmit={(text, commentId) =>
-          onAction(kind, String(item.id), "comment", { text, commentId })
+        onSubmit={(text, commentId, replyToCommentId) =>
+          onAction(kind, String(item.id), "comment", { text, commentId, replyToCommentId })
         }
       />
     </ProductDialog>

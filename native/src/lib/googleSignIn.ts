@@ -24,6 +24,13 @@ export async function getGoogleCredential(){
 }
 export async function googleSignIn(termsAccepted=false):Promise<void>{
  const credential=await getGoogleCredential();if(!credential)return;
- const {user}=await signInWithCredential(auth,credential);
- await finishGoogleSignIn(user,termsAccepted);
+ try {
+  const {user}=await signInWithCredential(auth,credential);
+  await finishGoogleSignIn(user,termsAccepted);
+ } catch(error) {
+  const code=(error as {code?:string})?.code;
+  if(code==='auth/account-exists-with-different-credential'||code==='auth/credential-already-in-use')
+   throw Error('This account uses another sign-in method. Sign in with that method first. Google accounts are never linked automatically.');
+  throw error;
+ }
 }

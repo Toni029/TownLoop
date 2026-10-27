@@ -5,19 +5,38 @@ import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import {getFunctions,httpsCallable} from 'firebase/functions';
 import {app,auth} from '../lib/firebase';
-import {serialOperations} from './protocol';
-type Registration={uid:string;token:string;installationId:string;secret:string;enabled:boolean;platform:string;previousTokens?:string[]};
+import {serialOperations,emptyPreferences,notificationCategories,type NotificationCategory,type NotificationPreferences,type InboxTarget} from './protocol';
+type Registration={uid:string;token:string;installationId:string;secret:string;enabled:boolean;platform:string;previousTokens?:string[];preferences?:NotificationPreferences};
+let capabilities={protocolVersion:1,discussionReplies:false};
+export const notificationCapabilities=()=>capabilities;
 const options={keychainAccessible:SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY};
 const key='townloop.inbox.registration',installKey='townloop.inbox.installation';
 export const serialized=serialOperations();
+const badgeOperations=serialOperations();
+const cleanupEpoch=new Map<string,number>();
+const ackKey=(uid:string)=>`townloop.notifications.reads.${uid}`;
 export function notifications():typeof import('expo-notifications')|null {
  if(Platform.OS==='web'||!requireOptionalNativeModule('ExpoPushTokenManager'))return null;
  return require('expo-notifications');
 }
 const call=(data:unknown)=>httpsCallable(getFunctions(app,'us-central1'),'registerInboxDevice',{timeout:10000})(data);
 const prefKey=(uid:string)=>`townloop.inbox.preference.${uid}`;
-export const preference=async(uid:string)=>(await SecureStore.getItemAsync(prefKey(uid),options))==='on';
-export const setPreference=(uid:string,on:boolean)=>SecureStore.setItemAsync(prefKey(uid),on?'on':'off',options);
+const categoriesKey=(uid:string)=>`townloop.notifications.categories.${uid}`;
+const explanationKey=(uid:string)=>`townloop.notifications.explained.${uid}`;
+export async function categoryPreferences(uid:string):Promise<NotificationPreferences>{
+ const raw=await SecureStore.getItemAsync(categoriesKey(uid),options);
+ if(raw){try{const value=JSON.parse(raw);return Object.fromEntries(notificationCategories.map(k=>[k,value[k]===true])) as NotificationPreferences;}catch{}}
+ const legacy=(await SecureStore.getItemAsync(prefKey(uid),options))==='on';
+ return {...emptyPreferences,inbox:legacy,marketplace:legacy};
+}
+export const preference=async(uid:string)=>Object.values(await categoryPreferences(uid)).some(Boolean);
+export async function setCategoryPreference(uid:string,category:NotificationCategory,on:boolean){
+ const value=await categoryPreferences(uid);value[category]=on;await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(value),options);
+}
+export const explained=async(uid:string)=>(await SecureStore.getItemAsync(explanationKey(uid),options))==='yes';
+export const markExplained=(uid:string)=>SecureStore.setItemAsync(explanationKey(uid),'yes',options);
+
+export const setPreference=async(uid:string,on:boolean)=>{await SecureStore.setItemAsync(prefKey(uid),on?'on':'off',options);await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(Object.fromEntries(notificationCategories.map(k=>[k,on]))),options);};
 async function saved():Promise<Registration|null>{const raw=await SecureStore.getItemAsync(key,options);try{return raw?JSON.parse(raw):null;}catch{return null;}}
 export async function binding(uid:string){const state=await saved();if(!state||state.uid!==uid||!state.enabled)return '';const cap=await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,`${state.installationId}/${state.secret}`);return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,`${cap}/${uid}`);}
 export async function revoke(){
@@ -25,16 +44,16 @@ export async function revoke(){
  // Capability permits revocation even if Firebase already signed out. Keep this
  // encrypted record on network failure so next launch retries before registering.
  await SecureStore.setItemAsync(key,JSON.stringify({...state,enabled:false}),options);
- const n=notifications();if(n){await n.dismissAllNotificationsAsync().catch(()=>{});await n.unregisterForNotificationsAsync().catch(()=>{});}
+ const n=notifications();if(n){await n.dismissAllNotificationsAsync().catch(()=>{});await n.setBadgeCountAsync(0).catch(()=>{});await n.unregisterForNotificationsAsync().catch(()=>{});}
  await call({...state,remove:true});await SecureStore.deleteItemAsync(key,options);
 }
-export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'off'|'denied'|'unavailable'>{
+export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'off'|'denied'|'unavailable'|'setup-required'>{
  const n=notifications();if(!n)return 'unavailable';
  const old=await saved();if(old&&old.uid!==uid)await revoke();
  if(!on){await revoke();return 'off';}
- if(Platform.OS==='android')await n.setNotificationChannelAsync('inbox',{name:'Private Inbox',importance:n.AndroidImportance.DEFAULT,sound:'default',lockscreenVisibility:n.AndroidNotificationVisibility.PRIVATE});
+ if(Platform.OS==='android')for(const [channel,name]of Object.entries({inbox:'Private Inbox',marketplace:'Marketplace messages',discussion:'Discussion replies',workorders:'Work Order updates'}))await n.setNotificationChannelAsync(channel,{name,importance:n.AndroidImportance.HIGH,sound:'default',showBadge:true,lockscreenVisibility:n.AndroidNotificationVisibility.PRIVATE});
  let permission=await n.getPermissionsAsync();
- if(!permission.granted&&ask&&permission.canAskAgain)permission=await n.requestPermissionsAsync({ios:{allowAlert:true,allowSound:true,allowBadge:false}});
+ if(!permission.granted&&ask&&permission.canAskAgain)permission=await n.requestPermissionsAsync({ios:{allowAlert:true,allowSound:true,allowBadge:true}});
  if(!permission.granted&&permission.ios?.status!==n.IosAuthorizationStatus.PROVISIONAL){await revoke();return 'denied';}
  let install=await SecureStore.getItemAsync(installKey,options);
  if(!install){install=JSON.stringify({installationId:Crypto.randomUUID(),secret:Crypto.randomUUID().replaceAll('-','')+Crypto.randomUUID().replaceAll('-','')});await SecureStore.setItemAsync(installKey,install,options);}
@@ -43,19 +62,63 @@ export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'
  if(auth.currentUser?.uid!==uid)return 'off';
  const previousTokens=[...new Set([...(old?.uid===uid?old.previousTokens||[]:[]),...(old?.uid===uid&&old.token!==token?[old.token]:[])])].filter(t=>t!==token);
  if(previousTokens.length>20)throw Error('notification_revocation_pending');
- const state:Registration={...JSON.parse(install),uid,token,enabled:true,platform:Platform.OS,previousTokens};
+ const state:Registration={...JSON.parse(install),uid,token,enabled:true,platform:Platform.OS,preferences:await categoryPreferences(uid),previousTokens};
  // Persist first, so interruption after server registration still leaves a revoke capability.
  await SecureStore.setItemAsync(key,JSON.stringify(state),options);
- await call(state);
+ const registration=await call(state);
+ const info=registration.data as {protocolVersion?:number;discussionReplies?:boolean};
+ const version=info?.protocolVersion||1;capabilities={protocolVersion:version,discussionReplies:version>=2&&info.discussionReplies===true};
  await SecureStore.setItemAsync(key,JSON.stringify({...state,previousTokens:[]}),options);
  if(auth.currentUser?.uid!==uid){await revoke();return 'off';}
- return 'on';
+ return version>=2?'on':'setup-required';
 }
 export async function clearPushAccount(uid:string){
  if(Platform.OS==='web')return;
- await SecureStore.deleteItemAsync(prefKey(uid),options);
+ cleanupEpoch.set(uid,(cleanupEpoch.get(uid)||0)+1);
+ await Promise.all([prefKey(uid),categoriesKey(uid),explanationKey(uid)].map(k=>SecureStore.deleteItemAsync(k,options)));
+ await badgeOperations(()=>SecureStore.deleteItemAsync(ackKey(uid),options));
  await serialized(async()=>{const state=await saved();if(state?.uid!==uid)return;
   await SecureStore.setItemAsync(key,JSON.stringify({...state,enabled:false}),options);
   await revoke().catch(()=>{}); // Retain only an encrypted retry capability when offline.
  });
+}
+
+// Receipts are account scoped and contain only target identifiers; never message bodies.
+type PendingRead=Pick<InboxTarget,'category'|'conversationId'>&{readAt:number};
+export function refreshBadge(uid:string,ack?:Pick<InboxTarget,'category'|'conversationId'>){
+ const requestedReadAt=Date.now(),generation=cleanupEpoch.get(uid)||0;
+ const current=()=>auth.currentUser?.uid===uid&&(cleanupEpoch.get(uid)||0)===generation;
+ return badgeOperations(async()=>{
+ if(Platform.OS==='web'||!current())return;
+ let pending:PendingRead[]=[];
+ try{pending=JSON.parse(await SecureStore.getItemAsync(ackKey(uid),options)||'[]');}catch{}
+ if(!current())return;
+ pending=pending.filter(value=>value&&typeof value.conversationId==='string'&&Date.now()-value.readAt<60*86400000);
+ if(ack){
+  const prior=pending.find(value=>value.category===ack.category&&value.conversationId===ack.conversationId);
+  if(prior)prior.readAt=Math.max(prior.readAt,requestedReadAt);
+  else{if(pending.length>=128)throw Error('notification_read_retry_pending');pending.push({...ack,readAt:requestedReadAt});}
+  await SecureStore.setItemAsync(ackKey(uid),JSON.stringify(pending),options);
+ }
+ let counts:Partial<Record<NotificationCategory,number>>={};
+ // Bound one background pass. Remaining pages stay encrypted for next resume/read.
+ for(let page=0;page<8;page++){
+  if(!current())return;
+  const response=await httpsCallable(getFunctions(app,'us-central1'),'getNotificationState',{timeout:10000})(pending.length?{ack:pending[0]}:{});
+  if(!current())return;
+  const result=response.data as {counts?:Partial<Record<NotificationCategory,number>>;ackPending?:boolean};counts=result.counts||{};
+  if(!pending.length)break;
+  if(!result.ackPending){pending.shift();await SecureStore.setItemAsync(ackKey(uid),JSON.stringify(pending),options);}
+  if(!pending.length)break;
+ }
+ const prefs=await categoryPreferences(uid);
+ const count=notificationCategories.reduce((sum,k)=>sum+(prefs[k]&&Number.isSafeInteger(counts[k])&&counts[k]!>=0?counts[k]!:0),0);
+ if(current())await notifications()?.setBadgeCountAsync(count);
+});}
+
+export async function resolveNotice(uid:string,noticeId:string){
+ if(auth.currentUser?.uid!==uid)throw Error('notification_session_changed');
+ const result=await httpsCallable(getFunctions(app,'us-central1'),'getNotificationState',{timeout:10000})({resolve:noticeId});
+ if(auth.currentUser?.uid!==uid)throw Error('notification_session_changed');
+ return (result.data as {target?:{category:string;conversationId:string;commentId?:string}})?.target;
 }

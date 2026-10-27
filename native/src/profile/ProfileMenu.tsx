@@ -455,7 +455,7 @@ export function ProfileMenu({
     }
   }, [open, progress, shade, glint, scene]);
   useEffect(()=>{
-    if(!open||!mounted||!notificationTarget||notificationTarget.category==='marketplace')return;
+    if(!open||!mounted||!notificationTarget||!['friend','office','maintenance'].includes(notificationTarget.category))return;
     const thread=data.threads.find(t=>t.id===notificationTarget.conversationId&&t.category===notificationTarget.category);
     if(!thread)return;
     history.current=['menu','inbox'];setSelected({category:thread.category,id:thread.id});
@@ -1299,10 +1299,12 @@ export function ProfileMenu({
                     )}
                     {view === "inbox" && (
                       <>
-                        {Platform.OS!=='web'&&<View style={{flexDirection:'row',alignItems:'center',gap:12,marginBottom:10}}>
-                          <View style={{flex:1}}><Text style={[s.rowTitle,{color:ink}]}>Inbox notifications</Text>
-                            <Text style={{color:muted,fontSize:12}}>{push.status||'Get a private alert when a new message arrives.'}</Text></View>
-                          <Switch accessibilityLabel="Inbox notifications" value={push.enabled} disabled={push.busy} onValueChange={push.toggle} trackColor={{true:'#059669'}}/>
+                        {Platform.OS!=='web'&&<View style={{gap:10,marginBottom:10}}>
+                          {([['inbox','Private Inbox'],['marketplace','Marketplace messages'],['discussion','Discussion replies'],['workorders','Work Order updates']] as const).map(([category,label])=><View key={category} style={{flexDirection:'row',alignItems:'center',gap:12}}>
+                            <Text style={[s.rowTitle,{color:ink,flex:1}]}>{label}</Text>
+                            <Switch accessibilityLabel={`${label} notifications`} value={push.preferences[category]} disabled={push.busy} onValueChange={()=>push.toggle(category)} trackColor={{true:'#059669'}}/>
+                          </View>)}
+                          <Text style={{color:muted,fontSize:12}}>{push.status||'Private alerts without message previews.'}</Text>
                         </View>}
                         {data.loading && <ActivityIndicator color="#059669" />}
                         {data.errors.map((e, i) => (

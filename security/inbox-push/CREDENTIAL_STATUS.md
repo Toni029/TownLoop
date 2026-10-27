@@ -46,3 +46,14 @@ References: [Expo FCM v1 setup](https://docs.expo.dev/push-notifications/fcm-cre
 Two configuration fixtures passed (missing/mismatched Android config denied, local/EAS file paths accepted, physical iOS Preview and APNs mode configured) and one backend fixture proved that forged `uid`/`recipientId` fields cannot change registration ownership. Prior delivery/security tests were reused, not rerun. Actual Expo Preview introspection verified the project/package/bundle IDs and production APNs entitlement.
 
 The local Android candidate fingerprint is `00add22145e025fb9329377ce1a2d9d6ecdaf393`; it intentionally differs from the installed pre-push APK. This is preparation evidence, **not an actual built APK runtime**. Confirm the runtime from the approved EAS build before any future OTA. No native compilation, FCM delivery, APNs delivery or real-device notification behavior is claimed here.
+
+
+## Superseding status — 2026-10-27
+
+The earlier “not deployed / d6 runtime” statements describe the credential-preparation checkpoint only.
+Read-only current verification: registerInboxDevice is ACTIVE with sending disabled. Finished Preview
+build 49e3b645-1d6f-4dbd-aa4d-820f835dc812 packages runtime
+00add22145e025fb9329377ce1a2d9d6ecdaf393, notifications, RNGoogleSignin and compiled startup opt-out.
+Google provider is enabled, Android Firebase app exists but has zero SHA registrations, and no Firebase
+iOS app exists. No live configuration was changed. See RESTORATION_RELEASE.md for current owner steps,
+local four-category implementation, exact build workflow and deliberately inactive deployment gates.

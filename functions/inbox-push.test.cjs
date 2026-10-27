@@ -5,7 +5,7 @@ function fixture(){
  const records=new Map(),sent=[];let hook=()=>{};
  const ref=path=>({path,id:path.split('/').at(-1),get:async()=>snap(path),update:async patch=>records.set(path,{...records.get(path),...patch})});
  const snap=path=>({exists:records.has(path),id:ref(path).id,ref:ref(path),data:()=>records.get(path)});
- const db={doc:ref,collection(path){const filters=[];let max=Infinity;const q={doc:id=>ref(`${path}/${id}`),where(k,op,v){filters.push(d=>op==='in'?v.includes(d[k]):d[k]===v);return q;},limit(n){max=n;return q;},async get(){const docs=[...records].filter(([p,d])=>p.startsWith(path+'/')&&p.split('/').length===2&&filters.every(f=>f(d))).slice(0,max).map(([p])=>snap(p));return {docs,empty:!docs.length};}};return q;},async runTransaction(fn){hook();return fn({get:r=>r.get(),create(r,d){assert(!records.has(r.path));records.set(r.path,d);},set(r,d){records.set(r.path,d);},delete:r=>records.delete(r.path)});}};
+ const db={doc:ref,collection(path){const filters=[];let max=Infinity;const q={doc:id=>ref(`${path}/${id}`),where(k,op,v){filters.push(d=>op==='in'?v.includes(d[k]):op==='>'?d[k]>v:op==='<='?d[k]<=v:d[k]===v);return q;},limit(n){max=n;return q;},count(){return{get:async()=>{const count=(await q.get()).docs.length;return {data:()=>({count})};}};},async get(){const docs=[...records].filter(([p,d])=>p.startsWith(path+'/')&&p.split('/').length===2&&filters.every(f=>f(d))).slice(0,max).map(([p])=>snap(p));return {docs,empty:!docs.length};}};return q;},async runTransaction(fn){hook();return fn({get:r=>r.get(),create(r,d){assert(!records.has(r.path));records.set(r.path,d);},set(r,d){records.set(r.path,d);},delete:r=>records.delete(r.path)});}};
  const now=Date.now();const identity=async()=>({disabled:false,tokensValidAfterTime:new Date(0).toISOString()});
  const transport=async(path,payload)=>{sent.push(payload);return path==='send'?{data:{status:'ok',id:`ticket${sent.length}`}}:{data:{ticket1:{status:'error',details:{error:'DeviceNotRegistered'}}}};};
  const profiles={a:{name:'A',role:'resident',approved:true},b:{name:'B',role:'resident',approved:true},admin:{name:'Admin',role:'admin',approved:true},vip:{name:'VIP',role:'vip',approved:true},crew:{name:'Crew',role:'crew',approved:true}};
@@ -62,4 +62,55 @@ test('registration ignores forged recipient UID and uses only verified callable 
  const h=fixture();await h.register('a',{uid:'b',recipientId:'b'});
  const device=[...h.records].find(([p])=>p.startsWith('notification_devices/'))[1];
  assert.equal(device.uid,'a');assert.equal(device.recipientId,undefined);
+});
+test('four category preferences persist, Marketplace uses its own text/channel, disabled categories do not send',async()=>{
+ const h=fixture();await h.register('b',{preferences:{inbox:false,marketplace:true,discussion:false,workorders:false}});await h.deliver();assert.equal(h.sent.length,0);
+ const chat={sellerId:'a',buyerId:'b',participantIds:['a','b'],messages:[{id:'one',senderId:'a',senderName:'A',text:'PRIVATE'}]};h.records.set('marketplace_chats/chat',chat);h.event.data.after.data=()=>chat;
+ await deliver(h.db,h.event,'marketplace_chats',{now:h.now,identity:async()=>({disabled:false}),transport:async(_,p)=>{h.sent.push(p);return {data:{status:'ok',id:'one'}};}});
+ assert.equal(h.sent[0].body,'You have a new Marketplace message.');assert.equal(h.sent[0].channelId,'marketplace');assert.equal(h.sent[0].badge,1);
+});
+test('discussion replies/completions deliver once per recipient device, suppress blocks/self and leave no private content in receipts',async()=>{
+ const {deliverContent,notificationState}=require('./inbox-push.cjs');
+ for(const collection of ['discussion_feed','work_orders']){
+  const h=fixture();await h.register('b',{preferences:{discussion:true,workorders:true}});
+  h.records.get('users/a').role=collection==='work_orders'?'crew':'resident';
+  const before={userId:'b',storageDraft:false,comments:[],status:'In Progress'};
+  const after={...before,status:'Done',completedAt:new Date(h.now),comments:[{id:'c',authorId:'a',text:'PRIVATE COMMENT'}]};
+  h.records.set(`${collection}/target`,after);
+  const e={...h.event,params:{documentId:'target'},data:{before:{data:()=>before},after:{data:()=>after}}};
+  const options={now:h.now,identity:async()=>({disabled:false}),transport:async(_,p)=>{h.sent.push(p);return {data:{status:'ok',id:'one'}};}};
+  await deliverContent(h.db,e,collection,options);await deliverContent(h.db,e,collection,options);assert.equal(h.sent.length,1);
+  assert(!JSON.stringify([...h.records].filter(([p])=>p.startsWith('notification_'))).includes('PRIVATE COMMENT'));
+  assert.equal(h.sent[0].badge,1);
+  const category=collection==='work_orders'?'workorders':'discussion';
+  const result=await notificationState(h.db,'b',{ack:{category,conversationId:'target'}},{now:h.now});assert.equal(result.counts[category],0);
+  await assert.rejects(()=>notificationState(h.db,'',{ack:{category,conversationId:'target'}}),/unauthenticated/);
+ }
+});
+test('notification acknowledgments cannot alter another account receipts or bypass conversation authorization',async()=>{
+ const {notificationState}=require('./inbox-push.cjs');const h=fixture();await h.register();await h.deliver();
+ h.records.set('resident_chats/other',{identityVersion:2,participantIds:['admin','vip'],messages:[]});
+ await assert.rejects(()=>notificationState(h.db,'b',{ack:{category:'friend',conversationId:'other'}},{now:h.now}),/permission-denied/);
+ const a=await notificationState(h.db,'a',{ack:{category:'friend',conversationId:'chat'}},{now:h.now});assert.equal(a.counts.inbox,0);
+ const b=await notificationState(h.db,'b',{}, {now:h.now});assert.equal(b.counts.inbox,1);
+});
+test('read watermark suppresses delayed trigger creation, and existing chat read cursor suppresses already-read messages',async()=>{
+ const {notificationState}=require('./inbox-push.cjs');const h=fixture();await h.register();
+ await notificationState(h.db,'b',{ack:{category:'friend',conversationId:'chat',readAt:h.now}},{now:h.now});await h.deliver();assert.equal(h.sent.length,0);
+ const f=fixture();await f.register();f.chat.readBy={b:1};await f.deliver();assert.equal(f.sent.length,0);
+});
+test('acknowledgments page more than 100 events safely and preserve events newer than offline read cutoff',async()=>{
+ const {notificationState}=require('./inbox-push.cjs');const h=fixture();
+ for(let i=0;i<101;i++)h.records.set(`notification_events/e${i}`,{uid:'b',target:'resident_chats/chat',category:'inbox',seen:false,createdAt:new Date(h.now-100),expiresAt:new Date(h.now+10000)});
+ h.records.set('notification_events/new',{uid:'b',target:'resident_chats/chat',category:'inbox',seen:false,createdAt:new Date(h.now+1),expiresAt:new Date(h.now+10000)});
+ const data={ack:{category:'friend',conversationId:'chat',readAt:h.now}};
+ const first=await notificationState(h.db,'b',data,{now:h.now});assert.equal(first.ackPending,true);assert.equal(first.counts.inbox,2);
+ const next=await notificationState(h.db,'b',data,{now:h.now});assert.equal(next.ackPending,false);assert.equal(next.counts.inbox,1);
+});
+test('push payload uses opaque IDs; only authorized recipient can resolve a destination, with fresh blocking checks',async()=>{
+ const {notificationState}=require('./inbox-push.cjs');const h=fixture();await h.register();await h.deliver();
+ const payload=h.sent[0].data;assert.equal(payload.type,'notice');assert.match(payload.noticeId,/^[a-f0-9]{64}$/);assert.equal(payload.conversationId,undefined);
+ const result=await notificationState(h.db,'b',{resolve:payload.noticeId},{now:h.now});assert.equal(result.target.conversationId,'chat');
+ await assert.rejects(()=>notificationState(h.db,'a',{resolve:payload.noticeId},{now:h.now}),/permission-denied/);
+ h.records.set('user_blocks/b/targets/a',{});await assert.rejects(()=>notificationState(h.db,'b',{resolve:payload.noticeId},{now:h.now}),/permission-denied/);
 });

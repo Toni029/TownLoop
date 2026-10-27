@@ -1,3 +1,4 @@
+import {refreshBadge} from '../notifications/device';
 import { mutateSocial } from "../../../src/services/socialIntegrity";
 import {sendMarketInquiry, mutateMarketChat} from "../../../src/services/marketplaceChatProtocol";
 import {
@@ -84,6 +85,7 @@ export async function changeSocial(
   payload: {
     text?: string;
     commentId?: string;
+    replyToCommentId?: string;
     liked?: boolean;
     sold?: boolean;
   } = {},
@@ -104,5 +106,6 @@ export async function changeChat(id: string, action: "reply" | "read" | "leave",
   return runSocial(`chat:${id}:${action}`, async () => {
     const user = await approvedUser();
     await mutateMarketChat(db, String(user.id), id, action, text, messageId);
+    if(action==='read')void refreshBadge(String(user.id),{category:'marketplace',conversationId:id}).catch(()=>{});
   });
 }

@@ -55,6 +55,7 @@ function fixture(initialKind = 'post') {
   '../shell/TownLoopShell': { usePresentation: () => ({ dark: false }) },
   '../news/ui': { Action: 'Action', Copy: 'Copy', Field: 'Field', ErrorNotice: 'ErrorNotice', UploadTarget: 'UploadTarget', useNewsStyles: () => ({ row: {}, input: {} }) },
   '../components/ProductDialog': { ProductDialog: 'ProductDialog' },
+  '../components/PrivateImage': { PrivateImage: 'Image' },
   '../components/media': media,
   './model': { formatPrice: (value: string) => value },
   './actions': { newSocialId: () => 'fixture-draft', publishSocial: async (_id: string, _kind: string, draft: any) => {

@@ -7,13 +7,13 @@ function profileFixture(existing:boolean,accepted:boolean){
 }
 test('existing Google profiles retain approval and roles without requiring registration consent again',async()=>{const f=profileFixture(true,false);await f.finish();assert.equal(f.writes.length,0);assert.equal(f.signedOut.length,0);});
 test('new Google profiles require explicit consent and always begin as unapproved residents',async()=>{let f=profileFixture(false,false);await assert.rejects(f.finish(),/Terms required/);assert.equal(f.writes.length,0);assert.equal(f.signedOut.length,1);f=profileFixture(false,true);await f.finish();assert.equal(f.writes[0].role,'resident');assert.equal(f.writes[0].approved,false);assert.equal(f.writes[0].termsAcceptedAt,'server-time');});
-function nativeFixture(configured:boolean,present:boolean,canceled=false){
+function nativeFixture(configured:boolean,present:boolean,canceled=false,signInError=''){
  let loads=0,authCalls=0,finished=0;const exports:any={};const config:any={webClientId:'fixture.apps.googleusercontent.com',androidOAuthRegistered:configured,iosOAuthRegistered:false,iosClientId:''};
  const sdk={GoogleSignin:{configure:(o:any)=>{assert.equal(o.offlineAccess,false);assert.equal(o.scopes,undefined);},hasPlayServices:async()=>true,signIn:async()=>canceled?{type:'cancelled'}:{type:'success',data:{idToken:'fixture-token'}}},isSuccessResponse:(r:any)=>r.type==='success',statusCodes:{SIGN_IN_CANCELLED:'cancelled'}};
  vm.runInNewContext(source('../src/lib/googleSignIn.ts'),{exports,require:(name:string)=>{
   if(name==='react-native')return{Platform:{OS:'android'},TurboModuleRegistry:{get:()=>present?{}:null}};
   if(name==='../../google-auth.json')return config;
-  if(name==='firebase/auth')return{GoogleAuthProvider:{credential:()=>({providerId:'google.com'})},signInWithCredential:async()=>{authCalls++;return{user:{uid:'fixture'}};}};
+  if(name==='firebase/auth')return{GoogleAuthProvider:{credential:()=>({providerId:'google.com'})},signInWithCredential:async()=>{authCalls++;if(signInError)throw{code:signInError};return{user:{uid:'fixture'}};}};
   if(name==='./firebase')return{auth:{}};
   if(name==='./googleProfile')return{finishGoogleSignIn:async()=>{finished++;}};
   if(name==='@react-native-google-signin/google-signin'){loads++;return sdk;}throw Error(name);
@@ -25,4 +25,17 @@ test('web Google login uses Firebase popup and the same consent/profile completi
  const exports:any={};let popup=0,consent:any;
  vm.runInNewContext(source('../src/lib/googleSignIn.web.ts'),{exports,require:(name:string)=>name==='firebase/auth'?{GoogleAuthProvider:class{},signInWithPopup:async()=>{popup++;return{user:{uid:'fixture'}};}}:name==='./firebase'?{auth:{}}:{finishGoogleSignIn:async(_user:any,accepted:boolean)=>{consent=accepted;}}});
  assert.equal(exports.googleSignInAvailable,true);await exports.googleSignIn(true);assert.equal(popup,1);assert.equal(consent,true);
+});
+
+test('iOS uses the official reversed client ID, rejects missing or malformed OAuth identifiers',async()=>{
+ const {createRequire}=await import('node:module');const require=createRequire(import.meta.url);
+ const {reversedClientId}=require('../plugins/google-oauth.cjs');
+ assert.equal(reversedClientId('883715389126-fixture.apps.googleusercontent.com'),'com.googleusercontent.apps.883715389126-fixture');
+ assert.throws(()=>reversedClientId(''),/actual iOS/);assert.throws(()=>reversedClientId('https://example.invalid'),/actual iOS/);
+});
+
+test('provider conflicts require the existing sign-in method and never create or auto-link a profile',async()=>{
+ for(const code of ['auth/account-exists-with-different-credential','auth/credential-already-in-use']){
+  const f=nativeFixture(true,true,false,code);await assert.rejects(()=>f.api.googleSignIn(true),/never linked automatically/);assert.equal(f.counts().finished,0);
+ }
 });

@@ -27,3 +27,16 @@ test('cold-launch tap waits for authentication; wrong account and denied authori
  assert.equal(await authorizeTarget(target,{...options,authorize:async()=>false}),false);
  assert.equal(await authorizeTarget(target,{...options,authorize:async()=>{session={uid:'another',ready:true};return true;}}),false);
 });
+test('all four notification categories map to fixed collections; comment targets cannot inject navigation routes',()=>{
+ for(const category of ['friend','marketplace','discussion','workorders'] as const){
+  const target=inboxTarget({type:'inbox',category,conversationId:'record',commentId:'comment',deviceBinding:'a'.repeat(64)});
+  assert.equal(target?.category,category);assert.equal(target?.commentId,'comment');
+ }
+ assert.equal(collectionFor.discussion,'discussion_feed');assert.equal(collectionFor.workorders,'work_orders');
+ assert.equal(inboxTarget({type:'inbox',category:'discussion',conversationId:'record',commentId:'../secret',deviceBinding:'a'.repeat(64)})?.commentId,undefined);
+});
+test('opaque notification IDs are validated separately and cannot smuggle a chat path',()=>{
+ const data={type:'notice',category:'marketplace',noticeId:'a'.repeat(64),deviceBinding:'b'.repeat(64),conversationId:'legacy_email_example_com'};
+ assert.equal(inboxTarget(data)?.noticeId,'a'.repeat(64));assert.equal(inboxTarget(data)?.conversationId,'a'.repeat(64));
+ assert.equal(inboxTarget({...data,noticeId:'../other'}),null);
+});
