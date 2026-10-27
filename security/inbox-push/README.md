@@ -1,4 +1,6 @@
-# Native Inbox push — local implementation, no service/app deployment
+# Native notifications — staged local release candidate
+
+Current Android configuration, emulator evidence and exact owner approval scope: [Android prerequisites](./ANDROID_PREREQUISITES.md). Sending and all destructive processing remain disabled.
 
 Scope: default Firestore database in `cc-livingcommunity-app`, Expo project `9f970d26-beed-44d6-a590-9dcdc00e85de`, Android/iOS application ID `com.toni029.townloop`. Original website and its named database are unchanged. No deletion, cleanup, moderation or Admin escalation worker is exported by the isolated package.
 
@@ -7,10 +9,10 @@ Scope: default Firestore database in `cc-livingcommunity-app`, Expo project `9f9
 - Existing `resident_chats`, `office_chats`, `maintenance_chats` and Marketplace Inbox message arrays are monitored with authenticated Firestore write context. Only an authenticated author's single immutable-tail append qualifies. No historical backfill, receipt, edit, deletion or system-leave alert.
 - Canonical approved participants/staff only; disabled/deletion-pending profiles, revoked Auth identities, either-direction blocks and Marketplace leave markers suppress sends. Office/Crew chats retain existing shared team membership; direct Office messages already use resident_chats.
 - Each opted-in installation/account registers its Expo token through an authenticated callable; database clients cannot read/write notification collections under existing rules. Token ownership transfer requires the protected installation capability. Multiple devices are independent.
-- Opt-in switch is inside Profile → Mail (Inbox), on this device. No launch-time permission prompt. Android channel is created before Android 13 permission/token acquisition; iOS requests alerts/sounds. Denial never blocks navigation.
+- Four category switches are inside Profile → Mail (Inbox). A first usable-launch explanation precedes the OS permission request; prior denial never blocks navigation. Android channels are created before permission/token acquisition; iOS requests alerts, sounds and badges. Discussion comments/direct replies and Work Order non-Done→Done notifications use their actual default-database sources.
 - Tokens, per-account preference and installation capability use device-only SecureStore. Logout/account switching attempts server revocation and native FCM/APNs deregistration; failed server revocation is retained encrypted for retry. Account deletion already removes server device documents, while local deletion cleanup clears the preference on next client execution. A permanently offline device cannot be remotely erased. An already accepted, generic OS alert cannot always be recalled.
 - Registrations expire logically after 60 days without renewal. Renewal occurs on app launch/resume/token change. OS permission revocation is discovered at next resume, or invalid-token receipts; permission changes while the app is closed are controlled by the OS.
-- Per-message/per-device claims prevent retry duplicates. Generic title/body only; payload has category, conversation ID and an account-bound opaque device binding, no message body, recipient UID, name, photo or Expo token. Taps wait for approved authentication and a fresh server-authorized conversation read. Wrong-account taps cannot open a chat. Foreground uses exactly one Expo notification handler; no parallel in-app banner.
+- Per-message/per-device claims prevent retry duplicates. Generic title/body only; payload has category, an opaque notification ID and an account-bound opaque device binding; legacy conversation IDs are resolved only through the authenticated callable, no message body, recipient UID, name, photo or Expo token. Taps wait for approved authentication and a fresh server-authorized conversation read. Wrong-account taps cannot open a chat. Foreground uses exactly one Expo notification handler; no parallel in-app banner.
 - Delivery claims have a 60-day expiry. Configure Firestore TTL on `notification_deliveries.expiresAt` and `notification_devices.expiresAt` separately after approval; no TTL or retention configuration changed here. Idempotency also refuses events older than one hour, so expiry cannot replay old sends. The receipt checker processes bounded batches and removes only the matching expired device. No resident files are touched.
 - Receipt status `delivered` means the provider accepted delivery, **not proof the phone displayed it**. Network-ambiguous sends are `unknown`, never automatically replayed (the Expo API cannot guarantee exactly-once delivery). Provider rejection remains recorded with a sanitized code. Inbox/unread state remains authoritative. Force-stop, OS battery restrictions, DND and network loss can delay/prevent system alerts.
 
@@ -24,24 +26,18 @@ Scope: default Firestore database in `cc-livingcommunity-app`, Expo project `9f9
 
 ## Exact safe rollout — approval required, not executed
 
-1. Approve code/credentials scope, then push the local commit. Keep all existing destructive workers and Admin escalation delivery disabled.
-2. Run `node security/inbox-push/prepare.cjs`. This only creates `.release/inbox-push/` with the Inbox functions. Install its locked dependencies in the isolated artifact. Never deploy the full existing functions index.
-3. Deploy **only** `functions:registerInboxDevice` from that isolated Firebase configuration to project `cc-livingcommunity-app`. Verify unauthenticated registration denied, protected revocation, approved ownership, and cross-account rejection with approved test identities. Existing Firestore deny-all notification collection rules need no change.
-4. After separate approval, configure credentials above and build one Android Preview and one appropriate EAS iOS test binary. No OTA can add the native modules to old binaries. Confirm exact build runtime/channel and manifest/entitlement/FCM packaging. Any future OTA must match each new build's exact fingerprint; do not override runtime safety.
-5. Enable notifications on explicitly authorized test devices/accounts; no resident test accounts created here. Deploy ONLY `notifyInboxFriend`, `notifyInboxOffice`, `notifyInboxMaintenance`, `notifyInboxMarketplace` and `checkInboxPushReceipts` using the isolated config and an explicit named `--only functions:...` list. `INBOX_PUSH_ENABLED` defaults OFF; deploy disabled first. The new Marketplace export is part of Inbox scope, not the hosted web database.
-6. With approval to send only to designated testers, enable `INBOX_PUSH_ENABLED=true` in the scoped functions' server environment and verify physical devices using the checklist below. The sending flag is service-wide: do not opt in residents before testing approval. No scheduled Admin alerts, deletion or cleanup is activated. Receipt checking is delivery maintenance only and needs explicit deployment approval.
-7. Roll out Preview clients to residents only after those checks. Production/App Store/Google Play require separate approval. Optional TTL activation is a separately approved bounded notification-metadata expiry, not resident-content cleanup.
-
-Example deployment from the generated artifact (not executed):
+See ANDROID_PREREQUISITES.md for the reviewed scope and commands. Preparation is local only:
 
 ```
-cd .release/inbox-push
-firebase deploy --project cc-livingcommunity-app --config firebase.json --only functions:registerInboxDevice
-# Later, after the separately approved credential/build/test gates:
-firebase deploy --project cc-livingcommunity-app --config firebase.json --only functions:notifyInboxFriend,functions:notifyInboxOffice,functions:notifyInboxMaintenance,functions:notifyInboxMarketplace,functions:checkInboxPushReceipts
+node security/inbox-push/prepare.cjs registration
+node security/inbox-push/prepare.cjs events
 ```
 
-Emergency stop: redeploy only these Inbox functions with `INBOX_PUSH_ENABLED=false`. Keep Inbox reads/writes/authentication/security rules intact; do not restore public access. Do not deploy/delete unrelated functions. The isolated codebase is `default` intentionally so existing function identities are not moved; always supply the explicit function allowlist to avoid unrelated deployment/deletion prompts.
+The first artifact is `.release/notification-registration/`, exporting **only registerInboxDevice v2 and getNotificationState**. It also prepares the two create-only index requests and a separate default-only optional reply-rules config. Current registration v1 is already deployed and ACTIVE; the upgrade is for category preferences. The second artifact, `.release/notification-events/`, holds the six triggers covering Private Inbox, Marketplace, Discussion and Work Orders. **Neither exports the receipt scheduler, Admin alerts, account deletion or cleanup workers.** No trigger is activated by preparation.
+
+Both artifacts explicitly default sending/reply capability OFF with an empty tester list. Never deploy the full functions index, use a broad `--only functions` command, or reuse old `.release/inbox-push` artifacts as the new candidate. Each stage requires separate approval and exact function allowlists. Two additive indexes must reach READY before using notification-state queries. Recheck the current default rules hash before the narrowly scoped reply-rule deployment. Preserve all other indexes/rules, Storage, Hosting and the named database.
+
+Only after owner-approved client/build testing may tester delivery be approved. Sending requires **both** INBOX_PUSH_ENABLED=true and a nonempty PUSH_TESTER_UIDS recipient allowlist. Receipt scheduling, wider resident delivery and Production remain separate approvals. Emergency stop keeps secure rules in place and disables only senders; never restore unrestricted access.
 
 ## Verification / remaining physical-device matrix
 
@@ -51,7 +47,7 @@ Still required on **real Android + iPhone** with approved test identities and pu
 
 Notification transport adds Expo Push Service alongside FCM/APNs. Update the unpublished privacy/Data Safety release disclosures to describe generic push payloads, device tokens and account-scoped preferences before store release; do not claim end-to-end encryption or guaranteed delivery. Existing policies have not been published or rewritten here.
 
-## Focused verification recorded locally
+## Historical first-checkpoint verification (current emulator results linked above)
 
 29 fixture checks passed: 13 backend recipient/registration/delivery/receipt checks, 6 native routing/device-lifecycle checks (including executing the actual device module against mocked native boundaries), and 10 existing account-cleanup regressions. TypeScript passed. Expo introspection produced the notification plugin and iOS push entitlement. Android credential validation rejected missing/mismatched files and accepted a synthetic matching fixture; no real credential was used. The six-function isolated export/default-off guard check passed without database or transport access.
 

@@ -2,5 +2,6 @@
   "webClientId": "883715389126-m7620ld4hl03bqh861vmj21vkjc60rfc.apps.googleusercontent.com",
   "androidOAuthRegistered": false,
   "iosClientId": "",
-  "iosOAuthRegistered": false
+  "iosOAuthRegistered": false,
+  "previewCertificateSHA1": "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25"
 }

@@ -1,12 +1,17 @@
 {
   "androidPackage": "com.toni029.townloop",
-  "previewBuildId": "9a934883-9957-4a10-95d3-a286f75e01f5",
+  "previewBuildId": "49e3b645-1d6f-4dbd-aa4d-820f835dc812",
   "previewCertificateSHA1": "5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25",
-  "source": "Existing locally cached signed Preview APK; no keystore accessed",
+  "source": "Existing Preview APK signing verified with apksigner and matched to the existing EAS local keystore certificate; private key/password never displayed",
   "firebaseProject": "cc-livingcommunity-app",
   "firebaseGoogleProviderEnabled": true,
-  "androidFirebaseAppsRegistered": 0,
+  "androidFirebaseAppsRegistered": 1,
   "iosFirebaseAppsRegistered": 0,
-  "verifiedBy": "Read-only Firebase configuration queries and local APK certificate inspection",
-  "activationApproved": false
+  "verifiedBy": "Read-only Firebase provider/app/config queries, APK signature verification and certificate digest comparison",
+  "activationApproved": false,
+  "previewCertificateSHA256": "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+  "androidFirebaseAppId": "1:883715389126:android:9be9bbe73fece14e27c9c7",
+  "androidSHARegistrations": 0,
+  "androidOAuthClientsInFirebaseConfig": 0,
+  "verifiedOn": "2026-10-27"
 }
