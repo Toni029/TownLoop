@@ -32,7 +32,7 @@ export function InboxPushProvider({children}:PropsWithChildren){
   const current=active.current;if(!current.ready){if(!current.loading)await revoke();return;}
   const values=await categoryPreferences(current.uid);const result=await syncDevice(current.uid,Object.values(values).some(Boolean),ask);
   if(active.current.uid!==current.uid)return;
-  setPrefs(values);setRepliesAvailable(notificationCapabilities().discussionReplies);setStatus(result==='denied'?'Notifications are off in device settings.':result==='unavailable'?'Notifications require the next TownLoop app build.':result==='setup-required'?'Notification service update is pending.':result==='on'?'Notifications on':'Notifications off');
+  setPrefs(values);setRepliesAvailable(notificationCapabilities().discussionReplies);setStatus(result==='simulator'?'Preferences saved. Push delivery requires a configured physical iPhone.':result==='denied'?'Notifications are off in device settings.':result==='unavailable'?'Notifications require the next TownLoop app build.':result==='setup-required'?'Notification service update is pending.':result==='on'?'Notifications on':'Notifications off');
   await refreshBadge(current.uid).catch(()=>{});
  }),[]);
  const openPending=useCallback(async()=>{

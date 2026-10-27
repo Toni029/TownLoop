@@ -21,7 +21,7 @@ function openPage(url,{platform=process.platform,spawn=spawnSync,print=console.l
 }
 function main(){
  const [platform='android',profile='preview']=process.argv.slice(2);
- if(!['android','ios','all'].includes(platform)||!['preview','development','production'].includes(profile))throw Error('Choose the explicitly approved platform and profile.');
+ assertBuildTarget(platform,profile);
  assertManagedSource(path.resolve(__dirname,'..'));
  const result=spawnSync(process.execPath,[path.resolve(__dirname,'../node_modules/eas-cli/bin/run'),'build','--platform',platform,'--profile',profile,'--no-wait','--json','--non-interactive'],{cwd:path.resolve(__dirname,'..'),encoding:'utf8',stdio:['inherit','pipe','inherit'],maxBuffer:10*1024*1024});
  let returned=[];try{returned=JSON.parse(result.stdout||'[]');}catch{}
@@ -29,5 +29,9 @@ function main(){
  if(result.error||result.status!==0)throw Error('EAS submission failed. No automatic retry or cancellation was attempted.');
  if(!returned.length)buildPages(returned);
 }
-module.exports={buildPages,openPage,assertManagedSource};
+function assertBuildTarget(platform,profile){
+ if(!['android','ios','all'].includes(platform)||!['preview','development','production','ios-simulator'].includes(profile))throw Error('Choose the explicitly approved platform and profile.');
+ if(profile==='ios-simulator'&&platform!=='ios')throw Error('The unsigned simulator profile is iOS-only. No build was submitted.');
+}
+module.exports={buildPages,openPage,assertManagedSource,assertBuildTarget};
 if(require.main===module){try{main();}catch(error){console.error(error.message);process.exitCode=1;}}

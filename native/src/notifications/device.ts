@@ -47,10 +47,13 @@ export async function revoke(){
  const n=notifications();if(n){await n.dismissAllNotificationsAsync().catch(()=>{});await n.setBadgeCountAsync(0).catch(()=>{});await n.unregisterForNotificationsAsync().catch(()=>{});}
  await call({...state,remove:true});await SecureStore.deleteItemAsync(key,options);
 }
-export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'off'|'denied'|'unavailable'|'setup-required'>{
+export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'off'|'denied'|'unavailable'|'setup-required'|'simulator'>{
  const n=notifications();if(!n)return 'unavailable';
  const old=await saved();if(old&&old.uid!==uid)await revoke();
  if(!on){await revoke();return 'off';}
+ // Simulator testing retains settings and all native modules, but must not wait
+ // on APNs/token registration that requires a configured physical device.
+ if(Platform.OS==='ios'&&process.env.EXPO_PUBLIC_TOWNLOOP_IOS_SIMULATOR==='1')return 'simulator';
  if(Platform.OS==='android')for(const [channel,name]of Object.entries({inbox:'Private Inbox',marketplace:'Marketplace messages',discussion:'Discussion replies',workorders:'Work Order updates'}))await n.setNotificationChannelAsync(channel,{name,importance:n.AndroidImportance.HIGH,sound:'default',showBadge:true,lockscreenVisibility:n.AndroidNotificationVisibility.PRIVATE});
  let permission=await n.getPermissionsAsync();
  if(!permission.granted&&ask&&permission.canAskAgain)permission=await n.requestPermissionsAsync({ios:{allowAlert:true,allowSound:true,allowBadge:true}});

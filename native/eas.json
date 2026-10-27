@@ -27,6 +27,18 @@
         "credentialsSource": "remote"
       }
     },
+    "ios-simulator": {
+      "distribution": "internal",
+      "environment": "preview",
+      "channel": "preview-simulator",
+      "env": {
+        "EXPO_PUBLIC_TOWNLOOP_IOS_SIMULATOR": "1"
+      },
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "channel": "production",
