@@ -1,5 +1,6 @@
 import { InboxPushProvider } from '../notifications/InboxPushProvider';
 import { AppErrorBoundary } from "../monitoring/AppErrorBoundary";
+import { ApprovedStartup } from "../components/ApprovedStartup";
 import { hideNativeSplash } from "../lib/nativeSplash";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -22,8 +23,8 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
   const reduced = useReducedMotion();
   const { user, profile, loading, registrationInProgress } = useSession();
   const { community, ready } = useCommunity();
-  if ((loading && !registrationInProgress) || !ready || !fontsReady) return null;
   return (
+    <ApprovedStartup ready={(!loading || registrationInProgress) && ready && fontsReady}>
     <View style={{ flex: 1 }} onLayout={hideNativeSplash}>
     <Stack
       screenOptions={{
@@ -47,6 +48,7 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
       </Stack.Protected>
     </Stack>
     </View>
+    </ApprovedStartup>
   );
 }
 export default function Root() {

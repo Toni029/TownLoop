@@ -1,3 +1,4 @@
+import {menuBounds} from "../layout/phoneGeometry";
 import {useInboxPush} from '../notifications/InboxPushProvider';
 import type {InboxTarget} from '../notifications/protocol';
 import { SafetyActions } from "../components/SafetyActions";
@@ -195,7 +196,7 @@ function Row({
       >
         <Icon size={wide ? 24 : 20} color={danger ? "#fff" : tone} />
       </View>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <Text
           style={[
             s.rowTitle,
@@ -375,6 +376,7 @@ export function ProfileMenu({
     data = useProfileData(user);
   const { width, height } = useWindowDimensions(),
     insets = useSafeAreaInsets();
+  const menuSize = menuBounds(width, height, insets);
   const [mounted, setMounted] = useState(false),
     [closing, setClosing] = useState(false),
     [view, setView] = useState<MenuView>("menu");
@@ -717,6 +719,8 @@ export function ProfileMenu({
             style={[
               s.stage,
               {
+                paddingLeft: insets.left + 12,
+                paddingRight: insets.right + 12,
                 paddingTop: Math.max(12, insets.top),
                 paddingBottom: Math.max(12, insets.bottom),
               },
@@ -761,11 +765,8 @@ export function ProfileMenu({
                   maxHeight: "100%",
                   flexShrink: 1,
                   // Every subview shares the same shell; only the contents scroll.
-                  width: Math.min(width - 24, width >= 640 ? 540 : 500),
-                  height: Math.min(
-                    width >= 640 ? 680 : 640,
-                    height - insets.top - insets.bottom - 24,
-                  ),
+                  width: menuSize.width,
+                  height: menuSize.height,
                   borderRadius: width >= 640 ? 36 : 32,
                   padding: view === "admin" ? 0 : width >= 640 ? 20 : 16,
                   paddingTop: view === "admin" ? 0 : width >= 640 ? 16 : 14,
@@ -820,6 +821,7 @@ export function ProfileMenu({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close Resident Menu"
+                hitSlop={8}
                 onPress={() => close()}
                 style={[
                   s.close,
@@ -998,7 +1000,7 @@ export function ProfileMenu({
                     )}
                   </View>
                 )}
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   {view === "admin" && canAccessAdminPanel(user) && (
                     <View style={{ flex: 1 }}>
                       {!!error && (

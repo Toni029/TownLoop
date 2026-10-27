@@ -98,7 +98,7 @@ export function TownLoopShell({
             flex: 1,
             backgroundColor: dark ? "#020617" : "#f7f3ea",
             width: "100%",
-            maxWidth: 448,
+            maxWidth: Platform.OS === "web" ? 448 : undefined,
             alignSelf: "center",
             borderWidth: Platform.OS === "web" ? 1 : 0,
             borderColor: dark ? "#1e293b" : "#d8cdbc",
@@ -232,7 +232,7 @@ export function PortalHeader({
           gap: 12,
         }}
       >
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text
             accessibilityRole="header"
             style={{
@@ -722,6 +722,8 @@ export function FloatingDock({
                     return !old || old.contentWidth === contentWidth ? previous : { ...previous, [name]: { ...old, contentWidth } };
                   })}
                   numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.85}
                   style={{
                     fontFamily: "JakartaExtra",
                     fontSize: 12,

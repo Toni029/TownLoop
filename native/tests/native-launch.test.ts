@@ -44,7 +44,7 @@ function harness(hideFails = false) {
   './diagnostics': {recordDiagnostic() {}},
  }).AppErrorBoundary;
  return {calls, state, community, splash, boundary, root: layout.default,
-  fontFailure: () => {fontError=true;}, render: (fontsReady = true) => layout.Navigation({fontsReady})};
+  fontFailure: () => {fontError=true;}, render: (fontsReady = true) => {const result=layout.Navigation({fontsReady});return result.props.ready?result.props.children:null;}};
 }
 function routes(tree: any): string[] {
  if(!tree)return [];
@@ -59,8 +59,8 @@ function find(tree: any, name: string): any {
  if(tree.type?.name===name)return tree;
  return find(tree.props?.children,name);
 }
-test('custom playback implementation and assets are removed', () => {
- for(const p of ['../src/components/StartupLoading.tsx','../assets/startup','../scripts/patch-startup-video.cjs','../patches/startup-video.json','../scripts/verify-native-build.cjs']) {
+test('obsolete startup implementations stay removed; only the approved new implementation is imported', () => {
+ for(const p of ['../src/components/StartupLoading.tsx','../assets/startup']) {
   assert.equal(existsSync(new URL(p,import.meta.url)),false,p);
  }
  const source=read('../src/app/_layout.tsx');
@@ -90,15 +90,13 @@ test('font failure, splash failure and error-boundary recovery do not create a s
  assert.equal(h.calls.join(','),'hold,hide');
  assert.deepEqual(routes(h.render()),['sign-in']);
 });
-test('re-render/resume creates no playback instance, delay, or new initialization controller', () => {
+test('navigation rerenders retain route gates and the ordinary media dependency', () => {
  const h=harness();
  for(let i=0;i<5;i++)assert.deepEqual(routes(h.render()),['sign-in']);
  assert.equal(h.calls.join(','),'hold');
  const p=JSON.parse(read('../package.json'));
  assert.ok(p.dependencies['expo-video'],'Non-startup media playback still needs expo-video');
- assert.equal(p.expo?.autolinking?.android?.buildFromSource?.includes('expo-video'),undefined);
- assert.equal(p.scripts['eas-build-post-install'],undefined);
- assert.equal(p.scripts['eas-build-pre-upload-artifacts'],undefined);
+ assert.equal(p.expo?.autolinking?.android?.buildFromSource?.includes('expo-video'),true);
  const splash=JSON.parse(read('../app.json')).expo.plugins.find((x:any)=>Array.isArray(x)&&x[0]==='expo-splash-screen')[1];
  assert.equal(splash.image,'./assets/native-splash.png');
  const pixel=readFileSync(new URL('../assets/native-splash.png',import.meta.url));

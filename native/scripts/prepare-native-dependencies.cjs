@@ -8,3 +8,6 @@ const manifest = path.join(path.dirname(packageFile), 'android/src/main/AndroidM
 const source = fs.readFileSync(manifest, 'utf8');
 const normalized = source.replace('package="org.reactnative.maskedview"', '');
 if (normalized !== source) fs.writeFileSync(manifest, normalized);
+
+// Silent launch-only player opt-out; ordinary video defaults are unchanged.
+require('./patch-startup-video.cjs').applyStartupPatch();
