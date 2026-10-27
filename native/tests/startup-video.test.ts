@@ -1,115 +1,250 @@
-// Executes the actual component/hooks and UI-completion bridge with a deterministic clock.
-// This verifies lifecycle/timing, not native frame rendering or physical-device behavior.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { inflateSync } from 'node:zlib';
 import vm from 'node:vm';
 import ts from 'typescript';
-const source=readFileSync(new URL('../src/components/StartupLoading.tsx',import.meta.url),'utf8');
-function fixture(reduced=false){
- let now=0,nextId=0,owner='root',cursor=0,ready=true,dirty=true,brandMounted=false,state='active';
- let root:any,brand:any;const slots:Record<string,any[]>={root:[],brand:[]},jobs:Array<()=>void>=[];
- const timers=new Map<number,{at:number;fn:()=>void}>(),motions:any[]=[],listeners=new Map<string,Set<(s:any)=>void>>();
- const schedule=(fn:()=>void,ms:number)=>{const id=++nextId;timers.set(id,{at:now+ms,fn});return id;};
- const cancel=(id:number)=>timers.delete(id);
- const equal=(a:any[],b:any[])=>a&&a.length===b.length&&a.every((x,i)=>x===b[i]);
- const hooks={
-  Component:class{},
-  useState:(initial:any)=>{const list=slots[owner],i=cursor++;if(!list[i]){const slot={value:typeof initial==='function'?initial():initial,set:(value:any)=>{slot.value=typeof value==='function'?value(slot.value):value;dirty=true;}};list[i]=slot;}return[list[i].value,list[i].set];},
-  useRef:(initial:any)=>{const list=slots[owner],i=cursor++;return list[i]||(list[i]={current:initial});},
-  useCallback:(fn:any,deps:any[])=>{const list=slots[owner],i=cursor++;if(!list[i]||!equal(list[i].deps,deps))list[i]={deps,fn};return list[i].fn;},
-  useEffect:(fn:any,deps:any[])=>{const list=slots[owner],i=cursor++,old=list[i];if(old&&equal(old.deps,deps))return;const slot={deps,cleanup:old?.cleanup};list[i]=slot;jobs.push(()=>{slot.cleanup?.();slot.cleanup=fn();});},
- };
- const jsx=(type:any,props:any)=>({type,props});
- const exports:any={};
- class ClockDate extends Date{static now(){return now;}}
- vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{
-  exports,Date:ClockDate,setTimeout:schedule,clearTimeout:cancel,requestAnimationFrame:(fn:any)=>schedule(fn,16),cancelAnimationFrame:cancel,
-  require:(name:string)=>{
-   if(name==='react')return hooks;
-   if(name==='react/jsx-runtime')return{jsx,jsxs:jsx};
-   if(name==='react-native')return{
-    AccessibilityInfo:{isReduceMotionEnabled:async()=>reduced,addEventListener:()=>({remove(){}})},
-    AppState:{get currentState(){return state;},addEventListener:(kind:string,fn:any)=>{if(!listeners.has(kind))listeners.set(kind,new Set());listeners.get(kind)!.add(fn);return{remove:()=>listeners.get(kind)!.delete(fn)};}},
-    View:'View',Image:'Image',ActivityIndicator:'Spinner',StyleSheet:{create:(s:any)=>s,absoluteFill:{position:'absolute'}},
-   };
-   if(name==='react-native-reanimated')return{
-    default:{View:'Animated'},FadeIn:{duration:(n:number)=>n},ReduceMotion:{System:'system'},Easing:{quad:'quad',inOut:(v:any)=>v},
-    useSharedValue:(initial:any)=>hooks.useRef({value:initial}).current,useAnimatedStyle:(fn:any)=>fn(),runOnJS:(fn:any)=>fn,
-    cancelAnimation:()=>{for(const m of motions.filter(m=>!m.done)){m.done=true;cancel(m.timer);m.callback(false);}},
-    withTiming:(value:any,config:any,callback:any)=>{const m:any={config,callback,done:false};m.timer=schedule(()=>{m.done=true;callback(true);},config.duration);motions.push(m);return value;},
-   };
-   if(name==='expo-splash-screen')return{preventAutoHideAsync:async()=>{},hideAsync:async()=>{}};
-   if(name==='./ui')return{colors:{cream:'#f3ebdc',green:'green'}};
-   if(name.endsWith('.png'))return name;
-   throw Error(`Unexpected dependency ${name}`);
+
+// Runs the actual components with deterministic hook state and native lifecycle fixtures.
+// Does not claim to exercise an Android decoder or physical-device rendering.
+function harness() {
+ let released = false, reduced = false, owner = '', cursor = 0;
+ const slots = new Map<string, any[]>();
+ const effects: Array<() => any> = [], calls: string[] = [];
+ const timers: Array<{ fn: () => void; ms: number; cleared?: boolean }> = [];
+ const stateListeners: Array<(value: string) => void> = [];
+ const videoListeners: Record<string, (event?: any) => void> = {};
+ const appState: any = { currentState: 'active', addEventListener: (_: any, fn: any) => {
+  stateListeners.push(fn); return { remove() {} };
+ }};
+ const player: any = new Proxy({
+  play() { calls.push('play'); },
+  attachToNativeView() { if (released) throw Error('Cannot use shared object that was already released'); },
+  pause() { if (released) throw Error('SharedObject already released'); calls.push('pause'); },
+  replaceAsync: async (source: any) => { calls.push(source === null ? 'unload' : 'load'); },
+  addListener(name: string, fn: any) { videoListeners[name] = fn; return { remove() {} }; },
+ }, { set(target: any, key: string, value) { calls.push(`${key}:${value}`); target[key] = value; return true; } });
+ const nextSlot = () => { const list = slots.get(owner)!; const index = cursor++; return { list, index }; };
+ const changed = (old: any, deps: any[]) => !old || deps.some((value, i) => value !== old.deps[i]);
+ const hooks = {
+  Component: class { props: any; constructor(props: any) { this.props = props; } },
+  useState(initial: any) {
+   const { list, index } = nextSlot();
+   if (!list[index]) list[index] = { value: typeof initial === 'function' ? initial() : initial };
+   return [list[index].value, (value: any) => { list[index].value = typeof value === 'function' ? value(list[index].value) : value; }];
   },
- });
- async function flush(){
-  for(let i=0;i<12;i++){
-   dirty=false;owner='root';cursor=0;root=exports.StartupLoading({ready,children:'app'});
-   const candidate=root.props.children[1]?.props?.children?.props?.children;
-   if(typeof candidate?.type==='function'){
-    owner='brand';cursor=0;brand=candidate.type(candidate.props);brandMounted=true;
-   }else if(brandMounted){for(const slot of slots.brand)slot?.cleanup?.();slots.brand=[];brandMounted=false;brand=null;}
-   jobs.splice(0).forEach(fn=>fn());await new Promise<void>(resolve=>setImmediate(resolve));
-   if(!dirty&&!jobs.length)break;
-  }
+  useRef(initial: any) {
+   const { list, index } = nextSlot();
+   if (!list[index]) list[index] = { current: initial };
+   return list[index];
+  },
+  useCallback(fn: any, deps: any[]) {
+   const { list, index } = nextSlot();
+   if (changed(list[index], deps)) list[index] = { deps, fn };
+   return list[index].fn;
+  },
+  useEffect(fn: any, deps: any[] = []) {
+   const { list, index } = nextSlot();
+   if (!changed(list[index], deps)) return;
+   const previous = list[index]; const slot = { deps, cleanup: undefined as any }; list[index] = slot;
+   effects.push(() => { previous?.cleanup?.(); slot.cleanup = fn(); return slot.cleanup; });
+  },
+ };
+ const jsx = (type: any, props: any) => ({ type, props });
+ const modules: Record<string, any> = {
+  react: hooks, 'react/jsx-runtime': { jsx, jsxs: jsx }, './ui': {colors:{cream:'#f3ebdc',green:'green'}},
+  'react-native': {
+   AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(reduced), addEventListener: () => ({ remove() {} }) },
+   Platform: { OS: 'android' }, AppState: appState, View: 'View',
+   StyleSheet: { absoluteFill: { position: 'absolute' }, create: (x: any) => x },
+   useWindowDimensions: () => ({ width: 412, height: 892, scale: 3 }),
+  },
+  'expo-splash-screen': { preventAutoHideAsync: async () => {}, hideAsync: async () => { calls.push('hideSplash'); }, setOptions() {} },
+  'expo-video': { VideoView: 'VideoView', createVideoPlayer(source: any, options: any) {
+   calls.push(`disableAudioSession:${options?.disableAudioSession}`);
+   calls.push(source === null ? 'empty-player' : 'source-in-constructor');
+   return player;
+  }, useVideoPlayer(source: any, setup: any, options: any) {
+   const [instance] = hooks.useState(() => {
+    calls.push(`disableAudioSession:${options?.disableAudioSession}`);
+    calls.push(source === null ? 'empty-player' : 'source-in-constructor'); setup(player); return player;
+   });
+   // Expo's release hook precedes the component's effect cleanup.
+   hooks.useEffect(() => () => { released = true; }, []); return instance;
+  } },
+  'react-native-reanimated': { __esModule: true, default: { View: 'StartupOverlay' }, FadeOut: { duration: () => ({}) } },
+ };
+ const source = readFileSync(new URL('../src/components/StartupLoading.tsx', import.meta.url), 'utf8') +
+  '\nexportsForTest = {LaunchVideo: typeof LaunchVideo === "undefined" ? undefined : LaunchVideo, StartupLoading, StartupAnimationBoundary: typeof StartupAnimationBoundary === "undefined" ? undefined : StartupAnimationBoundary};';
+ const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+ const context: any = { exports: {}, exportsForTest: undefined,
+  require: (name: string) => name.includes('/assets/startup/') ? name : modules[name],
+  setTimeout: (fn: () => void, ms: number) => { timers.push({ fn, ms }); return timers.length - 1; },
+  clearTimeout: (id: number) => { if (timers[id]) timers[id].cleared = true; },
+ };
+ vm.runInNewContext(code, context);
+ function render(name: string, props: any) {
+  owner = name; cursor = 0; if (!slots.has(name)) slots.set(name, []);
+  return context.exportsForTest[name](props);
  }
+ function unmount(name: string) { for (const slot of slots.get(name) || []) slot.cleanup?.(); slots.delete(name); }
  return {
-  motions,duration:exports.STARTUP_DURATION_MS,now:()=>now,
-  async render(value=true){ready=value;await flush();},
-  async visible(){assert(brand);brand.props.onLayout();brand.props.children.props.children[0].props.onLoad();await flush();await this.advance(32);},
-  open:()=>root.props.children[0]!==false,
-  async advance(ms:number){const end=now+ms;for(;;){const next=[...timers].filter(([,t])=>t.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!next)break;now=next[1].at;timers.delete(next[0]);next[1].fn();await flush();}now=end;await flush();},
-  async appState(value:string){state=value;for(const fn of [...listeners.get('change')||[]])fn(value);await flush();},
-  async imageError(){brand.props.children.props.children[0].props.onError();await flush();},
-  async interrupt(){const m=motions.at(-1);m.done=true;cancel(m.timer);m.callback(false);await flush();},
-  stallCompletion(){const m=motions.at(-1);cancel(m.timer);},
-  async earlyCompletion(){const m=motions.at(-1);cancel(m.timer);m.done=true;m.callback(true);await flush();},
-  async remount(){for(const group of Object.values(slots))for(const slot of group)slot?.cleanup?.();slots.root=[];slots.brand=[];brandMounted=false;await flush();},
+  calls, player, timers, videoListeners, modules, unmount,
+  StartupAnimationBoundary: context.exportsForTest.StartupAnimationBoundary,
+  reduced: (value: boolean) => { reduced = value; },
+  background: () => { appState.currentState = 'background'; stateListeners.forEach(fn => fn('background')); },
+  foreground: () => { appState.currentState = 'active'; stateListeners.forEach(fn => fn('active')); },
+  StartupLoading: (props: any) => render('StartupLoading', props),
+  LaunchVideo: (props: any) => render('LaunchVideo', props),
+  effects: () => effects.splice(0).map(fn => fn()),
  };
 }
-test('preserves original brand asset, composition, opacity/scale endpoints and no media dependency',()=>{
- const old=execFileSync('git',['show','7ae4520:native/src/components/StartupLoading.tsx'],{encoding:'utf8'});
- assert.equal(source.slice(source.indexOf('const styles ='),source.indexOf('class LaunchBoundary')).trim(),old.slice(old.indexOf('const styles =')).trim());
- assert.equal(execFileSync('git',['hash-object','native/assets/townloop-brand.png'],{encoding:'utf8'}),execFileSync('git',['rev-parse','7ae4520:native/assets/townloop-brand.png'],{encoding:'utf8'}));
- assert(source.includes('scale:0.97+0.03*progress.value'));assert(!source.includes("from 'expo-video'"));
+const settle = () => new Promise(resolve => setImmediate(resolve));
+function find(tree: any, name: string): any {
+ if (!tree) return undefined;
+ if (Array.isArray(tree)) return tree.map(node => find(node, name)).find(Boolean);
+ if (tree.type === name || tree.type?.name === name || (name === 'StartupOverlay' && tree.props?.testID === 'startup-overlay')) return tree;
+ return find(tree.props?.children, name);
+}
+async function root(h: ReturnType<typeof harness>, ready: boolean) {
+ let tree: any;
+ for (let i = 0; i < 4; i++) { tree = h.StartupLoading({ ready, children: 'Home/login' }); h.effects(); await settle(); }
+ return tree;
+}
+
+test('fast readiness does not skip MP4; end opens app and remount never replays', async () => {
+ const h = harness(); let tree = await root(h, true);
+ const video = find(tree, 'LaunchVideo'); assert.ok(video);
+ h.LaunchVideo(video.props); h.effects(); await settle();
+ assert.equal(h.calls.filter(x => x === 'play').length, 1);
+ tree = await root(h, true); assert.ok(find(tree, 'LaunchVideo'));
+ h.videoListeners.playToEnd(); tree = await root(h, true);
+ assert.equal(find(tree, 'StartupOverlay'), undefined);
+ h.unmount('LaunchVideo'); h.unmount('StartupLoading');
+ assert.equal(find(await root(h, true), 'LaunchVideo'), undefined);
+ // A separate process/module (force-close/relaunch) gets exactly one fresh animation.
+ assert.ok(find(await root(harness(), true), 'LaunchVideo'));
 });
-test('early readiness cannot dismiss startup before 3.2 visible seconds; motion spans the whole timeline',async()=>{
- const h=fixture();await h.render();assert(!h.open());await h.advance(2000);assert(!h.open());assert.equal(h.motions.length,0);
- await h.visible();assert.equal(h.motions[0].config.duration,3200);
- await h.advance(3199);assert(!h.open());await h.advance(1);assert(h.open());
+test('late initialization preserves authentication gate and uses neutral fallback after video ends', async () => {
+ const h = harness(); const video = find(await root(h, false), 'LaunchVideo');
+ h.LaunchVideo(video.props); h.effects(); await settle(); h.videoListeners.playToEnd();
+ const waiting = await root(h, false); assert.ok(find(waiting, 'StartupOverlay'));
+ assert.equal(find(waiting, 'LaunchVideo'), undefined); assert.equal(find(waiting, 'Image'), undefined);
+ h.unmount('LaunchVideo');
+ assert.equal(find(h.StartupLoading({ ready: true, children: 'app' }), 'LaunchVideo'), undefined, 'late readiness must not remount a finished player');
+ assert.equal(find(await root(h, true), 'StartupOverlay'), undefined);
 });
-test('slow initialization waits for readiness without replaying completed motion',async()=>{
- const h=fixture();await h.render(false);await h.visible();await h.advance(3200);assert(!h.open());
- await h.advance(8000);assert.equal(h.motions.length,1);await h.render(true);assert(h.open());
- await h.appState('background');await h.advance(10000);await h.appState('active');assert.equal(h.motions.length,1);assert(h.open());
+test('unknown motion preference waits; reduced motion skips all branded playback', async () => {
+ const h = harness(); h.reduced(true);
+ assert.equal(find(h.StartupLoading({ ready: true, children: 'app' }), 'LaunchVideo'), undefined);
+ h.effects(); await settle();
+ const waiting = await root(h, false);
+ assert.equal(find(waiting, 'LaunchVideo'), undefined); assert.equal(find(waiting, 'Image'), undefined);
+ h.unmount('LaunchVideo');
+ assert.equal(find(h.StartupLoading({ ready: true, children: 'app' }), 'LaunchVideo'), undefined, 'late readiness must not remount a finished player');
+ assert.equal(find(await root(h, true), 'StartupOverlay'), undefined);
+ assert.equal(h.calls.includes('load'), false);
 });
-test('background time is excluded and resume continues the remaining motion rather than replaying',async()=>{
- const h=fixture();await h.render();await h.visible();await h.advance(1000);await h.appState('background');await h.advance(10000);assert(!h.open());
- await h.appState('active');await h.advance(32);assert.equal(h.motions.at(-1).config.duration,2200);
- await h.advance(2199);assert(!h.open());await h.advance(1);assert(h.open());
+test('unresolved motion lookup is bounded and proceeds neutrally', async () => {
+ const h = harness(); h.modules['react-native'].AccessibilityInfo.isReduceMotionEnabled = () => new Promise(() => {});
+ await root(h, true); h.timers.find(t => t.ms === 1000 && !t.cleared)!.fn();
+ assert.equal(find(await root(h, true), 'StartupOverlay'), undefined);
 });
-test('Reduce Motion shows the same static brand for the minimum visible interval',async()=>{
- const h=fixture(true);await h.render();await h.visible();assert.equal(h.motions.length,0);await h.advance(3199);assert(!h.open());await h.advance(1);assert(h.open());
+test('audio/session setup precedes original MP4 load and pre-frame surface stays hidden', async () => {
+ const h = harness(); const props = { onComplete() {} }; const tree = h.LaunchVideo(props); h.effects(); await settle();
+ for (const setting of ['disableAudioSession:true', 'empty-player', 'muted:true', 'volume:0', 'audioMixingMode:mixWithOthers', 'showNowPlayingNotification:false', 'staysActiveInBackground:false', 'loop:false']) {
+  assert.ok(h.calls.indexOf(setting) >= 0 && h.calls.indexOf(setting) < h.calls.indexOf('load'), setting);
+ }
+ const view = find(tree, 'VideoView'); assert.equal(view.props.contentFit, 'contain');
+ assert.equal(view.props.style[1].opacity, 0); view.props.onFirstFrameRender();
+ assert.equal(find(h.LaunchVideo(props), 'VideoView').props.style[1].opacity, 1);
+ assert.equal(find(tree, 'Image'), undefined);
 });
-test('decode failure and interrupted animation skip safely; missing completion has bounded recovery',async()=>{
- const failed=fixture();await failed.render();await failed.imageError();assert(failed.open());
- const interrupted=fixture();await interrupted.render();await interrupted.visible();await interrupted.interrupt();assert(interrupted.open());
- const stalled=fixture();await stalled.render();await stalled.visible();stalled.stallCompletion();await stalled.advance(5199);assert(!stalled.open());await stalled.advance(1);assert(stalled.open());
- const decode=fixture();await decode.render();await decode.advance(5000);assert(decode.open());
+test('background stops playback; resume and remount never replay', async () => {
+ const h = harness(); const video = find(await root(h, true), 'LaunchVideo');
+ h.LaunchVideo(video.props); h.effects(); await settle(); h.background(); h.foreground();
+ assert.equal(find(await root(h, true), 'LaunchVideo'), undefined);
+ assert.equal(h.calls.filter(x => x === 'play').length, 1);
 });
-test('completed remount never replays; each fresh JS process gets its own cold launch',async()=>{
- const h=fixture();await h.render();await h.visible();await h.advance(3200);await h.remount();assert(h.open());assert.equal(h.motions.length,1);
- const fresh=fixture();await fresh.render();assert(!fresh.open());await fresh.visible();assert.equal(fresh.motions.length,1);
+test('stalled prepare and decoder error both unblock ready navigation', async () => {
+ for (const failure of ['stalled', 'decoder']) {
+  const h = harness(); const video = find(await root(h, true), 'LaunchVideo');
+  if (failure === 'stalled') h.player.replaceAsync = () => new Promise(() => {});
+  h.LaunchVideo(video.props); h.effects(); await settle();
+  if (failure === 'stalled') h.timers.find(t => t.ms === 8000 && !t.cleared)!.fn();
+  else h.videoListeners.statusChange({ status: 'error' });
+  assert.equal(find(await root(h, true), 'StartupOverlay'), undefined);
+ }
+});
+test('startup teardown and pause/render errors finish locally', async () => {
+ const h = harness(); let completed = 0;
+ h.LaunchVideo({ onComplete() { completed++; } }); h.effects(); await settle();
+ h.player.pause = () => { throw Error('Native player unavailable'); }; h.background(); assert.equal(completed, 1);
+ assert.doesNotThrow(() => h.unmount('LaunchVideo'));
+ const boundary = new h.StartupAnimationBoundary({ children: 'video', onFailure() { completed++; } });
+ boundary.state = h.StartupAnimationBoundary.getDerivedStateFromError(); boundary.componentDidCatch();
+ assert.equal(boundary.render(), null); assert.equal(completed, 2);
+});
+test('unexpected root remount during playback cannot launch another player', async () => {
+ const h = harness(); assert.ok(find(await root(h, true), 'LaunchVideo'));
+ h.unmount('StartupLoading');
+ assert.equal(find(await root(h, true), 'LaunchVideo'), undefined);
+});
+test('bundled MP4 is byte-identical to approved original and native splash is unbranded cream', () => {
+ const mp4 = readFileSync(new URL('../assets/startup/startup.mp4', import.meta.url));
+ assert.equal(createHash('sha256').update(mp4).digest('hex'), '0deed2ecabd1be98c4d02e9edd34d5a53d300b04d312dc332f8b9727fd7a3934');
+ const png = readFileSync(new URL('../assets/startup/native-splash.png', import.meta.url));
+ assert.equal(png.readUInt32BE(16), 1); assert.equal(png.readUInt32BE(20), 1);
+ assert.deepEqual([...inflateSync(png.subarray(41, 41 + png.readUInt32BE(33)))], [0, 243, 235, 220]);
 });
 
-test('an early UI completion callback cannot bypass the minimum visible clock',async()=>{
- const h=fixture();await h.render();await h.visible();await h.earlyCompletion();await h.advance(3199);assert(!h.open());await h.advance(1);assert(h.open());
+test('queued Fabric view attachment still receives a live startup player after React unmount', async () => {
+ const h = harness(); h.LaunchVideo({ onComplete() {} }); h.effects(); await settle();
+ h.unmount('LaunchVideo');
+ assert.doesNotThrow(() => h.player.attachToNativeView());
+ assert.ok(h.calls.includes('unload'), 'decoder source must be unloaded without invalidating the object');
 });
 
-test('authentication/readiness changes cannot restart or shorten active motion',async()=>{
- const h=fixture();await h.render(false);await h.visible();await h.advance(1000);await h.render(true);assert(!h.open());assert.equal(h.motions.length,1);await h.advance(2199);assert(!h.open());await h.advance(1);assert(h.open());
+
+test('first visible frame receives a fresh full-playback watchdog; no early readiness cutoff', async () => {
+ const h = harness(); const props = find(await root(h, true), 'LaunchVideo').props;
+ let tree = h.LaunchVideo(props); h.effects(); await settle();
+ const preparation = h.timers.find(t => t.ms === 8000 && !t.cleared)!;
+ find(tree, 'VideoView').props.onFirstFrameRender();
+ assert.equal(preparation.cleared, true);
+ assert.ok(h.timers.find(t => t.ms === 5208 && !t.cleared));
+ assert.ok(find(await root(h, true), 'LaunchVideo'));
+ h.timers.find(t => t.ms === 5208 && !t.cleared)!.fn();
+ assert.equal(find(await root(h, true), 'StartupOverlay'), undefined);
+});
+test('iOS startup remains silent and disables external playback before loading', async () => {
+ const h = harness(); h.modules['react-native'].Platform.OS = 'ios';
+ h.LaunchVideo({onComplete(){}}); h.effects(); await settle();
+ assert.ok(h.calls.includes('allowsExternalPlayback:false'));
+ assert.ok(h.calls.includes('muted:true'));
+ assert.equal(h.calls.includes('disableAudioSession:true'), false);
+});
+test('native splash is hidden before mounting the playback view', async () => {
+ const h = harness(); let hidden: () => void = () => {};
+ h.modules['expo-splash-screen'].hideAsync = () => new Promise<void>(resolve => { hidden = resolve; });
+ assert.equal(find(await root(h, true), 'LaunchVideo'), undefined);
+ hidden(); await settle();
+ assert.ok(find(await root(h, true), 'LaunchVideo'));
+});
+
+
+test('active portrait asset is pinned and no replacement logo animation remains', () => {
+ const asset = readFileSync(new URL('../assets/startup/startup-portrait.mp4', import.meta.url));
+ assert.equal(createHash('sha256').update(asset).digest('hex'), 'e93394ba7c8a34e277c2681779d26b03f49bc5fd532c6e8425969d5332514bfb');
+ const source = readFileSync(new URL('../src/components/StartupLoading.tsx', import.meta.url), 'utf8');
+ assert.ok(source.includes("require('../../assets/startup/startup-portrait.mp4')"));
+ assert.equal(/OriginalBrandAnimation|withTiming|withSpring|<Image|useVideoPlayer/.test(source), false);
+});
+test('an unresolved splash dismissal cannot leave ready navigation stuck forever', async () => {
+ const h = harness();
+ h.modules['expo-splash-screen'].hideAsync = () => new Promise<void>(() => {});
+ await root(h, true);
+ h.timers.find(t => t.ms === 1200 && !t.cleared)!.fn();
+ assert.ok(find(await root(h, true), 'LaunchVideo'));
 });
