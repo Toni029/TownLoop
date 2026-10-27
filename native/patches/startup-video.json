@@ -27,7 +27,8 @@
   {
     "file": "android/src/main/java/expo/modules/video/player/VideoPlayer.kt",
     "before": "    player.addListener(playerListener)",
-    "after": "    if (disableAudioSession) {\n      player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()\n        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()\n    }\n    player.addListener(playerListener)"
+    "after": "    // ExoPlayer is main-looper bound; shared-object construction runs on JS.\n    appContext.mainQueue.launch {\n      if (disableAudioSession) {\n        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()\n          .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()\n      }\n    }\n    player.addListener(playerListener)",
+    "previous": "    if (disableAudioSession) {\n      player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()\n        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()\n    }\n    player.addListener(playerListener)"
   },
   {
     "file": "android/src/main/java/expo/modules/video/managers/VideoManager.kt",

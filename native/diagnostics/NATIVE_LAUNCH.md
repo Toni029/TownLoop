@@ -24,6 +24,27 @@ Expo-video's existing Android startup-only `disableAudioSession` option is resto
 
 ## Runtime and verification limits
 
-The installed Android Preview APK `49e3b645-1d6f-4dbd-aa4d-820f835dc812`, runtime `00add22145e025fb9329377ce1a2d9d6ecdaf393`, already includes expo-video and the compiled startup opt-out. The new JavaScript/asset subset can target it only through the established native-baseline-compatible release snapshot and an exact fingerprint check; do not force current full-branch native configuration onto it. A future clean Android build must retain the patch/source-compilation gate. iOS needs its own approved build and device verification; successful Android checks do not establish iPhone behavior.
+The installed Android Preview APK `49e3b645-1d6f-4dbd-aa4d-820f835dc812`, runtime `00add22145e025fb9329377ce1a2d9d6ecdaf393`, contains the prior startup audio opt-out, but its constructor is defective. Two cold launches of this exact APK in the Android API 30 emulator, without login or resident access, produced:
+
+```text
+Call to function 'VideoPlayer.constructor' has been rejected.
+Caused by: java.lang.IllegalStateException: Player is accessed on the wrong thread.
+Current thread: 'mqt_v_js'
+Expected thread: 'main'
+```
+
+Those runs used the APK's bundled `LaunchVideo` JavaScript, not the latest OTA; the current `ApprovedStartup` uses the same native constructor option. Source inspection identifies the synchronous `player.trackSelectionParameters` getter/setter added by our opt-out in the constructor. ExoPlayer is explicitly main-looper bound. The video boundary catches construction failure and skips to the app, explaining a missing video without an app crash. The earlier assumption that presence of the compiled option established functional compatibility was insufficient.
+
+The pinned patch now dispatches this startup-only track configuration to `appContext.mainQueue`; MediaSession and audio-focus exclusions remain unchanged. Its installer safely upgrades the exact previous patch and remains idempotent. A focused regression rejects synchronous constructor track access. Lifecycle fixtures still cover once per process, real end-of-video completion, no replay on resume/remount, readiness changes and bounded failure recovery. The approved MP4 remains byte-identical.
+
+**A new Android APK with a newly computed native fingerprint is required.** Do not publish this native repair to runtime `00add22145e025fb9329377ce1a2d9d6ecdaf393` or force that old runtime onto a new build. Merely publishing the same JavaScript again will not repair the installed native constructor. The corrected binary has not been built or tested on a phone. iOS does not use the Android patch; its startup lifecycle remains unchanged and still requires its own device verification.
 
 Local verification covers byte identity and source timing, actual component lifecycle fixtures, all phone/safe-area geometry cases, preserved route guards, patch/artifact-gate fixtures, TypeScript, and local Android/iOS JavaScript exports containing the exact MP4. Exports are not native builds, physical playback, frame pacing or Bluetooth tests. No Firebase, OTA, GitHub, APK, iOS binary, notification delivery or production change is authorized here.
+
+
+## Thread-fix verification
+
+- Existing Preview binary: constructor thread exception reproduced on two emulator cold launches; no login, resident records or photos accessed. The first-run bundle was the embedded bundle, not a claim that the latest OTA was executing.
+- Local thread-safety regression failed before the patch and passed afterward. Four patch/artifact tests cover pristine SDK and prior-patch upgrades, idempotence, default-off behavior and source drift; eight existing component lifecycle tests passed. TypeScript and diff whitespace checks passed. Owner-supplied and bundled MP4 SHA-256 values still match.
+- A compile-only `:expo-video:compileReleaseKotlin` check was attempted offline, without an APK task. It stopped during Gradle configuration because Kotlin JVM plugin 2.2.0 is not cached; it did not reach this Kotlin source. No replacement build was attempted. Native compilation and corrected Android playback remain unverified until an approved build/test.
+- No OTA, GitHub push, cloud build or backend change was performed for this correction. Do not describe passing JavaScript fixtures as device verification of the repaired native binary.
