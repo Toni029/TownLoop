@@ -1,4 +1,5 @@
 import {Platform} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {requireOptionalNativeModule} from 'expo';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
@@ -23,6 +24,7 @@ const call=(data:unknown)=>httpsCallable(getFunctions(app,'us-central1'),'regist
 const prefKey=(uid:string)=>`townloop.inbox.preference.${uid}`;
 const categoriesKey=(uid:string)=>`townloop.notifications.categories.${uid}`;
 const permissionAttemptKey='townloop.notifications.permission.requested';
+const permissionDefaultsKey=(uid:string)=>`townloop.notifications.permission.defaults.${uid}`;
 export async function categoryPreferences(uid:string):Promise<NotificationPreferences>{
  const raw=await SecureStore.getItemAsync(categoriesKey(uid),options);
  if(raw){try{const value=JSON.parse(raw);return Object.fromEntries(notificationCategories.map(k=>[k,value[k]===true])) as NotificationPreferences;}catch{}}
@@ -46,20 +48,38 @@ async function prepareChannels(n:NonNullable<ReturnType<typeof notifications>>){
 }
 // OS authorization is installation-wide, separate from per-account category choices.
 // Record the attempt before displaying the native prompt; cancellation never loops.
-export async function requestNativeNotificationPermission(uid:string):Promise<NotificationAuthorization>{
+export async function requestNativeNotificationPermission(uid?:string):Promise<NotificationAuthorization>{
  const n=notifications();if(!n)return 'unavailable';
  const permission=await n.getPermissionsAsync();
- if(auth.currentUser?.uid!==uid||permission.status!=='undetermined'||!permission.canAskAgain||
+ if((uid!==undefined&&auth.currentUser?.uid!==uid)||permission.status!=='undetermined'||!permission.canAskAgain||
    (Platform.OS==='android'&&Number(Platform.Version)<33))return authorization(n,permission);
- if(await SecureStore.getItemAsync(permissionAttemptKey,options)==='yes')return authorization(n,permission);
+ if(await AsyncStorage.getItem(permissionAttemptKey)==='yes')return authorization(n,permission);
  await prepareChannels(n);
- if(auth.currentUser?.uid!==uid)return authorization(n,permission);
- await SecureStore.setItemAsync(permissionAttemptKey,'yes',options);
- if(auth.currentUser?.uid!==uid)return authorization(n,permission);
- return authorization(n,await n.requestPermissionsAsync({ios:{allowAlert:true,allowSound:true,allowBadge:true}}));
+ if(uid!==undefined&&auth.currentUser?.uid!==uid)return authorization(n,permission);
+ // Nonsecret installation marker: iOS Keychain can survive uninstall.
+ await AsyncStorage.setItem(permissionAttemptKey,'yes');
+ if(uid!==undefined&&auth.currentUser?.uid!==uid)return authorization(n,permission);
+ try{return authorization(n,await n.requestPermissionsAsync({ios:{allowAlert:true,allowSound:true,allowBadge:true}}));}
+ catch(error){await AsyncStorage.removeItem(permissionAttemptKey);throw error;}
 }
 
 export const setPreference=async(uid:string,on:boolean)=>{await SecureStore.setItemAsync(prefKey(uid),on?'on':'off',options);await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(Object.fromEntries(notificationCategories.map(k=>[k,on]))),options);};
+/** Apply the OS decision once per account/authorization change, not on every resume.
+ * A later category opt-out survives restarts. OS denial always disables all four.
+ * No token is obtained or registered until an approved authenticated session syncs.
+ */
+export async function applyNotificationPermission(uid:string,permission:NotificationAuthorization){
+ if(auth.currentUser?.uid!==uid||!['granted','provisional','denied'].includes(permission))return;
+ const allowed=permission==='granted'||permission==='provisional';
+ const decision=allowed?'on':'off';
+ const previous=await SecureStore.getItemAsync(permissionDefaultsKey(uid),options);
+ if(auth.currentUser?.uid!==uid)return;
+ if(previous!==decision||!allowed){
+  await setPreference(uid,allowed);
+  await SecureStore.setItemAsync(permissionDefaultsKey(uid),decision,options);
+ }
+}
+
 async function saved():Promise<Registration|null>{const raw=await SecureStore.getItemAsync(key,options);try{return raw?JSON.parse(raw):null;}catch{return null;}}
 export async function binding(uid:string){const state=await saved();if(!state||state.uid!==uid||!state.enabled)return '';const cap=await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,`${state.installationId}/${state.secret}`);return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,`${cap}/${uid}`);}
 export async function revoke(){
@@ -101,7 +121,7 @@ export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'
 export async function clearPushAccount(uid:string){
  if(Platform.OS==='web')return;
  cleanupEpoch.set(uid,(cleanupEpoch.get(uid)||0)+1);
- await Promise.all([prefKey(uid),categoriesKey(uid),`townloop.notifications.explained.${uid}`].map(k=>SecureStore.deleteItemAsync(k,options)));
+ await Promise.all([prefKey(uid),categoriesKey(uid),permissionDefaultsKey(uid),`townloop.notifications.explained.${uid}`].map(k=>SecureStore.deleteItemAsync(k,options)));
  await badgeOperations(()=>SecureStore.deleteItemAsync(ackKey(uid),options));
  await serialized(async()=>{const state=await saved();if(state?.uid!==uid)return;
   await SecureStore.setItemAsync(key,JSON.stringify({...state,enabled:false}),options);

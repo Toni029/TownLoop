@@ -33,9 +33,17 @@ test('four existing preferences appear only on Notifications, with OS status and
 test('native permission request is independent of Inbox UI and never displays the removed introduction',()=>{
  const provider=read('../src/notifications/InboxPushProvider.tsx');
  assert.equal(/Stay connected with TownLoop|Alert\.alert|explanationOpen|markExplained|setPreference\(/.test(provider),false);
- assert.match(provider,/if\(!ready\|\|!canNavigate\|\|Platform.OS==='web'\)return/);
+ assert.match(provider,/if\(loading\|\|!navigation\?\.key\|\|!communityReady\|\|Platform.OS==='web'\)return/);
  assert.ok(provider.includes("AppState.currentState!=='active'"));
  assert.ok(provider.includes('requestAnimationFrame'));
  assert.equal(source.includes('requestPermissionsAsync'),false);
  assert.equal(branch('inbox').includes('refresh(true)'),false);
+});
+
+
+test('first-launch permission does not require login; category defaults are applied only during an approved account sync',()=>{
+ const provider=read('../src/notifications/InboxPushProvider.tsx');
+ assert.ok(provider.includes('await requestNativeNotificationPermission()'));
+ assert.ok(provider.includes('await applyNotificationPermission(current.uid,osPermission)'));
+ assert.ok(provider.indexOf('await applyNotificationPermission')<provider.indexOf('const result=await syncDevice'));
 });

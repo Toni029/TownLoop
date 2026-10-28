@@ -8,6 +8,7 @@ function load(platform,flag){
  const module={exports:{}};
  const source=ts.transpileModule(fs.readFileSync(require.resolve('../src/notifications/device.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  vm.runInNewContext(source,{module,exports:module.exports,process:{env:{EXPO_PUBLIC_TOWNLOOP_IOS_SIMULATOR:flag}},setTimeout,clearTimeout,require:id=>{
+  if(id==='@react-native-async-storage/async-storage')return {default:{getItem:async key=>store.get(key)||null,setItem:async(key,value)=>store.set(key,value),removeItem:async key=>store.delete(key)}};
   if(id==='react-native')return {Platform:{OS:platform}};
   if(id==='expo')return {requireOptionalNativeModule:()=>({})};
   if(id==='expo-notifications')return n;

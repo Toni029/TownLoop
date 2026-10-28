@@ -9,7 +9,7 @@ import {auth,db} from '../lib/firebase';
 import {readThread} from '../profile/model';
 import type {UserProfile} from '../../../src/types';
 import {authorizeTarget,collectionFor,inboxTarget,emptyPreferences,preferenceCategory,type NotificationCategory,type NotificationPreferences,type InboxTarget} from './protocol';
-import {binding,notifications,categoryPreferences,revoke,serialized,setCategoryPreference,syncDevice,requestNativeNotificationPermission,getNotificationAuthorization,type NotificationAuthorization,refreshBadge,notificationCapabilities,resolveNotice} from './device';
+import {binding,notifications,categoryPreferences,revoke,serialized,setCategoryPreference,syncDevice,applyNotificationPermission,requestNativeNotificationPermission,getNotificationAuthorization,type NotificationAuthorization,refreshBadge,notificationCapabilities,resolveNotice} from './device';
 type State={authorization:NotificationAuthorization;repliesAvailable:boolean;enabled:boolean;preferences:NotificationPreferences;busy:boolean;status:string;target:InboxTarget|null;toggle:(category?:NotificationCategory)=>void;consume:()=>void;read:(category:InboxTarget['category'],id:string)=>void};
 const Context=createContext<State>({authorization:'checking',repliesAvailable:false,enabled:false,preferences:emptyPreferences,busy:false,status:'',target:null,toggle:()=>{},consume:()=>{},read:()=>{}});
 export const useInboxPush=()=>useContext(Context);
@@ -31,12 +31,16 @@ export function InboxPushProvider({children}:PropsWithChildren){
  const consume=useCallback(()=>{pending.current=null;setTarget(null);},[]);
  const refresh=useCallback((ask=false)=>serialized(async()=>{
   const current=active.current;if(!current.ready){if(!current.loading)await revoke();return;}
+  if(ask)await requestNativeNotificationPermission(current.uid);
   const osPermission=await getNotificationAuthorization();
   if(active.current.uid!==current.uid)return;setAuthorization(osPermission);
-  const values=await categoryPreferences(current.uid);const result=await syncDevice(current.uid,Object.values(values).some(Boolean),ask);
+  await applyNotificationPermission(current.uid,osPermission);
+  const values=await categoryPreferences(current.uid);
+  if(active.current.uid!==current.uid)return;setPrefs(values);
+  const result=await syncDevice(current.uid,Object.values(values).some(Boolean));
   const updatedPermission=await getNotificationAuthorization();
   if(active.current.uid!==current.uid)return;
-  setAuthorization(updatedPermission);setPrefs(values);setRepliesAvailable(notificationCapabilities().discussionReplies);setStatus(result==='simulator'?'Preferences saved. Push delivery requires a configured physical iPhone.':result==='denied'?'Notifications are off in device settings.':result==='unavailable'?'Notifications require the next TownLoop app build.':result==='setup-required'?'Notification service update is pending.':result==='on'?'Notifications on':'Notifications off');
+  setAuthorization(updatedPermission);setPrefs(values);setRepliesAvailable(notificationCapabilities().discussionReplies);setStatus(result==='simulator'?'Preferences saved. Push delivery requires a configured physical iPhone.':updatedPermission==='denied'?'Notifications are off in device settings.':result==='unavailable'?'Notifications require the next TownLoop app build.':result==='setup-required'?'Notification service update is pending.':result==='on'?'Notifications on':'Notifications off');
   await refreshBadge(current.uid).catch(()=>{});
  }),[]);
  const openPending=useCallback(async()=>{
@@ -90,23 +94,23 @@ export function InboxPushProvider({children}:PropsWithChildren){
   void openPending();return()=>listener.remove();
  },[uid,ready,loading,refresh,openPending]);
  useEffect(()=>{
-  if(!ready||!canNavigate||Platform.OS==='web')return;
+  if(loading||!navigation?.key||!communityReady||Platform.OS==='web')return;
   let canceled=false;
-  // Navigation exists only after essential initialization. Yield a frame, then
-  // let the OS alone request permission; never change saved category choices.
+  // Request installation-wide native permission on the first usable launch,
+  // including before login. Account enrollment remains gated by approval.
   let frame:number|undefined;
   const schedule=()=>{if(frame!==undefined)cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{void serialized(async()=>{
-   if(canceled||permissionOpen.current||AppState.currentState!=='active'||active.current.uid!==uid||!active.current.ready)return;
+   if(canceled||permissionOpen.current||AppState.currentState!=='active'||active.current.loading)return;
    permissionOpen.current=true;
    try{
-    const permission=await requestNativeNotificationPermission(uid);
-    if(!canceled&&active.current.uid===uid)setAuthorization(permission);
+    const permission=await requestNativeNotificationPermission();
+    if(!canceled)setAuthorization(permission);
    }finally{permissionOpen.current=false;}
-  }).then(()=>{if(!canceled&&active.current.uid===uid)void refresh().catch(()=>{});}).catch(()=>{});});};
+  }).then(()=>{if(!canceled)void refresh().catch(()=>{});}).catch(()=>{});});};
   schedule();
   const resumed=AppState.addEventListener('change',state=>{if(state==='active')schedule();});
   return()=>{canceled=true;if(frame!==undefined)cancelAnimationFrame(frame);resumed.remove();};
- },[uid,ready,canNavigate,refresh]);
+ },[loading,navigation?.key,communityReady,refresh]);
  useEffect(()=>{
   if(Platform.OS==='web')return;
   return beforeAuthStateChanged(auth,async next=>{
