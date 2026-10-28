@@ -11,7 +11,7 @@ function prepare(stage='registration'){
  for(const file of ['inbox.cjs','inbox-policy.cjs','inbox-push.cjs','notification-events.cjs','package-lock.json'])fs.copyFileSync(path.join(root,'functions',file),path.join(source,file));
  fs.writeFileSync(path.join(source,'package.json'),JSON.stringify({...require(path.join(root,'functions/package.json')),main:'index.cjs'},null,2));
  fs.writeFileSync(path.join(source,'index.cjs'),index);
- fs.writeFileSync(path.join(source,'.env.cc-livingcommunity-app'),'INBOX_PUSH_ENABLED=false\nDISCUSSION_REPLIES_ENABLED=false\nPUSH_TESTER_UIDS=\nPUSH_TESTER_PLATFORMS=android\n',{mode:0o600});
+ fs.writeFileSync(path.join(source,'.env.cc-livingcommunity-app'),'INBOX_PUSH_ENABLED=false\nPUSH_RECIPIENT_SCOPE=testers\nDISCUSSION_REPLIES_ENABLED=false\nPUSH_TESTER_UIDS=\nPUSH_TESTER_PLATFORMS=android\n',{mode:0o600});
  fs.writeFileSync(path.join(out,'firebase.json'),JSON.stringify({functions:[{source:'functions',codebase:'default',runtime:'nodejs22',ignore:['node_modules','.git','*.test.cjs']}]},null,2));
  fs.writeFileSync(path.join(out,'scope.json'),JSON.stringify({project:'cc-livingcommunity-app',database:'(default)',region:'us-central1',exports:names[stage],sendingEnabled:false,schedulers:[],destructiveWorkers:[]},null,2));
  if(stage==='registration'){

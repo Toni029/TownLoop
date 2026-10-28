@@ -27,3 +27,12 @@ test('temporary traces require explicit future expiry and remain bounded and ide
  assert.equal(f.logs.length,10);assert(f.logs.every(x=>Object.keys(x).sort().join(',')==='component,stage'));
  for(const expiry of ['',new Date(0).toISOString()]){const off=fixture({...env,PUSH_DIAGNOSTICS_UNTIL:expiry});await off.exports.notifyDiscussion({});off.calls[0].trace('principal_missing');assert.equal(off.logs.length,0);}
 });
+
+test('approved-user rollout is explicit and independently platform gated; unknown scopes fail closed',async()=>{
+ const env={INBOX_PUSH_ENABLED:'true',PUSH_RECIPIENT_SCOPE:'approved',PUSH_TESTER_PLATFORMS:'android'};
+ const f=fixture(env);await f.exports.notifyInboxFriend({});assert.equal(f.calls.length,1);assert.equal(f.calls[0].recipientAllowed('another-approved-account'),true);assert.equal(f.calls[0].deviceAllowed({platform:'android'}),true);assert.equal(f.calls[0].deviceAllowed({platform:'ios'}),false);
+ for(const patch of [{PUSH_RECIPIENT_SCOPE:'all'},{PUSH_RECIPIENT_SCOPE:''},{PUSH_TESTER_PLATFORMS:''},{INBOX_PUSH_ENABLED:'false'}]){
+  const off=fixture({...env,...patch});await off.exports.notifyInboxFriend({});assert.equal(off.calls.length,0);
+ }
+ const ios=fixture({...env,PUSH_TESTER_PLATFORMS:'ios'});await ios.exports.notifyDiscussion({});assert.equal(ios.calls[0].deviceAllowed({platform:'ios'}),true);assert.equal(ios.calls[0].deviceAllowed({platform:'android'}),false);
+});

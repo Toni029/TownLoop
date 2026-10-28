@@ -7,7 +7,11 @@ const {collections}=require('./inbox-policy.cjs');
 const {registerDevice,deliver,deliverContent,notificationState,checkReceipts}=require('./inbox-push.cjs');
 const testers=()=>new Set((process.env.PUSH_TESTER_UIDS||'').split(',').map(s=>s.trim()).filter(Boolean));
 const platforms=()=>new Set((process.env.PUSH_TESTER_PLATFORMS||'').split(',').map(s=>s.trim()).filter(s=>['android','ios'].includes(s)));
-const sendingAllowed=()=>process.env.INBOX_PUSH_ENABLED==='true'&&testers().size>0&&platforms().size>0;
+// Missing scope preserves tester-only behavior. Unknown values fail closed.
+const scope=()=>process.env.PUSH_RECIPIENT_SCOPE??'testers';
+const recipientAllowed=uid=>scope()==='approved'||scope()==='testers'&&testers().has(uid);
+// Actual delivery also verifies canonical approval, membership, blocks and preferences.
+const sendingAllowed=()=>process.env.INBOX_PUSH_ENABLED==='true'&&platforms().size>0&&(scope()==='approved'||scope()==='testers'&&testers().size>0);
 const deviceAllowed=device=>platforms().has(device.platform);
 const options={region:'us-central1',maxInstances:4,timeoutSeconds:60};
 function deliveryTrace(){
@@ -32,7 +36,7 @@ exports.registerInboxDevice=onCall(options,async request=>{
 });
 for(const [collection,category]of Object.entries(collections))exports[`notifyInbox${category[0].toUpperCase()}${category.slice(1)}`]=onDocumentWrittenWithAuthContext({...options,database:'(default)',document:`${collection}/{chatId}`,retry:true},async event=>{
  if(!sendingAllowed())return;
- await deliver(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed,trace:deliveryTrace()});
+ await deliver(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed,deviceAllowed,trace:deliveryTrace()});
 });
 exports.checkInboxPushReceipts=onSchedule({...options,schedule:'every 15 minutes'},async()=>{
  if(!sendingAllowed())return;
@@ -45,5 +49,5 @@ exports.getNotificationState=onCall(options,async request=>{
 });
 for(const [collection,name]of [['discussion_feed','notifyDiscussion'],['work_orders','notifyWorkOrderDone']])exports[name]=onDocumentWrittenWithAuthContext({...options,database:'(default)',document:`${collection}/{documentId}`,retry:true},async event=>{
  if(!sendingAllowed())return;
- await deliverContent(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed,trace:deliveryTrace()});
+ await deliverContent(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed,deviceAllowed,trace:deliveryTrace()});
 });
