@@ -48,7 +48,7 @@ async function notificationCounts(db,uid,now=Date.now()){
  }
  return result;
 }
-async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()=>true}){
+async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()=>true,deviceAllowed=()=>true}){
  if(!await activeIdentity(identity,d.senderId))return;
  for(const uid of [...new Set(d.recipientIds)].filter(v=>id(v)&&v!==d.senderId)){
   if(!recipientAllowed(uid)||await blocked(db,d.senderId,uid))continue;
@@ -59,7 +59,7 @@ async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()
    const current=await db.runTransaction(async tx=>{
     const [sent,dev,event,profile,read]=await Promise.all([tx.get(claim),tx.get(device.ref),tx.get(notice),tx.get(db.doc(`users/${uid}`)),tx.get(db.doc(`notification_reads/${readKey(uid,targetKey(d))}`))]);
     const token=dev.data();
-    if(millis(read.data()?.until)>=d.eventTime||sent.exists||event.data()?.seen===true||!token||token.uid!==uid||token.enabled!==true||
+    if(millis(read.data()?.until)>=d.eventTime||sent.exists||event.data()?.seen===true||!token||!deviceAllowed(token)||token.uid!==uid||token.enabled!==true||
      preferences(token.preferences)[prefCategory(d.category)]!==true||!validToken(token.token)||millis(token.expiresAt)<=now||
      !approved(profile.data())||!await verify(tx,uid)||await blocked(db,d.senderId,uid,tx))return null;
     if(!event.exists)tx.create(notice,{uid,category:prefCategory(d.category),target:targetKey(d),senderId:d.senderId,destination:{category:d.category,conversationId:d.documentId,...(d.commentId?{commentId:d.commentId}:{})},seen:false,createdAt:new Date(d.eventTime),expiresAt:new Date(d.eventTime+days)});
@@ -67,7 +67,7 @@ async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()
    });
    if(!current)continue;
    const latest=(await device.ref.get()).data(),latestRead=(await db.doc(`notification_reads/${readKey(uid,targetKey(d))}`).get()).data();
-   if(millis(latestRead?.until)>=d.eventTime||!latest||latest.uid!==uid||latest.capability!==current.capability||latest.enabled!==true||preferences(latest.preferences)[prefCategory(d.category)]!==true||
+   if(millis(latestRead?.until)>=d.eventTime||!latest||!deviceAllowed(latest)||latest.uid!==uid||latest.capability!==current.capability||latest.enabled!==true||preferences(latest.preferences)[prefCategory(d.category)]!==true||
     !await activeIdentity(identity,uid,current)||await blocked(db,d.senderId,uid)){
     await claim.update({state:'suppressed'});continue;
    }
@@ -83,7 +83,7 @@ async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()
   }
  }
 }
-async function deliver(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed}={}){
+async function deliver(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed,deviceAllowed}={}){
  const after=event.data?.after.data();
  if(!after||!id(event.authId)||['system','unauthenticated','service_account'].includes(event.authType)||!collections[collection]||!recent(event,now))return;
  const sender={...(await db.doc(`users/${event.authId}`).get()).data(),id:event.authId};
@@ -98,7 +98,7 @@ async function deliver(db,event,collection,{now=Date.now(),identity,transport,re
  }
  const descriptor={category:collections[collection],collection,documentId:event.params.chatId,eventId:message.id,eventTime:Date.parse(event.time),senderId:sender.id,
   recipientIds:recipients(collection,after,[...profiles.values()],sender.id).map(p=>p.id),body:collection==='marketplace_chats'?'You have a new Marketplace message.':'You have a new Inbox message.'};
- await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,verify:async(tx,uid)=>{
+ await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,deviceAllowed,verify:async(tx,uid)=>{
   const [chat,recipient,currentSender]=await Promise.all([tx.get(db.doc(`${collection}/${descriptor.documentId}`)),tx.get(db.doc(`users/${uid}`)),tx.get(db.doc(`users/${sender.id}`))]);
   const data=chat.data();if(!data)return false;
   if(Number.isInteger(data.readBy?.[uid])&&data.readBy[uid]>=after.messages.length)return false;
@@ -106,11 +106,11 @@ async function deliver(db,event,collection,{now=Date.now(),identity,transport,re
   return chat.exists&&member(collection,chat.data(),{...recipient.data(),id:uid})&&member(collection,chat.data(),{...currentSender.data(),id:sender.id});
  }});
 }
-async function deliverContent(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed}={}){
+async function deliverContent(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed,deviceAllowed}={}){
  if(!id(event.authId))return;
  const sender={...(await db.doc(`users/${event.authId}`).get()).data(),id:event.authId};
  const descriptor=contentEvent(event,collection,sender,now);if(!descriptor)return;descriptor.eventTime=Date.parse(event.time);
- await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,verify:async(tx,uid)=>{
+ await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,deviceAllowed,verify:async(tx,uid)=>{
   const [record,currentSender]=await Promise.all([tx.get(db.doc(`${collection}/${descriptor.documentId}`)),tx.get(db.doc(`users/${sender.id}`))]);
   const live=record.data();if(!live||!approved(currentSender.data()))return false;
   if(collection==='work_orders')return live.userId===uid&&live.status==='Done';

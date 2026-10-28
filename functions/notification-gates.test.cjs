@@ -12,9 +12,9 @@ function fixture(env={}){
   throw Error(name);
  }});return{exports,calls};
 }
-test('all six triggers and receipt worker are inert unless both flag and tester allowlist exist',async()=>{
- for(const env of [{},{INBOX_PUSH_ENABLED:'true'},{PUSH_TESTER_UIDS:'fixture'}]){
+test('all six triggers and receipt worker are inert unless sending, tester UID and device-platform allowlists all exist',async()=>{
+ for(const env of [{},{INBOX_PUSH_ENABLED:'true'},{PUSH_TESTER_UIDS:'fixture'},{INBOX_PUSH_ENABLED:'true',PUSH_TESTER_UIDS:'fixture'}]){
   const f=fixture(env);for(const [name,fn]of Object.entries(f.exports))if(name.startsWith('notify')||name==='checkInboxPushReceipts')await fn({});assert.equal(f.calls.length,0);
  }
- const f=fixture({INBOX_PUSH_ENABLED:'true',PUSH_TESTER_UIDS:'fixture'});await f.exports.notifyDiscussion({});assert.equal(f.calls.length,1);assert.equal(f.calls[0].recipientAllowed('fixture'),true);assert.equal(f.calls[0].recipientAllowed('resident'),false);
+ const f=fixture({INBOX_PUSH_ENABLED:'true',PUSH_TESTER_UIDS:'fixture',PUSH_TESTER_PLATFORMS:'android'});await f.exports.notifyDiscussion({});assert.equal(f.calls.length,1);assert.equal(f.calls[0].recipientAllowed('fixture'),true);assert.equal(f.calls[0].recipientAllowed('resident'),false);assert.equal(f.calls[0].deviceAllowed({platform:'android'}),true);assert.equal(f.calls[0].deviceAllowed({platform:'ios'}),false);
 });

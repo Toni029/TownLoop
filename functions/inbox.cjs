@@ -6,7 +6,9 @@ const {getAuth}=require('firebase-admin/auth');
 const {collections}=require('./inbox-policy.cjs');
 const {registerDevice,deliver,deliverContent,notificationState,checkReceipts}=require('./inbox-push.cjs');
 const testers=()=>new Set((process.env.PUSH_TESTER_UIDS||'').split(',').map(s=>s.trim()).filter(Boolean));
-const sendingAllowed=()=>process.env.INBOX_PUSH_ENABLED==='true'&&testers().size>0;
+const platforms=()=>new Set((process.env.PUSH_TESTER_PLATFORMS||'').split(',').map(s=>s.trim()).filter(s=>['android','ios'].includes(s)));
+const sendingAllowed=()=>process.env.INBOX_PUSH_ENABLED==='true'&&testers().size>0&&platforms().size>0;
+const deviceAllowed=device=>platforms().has(device.platform);
 const options={region:'us-central1',maxInstances:4,timeoutSeconds:60};
 async function transport(path,body){
  const headers={'Content-Type':'application/json'};
@@ -21,7 +23,7 @@ exports.registerInboxDevice=onCall(options,async request=>{
 });
 for(const [collection,category]of Object.entries(collections))exports[`notifyInbox${category[0].toUpperCase()}${category.slice(1)}`]=onDocumentWrittenWithAuthContext({...options,database:'(default)',document:`${collection}/{chatId}`,retry:true},async event=>{
  if(!sendingAllowed())return;
- await deliver(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid)});
+ await deliver(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed});
 });
 exports.checkInboxPushReceipts=onSchedule({...options,schedule:'every 15 minutes'},async()=>{
  if(!sendingAllowed())return;
@@ -34,5 +36,5 @@ exports.getNotificationState=onCall(options,async request=>{
 });
 for(const [collection,name]of [['discussion_feed','notifyDiscussion'],['work_orders','notifyWorkOrderDone']])exports[name]=onDocumentWrittenWithAuthContext({...options,database:'(default)',document:`${collection}/{documentId}`,retry:true},async event=>{
  if(!sendingAllowed())return;
- await deliverContent(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid)});
+ await deliverContent(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed});
 });

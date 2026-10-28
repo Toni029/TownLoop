@@ -114,3 +114,11 @@ test('push payload uses opaque IDs; only authorized recipient can resolve a dest
  await assert.rejects(()=>notificationState(h.db,'a',{resolve:payload.noticeId},{now:h.now}),/permission-denied/);
  h.records.set('user_blocks/b/targets/a',{});await assert.rejects(()=>notificationState(h.db,'b',{resolve:payload.noticeId},{now:h.now}),/permission-denied/);
 });
+
+
+test('tester-only Android delivery excludes iOS devices and other recipient accounts',async()=>{
+ const h=fixture();await h.register('b');await h.register('b',{token:'ExpoPushToken[ios]',installationId:'d'.repeat(32),platform:'ios'});
+ await h.deliver({recipientAllowed:uid=>uid==='b',deviceAllowed:device=>device.platform==='android'});
+ assert.equal(h.sent.length,1);assert.equal(h.sent[0].to,'ExpoPushToken[aaa]');
+ const excluded=fixture();await excluded.register('b');await excluded.deliver({recipientAllowed:uid=>uid==='other',deviceAllowed:device=>device.platform==='android'});assert.equal(excluded.sent.length,0);
+});
