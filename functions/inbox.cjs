@@ -10,6 +10,15 @@ const platforms=()=>new Set((process.env.PUSH_TESTER_PLATFORMS||'').split(',').m
 const sendingAllowed=()=>process.env.INBOX_PUSH_ENABLED==='true'&&testers().size>0&&platforms().size>0;
 const deviceAllowed=device=>platforms().has(device.platform);
 const options={region:'us-central1',maxInstances:4,timeoutSeconds:60};
+function deliveryTrace(){
+ let remaining=12;
+ return code=>{
+  if(process.env.PUSH_DIAGNOSTICS_ENABLED!=='true'||!(Date.parse(process.env.PUSH_DIAGNOSTICS_UNTIL)>Date.now())||remaining--<=0)return;
+  if(typeof code!=='string'||!/^[a-z_]{1,48}$/.test(code))return;
+  try{console.info(JSON.stringify({component:'townloop_push',stage:code}));}catch{}
+ };
+}
+
 async function transport(path,body){
  const headers={'Content-Type':'application/json'};
  // Optional Expo enhanced push security credential is server-only, never bundled.
@@ -23,7 +32,7 @@ exports.registerInboxDevice=onCall(options,async request=>{
 });
 for(const [collection,category]of Object.entries(collections))exports[`notifyInbox${category[0].toUpperCase()}${category.slice(1)}`]=onDocumentWrittenWithAuthContext({...options,database:'(default)',document:`${collection}/{chatId}`,retry:true},async event=>{
  if(!sendingAllowed())return;
- await deliver(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed});
+ await deliver(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed,trace:deliveryTrace()});
 });
 exports.checkInboxPushReceipts=onSchedule({...options,schedule:'every 15 minutes'},async()=>{
  if(!sendingAllowed())return;
@@ -36,5 +45,5 @@ exports.getNotificationState=onCall(options,async request=>{
 });
 for(const [collection,name]of [['discussion_feed','notifyDiscussion'],['work_orders','notifyWorkOrderDone']])exports[name]=onDocumentWrittenWithAuthContext({...options,database:'(default)',document:`${collection}/{documentId}`,retry:true},async event=>{
  if(!sendingAllowed())return;
- await deliverContent(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed});
+ await deliverContent(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed:uid=>testers().has(uid),deviceAllowed,trace:deliveryTrace()});
 });

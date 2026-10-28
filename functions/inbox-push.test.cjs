@@ -122,3 +122,18 @@ test('tester-only Android delivery excludes iOS devices and other recipient acco
  assert.equal(h.sent.length,1);assert.equal(h.sent[0].to,'ExpoPushToken[aaa]');
  const excluded=fixture();await excluded.register('b');await excluded.deliver({recipientAllowed:uid=>uid==='other',deviceAllowed:device=>device.platform==='android'});assert.equal(excluded.sent.length,0);
 });
+
+// Live triggers previously acknowledged events without explaining a suppressed push.
+test('delivery tracing reports fixed reason codes without message or identity data',async()=>{
+ for(const mode of ['missing-auth','sender-denied','not-new-message','tester-excluded','preference-off','sent']){
+  const h=fixture(),stages=[];await h.register();
+  if(mode==='missing-auth')delete h.event.authId;
+  if(mode==='sender-denied')h.records.get('users/a').approved=false;
+  if(mode==='not-new-message')h.event.data.before.data=()=>h.chat;
+  if(mode==='preference-off')await h.register('b',{preferences:{inbox:false}});
+  await h.deliver({trace:code=>stages.push(code),recipientAllowed:()=>mode!=='tester-excluded'});
+  const expected={'missing-auth':'principal_missing','sender-denied':'sender_not_authorized','not-new-message':'not_new_message','tester-excluded':'recipient_excluded','preference-off':'device_or_recipient_ineligible',sent:'transport_accepted'}[mode];
+  assert(stages.includes(expected),mode+': '+JSON.stringify(stages));
+  assert(stages.every(s=>/^[a-z_]+$/.test(s)));assert(!JSON.stringify(stages).includes('PRIVATE CONTENT'));
+ }
+});

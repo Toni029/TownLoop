@@ -48,11 +48,14 @@ async function notificationCounts(db,uid,now=Date.now()){
  }
  return result;
 }
-async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()=>true,deviceAllowed=()=>true}){
- if(!await activeIdentity(identity,d.senderId))return;
+async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()=>true,deviceAllowed=()=>true,trace=()=>{}}){
+ if(!await activeIdentity(identity,d.senderId)){trace('sender_identity_inactive');return;}
+ if(!d.recipientIds.length)trace('no_recipients');
  for(const uid of [...new Set(d.recipientIds)].filter(v=>id(v)&&v!==d.senderId)){
-  if(!recipientAllowed(uid)||await blocked(db,d.senderId,uid))continue;
+  if(!recipientAllowed(uid)){trace('recipient_excluded');continue;}
+  if(await blocked(db,d.senderId,uid)){trace('blocked');continue;}
   const devices=await db.collection('notification_devices').where('uid','==',uid).get();
+  if(!devices.docs.length)trace('no_registered_devices');
   for(const device of devices.docs){
    const notice=db.doc(`notification_events/${noticeKey(d,uid)}`);
    const claim=db.doc(`notification_deliveries/${hash(`${notice.id}/${device.id}`)}`);
@@ -65,11 +68,11 @@ async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()
     if(!event.exists)tx.create(notice,{uid,category:prefCategory(d.category),target:targetKey(d),senderId:d.senderId,destination:{category:d.category,conversationId:d.documentId,...(d.commentId?{commentId:d.commentId}:{})},seen:false,createdAt:new Date(d.eventTime),expiresAt:new Date(d.eventTime+days)});
     tx.create(claim,{kind:'inbox',state:'sending',createdAt:new Date(now),expiresAt:new Date(now+days),deviceId:device.id,uid,capability:token.capability});return token;
    });
-   if(!current)continue;
+   if(!current){trace('device_or_recipient_ineligible');continue;}
    const latest=(await device.ref.get()).data(),latestRead=(await db.doc(`notification_reads/${readKey(uid,targetKey(d))}`).get()).data();
    if(millis(latestRead?.until)>=d.eventTime||!latest||!deviceAllowed(latest)||latest.uid!==uid||latest.capability!==current.capability||latest.enabled!==true||preferences(latest.preferences)[prefCategory(d.category)]!==true||
     !await activeIdentity(identity,uid,current)||await blocked(db,d.senderId,uid)){
-    await claim.update({state:'suppressed'});continue;
+    await claim.update({state:'suppressed'});trace('authorization_changed');continue;
    }
    try{
     const counts=await notificationCounts(db,uid,now);
@@ -77,18 +80,20 @@ async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()
     const result=(await transport('send',{to:current.token,title:'TownLoop',body:d.body,
      sound:'default',channelId:channelFor(d.category),badge,ttl:3600,data:{type:'notice',category:d.category,noticeId:notice.id,deviceBinding:hash(`${current.capability}/${uid}`)}})).data;
     await claim.update({state:result?.status==='ok'?'accepted':'rejected',ticketId:result?.id||'',error:safeCode(result?.details?.error),checkedAt:new Date(now)});
+    trace(result?.status==='ok'?'transport_accepted':'transport_rejected');
     if(result?.details?.error==='DeviceNotRegistered')await removeInvalidDevice(db,device.ref,uid,current.capability);
-   }catch{await claim.update({state:'unknown',checkedAt:new Date(now)});}
+   }catch{await claim.update({state:'unknown',checkedAt:new Date(now)});trace('transport_unknown');}
    // Ambiguous transport outcomes are never blindly resent.
   }
  }
 }
-async function deliver(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed,deviceAllowed}={}){
+async function deliver(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed,deviceAllowed,trace=()=>{}}={}){
  const after=event.data?.after.data();
- if(!after||!id(event.authId)||['system','unauthenticated','service_account'].includes(event.authType)||!collections[collection]||!recent(event,now))return;
+ if(!id(event.authId)){trace('principal_missing');return;}
+ if(!after||['system','unauthenticated','service_account'].includes(event.authType)||!collections[collection]||!recent(event,now)){trace('event_ineligible');return;}
  const sender={...(await db.doc(`users/${event.authId}`).get()).data(),id:event.authId};
- if(!member(collection,after,sender))return;
- const message=appendedMessage(event.data.before.data(),after,sender);if(!message)return;
+ if(!member(collection,after,sender)){trace('sender_not_authorized');return;}
+ const message=appendedMessage(event.data.before.data(),after,sender);if(!message){trace('not_new_message');return;}
  const profiles=new Map(),add=s=>{if(s.exists)profiles.set(s.id,{...s.data(),id:s.id});};
  if(['resident_chats','marketplace_chats'].includes(collection)){
   for(const uid of (after.participantIds||[]).slice(0,2))if(id(uid))add(await db.doc(`users/${uid}`).get());
@@ -98,7 +103,7 @@ async function deliver(db,event,collection,{now=Date.now(),identity,transport,re
  }
  const descriptor={category:collections[collection],collection,documentId:event.params.chatId,eventId:message.id,eventTime:Date.parse(event.time),senderId:sender.id,
   recipientIds:recipients(collection,after,[...profiles.values()],sender.id).map(p=>p.id),body:collection==='marketplace_chats'?'You have a new Marketplace message.':'You have a new Inbox message.'};
- await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,deviceAllowed,verify:async(tx,uid)=>{
+ await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,deviceAllowed,trace,verify:async(tx,uid)=>{
   const [chat,recipient,currentSender]=await Promise.all([tx.get(db.doc(`${collection}/${descriptor.documentId}`)),tx.get(db.doc(`users/${uid}`)),tx.get(db.doc(`users/${sender.id}`))]);
   const data=chat.data();if(!data)return false;
   if(Number.isInteger(data.readBy?.[uid])&&data.readBy[uid]>=after.messages.length)return false;
@@ -106,11 +111,11 @@ async function deliver(db,event,collection,{now=Date.now(),identity,transport,re
   return chat.exists&&member(collection,chat.data(),{...recipient.data(),id:uid})&&member(collection,chat.data(),{...currentSender.data(),id:sender.id});
  }});
 }
-async function deliverContent(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed,deviceAllowed}={}){
- if(!id(event.authId))return;
+async function deliverContent(db,event,collection,{now=Date.now(),identity,transport,recipientAllowed,deviceAllowed,trace=()=>{}}={}){
+ if(!id(event.authId)){trace('principal_missing');return;}
  const sender={...(await db.doc(`users/${event.authId}`).get()).data(),id:event.authId};
- const descriptor=contentEvent(event,collection,sender,now);if(!descriptor)return;descriptor.eventTime=Date.parse(event.time);
- await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,deviceAllowed,verify:async(tx,uid)=>{
+ const descriptor=contentEvent(event,collection,sender,now);if(!descriptor){trace('not_eligible_content_transition');return;}descriptor.eventTime=Date.parse(event.time);
+ await sendEvent(db,descriptor,{now,identity,transport,recipientAllowed,deviceAllowed,trace,verify:async(tx,uid)=>{
   const [record,currentSender]=await Promise.all([tx.get(db.doc(`${collection}/${descriptor.documentId}`)),tx.get(db.doc(`users/${sender.id}`))]);
   const live=record.data();if(!live||!approved(currentSender.data()))return false;
   if(collection==='work_orders')return live.userId===uid&&live.status==='Done';
