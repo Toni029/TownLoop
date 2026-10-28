@@ -72,14 +72,14 @@ test('only essential initialization gates native launch; ready users go straight
  h.state.loading=false; h.community.ready=false; assert.equal(h.render(),null);
  h.community.ready=true; assert.equal(h.render(false),null);
  const signedOut=h.render(); assert.deepEqual(routes(signedOut),['sign-in']);
- signedOut.props.onLayout();
+ assert.equal(signedOut.props.onLayout,undefined,'Underlying navigation must not dismiss the splash before the startup frame');
  h.state.user={uid:'fixture'}; h.state.profile={approved:true};
  assert.deepEqual(routes(h.render()),['(tabs)']);
  h.state.profile.approved=false; assert.deepEqual(routes(h.render()),['pending']);
  h.state.profile=null; h.state.error='Profile unavailable';
  assert.deepEqual(routes(h.render()),['pending'],'Existing account-status UI handles initialization errors securely');
  h.state.registrationInProgress=true; assert.deepEqual(routes(h.render()),['sign-in']);
- assert.equal(h.calls.join(','),'hold,hide');
+ assert.equal(h.calls.join(','),'hold');
 });
 test('font failure, splash failure and error-boundary recovery do not create a startup lock', async () => {
  const h=harness(true); h.fontFailure();

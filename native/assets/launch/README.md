@@ -10,3 +10,6 @@ Verified with ffprobe: H.264 High level 5.0, 1320 × 2868, yuv420p/BT.709, 30 fp
 `ApprovedStartup.tsx` is the only custom launch implementation. It contains the complete frame inside the safe display bounds at its original aspect ratio. Extra space uses a static gradient sampled from this video's left/right perimeter at 0%, 25%, 50%, 75% and 100% height. The gradient's vertical position matches the contained video; top/bottom extensions match its corner color. It does not change the file or decorate the logo.
 
 Do not replace this asset, transcode it, or modify the checksum without owner approval. The local export check must find these exact bytes in both Android and iOS bundle asset metadata before release.
+
+
+`approved-first-frame.png` is a lossless FFmpeg extraction of frame zero from this exact MP4 (1320 × 2868). Both decode to RGB24 frame MD5 `83598ca0b390a33ae0567aa7a48ed3a6`. It is a static decoder-preparation cover in the same contained rectangle, not a second animation or replacement movie. The MP4 remains byte-identical. The owner-approved exit crossfade applies only to the surrounding overlay for 500 ms; it never re-encodes or changes the video's pixels, motion or playback rate.

@@ -1,5 +1,5 @@
 import {Component,useCallback,useEffect,useRef,useState,type ReactNode} from 'react';
-import {AccessibilityInfo,AppState,Platform,StyleSheet,View,useWindowDimensions} from 'react-native';
+import {AccessibilityInfo,Animated,AppState,Image,Platform,StyleSheet,View,useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {LinearGradient} from 'expo-linear-gradient';
 import {createVideoPlayer,VideoView,type VideoPlayer} from 'expo-video';
@@ -27,10 +27,9 @@ function useMotionPreference(){
  useEffect(()=>{
   let alive=true,resolved=false;
   const update=(value:boolean)=>{if(alive){resolved=true;setReduced(value);}};
-  const timer=setTimeout(()=>{if(!resolved)update(true);},1000);
   const sub=AccessibilityInfo.addEventListener('reduceMotionChanged',update);
   void AccessibilityInfo.isReduceMotionEnabled().then(value=>{if(!resolved)update(value);}).catch(()=>{if(!resolved)update(true);});
-  return()=>{alive=false;clearTimeout(timer);sub.remove();};
+  return()=>{alive=false;sub.remove();};
  },[]);
  return reduced;
 }
@@ -40,10 +39,13 @@ class VideoBoundary extends Component<{children:ReactNode;onFailure:()=>void},{f
  componentDidCatch(){this.props.onFailure();}
  render(){return this.state.failed?null:this.props.children;}
 }
-function VideoScene({onComplete}:{onComplete:()=>void}){
+function VideoScene({onComplete,enabled=true}:{onComplete:()=>void;enabled?:boolean}){
  const [player]=useState(playerForLaunch),[visible,setVisible]=useState(false);
  const firstFrame=useRef<()=>void>(()=>{});
- const laidOut=useRef(false),startWhenReady=useRef<()=>void>(()=>{});
+ useEffect(()=>{if(visible)void hideNativeSplash();},[visible]);
+ const laidOut=useRef(false),startWhenReady=useRef<()=>void>(()=>{}),allowed=useRef(enabled);
+ allowed.current=enabled;
+ useEffect(()=>{startWhenReady.current();},[enabled]);
  useEffect(()=>{
   let active=true,framed=false,prepared=false,started=false,loading:Promise<void>|undefined;
   let timer:ReturnType<typeof setTimeout>|undefined;
@@ -59,12 +61,11 @@ function VideoScene({onComplete}:{onComplete:()=>void}){
   try{
    subs.push(player.addListener('playToEnd',finish));
    subs.push(player.addListener('statusChange',event=>{if(event.status==='error')finish();}));
-   subs.push(AppState.addEventListener('change',state=>{if(state!=='active')finish();}));
+   subs.push(AppState.addEventListener('change',state=>{if(state==='background')finish();else if(state==='active')startWhenReady.current();}));
    startWhenReady.current=()=>{
-    if(!active||!prepared||!laidOut.current||started)return;started=true;
-    void hideNativeSplash().then(()=>{
-     if(active&&AppState.currentState==='active')player.play();else finish();
-    }).catch(finish);
+    if(!active||!prepared||!laidOut.current||!allowed.current||started)return;
+    if(AppState.currentState!=='active')return;started=true;
+    try{player.play();}catch{finish();}
    };
    if(AppState.currentState==='background')finish();
    else{
@@ -83,28 +84,55 @@ function VideoScene({onComplete}:{onComplete:()=>void}){
   onLayout={()=>{laidOut.current=true;startWhenReady.current();}}
   onFirstFrameRender={()=>firstFrame.current()}/>;
 }
-/** Initialize concurrently, then play once; auth changes cannot shorten this playback. */
+/** Prepare immediately; retain one overlay while authorized navigation mounts underneath. */
 export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNode}){
  const reduced=useMotionPreference();
- const [phase,setPhase]=useState<'waiting'|'playing'|'done'>(completed?'done':'waiting');
+ const [phase,setPhase]=useState<'playing'|'done'>(completed||claimed?'done':'playing');
+ const [ended,setEnded]=useState(false),[laidOut,setLaidOut]=useState(false),[timedOut,setTimedOut]=useState(false);
+ const [foreground,setForeground]=useState(AppState.currentState==='active');
+ const [opacity]=useState(()=>new Animated.Value(1));
  const {width,height}=useWindowDimensions(),insets=useSafeAreaInsets();
- const frame=fitPortrait(width,height,insets);
+ const frame=fitPortrait(width,height,insets),appReady=ready&&laidOut;
  const finish=useCallback(()=>{completed=true;setPhase('done');},[]);
+ const videoEnded=useCallback(()=>setEnded(true),[]);
+ const destinationLayout=useCallback(()=>setLaidOut(true),[]);
+ useEffect(()=>{if(!ready)setLaidOut(false);},[ready]);
  useEffect(()=>{
-  if(phase==='done'||reduced===null)return;
-  if(reduced){finish();return;}
-  if(phase==='playing'||!ready)return;
-  if(claimed){finish();return;}
-  claimed=true;setPhase('playing');
- },[phase,ready,reduced,finish]);
- useEffect(()=>()=>{if(claimed)completed=true;},[]);
- if(phase==='done')return ready?children:null;
- if(phase==='waiting')return null;
- return <View style={{flex:1,backgroundColor:background}} accessibilityLabel="Starting TownLoop" accessibilityRole="progressbar">
-  <LinearGradient pointerEvents="none" colors={['#f1e4d3','#f0e6d7','#f2e8d9','#f0e6d7','#f1e4d3']} locations={[0,.25,.5,.75,1]}
-   style={{position:'absolute',left:0,right:0,top:frame.top,height:frame.height}}/>
-  <View style={{position:'absolute',...frame}}>
-   <VideoBoundary onFailure={finish}><VideoScene onComplete={finish}/></VideoBoundary>
-  </View>
+  if(phase==='playing')claimed=true;
+  return()=>{if(claimed)completed=true;};
+ },[]);
+ useEffect(()=>{
+  const sub=AppState.addEventListener('change',state=>setForeground(state==='active'));
+  return()=>sub.remove();
+ },[]);
+ // Bounded initialization failure uses the existing error/retry screen, never unsafe routes.
+ useEffect(()=>{
+  if(appReady||!foreground)return;
+  const timer=setTimeout(()=>{completed=true;setTimedOut(true);},20000);
+  return()=>clearTimeout(timer);
+ },[appReady,foreground]);
+ useEffect(()=>{
+  if(phase==='done') {if(appReady)void hideNativeSplash();return;}
+  if(!appReady){opacity.setValue(1);return;}
+  if(!foreground||(!ended&&reduced!==true))return;
+  if(reduced){finish();void hideNativeSplash();return;}
+  const animation=Animated.timing(opacity,{toValue:0,duration:500,useNativeDriver:true});
+  const timer=setTimeout(finish,1200); // recover if a native completion callback is lost
+  animation.start(({finished})=>{if(finished){clearTimeout(timer);finish();}});
+  return()=>{clearTimeout(timer);animation.stop();};
+ },[phase,appReady,foreground,ended,reduced,opacity,finish]);
+ if(timedOut)throw Error('TownLoop initialization did not finish. Please retry.');
+ return <View style={{flex:1,backgroundColor:background}}>
+  {ready?<View key="destination" style={{flex:1}} onLayout={destinationLayout}
+   accessibilityElementsHidden={phase!=='done'} importantForAccessibility={phase==='done'?'auto':'no-hide-descendants'}>{children}</View>:null}
+  {phase!=='done'?<Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:background,opacity,zIndex:1000}]}
+   accessibilityLabel="Starting TownLoop" accessibilityRole="progressbar">
+   <LinearGradient pointerEvents="none" colors={['#f1e4d3','#f0e6d7','#f2e8d9','#f0e6d7','#f1e4d3']} locations={[0,.25,.5,.75,1]}
+    style={{position:'absolute',left:0,right:0,top:frame.top,height:frame.height}}/>
+   <View style={{position:'absolute',...frame}}>
+    <Image source={require('../../assets/launch/approved-first-frame.png')} style={StyleSheet.absoluteFill} resizeMode="contain" resizeMethod="resize" onLoad={()=>{void hideNativeSplash();}}/>
+    {reduced!==true?<VideoBoundary onFailure={videoEnded}><VideoScene onComplete={videoEnded} enabled={reduced===false}/></VideoBoundary>:null}
+   </View>
+  </Animated.View>:null}
  </View>;
 }
