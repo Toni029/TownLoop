@@ -71,3 +71,59 @@ test('an account change during preparation discards the file; failed downloads c
  f.setLoader(async()=>{throw Error('Interrupted download');});await assert.rejects(f.api.preparePdf(config),/Interrupted/);
  f.setLoader(async()=> 'data:application/pdf;base64,JVBERi0xLjcK');const good=await f.api.preparePdf(config);assert.ok(good.uri);good.dispose();
 });
+
+
+test('unchanged page-field blur after a page-2 pinch never resets the native viewport',()=>{
+ const f=readerFixture();let tree=f.render(),pdf=find(tree,'PdfPages');
+ const jumps:number[]=[];pdf.props.ref.current={setPage:(n:number)=>jumps.push(n)};
+ pdf.props.onLoadComplete(8);pdf.props.onPageChanged(2);pdf.props.onScaleChanged(2);
+ tree=f.render();find(tree,'TextInput').props.onBlur();
+ assert.deepEqual(jumps,[],'An unchanged page field must not issue setPage and reset pan offsets');
+});
+test('edited page input navigates once; submit followed by blur does not send a duplicate jump',()=>{
+ const f=readerFixture();let tree=f.render(),pdf=find(tree,'PdfPages');const jumps:number[]=[];
+ pdf.props.ref.current={setPage:(n:number)=>jumps.push(n)};pdf.props.onLoadComplete(8);pdf.props.onPageChanged(2);
+ tree=f.render();find(tree,'TextInput').props.onChangeText('3');tree=f.render();
+ const input=find(tree,'TextInput');input.props.onSubmitEditing();input.props.onBlur();
+ assert.deepEqual(jumps,[3]);
+});
+
+test('first-open edition authorization runs alongside metadata and chunk reads, with a final server check',async()=>{
+ let release!:()=>void;const gate=new Promise<void>(r=>{release=r;}),reads:string[]=[];
+ let checks=0;
+ const edition=load('../src/news/edition.ts',{
+  'firebase/firestore':{
+   doc:(_:any,...parts:string[])=>parts.join('/'),collection:(parent:string,child:string)=>parent+'/'+child,
+   getDocFromServer:async(path:string)=>{reads.push(path);if(path==='newsletters/current'){checks++;if(checks===1)await gate;return {exists:()=>true,data:()=>config};}return {data:()=>({totalChunks:1})};},
+   getDocsFromServer:async(path:string)=>{reads.push(path);return {empty:false,docs:[{data:()=>({index:0,data:'fixture'})}]};},
+  },'firebase/storage':{},'../lib/firebase':{db:{}},'./actions':{},
+  './model':{editionKey:(c:any)=>c?.id+'|'+c?.uploadedAt,hasUploadedNewsletter:()=>true,assemblePdf:()=>'fixture'},
+ });
+ const pending=edition.loadPdfData(config);
+ await Promise.resolve();
+ const parallel=reads.includes('newsletters/oct')&&reads.includes('newsletters/oct/chunks');
+ release();assert.equal(await pending,'fixture');
+ assert.ok(parallel,'Independent bytes and metadata reads should start without waiting for an extra server round trip');
+ assert.equal(checks,2,'Authorization/edition checks must still bracket the result');
+});
+
+test('concurrent first-open reads cannot return bytes when authorization fails or the edition changes',async()=>{
+ for(const failAt of [1,2]){
+  let checks=0;
+  const edition=load('../src/news/edition.ts',{
+   'firebase/firestore':{
+    doc:(_:any,...parts:string[])=>parts.join('/'),collection:(parent:string,child:string)=>parent+'/'+child,
+    getDocFromServer:async(path:string)=>{
+     if(path==='newsletters/current'){
+      if(++checks===failAt)throw new Error('Edition unavailable');
+      return {exists:()=>true,data:()=>config};
+     }
+     return {data:()=>({totalChunks:1})};
+    },
+    getDocsFromServer:async()=>({empty:false,docs:[{data:()=>({index:0,data:'fixture'})}]}),
+   },'firebase/storage':{},'../lib/firebase':{db:{}},'./actions':{},
+   './model':{editionKey:(c:any)=>c?.id+'|'+c?.uploadedAt,hasUploadedNewsletter:()=>true,assemblePdf:()=>'fixture'},
+  });
+  await assert.rejects(edition.loadPdfData(config),/Edition unavailable/);
+ }
+});

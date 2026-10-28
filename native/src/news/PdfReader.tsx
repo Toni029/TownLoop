@@ -49,7 +49,12 @@ export function PdfReader({
   const [commandZoom, setCommandZoom] = useState(1);
   const scaleChanged = useCallback((value: number) => setZoom(value), []);
   const source = useMemo(() => ({uri, cache: false}), [uri]);
-  const pageChanged = useCallback((n: number) => { setPage(n); setPageInput(String(n)); }, []);
+  const currentPage = useRef(1);
+  const pageChanged = useCallback((n: number) => {
+    currentPage.current = n;
+    setPage(n);
+    setPageInput(String(n));
+  }, []);
   const pdfError = useCallback(() => setError("The newsletter could not be opened. Please try again."), []);
   const zoomTo = (value: number) => {
     setZoom(value);
@@ -108,8 +113,14 @@ export function PdfReader({
     };
   }, [edition, attempt]);
   const changePage = (next: number) => {
-    const n = Math.max(1, Math.min(pages, next));
-    pdf.current?.setPage(n);
+    if (!Number.isFinite(next) || pages < 1) return;
+    const n = Math.max(1, Math.min(pages, Math.trunc(next)));
+    // Native page jumps reset pan offsets. Blur/submit of the unchanged page
+    // must leave the native pinch focal point and viewport entirely untouched.
+    if (n !== currentPage.current) {
+      currentPage.current = n; // Deduplicate submit + blur before React rerenders.
+      pdf.current?.setPage(n);
+    }
     setPage(n);
     setPageInput(String(n));
   };

@@ -29,10 +29,14 @@ export async function activeEdition(expected?: NewsletterConfig) {
   return current;
 }
 export async function loadPdfData(config: NewsletterConfig) {
-  await activeEdition(config);
   const id = config.id || "current";
   const reference = doc(db, "newsletters", id);
-  const [meta, chunks] = await Promise.all([
+  // All reads enforce Firestore authorization independently. Overlap the pointer
+  // check with the immutable edition reads instead of adding a serial network
+  // round trip before the PDF download. Nothing is returned until it succeeds;
+  // the final pointer check below still rejects replacement/removal mid-read.
+  const [, meta, chunks] = await Promise.all([
+    activeEdition(config),
     getDocFromServer(reference),
     getDocsFromServer(collection(reference, "chunks")),
   ]);
