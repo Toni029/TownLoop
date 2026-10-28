@@ -235,12 +235,18 @@ export async function mutateMarketChat(
       );
       return;
     }
+    if (action === "leave" && marketLeft(chat, other)) {
+      // The other participant already left; this is the final participant's removal.
+      // The transaction and existing rules prevent a unilateral history deletion.
+      tx.delete(ref);
+      return;
+    }
     if (marketLeft(chat, side)) {
       if (action === "leave") return;
       throw Error("You left this conversation.");
     }
     if (action === "leave") {
-      // Leaving hides only this side. Keep participants and all history even if both leave.
+      // First leave preserves participants and history for the remaining person.
       const msg = {
         ...message(user, `${user.name} left the conversation.`, messageId),
         senderId: "system",

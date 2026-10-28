@@ -1,0 +1,1 @@
+{"firestore":{"rules":"firestore.chat-lifecycle.rules"},"emulators":{"firestore":{"port":8897},"ui":{"enabled":false},"singleProjectMode":true}}

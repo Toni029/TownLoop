@@ -4,6 +4,7 @@ import {
   collection,
   FieldPath,
   getDocs,
+  getDocFromServer,
   limit,
   doc,
   onSnapshot,
@@ -24,6 +25,8 @@ import { readProfile, friendlyError } from "../lib/profile";
 import { subscribeSafely } from "../lib/subscription";
 import {
   collectionName,
+  privateChatPeer,
+  privateChatLeft,
   identifiers,
   participantKey,
   residentKey,
@@ -145,14 +148,46 @@ export async function markRead(thread: Thread) {
 }
 export async function deleteThread(thread: Thread) {
   const user = await approvedUser();
-  await runTransaction(db, async (tx) => {
-    const reference = doc(db, collectionName[thread.category], thread.id),
-      snap = await tx.get(reference);
-    if (!snap.exists()) return;
-    if (!readThread(thread.category, thread.id, snap.data(), user))
-      throw Error("You cannot access this conversation.");
-    tx.update(reference, new FieldPath("hiddenBy", String(user.id)), (snap.data().messages || []).length);
-  });
+  const reference = doc(db, collectionName[thread.category], thread.id);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(reference);
+        if (!snap.exists()) return;
+        if (auth.currentUser?.uid !== String(user.id)) throw Error("Your session changed. Sign in again.");
+        const data = snap.data();
+        if (thread.category === "friend") {
+          const uid = String(user.id), peer = privateChatPeer(data, uid);
+          if (!peer) throw Error("You cannot access this conversation.");
+          if (privateChatLeft(data, peer)) { tx.delete(reference); return; }
+          if (privateChatLeft(data, uid)) return;
+          const now = Date.now(), message = {
+            id: doc(collection(db, "resident_chats")).id,
+            type: "leave", isSystem: true, actorId: uid,
+            senderId: "system", senderName: "System", senderRole: "system", senderAvatar: "",
+            body: `${user.name || "Resident"} left the conversation.`, createdAt: now,
+            time: new Date(now).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+          };
+          tx.update(reference, { leftBy: { ...(data.leftBy || {}), [uid]: true },
+            messages: [...(data.messages || []), message], lastMessage: message.body, updatedAt: now, unreadBy: [peer] });
+          return;
+        }
+        if (!readThread(thread.category, thread.id, data, user)) throw Error("You cannot access this conversation.");
+        tx.update(reference, new FieldPath("hiddenBy", String(user.id)), (data.messages || []).length);
+      });
+      break;
+    } catch (error) {
+      // Strict append rules can reject the losing leave before reporting ABORTED.
+      // Retry only after a server read proves the peer has now left (or it is gone).
+      if (thread.category !== "friend" || attempt >= 1 || (error as {code?:string}).code !== "permission-denied") throw error;
+      if (auth.currentUser?.uid !== String(user.id)) throw error;
+      const latest = await getDocFromServer(reference);
+      if (!latest.exists()) break;
+      const current = latest.data(), peer = privateChatPeer(current, String(user.id));
+      if (!peer || !privateChatLeft(current, peer)) throw error;
+    }
+  }
+  void refreshBadge(String(user.id), {category:thread.category,conversationId:thread.id}).catch(()=>{});
 }
 export async function sendMessage(
   category: Category,
@@ -205,6 +240,9 @@ export async function sendMessage(
     const ref = doc(db, collectionName[category], id),
       snap = await tx.get(ref),
       existing = snap.data() || {};
+    if (snap.exists() && category === "friend" &&
+        (privateChatLeft(existing, String(user.id)) || privateChatLeft(existing, String(target.id))))
+      throw Error("A participant has left this conversation.");
     if (snap.exists() && !readThread(category, id, { ...existing, hiddenBy: {} }, user))
       throw new Error("You do not have access to this conversation.");
     if (auth.currentUser?.uid !== String(user.id))

@@ -306,7 +306,7 @@ export function Inbox({
           )}
           {confirm === selected.id ? (
             <View style={s.row}>
-              <Copy>Delete chat?</Copy>
+              <Copy>{closed ? "Permanently delete this chat and its messages?" : "Leave this chat? The other person can keep its history."}</Copy>
               <Action
                 label="Yes"
                 tone="rose"
@@ -328,7 +328,7 @@ export function Inbox({
             </View>
           ) : (
             <Action
-              label="Delete Conversation"
+              label={closed ? "Delete conversation" : "Leave conversation"}
               icon={Trash2}
               tone="light"
               disabled={busy}
@@ -361,6 +361,7 @@ export function Inbox({
           {filtered.map((c) => {
             const seller = chatSide(c, String(user?.id)) === "seller";
             const unread = seller ? c.unreadForSeller : c.unreadForBuyer;
+            const otherHasLeft = hasLeft(c, seller ? "buyer" : "seller");
             return (
               <View
                 key={c.id}
@@ -408,7 +409,7 @@ export function Inbox({
                 </Pressable>
                 {confirm === c.id ? (
                   <View style={s.row}>
-                    <Copy>Delete?</Copy>
+                    <Copy>{otherHasLeft ? "Permanently delete this chat and its messages?" : "Leave this chat?"}</Copy>
                     <Action
                       label="Yes"
                       tone="rose"
@@ -427,7 +428,7 @@ export function Inbox({
                   </View>
                 ) : (
                   <Action
-                    label="Delete conversation from your inbox"
+                    label={otherHasLeft ? "Delete conversation permanently" : "Leave conversation"}
                     icon={Trash2}
                     tone="light"
                     compact

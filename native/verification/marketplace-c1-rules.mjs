@@ -364,9 +364,8 @@ try {
   );
   checks++;
   await protocol.mutateMarketChat(db("BuyerUID"), "BuyerUID", id, "leave");
-  const retained = (await getDoc(ref("BuyerUID", id))).data();
-  assert.equal(retained.sellerLeft && retained.buyerLeft, true);
-  assert.equal(retained.messages.length, 5, 'Leaving preserves the original messages and both leave notices');
+  assert.equal((await getDoc(ref("BuyerUID", id))).exists(), false,
+    'The remaining participant removes the chat document and embedded history');
   checks++;
   console.log(
     `PASS: ${checks} Marketplace C1 rule assertions; no Auth accounts created; demo emulator only.`,

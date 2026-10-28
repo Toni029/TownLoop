@@ -106,7 +106,7 @@ export async function changeChat(id: string, action: "reply" | "read" | "leave",
   return runSocial(`chat:${id}:${action}`, async () => {
     const user = await approvedUser();
     await mutateMarketChat(db, String(user.id), id, action, text, messageId);
-    if(action==='read')void refreshBadge(String(user.id),{category:'marketplace',conversationId:id}).catch(()=>{});
+    if(action==='read'||action==='leave')void refreshBadge(String(user.id),{category:'marketplace',conversationId:id}).catch(()=>{});
   });
 }
 

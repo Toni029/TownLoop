@@ -73,7 +73,9 @@ function plan(collection, record, uid, alias=pseudonym(uid)) {
       Array.isArray(record.messages) && record.messages.every(message=>sides.includes(message.senderId));
     if(record.identityVersion!==2 && !canonicalMarketplace) return {action:'review',reason:'legacy_chat_identity'};
     const patch={lastMessage:'',subject:'Conversation'};
-    if(Array.isArray(record.messages)) patch.messages=record.messages.map(message=>message.senderId===uid
+    if(Array.isArray(record.messages)) patch.messages=record.messages.map(message=>message.type==='leave'&&message.isSystem===true&&message.actorId===uid
+      ? {id:message.id,type:'leave',isSystem:true,actorId:alias,senderId:'system',senderName:'System',senderRole:'system',senderAvatar:'',body:'A former participant left the conversation.',createdAt:message.createdAt,time:message.time}
+      : message.senderId===uid
       ? {id:message.id,senderId:alias,senderName:'Deleted resident',senderAvatar:'',...(message.body!==undefined?{body:'[Removed]'}:{text:'[Removed]'}),...(message.timestamp!==undefined?{timestamp:message.timestamp}:{}),...(message.createdAt!==undefined?{createdAt:message.createdAt}:{}),...(message.time!==undefined?{time:message.time}:{})}
       : message);
     if(Array.isArray(record.participantIds))patch.participantIds=record.participantIds.map(id=>id===uid?alias:id);
@@ -84,6 +86,7 @@ function plan(collection, record, uid, alias=pseudonym(uid)) {
       if(side==='seller')Object.assign(patch,{itemTitle:'Removed listing',itemMediaUrl:''});
     }
     for(const key of ['unreadBy','deletedBy','leftBy'])if(Array.isArray(record[key]))patch[key]=record[key].filter(id=>id!==uid);
+    if(record.leftBy&&typeof record.leftBy==='object'&&!Array.isArray(record.leftBy))patch.leftBy=Object.fromEntries(Object.entries(record.leftBy).map(([id,value])=>[id===uid?alias:id,value]));
     for(const key of ['readBy','readCursors','likedBy'])if(record[key]&&typeof record[key]==='object'&&!Array.isArray(record[key]))patch[key]=Object.fromEntries(Object.entries(record[key]).filter(([id])=>id!==uid));
     return {action:'patch',patch};
   }

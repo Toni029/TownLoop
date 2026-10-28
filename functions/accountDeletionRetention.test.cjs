@@ -36,3 +36,10 @@ test('secure Marketplace schema supports exact UID sides without inventing ident
  assert.equal(plan('marketplace_chats',{...record,participantIds:['legacy-name','bob']},'alice').action,'review');
  assert.equal(plan('marketplace_chats',{...record,messages:[{id:'one',senderId:'unverified-name'}]},'alice').action,'review');
 });
+
+test('private-chat leave markers and system notices redact the departed UID while preserving closed state and other residents',()=>{
+ const record={identityVersion:2,participantIds:['a','b'],leftBy:{a:true,b:false},messages:[{id:'leave',type:'leave',isSystem:true,actorId:'a',senderId:'system',senderName:'System',senderRole:'system',senderAvatar:'',body:'Private Name left the conversation.',createdAt:1,time:'Now'},{id:'other',senderId:'b',body:'Keep'}]};
+ const result=r.plan('resident_chats',record,'a');const alias=result.patch.participantIds[0];
+ assert.equal(result.patch.leftBy.a,undefined);assert.equal(result.patch.leftBy[alias],true);assert.equal(result.patch.leftBy.b,false);
+ assert.equal(result.patch.messages[0].actorId,alias);assert.equal(result.patch.messages[0].body,'A former participant left the conversation.');assert.equal(result.patch.messages[1],record.messages[1]);assert.equal(record.leftBy.a,true);
+});

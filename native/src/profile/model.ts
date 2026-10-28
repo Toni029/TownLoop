@@ -1,3 +1,4 @@
+import { privateChatPeer, privateChatLeft } from '../../../src/services/privateChatLifecycle.ts';
 import type { UserProfile } from "../../../src/types";
 import {
   getUserRole,
@@ -16,6 +17,9 @@ export type Message = {
   createdAt: number;
   senderAvatar?: string;
   readBy?: string[];
+  type?: "leave";
+  isSystem?: boolean;
+  actorId?: string;
 };
 export type Thread = {
   id: string;
@@ -27,6 +31,7 @@ export type Thread = {
   updatedAt: number;
   data: Record<string, any>;
   recipient: UserProfile;
+  otherLeft?: boolean;
 };
 export const collectionName = {
   friend: "resident_chats",
@@ -81,9 +86,8 @@ export function readThread(
     const participants = Array.isArray(data.participants)
       ? data.participants
       : [];
-    const ids = Array.isArray(data.participantIds) ? data.participantIds : [];
-    if (data.identityVersion !== 2 || !ids.includes(String(user.id))) return null;
-    const otherUid = ids.find((id: string) => id !== String(user.id));
+    const otherUid = privateChatPeer(data, String(user.id));
+    if (!otherUid || privateChatLeft(data, String(user.id))) return null;
     const ownDisplayIds = displayIdentities(user);
     const other = participants.find((p: UserProfile) => !ownDisplayIds.has(String(p.id)));
     if (!other || !otherUid) return null;
@@ -157,6 +161,7 @@ export function readThread(
         : data.updatedAt?.toMillis?.() || 0,
     data,
     recipient,
+    otherLeft: category === "friend" && privateChatLeft(data, String(recipient.id)),
   };
 }
 // Never reveal an individual office employee's identity in the resident conversation.
@@ -262,3 +267,11 @@ export function profileChanges(user: UserProfile, input: ProfileDetails): Partia
     .filter(key => input[key].trim() !== current[key])
     .map(key => [key, input[key].trim()]));
 }
+
+export function conversationRemoval(thread: Thread) {
+  if (thread.category !== "friend") return { label: "Hide conversation", description: "Hide this conversation from your Inbox. New messages will make it appear again." };
+  return thread.otherLeft
+    ? { label: "Delete conversation", description: "The other participant has left. This permanently removes the conversation and its messages from TownLoop. This cannot be undone." }
+    : { label: "Leave conversation", description: "You will leave this conversation. The other person can keep the history. Once both people remove it, the conversation and its messages are permanently deleted." };
+}
+export { privateChatPeer, privateChatLeft };

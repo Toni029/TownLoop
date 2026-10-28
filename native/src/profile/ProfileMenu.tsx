@@ -94,6 +94,7 @@ import {
   neighbors,
   officeManager,
   senderLabel,
+  conversationRemoval,
   messageIsMine,
   messageAvatar,
   profileInterests,
@@ -1323,19 +1324,19 @@ export function ProfileMenu({
                         {deleting && (
                           <View style={[s.bubble, panel]}>
                             <Text style={[s.rowTitle, { color: ink }]}>
-                              Hide conversation?
+                              {conversationRemoval(deleting).label}?
                             </Text>
                             <Text style={[s.small, { color: muted }]}>
-                              Hide this conversation from your Inbox. New messages will make it appear again.
+                              {conversationRemoval(deleting).description}
                             </Text>
                             <Action
                               danger
-                              title="Hide conversation"
+                              title={conversationRemoval(deleting).label}
                               onPress={() =>
                                 void act(async () => {
                                   await deleteThread(deleting);
                                   setDeleting(null);
-                                }, "Conversation hidden")
+                                }, deleting.category === "friend" ? "Conversation removed" : "Conversation hidden")
                               }
                             />
                             <Action
@@ -1520,7 +1521,7 @@ export function ProfileMenu({
                                 </Pressable>
                                 <Pressable
                                   accessibilityRole="button"
-                                  accessibilityLabel="Hide conversation"
+                                  accessibilityLabel={conversationRemoval(t).label}
                                   hitSlop={6}
                                   onPress={() => setDeleting(t)}
                                   style={{
@@ -2006,7 +2007,7 @@ export function ProfileMenu({
                                 </View>
                                 <Pressable
                                   accessibilityRole="button"
-                                  accessibilityLabel="Hide conversation"
+                                  accessibilityLabel={conversationRemoval(conversation).label}
                                   onPress={() => {
                                     setDeleting(conversation);
                                     go("inbox");
@@ -2059,7 +2060,7 @@ export function ProfileMenu({
                               contentContainerStyle={{ padding: 10, gap: 8 }}
                               ListEmptyComponent={<Text style={[s.empty, { color: muted }]}>No messages yet. Start the conversation below.</Text>}
                               renderItem={({ item: m }) => {
-
+                                if (m.type === "leave" && m.isSystem === true) return <View style={{padding:12,alignItems:"center"}}><Text style={[s.small,{color:muted,textAlign:"center"}]}>{m.body}</Text></View>;
                                 const mine = messageIsMine(m, user);
                                 const avatar = messageAvatar(m, [
                                   user,
@@ -2214,7 +2215,7 @@ export function ProfileMenu({
                                 );
                               }}
                             />
-                            <View
+                            {conversation.otherLeft ? <View style={[s.bubble,panel]}><Text style={[s.small,{color:muted}]}>This person has left the conversation. You can keep the history or delete the conversation.</Text></View> : <View
                               style={{
                                 flexDirection: "row",
                                 alignItems: "flex-end",
@@ -2250,7 +2251,7 @@ export function ProfileMenu({
                                   })
                                 }
                               />
-                            </View>
+                            </View>}
                           </>
                         ) : (
                           <Text style={[s.empty, { color: muted }]}>
