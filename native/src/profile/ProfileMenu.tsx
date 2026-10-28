@@ -3,7 +3,7 @@ import {useInboxPush} from '../notifications/InboxPushProvider';
 import type {InboxTarget} from '../notifications/protocol';
 import { SafetyActions } from "../components/SafetyActions";
 import { LegalLinks } from "../components/LegalLinks";
-import { AccountDeletion } from "./AccountDeletion";
+import { AccountDeletion, AccountDeletionButton } from "./AccountDeletion";
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { AdminMenu } from "./AdminMenu";
@@ -113,6 +113,7 @@ type MenuView =
   | "conversation"
   | "emergencyContact"
   | "editProfile"
+  | "accountDeletion"
   | "notifications"
   | "account"
   | "logoutConfirm"
@@ -886,6 +887,7 @@ export function ProfileMenu({
                             account: "Resident Account",
                             notifications: "Notifications",
                             editProfile: "Edit Profile",
+                            accountDeletion: "Account Deletion",
                             emergencyContact: "Emergency Contact",
                             logoutConfirm: "Log Out",
                             admin: "Admin Portal",
@@ -1132,9 +1134,10 @@ export function ProfileMenu({
                           }
                         />
                         <Action title="Cancel" onPress={back} />
-                        <AccountDeletion />
+                        <AccountDeletionButton onPress={() => go("accountDeletion")} />
                       </>
                     )}
+                    {view === "accountDeletion" && <AccountDeletion />}
                     {view === "menu" && (
                       <>
                         <View style={s.profile}>
