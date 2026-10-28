@@ -39,7 +39,7 @@ class VideoBoundary extends Component<{children:ReactNode;onFailure:()=>void},{f
  componentDidCatch(){this.props.onFailure();}
  render(){return this.state.failed?null:this.props.children;}
 }
-function VideoScene({onComplete,enabled=true}:{onComplete:()=>void;enabled?:boolean}){
+function VideoScene({onComplete,enabled=true,cover=false}:{onComplete:()=>void;enabled?:boolean;cover?:boolean}){
  const [player]=useState(playerForLaunch),[visible,setVisible]=useState(false);
  const firstFrame=useRef<()=>void>(()=>{});
  const laidOut=useRef(false),startWhenReady=useRef<()=>void>(()=>{}),allowed=useRef(enabled);
@@ -86,11 +86,11 @@ function VideoScene({onComplete,enabled=true}:{onComplete:()=>void;enabled?:bool
    unload();void loading?.then(unload,unload);
   };
  },[player,onComplete]);
- return <View collapsable={false} style={StyleSheet.absoluteFill}><VideoView player={player} style={[StyleSheet.absoluteFill,{opacity:1}]} contentFit="contain" surfaceType="textureView"
+ return <View collapsable={false} style={StyleSheet.absoluteFill}>{!cover?<VideoView player={player} style={[StyleSheet.absoluteFill,{opacity:1}]} contentFit="contain" surfaceType="textureView"
   nativeControls={false} allowsPictureInPicture={false} fullscreenOptions={{enable:false}} useExoShutter={true}
   onLayout={()=>{laidOut.current=true;startWhenReady.current();}}
-  onFirstFrameRender={()=>firstFrame.current()}/>
-  {!visible?<Image source={require('../../assets/launch/approved-first-frame.png')} style={StyleSheet.absoluteFill} resizeMode="contain" resizeMethod="resize"/>:null}
+  onFirstFrameRender={()=>firstFrame.current()}/>:null}
+  {!visible&&!cover?<Image source={require('../../assets/launch/approved-first-frame.png')} style={StyleSheet.absoluteFill} resizeMode="contain" resizeMethod="resize"/>:null}
  </View>;
 }
 /** Prepare immediately; retain one overlay while authorized navigation mounts underneath. */
@@ -98,6 +98,7 @@ export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNo
  const reduced=useMotionPreference();
  const [phase,setPhase]=useState<'playing'|'done'>(completed||claimed?'done':'playing');
  const [ended,setEnded]=useState(false),[laidOut,setLaidOut]=useState(false),[timedOut,setTimedOut]=useState(false);
+ const [lastFrameReady,setLastFrameReady]=useState(false),[lastFrameFailed,setLastFrameFailed]=useState(false);
  const [foreground,setForeground]=useState(AppState.currentState==='active');
  const [opacity]=useState(()=>new Animated.Value(1));
  const {width,height}=useWindowDimensions(),insets=useSafeAreaInsets();
@@ -114,6 +115,11 @@ export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNo
   const sub=AppState.addEventListener('change',state=>setForeground(state==='active'));
   return()=>sub.remove();
  },[]);
+ // A failed image must not trap the user; the cream background remains available.
+ useEffect(()=>{
+  if(!ended||lastFrameReady||lastFrameFailed)return;
+  const timer=setTimeout(()=>setLastFrameFailed(true),2500);return()=>clearTimeout(timer);
+ },[ended,lastFrameReady,lastFrameFailed]);
  // Bounded initialization failure uses the existing error/retry screen, never unsafe routes.
  useEffect(()=>{
   if(appReady||!foreground)return;
@@ -124,12 +130,13 @@ export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNo
   if(phase==='done') {if(appReady)void hideNativeSplash();return;}
   if(!appReady){opacity.setValue(1);return;}
   if(!foreground||(!ended&&reduced!==true))return;
+  if(ended&&!reduced&&!lastFrameReady&&!lastFrameFailed)return;
   if(reduced){finish();void hideNativeSplash();return;}
   const animation=Animated.timing(opacity,{toValue:0,duration:500,useNativeDriver:true});
   const timer=setTimeout(finish,1200); // recover if a native completion callback is lost
   animation.start(({finished})=>{if(finished){clearTimeout(timer);finish();}});
   return()=>{clearTimeout(timer);animation.stop();};
- },[phase,appReady,foreground,ended,reduced,opacity,finish]);
+ },[phase,appReady,foreground,ended,reduced,opacity,finish,lastFrameReady,lastFrameFailed]);
  if(timedOut)throw Error('TownLoop initialization did not finish. Please retry.');
  return <View collapsable={false} style={{flex:1,backgroundColor:background}}>
   <View key="destination" collapsable={false} style={{flex:1}}
@@ -142,7 +149,8 @@ export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNo
     style={{position:'absolute',left:0,right:0,top:frame.top,height:frame.height}}/>
    <View collapsable={false} style={{position:'absolute',...frame}}>
     <Image source={require('../../assets/launch/approved-first-frame.png')} style={StyleSheet.absoluteFill} resizeMode="contain" resizeMethod="resize"/>
-    {reduced!==true?<VideoBoundary onFailure={videoEnded}><VideoScene onComplete={videoEnded} enabled={reduced===false}/></VideoBoundary>:null}
+    {reduced!==true?<VideoBoundary onFailure={videoEnded}><VideoScene onComplete={videoEnded} enabled={reduced===false} cover={ended&&(lastFrameReady||lastFrameFailed)}/></VideoBoundary>:null}
+    <Image source={require('../../assets/launch/approved-last-frame.png')} style={[StyleSheet.absoluteFill,{opacity:ended&&lastFrameReady?1:0}]} resizeMode="contain" resizeMethod="resize" onLoad={()=>setLastFrameReady(true)} onError={()=>setLastFrameFailed(true)}/>
    </View>
   </Animated.View>:null}
  </View>;

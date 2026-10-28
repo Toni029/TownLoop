@@ -60,7 +60,8 @@ function find(tree:any,name:string):any{
  return find(tree.props?.children,name);
 }
 async function mountScene(h:ReturnType<typeof harness>,props:any,frame=true){const tree=h.render('VideoScene',props);find(tree,'VideoView').props.onLayout();await h.flush();if(frame)find(tree,'VideoView').props.onFirstFrameRender();await h.flush();return tree;}
-async function root(h:ReturnType<typeof harness>,ready=true){let tree:any;for(let i=0;i<4;i++){tree=h.render('ApprovedStartup',{ready,children:'app'});await h.flush();}return tree;}
+function findLast(node:any):any{if(!node)return;if(Array.isArray(node))return node.map(findLast).find(Boolean);if(node.type==='Image'&&String(node.props?.source).endsWith('approved-last-frame.png'))return node;return findLast(node.props?.children);}
+async function root(h:ReturnType<typeof harness>,ready=true,preload=true){let tree:any;for(let i=0;i<4;i++){tree=h.render('ApprovedStartup',{ready,children:'app'});await h.flush();if(preload)findLast(tree)?.props.onLoad();}return tree;}
 test('only the exact approved MP4 is referenced',()=>{
  const b=readFileSync(new URL('../assets/launch/approved-startup.mp4',import.meta.url));
  assert.equal(createHash('sha256').update(b).digest('hex'),'2233522e741f4cf4a9bdc167467cdf23f81dfe77f6ed7346254f8074b4c9bc35');
@@ -193,4 +194,23 @@ test('native video view is drawable before the first-frame event; never hide its
  prepared();await h.flush();find(view,'VideoView').props.onFirstFrameRender();await h.flush();
  assert.equal(h.calls.filter(x=>x==='play').length,1);
  h.events.playToEnd();await root(h,true);assert.equal(h.fades.length,1,'The real started video still completes normally');
+ });
+
+test('the decoded final frame replaces the video surface before fading to the ready app',async()=>{
+ const h=harness();let tree=await root(h,true);
+ function findFinal(node:any):any{if(!node)return;if(Array.isArray(node))return node.map(findFinal).find(Boolean);if(node.type==='Image'&&String(node.props?.source).endsWith('approved-last-frame.png'))return node;return findFinal(node.props?.children);}
+ const image=findFinal(tree);assert.ok(image,'The exact final video frame must be preloaded');
+ image.props.onLoad();tree=await root(h,true);tree.props.children[0].props.children.props.onLayout();
+ const scene=find(tree,'VideoScene');await mountScene(h,scene.props);h.events.playToEnd();tree=await root(h,true);
+ assert.equal(find(tree,'VideoScene').props.cover,true,'Remove the native video surface during the fade');
+ assert.equal(h.fades.length,1);assert.equal(h.fades[0].config.duration,500);
+ assert.equal(findFinal(tree).props.style.at(-1).opacity,1,'Final frame covers the ended player');
+});
+
+ test('a missing final frame cannot trap startup or expose the ended video surface',async()=>{
+ const h=harness();let tree=await root(h,true,false);tree.props.children[0].props.children.props.onLayout();
+ const scene=find(tree,'VideoScene');await mountScene(h,scene.props);h.events.playToEnd();tree=await root(h,true,false);
+ assert.equal(h.fades.length,0,'Wait while the final image can still load');
+ h.timers.find(t=>t.ms===2500&&!t.cleared)!.fn();tree=await root(h,true,false);
+ assert.equal(find(tree,'VideoScene').props.cover,true);assert.equal(h.fades.length,1);
  });
