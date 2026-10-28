@@ -1336,7 +1336,7 @@ export function ProfileMenu({
                                 void act(async () => {
                                   await deleteThread(deleting);
                                   setDeleting(null);
-                                }, deleting.category === "friend" ? "Conversation removed" : "Conversation hidden")
+                                }, "Conversation removed")
                               }
                             />
                             <Action
@@ -2215,7 +2215,7 @@ export function ProfileMenu({
                                 );
                               }}
                             />
-                            {conversation.otherLeft ? <View style={[s.bubble,panel]}><Text style={[s.small,{color:muted}]}>This person has left the conversation. You can keep the history or delete the conversation.</Text></View> : <View
+                            {conversation.otherLeft ? <View style={[s.bubble,panel]}><Text style={[s.small,{color:muted}]}>The other side has left the conversation. You can keep the history or delete the conversation.</Text></View> : <View
                               style={{
                                 flexDirection: "row",
                                 alignItems: "flex-end",

@@ -542,17 +542,50 @@ service cloud.firestore {
         data.participantIds[0] != data.participantIds[1] &&
         data.get('leftBy', {}).get(data.participantIds[0] == request.auth.uid ? data.participantIds[1] : data.participantIds[0], false) == true;
     }
+    // Office/Maintenance are resident-versus-team; own resident UID always wins.
+    function staffSide(data) { return chatResident(data) ? 'resident' : 'team'; }
+    function staffClosed(data) {
+      return data.get('sideLeft', {}).get('resident', false) == true || data.get('sideLeft', {}).get('team', false) == true;
+    }
+    function staffLeave(kind, old, next) {
+      let side = staffSide(old);
+      let before = old.get('messages', []);
+      let after = next.messages;
+      let last = after[after.size() - 1];
+      let oldLeft = old.get('sideLeft', {});
+      let nextLeft = next.get('sideLeft', {});
+      let label = side == 'resident' ? 'The resident' : kind == 'office' ? 'Community Office' : 'Maintenance Crew';
+      return old.residentId is string && old.residentId.size() > 0 &&
+        next.diff(old).affectedKeys().hasOnly(['sideLeft', 'messages', 'lastMessage', 'updatedAt', 'unreadByResident', kind == 'office' ? 'unreadByVip' : 'unreadByCrew']) &&
+        oldLeft is map && nextLeft is map && oldLeft.get(side, false) == false &&
+        nextLeft.diff(oldLeft).affectedKeys().hasOnly([side]) && nextLeft[side] == true &&
+        before is list && after is list && after.size() == before.size() + 1 &&
+        !before.hasAny([last]) && after.removeAll([last]) == before &&
+        last.keys().hasOnly(['id', 'type', 'isSystem', 'actorId', 'senderId', 'senderName', 'senderRole', 'senderAvatar', 'body', 'createdAt', 'time']) &&
+        last.id is string && last.id.size() > 0 && last.id.size() <= 200 &&
+        last.type == 'leave' && last.isSystem == true && last.actorId == request.auth.uid &&
+        last.senderId == 'system' && last.senderName == 'System' && last.senderRole == 'system' && last.senderAvatar == '' &&
+        last.body == label + ' left the conversation.' &&
+        last.createdAt is int && last.createdAt >= 0 && last.time is string && last.time.size() <= 80 &&
+        next.lastMessage == last.body && next.updatedAt == last.createdAt &&
+        next.unreadByResident == (side == 'team') && next.get(kind == 'office' ? 'unreadByVip' : 'unreadByCrew', false) == (side == 'resident');
+    }
+    function staffFinalRemoval(kind, data) {
+      return chatAccess(kind, data) && data.residentId is string && data.residentId.size() > 0 &&
+        data.get('sideLeft', {}).get(chatResident(data) ? 'team' : 'resident', false) == true;
+    }
     function chatUpdate(kind) {
       let old = resource.data;
       let next = request.resource.data;
       let changes = next.diff(old).affectedKeys();
       return chatAccess(kind, old) &&
         ((changes.hasOnly(['readBy', 'hiddenBy']) && chatCursors(old, next)) ||
-         (kind == 'friend' && friendLeave(old, next)) ||
+         (kind == 'friend' && changes.hasAny(['leftBy']) && friendLeave(old, next)) ||
+         (kind != 'friend' && changes.hasAny(['sideLeft']) && staffLeave(kind, old, next)) ||
          (changes.hasOnly(kind == 'friend'
             ? ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadBy', 'readBy']
             : ['messages', 'lastMessage', 'updatedAt', 'subject', 'unreadByResident', 'unreadByVip', 'unreadByCrew', 'readBy']) &&
-          ownChatCursor(old, next, 'readBy') && (kind != 'friend' || friendMaySend(old)) && validAppend(old.get('messages', []), next) &&
+          ownChatCursor(old, next, 'readBy') && (kind != 'friend' || friendMaySend(old)) && (kind == 'friend' || !staffClosed(old)) && validAppend(old.get('messages', []), next) &&
           (kind == 'friend'
             ? next.unreadBy == old.participantIds.removeAll([request.auth.uid])
             : next.unreadByResident == chatTeam(kind) && next.get(kind == 'office' ? 'unreadByVip' : 'unreadByCrew', false) == !chatTeam(kind))));
@@ -562,14 +595,14 @@ service cloud.firestore {
       allow list: if chatAccess('maintenance', resource.data);
       allow create: if chatCreate('maintenance', chatId);
       allow update: if chatUpdate('maintenance');
-      allow delete: if false;
+      allow delete: if staffFinalRemoval('maintenance', resource.data);
     }
     match /office_chats/{chatId} {
       allow get: if isApproved() && ((!exists(/databases/$(database)/documents/office_chats/$(chatId)) && (chatId == request.auth.uid || chatTeam('office'))) || chatAccess('office', resource.data));
       allow list: if chatAccess('office', resource.data);
       allow create: if chatCreate('office', chatId);
       allow update: if chatUpdate('office');
-      allow delete: if false;
+      allow delete: if staffFinalRemoval('office', resource.data);
     }
     match /resident_chats/{chatId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/resident_chats/$(chatId)) || chatAccess('friend', resource.data));

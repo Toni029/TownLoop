@@ -8,7 +8,7 @@ const host=process.env.FIRESTORE_EMULATOR_HOST;
 if(!/^127\.0\.0\.1:\d+$/.test(host||''))throw Error('Loopback emulator required');
 const project='demo-townloop-chat-lifecycle',base=`http://${host}`,documents=`${base}/v1/projects/${project}/databases/(default)/documents`;
 const require=createRequire(new URL('../../native/package.json',import.meta.url)),ts=require('typescript'),sdk=require('firebase/firestore'),apps=require('firebase/app');
-const instances=new Map(),profiles=Object.fromEntries(['Alice','Bob','Other','Admin','Pending'].map(uid=>[uid,{id:uid,name:uid,role:uid==='Admin'?'admin':'resident',approved:uid!=='Pending',avatarUrl:''}]));
+const instances=new Map(),profiles=Object.fromEntries(['Alice','Bob','Other','Admin','VIP','Crew','CrewTwo','Pending'].map(uid=>[uid,{id:uid,name:uid,role:uid==='Admin'?'admin':uid==='VIP'?'vip':['Crew','CrewTwo'].includes(uid)?'crew':'resident',approved:uid!=='Pending',avatarUrl:''}]));
 function db(uid){if(!instances.has(uid)){const app=apps.initializeApp({projectId:project,apiKey:'demo'},uid),store=sdk.getFirestore(app);sdk.connectFirestoreEmulator(store,'127.0.0.1',Number(host.split(':')[1]),{mockUserToken:{sub:uid}});instances.set(uid,{app,store});}return instances.get(uid).store;}
 function compile(file,modules={}){
  const url=new URL(file,import.meta.url),exports={};
@@ -64,10 +64,52 @@ test('concurrent removals converge safely; repeated first leave cannot duplicate
  const repeat='peer-repeat';await seed('resident_chats/'+repeat,peer(repeat));await native('Alice').deleteThread(thread('Alice',repeat));await native('Alice').deleteThread(thread('Alice',repeat));assert.equal((await sdk.getDoc(ref('Bob','resident_chats',repeat))).data().messages.length,2);
 });
 
-test('normal private messages and read receipts still work; staff threads remain hide-only',async()=>{
+test('normal private messages and read receipts still work',async()=>{
  const id='peer-normal';await seed('resident_chats/'+id,peer(id));await native('Bob').sendMessage('friend',profiles.Alice,'Fixture','New fixture',thread('Bob',id));await native('Alice').markRead(thread('Alice',id));const data=(await sdk.getDoc(ref('Bob','resident_chats',id))).data();assert.equal(data.messages.length,2);assert.equal(data.readBy.Alice,2);
- for(const [category,collection]of [['office','office_chats'],['maintenance','maintenance_chats']]){const id='staff-hide';await seed(collection+'/'+id,{id,residentId:'Bob',messages:[message],subject:'Fixture'});await native('Bob').deleteThread({id,category});const saved=(await sdk.getDoc(ref('Bob',collection,id))).data();assert.equal(saved.hiddenBy.Bob,1);assert.equal(saved.leftBy,undefined);await assert.rejects(()=>sdk.deleteDoc(ref('Bob',collection,id)),/permission/);}
 });
+for(const [category,col,staff,outsider] of [['office','office_chats','Admin','Crew'],['maintenance','maintenance_chats','Crew','Admin']]) {
+ const fixture=id=>({id,residentId:'Bob',residentName:'Bob',messages:[message],subject:'Fixture',lastMessage:message.body,updatedAt:1});
+ const t=id=>({id,category,recipient:profiles.Bob,subject:'Fixture'});
+ test(category+' resident-first leave preserves history, denies replies, and only authorized team can finally delete',async()=>{
+   const id='Bob';await seed(col+'/'+id,fixture(id));
+   await assert.rejects(()=>sdk.deleteDoc(ref(staff,col,id)),/permission/);
+   await native('Bob').deleteThread(t(id));const data=(await sdk.getDoc(ref(staff,col,id))).data();
+   assert.equal(data.sideLeft.resident,true);assert.equal(data.messages.length,2);assert.equal(data.messages[1].body,'The resident left the conversation.');
+   assert.equal(model().readThread(category,id,data,profiles.Bob),null);
+   const team=model().readThread(category,id,data,profiles[staff]);assert.equal(team.otherLeft,true);assert.equal(team.teamAction,true);assert.match(model().conversationRemoval(team).description,/entire/);
+   for(const uid of ['Bob',staff])await assert.rejects(()=>native(uid).sendMessage(category,profiles.Bob,'Fixture','Reply',t(id)),/left/);
+   const reply={...message,id:'blocked-reply',senderId:'Bob',senderName:'Bob'};
+   await assert.rejects(()=>sdk.updateDoc(ref('Bob',col,id),{messages:[...data.messages,reply],lastMessage:reply.body,updatedAt:1,subject:'Fixture',unreadByResident:false,[category==='office'?'unreadByVip':'unreadByCrew']:true}),/permission/);
+   for(const uid of ['Bob',outsider,'Other','Pending'])await assert.rejects(()=>sdk.deleteDoc(ref(uid,col,id)),/permission/);
+   await native(category==='office'?'VIP':staff).deleteThread(t(id));assert.equal((await sdk.getDoc(ref('Bob',col,id))).exists(),false);
+ });
+ test(category+' team-first action affects whole team, is idempotent, cannot forge resident consent, and resident can delete',async()=>{
+   const id='Bob';await seed(col+'/'+id,fixture(id));
+   await assert.rejects(()=>sdk.updateDoc(ref(staff,col,id),{sideLeft:{resident:true}}),/permission/);
+   await Promise.all([native(staff).deleteThread(t(id)),native(category==='office'?'VIP':'CrewTwo').deleteThread(t(id))]);await native(staff).deleteThread(t(id));const data=(await sdk.getDoc(ref('Bob',col,id))).data();
+   assert.equal(data.sideLeft.team,true);assert.equal(data.sideLeft.resident,undefined);assert.equal(data.messages.length,2);
+   assert.equal(model().readThread(category,id,data,profiles[staff]),null);
+   if(category==='office')assert.equal(model().readThread(category,id,data,profiles.VIP),null);
+   assert.equal(model().readThread(category,id,data,profiles.Bob).otherLeft,true);
+   await assert.rejects(()=>sdk.deleteDoc(ref(staff,col,id)),/permission/);
+   await assert.rejects(()=>sdk.updateDoc(ref('Bob',col,id),{sideLeft:{team:false}}),/permission/);
+   await native('Bob').deleteThread(t(id));assert.equal((await sdk.getDoc(ref('Bob',col,id))).exists(),false);
+ });
+ test(category+' concurrent opposite sides converge and staff cannot represent both sides of own thread',async()=>{
+   const id='Bob';await seed(col+'/'+id,fixture(id));await Promise.all([native('Bob').deleteThread(t(id)),native(staff).deleteThread(t(id))]);assert.equal((await sdk.getDoc(ref('Bob',col,id))).exists(),false);
+   const own=staff;await seed(col+'/'+own,{...fixture(own),residentId:staff});await native(staff).deleteThread(t(own));await native(staff).deleteThread(t(own));
+   const data=(await sdk.getDoc(ref(staff,col,own))).data();assert.equal(data.sideLeft.resident,true);assert.equal(data.sideLeft.team,undefined);await assert.rejects(()=>sdk.deleteDoc(ref(staff,col,own)),/permission/);
+ });
+}
 test('simultaneous Marketplace leave actions remove the chat without deleting it unilaterally',async()=>{
  const id='market-concurrent';await seed('marketplace_chats/'+id,market(id));const p=marketplace();await Promise.all([p.mutateMarketChat(db('Alice'),'Alice',id,'leave','','a-leave'),p.mutateMarketChat(db('Bob'),'Bob',id,'leave','','b-leave')]);assert.equal((await sdk.getDoc(ref('Bob','marketplace_chats',id))).exists(),false);
+});
+
+test('normal staff messages and receipts remain authorized before either side leaves',async()=>{
+ for(const [category,col,staff] of [['office','office_chats','Admin'],['maintenance','maintenance_chats','Crew']]){
+  const id='Bob', t={id,category,recipient:profiles.Bob};await seed(col+'/'+id,{id,residentId:'Bob',residentName:'Bob',messages:[message],subject:'Fixture',lastMessage:message.body,updatedAt:1});
+  await native('Bob').sendMessage(category,profiles.Bob,'Fixture','Resident fixture',t);
+  await native(staff).sendMessage(category,profiles.Bob,'Fixture','Staff fixture',t);
+  await native('Bob').markRead(t);const data=(await sdk.getDoc(ref('Bob',col,id))).data();assert.equal(data.messages.length,3);assert.equal(data.readBy.Bob,3);
+ }
 });

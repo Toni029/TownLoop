@@ -27,6 +27,7 @@ import {
   collectionName,
   privateChatPeer,
   privateChatLeft,
+  staffChatSide,
   identifiers,
   participantKey,
   residentKey,
@@ -172,19 +173,40 @@ export async function deleteThread(thread: Thread) {
             messages: [...(data.messages || []), message], lastMessage: message.body, updatedAt: now, unreadBy: [peer] });
           return;
         }
-        if (!readThread(thread.category, thread.id, data, user)) throw Error("You cannot access this conversation.");
-        tx.update(reference, new FieldPath("hiddenBy", String(user.id)), (data.messages || []).length);
+        const side = staffChatSide(thread.category, data, user);
+        if (!side) throw Error("You cannot access this conversation.");
+        const other = side === "resident" ? "team" : "resident";
+        if (data.sideLeft?.[other] === true) { tx.delete(reference); return; }
+        if (data.sideLeft?.[side] === true) return;
+        const now = Date.now(), label = side === "resident" ? "The resident" : thread.category === "office" ? "Community Office" : "Maintenance Crew";
+        const message = { id: doc(collection(db, collectionName[thread.category])).id,
+          type: "leave", isSystem: true, actorId: String(user.id),
+          senderId: "system", senderName: "System", senderRole: "system", senderAvatar: "",
+          body: `${label} left the conversation.`, createdAt: now,
+          time: new Date(now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) };
+        tx.update(reference, { sideLeft: {...(data.sideLeft || {}), [side]: true},
+          messages: [...(data.messages || []), message], lastMessage: message.body, updatedAt: now,
+          unreadByResident: side === "team", [thread.category === "office" ? "unreadByVip" : "unreadByCrew"]: side === "resident" });
       });
       break;
     } catch (error) {
       // Strict append rules can reject the losing leave before reporting ABORTED.
-      // Retry only after a server read proves the peer has now left (or it is gone).
-      if (thread.category !== "friend" || attempt >= 1 || (error as {code?:string}).code !== "permission-denied") throw error;
+      // A fresh server read must prove completion, or the opposite side left.
+      if (attempt >= 1 || (error as {code?:string}).code !== "permission-denied") throw error;
       if (auth.currentUser?.uid !== String(user.id)) throw error;
       const latest = await getDocFromServer(reference);
       if (!latest.exists()) break;
       const current = latest.data(), peer = privateChatPeer(current, String(user.id));
-      if (!peer || !privateChatLeft(current, peer)) throw error;
+      if (thread.category === "friend") {
+        if (!peer) throw error;
+        if (privateChatLeft(current, String(user.id))) break;
+        if (!privateChatLeft(current, peer)) throw error;
+      } else {
+        const side = staffChatSide(thread.category, current, user);
+        if (!side) throw error;
+        if (current.sideLeft?.[side] === true) break;
+        if (current.sideLeft?.[side === "resident" ? "team" : "resident"] !== true) throw error;
+      }
     }
   }
   void refreshBadge(String(user.id), {category:thread.category,conversationId:thread.id}).catch(()=>{});
@@ -242,6 +264,8 @@ export async function sendMessage(
       existing = snap.data() || {};
     if (snap.exists() && category === "friend" &&
         (privateChatLeft(existing, String(user.id)) || privateChatLeft(existing, String(target.id))))
+      throw Error("A participant has left this conversation.");
+    if (snap.exists() && category !== "friend" && (existing.sideLeft?.resident === true || existing.sideLeft?.team === true))
       throw Error("A participant has left this conversation.");
     if (snap.exists() && !readThread(category, id, { ...existing, hiddenBy: {} }, user))
       throw new Error("You do not have access to this conversation.");

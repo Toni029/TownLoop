@@ -32,6 +32,7 @@ export type Thread = {
   data: Record<string, any>;
   recipient: UserProfile;
   otherLeft?: boolean;
+  teamAction?: boolean;
 };
 export const collectionName = {
   friend: "resident_chats",
@@ -99,7 +100,9 @@ export function readThread(
     };
     unread = (data.unreadBy || []).some((v: string) => ownDisplayIds.has(v));
   } else {
-    const manager = category === "office" ? officeManager(user) : isCrew(user);
+    const manager = staffChatSide(category, data, user) === "team";
+    const side = staffChatSide(category, data, user);
+    if (!side || data.sideLeft?.[side] === true) return null;
     if (
       !manager &&
       String(data.residentId) !== String(user.id)
@@ -161,7 +164,8 @@ export function readThread(
         : data.updatedAt?.toMillis?.() || 0,
     data,
     recipient,
-    otherLeft: category === "friend" && privateChatLeft(data, String(recipient.id)),
+    otherLeft: category === "friend" ? privateChatLeft(data, String(recipient.id)) : data.sideLeft?.[staffChatSide(category, data, user) === "resident" ? "team" : "resident"] === true,
+    teamAction: category !== "friend" && staffChatSide(category, data, user) === "team",
   };
 }
 // Never reveal an individual office employee's identity in the resident conversation.
@@ -269,9 +273,22 @@ export function profileChanges(user: UserProfile, input: ProfileDetails): Partia
 }
 
 export function conversationRemoval(thread: Thread) {
-  if (thread.category !== "friend") return { label: "Hide conversation", description: "Hide this conversation from your Inbox. New messages will make it appear again." };
+  if (thread.category !== "friend") {
+    const team = thread.category === "office" ? "Community Office" : "Maintenance Crew";
+    const scope = thread.teamAction ? ` for the entire ${team} team` : "";
+    return thread.otherLeft
+      ? { label: `Delete conversation${scope}`, description: `The other side has left. This permanently deletes the conversation and its messages for the resident and the entire ${team} team. This cannot be undone.` }
+      : { label: `Leave conversation${scope}`, description: `You will leave this conversation${scope}. The other side keeps the history but cannot reply. Once both sides remove it, the conversation and its messages are permanently deleted.` };
+  }
   return thread.otherLeft
     ? { label: "Delete conversation", description: "The other participant has left. This permanently removes the conversation and its messages from TownLoop. This cannot be undone." }
     : { label: "Leave conversation", description: "You will leave this conversation. The other person can keep the history. Once both people remove it, the conversation and its messages are permanently deleted." };
 }
 export { privateChatPeer, privateChatLeft };
+
+/** A staff member cannot consent as both sides of their own resident thread. */
+export function staffChatSide(category: Category, data: Record<string, any>, user: UserProfile): "resident" | "team" | null {
+  if (category === "friend" || typeof data.residentId !== "string" || !data.residentId || data.residentId.includes("/")) return null;
+  if (data.residentId === String(user.id)) return "resident";
+  return (category === "office" ? officeManager(user) : isCrew(user)) ? "team" : null;
+}

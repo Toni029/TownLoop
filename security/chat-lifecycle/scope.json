@@ -2,7 +2,7 @@
   "project": "cc-livingcommunity-app",
   "database": "(default)",
   "baselineSHA256": "b93e8c376f2609c1200b5c42553d71cbd531e997ec0f30ee8ef9fe45a4dafc89",
-  "candidateSHA256": "fc7aeeb6c781b34c2c5da716a0f69fb3b4476dd6e7b668c0b075e4c548e051c0",
+  "candidateSHA256": "c8fd3befbc1506519fc1b36a56f4ab94294cb0972934fbf8bb8f5c2e87772e8a",
   "hosting": false,
   "storage": false,
   "functions": false,
