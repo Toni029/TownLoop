@@ -92,3 +92,6 @@ export async function sharePdf(config: NewsletterConfig): Promise<void> {
   // Give the browser time to consume the object URL before releasing it.
   setTimeout(file.dispose, 60000);
 }
+
+// Browser object URLs are released per reader; there is no reusable native-file cache.
+export function invalidatePreparedPdf() {}

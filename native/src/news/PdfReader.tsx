@@ -22,11 +22,12 @@ import {
   Upload,
   X,
 } from "lucide-react-native";
-import type { PdfRef } from "react-native-pdf";
+import type { NewsletterPdfRef } from "./PdfPages";
 import type { NewsletterConfig } from "../models";
 import { Action, Copy, s } from "./ui";
 import { PdfPages } from "./PdfPages";
-import { preparePdf, sharePdf } from "./files";
+import { preparePdf, sharePdf, invalidatePreparedPdf } from "./files";
+import { editionKey } from "./model";
 import { activeEdition } from "./edition";
 export function PdfReader({
   config,
@@ -46,22 +47,23 @@ export function PdfReader({
   const [zoom, setZoom] = useState(1);
   // Gesture feedback is display-only; never echo it back as a native scale command.
   const [commandZoom, setCommandZoom] = useState(1);
-  const zoomTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const scaleChanged = useCallback((value: number) => {
-    setZoom(value);
-    clearTimeout(zoomTimer.current);
-    // Synchronize only after native zoom settles, never once per pinch frame.
-    zoomTimer.current = setTimeout(() => setCommandZoom(value), 400);
-  }, []);
-  useEffect(() => () => clearTimeout(zoomTimer.current), []);
+  const scaleChanged = useCallback((value: number) => setZoom(value), []);
   const source = useMemo(() => ({uri, cache: false}), [uri]);
   const pageChanged = useCallback((n: number) => { setPage(n); setPageInput(String(n)); }, []);
   const pdfError = useCallback(() => setError("The newsletter could not be opened. Please try again."), []);
-  const zoomTo = (value: number) => { clearTimeout(zoomTimer.current); setZoom(value); setCommandZoom(value); };
+  const zoomTo = (value: number) => {
+    setZoom(value);
+    if (Platform.OS === "web") setCommandZoom(value);
+    else pdf.current?.setScale(value);
+  };
   const [sharing, setSharing] = useState(false);
-  const pdf = useRef<PdfRef>(null);
+  const pdf = useRef<NewsletterPdfRef>(null);
   const sharingRef = useRef(false);
+  const currentConfig = useRef(config);
+  currentConfig.current = config;
+  const edition = editionKey(config);
   useEffect(() => {
+    const config = currentConfig.current;
     let active = true;
     let dispose = () => {};
     const timer = setTimeout(() => {
@@ -92,6 +94,7 @@ export function PdfReader({
         void activeEdition(config).catch(() => {
           if (active) {
             setUri("");
+            invalidatePreparedPdf();
             dispose();
             setError("This edition is no longer available. Return to News.");
           }
@@ -103,7 +106,7 @@ export function PdfReader({
       subscription.remove();
       dispose();
     };
-  }, [config, attempt]);
+  }, [edition, attempt]);
   const changePage = (next: number) => {
     const n = Math.max(1, Math.min(pages, next));
     pdf.current?.setPage(n);
@@ -181,6 +184,7 @@ export function PdfReader({
               <Action
                 label="Try again"
                 onPress={() => {
+                  invalidatePreparedPdf();
                   setUri("");
                   setError("");
                   setPages(0);

@@ -32,8 +32,10 @@ export async function loadPdfData(config: NewsletterConfig) {
   await activeEdition(config);
   const id = config.id || "current";
   const reference = doc(db, "newsletters", id);
-  const meta = await getDocFromServer(reference);
-  const chunks = await getDocsFromServer(collection(reference, "chunks"));
+  const [meta, chunks] = await Promise.all([
+    getDocFromServer(reference),
+    getDocsFromServer(collection(reference, "chunks")),
+  ]);
   if (!chunks.empty) {
     const result = assemblePdf(
       chunks.docs.map((d) => d.data() as { index: number; data: string }),
