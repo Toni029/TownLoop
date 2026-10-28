@@ -146,6 +146,11 @@ export function Weather() {
         {!!d && !!h && (
           <Row
             style={{
+              flexWrap: "nowrap",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 1,
+              minWidth: 0,
               gap: 6,
               paddingHorizontal: 12,
               paddingVertical: 4,
@@ -166,6 +171,7 @@ export function Weather() {
               style={{
                 width: 8,
                 height: 8,
+                flexShrink: 0,
                 borderRadius: 4,
                 backgroundColor: h.icon === "sun" ? "#f59e0b" : "#64748b",
               }}
@@ -173,6 +179,8 @@ export function Weather() {
             <Txt
               bold
               style={{
+                flexShrink: 1,
+                minWidth: 0,
                 fontSize: 12,
                 lineHeight: 16,
                 color:
