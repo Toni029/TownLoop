@@ -97,16 +97,17 @@ export function InboxPushProvider({children}:PropsWithChildren){
   if(loading||!navigation?.key||!communityReady||Platform.OS==='web')return;
   let canceled=false;
   // Request installation-wide native permission on the first usable launch,
-  // including before login. Account enrollment remains gated by approval.
+  // including before login. Do not queue the OS dialog behind network sync;
+  // device.ts coalesces concurrent prompt requests. Enrollment still requires approval.
   let frame:number|undefined;
-  const schedule=()=>{if(frame!==undefined)cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{void serialized(async()=>{
+  const schedule=()=>{if(frame!==undefined)cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{void (async()=>{
    if(canceled||permissionOpen.current||AppState.currentState!=='active'||active.current.loading)return;
    permissionOpen.current=true;
    try{
     const permission=await requestNativeNotificationPermission();
     if(!canceled)setAuthorization(permission);
    }finally{permissionOpen.current=false;}
-  }).then(()=>{if(!canceled)void refresh().catch(()=>{});}).catch(()=>{});});};
+  })().then(()=>{if(!canceled)void refresh().catch(()=>{});}).catch(()=>{});});};
   schedule();
   const resumed=AppState.addEventListener('change',state=>{if(state==='active')schedule();});
   return()=>{canceled=true;if(frame!==undefined)cancelAnimationFrame(frame);resumed.remove();};

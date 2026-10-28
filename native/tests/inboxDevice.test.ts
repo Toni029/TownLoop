@@ -18,7 +18,7 @@ function fixture(storage=new Map<string,string>()){
  };
  const output=ts.transpileModule(fs.readFileSync(new URL('../src/notifications/device.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  const module={exports:{}};vm.runInNewContext(output,{module,exports:module.exports,require:(id:string)=>{assert(id in deps,id);return deps[id];},setTimeout,clearTimeout,Promise});
- return {device:module.exports as any,calls,storage,signOut:()=>{(auth as any).currentUser=null;},platform:deps['react-native'].Platform,nativePermission:(value:string,ask=true)=>{granted=value==='granted';status=value;canAsk=ask;},permissionRequests:()=>permissionRequests,token:(s:string)=>{token=s;},fail:(s:boolean)=>{fail=s;},permission:(s:boolean)=>{granted=s;},tokenRequests:()=>tokenRequests,changeDuringToken:()=>{tokenHook=()=>{auth.currentUser.uid='other';};}};
+ return {device:module.exports as any,calls,storage,markPromptAttempted:()=>installation.set('townloop.notifications.permission.requested','yes'),signOut:()=>{(auth as any).currentUser=null;},platform:deps['react-native'].Platform,nativePermission:(value:string,ask=true)=>{granted=value==='granted';status=value;canAsk=ask;},permissionRequests:()=>permissionRequests,token:(s:string)=>{token=s;},fail:(s:boolean)=>{fail=s;},permission:(s:boolean)=>{granted=s;},tokenRequests:()=>tokenRequests,changeDuringToken:()=>{tokenHook=()=>{auth.currentUser.uid='other';};}};
 }
 test('failed rotation retains retired-token recovery until registration succeeds',async()=>{
  const h=fixture();await h.device.syncDevice('b',true);h.token('ExpoPushToken[new]');h.fail(true);await assert.rejects(()=>h.device.syncDevice('b',true));
@@ -65,7 +65,7 @@ test('only the native prompt is requested once, without modifying any account pr
  assert.equal(JSON.stringify(await h.device.categoryPreferences('b')),before);
  assert.equal(h.tokenRequests(),0);
  for(const status of ['denied','granted']){
-  const d=fixture();d.nativePermission(status);
+  const d=fixture();d.nativePermission(status,false);
   await d.device.requestNativeNotificationPermission('b');
   assert.equal(d.permissionRequests(),0);
  }
@@ -79,7 +79,7 @@ test('iOS uses native authorization; older Android and the wrong account never r
  await changed.device.requestNativeNotificationPermission('other');assert.equal(changed.permissionRequests(),0);
 });
 test('denied OS permission is reported even when every category is disabled; denied users are never re-prompted',async()=>{
- const h=fixture();h.nativePermission('denied',true);
+ const h=fixture();h.nativePermission('denied',true);h.markPromptAttempted();
  assert.equal(await h.device.getNotificationAuthorization(),'denied');
  assert.equal(await h.device.syncDevice('b',true,true),'denied');
  assert.equal(h.permissionRequests(),0);
@@ -135,4 +135,20 @@ test('a stale Keychain attempt marker cannot suppress the first-install iOS syst
  // Request markers now use installation storage, so old Keychain entries are not read.
  h.storage.set('townloop.notifications.permission.requested','yes');
  await h.device.requestNativeNotificationPermission();assert.equal(h.permissionRequests(),1);
+});
+
+test('fresh Android 13+ denied-but-askable state opens the real prompt exactly once; an actual refusal is respected',async()=>{
+ const h=fixture();h.signOut();h.nativePermission('denied',true);
+ await h.device.requestNativeNotificationPermission();
+ assert.equal(h.permissionRequests(),1,'Android can report denied before its first native prompt');
+ await h.device.requestNativeNotificationPermission();assert.equal(h.permissionRequests(),1);
+ const blocked=fixture();blocked.nativePermission('denied',false);await blocked.device.requestNativeNotificationPermission();assert.equal(blocked.permissionRequests(),0);
+ const ios=fixture();ios.platform.OS='ios';ios.nativePermission('denied',true);await ios.device.requestNativeNotificationPermission();assert.equal(ios.permissionRequests(),0);
+});
+
+
+test('concurrent first-launch and settings requests share a single native permission dialog',async()=>{
+ const h=fixture();h.nativePermission('undetermined',true);
+ await Promise.all([h.device.requestNativeNotificationPermission(),h.device.requestNativeNotificationPermission('b'),h.device.requestNativeNotificationPermission()]);
+ assert.equal(h.permissionRequests(),1);
 });

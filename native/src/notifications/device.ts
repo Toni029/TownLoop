@@ -48,10 +48,20 @@ async function prepareChannels(n:NonNullable<ReturnType<typeof notifications>>){
 }
 // OS authorization is installation-wide, separate from per-account category choices.
 // Record the attempt before displaying the native prompt; cancellation never loops.
-export async function requestNativeNotificationPermission(uid?:string):Promise<NotificationAuthorization>{
+let nativePermissionRequest:Promise<NotificationAuthorization>|undefined;
+export function requestNativeNotificationPermission(uid?:string):Promise<NotificationAuthorization>{
+ if(uid!==undefined&&auth.currentUser?.uid!==uid)return getNotificationAuthorization();
+ if(!nativePermissionRequest)nativePermissionRequest=requestPermission(uid).finally(()=>{nativePermissionRequest=undefined;});
+ return nativePermissionRequest;
+}
+async function requestPermission(uid?:string):Promise<NotificationAuthorization>{
  const n=notifications();if(!n)return 'unavailable';
  const permission=await n.getPermissionsAsync();
- if((uid!==undefined&&auth.currentUser?.uid!==uid)||permission.status!=='undetermined'||!permission.canAskAgain||
+ // Android reports denied before first grant when notifications are disabled,
+ // even if POST_NOTIFICATIONS has never been requested. canAskAgain plus our
+ // installation marker distinguishes that state from our prior prompt.
+ const askableStatus=permission.status==='undetermined'||(Platform.OS==='android'&&permission.status==='denied');
+ if((uid!==undefined&&auth.currentUser?.uid!==uid)||permission.granted||!askableStatus||!permission.canAskAgain||
    (Platform.OS==='android'&&Number(Platform.Version)<33))return authorization(n,permission);
  if(await AsyncStorage.getItem(permissionAttemptKey)==='yes')return authorization(n,permission);
  await prepareChannels(n);
