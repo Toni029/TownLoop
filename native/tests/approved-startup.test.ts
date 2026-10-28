@@ -59,7 +59,7 @@ function find(tree:any,name:string):any{
  if(tree.type===name||tree.type?.name===name)return tree;
  return find(tree.props?.children,name);
 }
-async function mountScene(h:ReturnType<typeof harness>,props:any){const tree=h.render('VideoScene',props);find(tree,'VideoView').props.onLayout();await h.flush();return tree;}
+async function mountScene(h:ReturnType<typeof harness>,props:any,frame=true){const tree=h.render('VideoScene',props);find(tree,'VideoView').props.onLayout();await h.flush();if(frame)find(tree,'VideoView').props.onFirstFrameRender();await h.flush();return tree;}
 async function root(h:ReturnType<typeof harness>,ready=true){let tree:any;for(let i=0;i<4;i++){tree=h.render('ApprovedStartup',{ready,children:'app'});await h.flush();}return tree;}
 test('only the exact approved MP4 is referenced',()=>{
  const b=readFileSync(new URL('../assets/launch/approved-startup.mp4',import.meta.url));
@@ -69,18 +69,18 @@ test('only the exact approved MP4 is referenced',()=>{
 });
 test('prepares and starts before authentication; mounts the destination behind the overlay',async()=>{
  const h=harness();let tree=await root(h,false);const scene=find(tree,'VideoScene');assert.ok(scene,'Video must not wait for authentication');
- const view=await mountScene(h,scene.props);assert.ok(h.calls.includes('play'));assert.equal(h.calls.includes('hideSplash'),false,'Do not reveal an empty decoder');
+ const view=await mountScene(h,scene.props);assert.ok(h.calls.includes('play'));assert.ok(h.calls.includes('hideSplash'),'Release native pre-draw before waiting for a decoder frame');
  find(view,'VideoView').props.onFirstFrameRender();h.render('VideoScene',scene.props);await h.flush();assert.ok(h.calls.includes('hideSplash'));
- tree=await root(h,true);assert.ok(find(tree,'VideoScene'));assert.equal(find(tree,'View').props.children[0].props.children,'app');
+ tree=await root(h,true);assert.ok(find(tree,'VideoScene'));assert.equal(find(tree,'View').props.children[0].props.children.props.children,'app');
 });
 test('real completion holds the last frame until destination layout, then fades for 500ms without unmounting the app',async()=>{
  const h=harness();let tree=await root(h,false);const scene=find(tree,'VideoScene');await mountScene(h,scene.props);
  h.events.playToEnd();tree=await root(h,false);assert.ok(find(tree,'VideoScene'));assert.equal(h.fades.length,0);
  tree=await root(h,true);assert.equal(h.fades.length,0,'Readiness alone does not prove layout');
- tree.props.children[0].props.onLayout();tree=await root(h,true);
+ tree.props.children[0].props.children.props.onLayout();tree=await root(h,true);
  assert.equal(h.fades.length,1);assert.equal(h.fades[0].config.duration,500);assert.equal(h.fades[0].config.useNativeDriver,true);
  assert.ok(find(tree,'VideoScene'),'Keep decoder until fade completes');h.fades[0].done!({finished:true});
- tree=await root(h);assert.equal(find(tree,'VideoScene'),undefined);assert.equal(tree.props.children[0].props.children,'app');
+ tree=await root(h);assert.equal(find(tree,'VideoScene'),undefined);assert.equal(tree.props.children[0].props.children.props.children,'app');
  h.unmount('VideoScene');h.unmount('ApprovedStartup');assert.equal(find(await root(h),'VideoScene'),undefined);
 });
 test('silent opt-out precedes preparation; poster covers decoding and video end cannot bypass playback',async()=>{
@@ -95,9 +95,9 @@ test('decoder failures end optional playback without waiting indefinitely for in
   if(mode==='stall')h.player.replaceAsync=()=>new Promise(()=>{});
   if(mode==='reject')h.player.replaceAsync=()=>Promise.reject(Error('prepare failed'));
   if(mode==='play')h.player.play=()=>{throw Error('decoder unavailable');};
-  await mountScene(h,props);
+  await mountScene(h,props,mode!=='stall'&&mode!=='reject');
   if(mode==='stall')h.timers.find(t=>t.ms===8000&&!t.cleared)!.fn();else if(mode==='error')h.events.statusChange({status:'error'});
-  let tree=await root(h);tree.props.children[0].props.onLayout();await root(h);
+  let tree=await root(h);tree.props.children[0].props.children.props.onLayout();await root(h);
   h.fades.at(-1)?.done?.({finished:true});assert.equal(find(await root(h),'VideoScene'),undefined);
   assert.doesNotThrow(()=>h.unmount('VideoScene'));
  }
@@ -106,12 +106,12 @@ test('decoder failures end optional playback without waiting indefinitely for in
 });
 test('background/resume and remount do not restart playback',async()=>{
  const h=harness(),props=find(await root(h),'VideoScene').props;await mountScene(h,props);h.background();h.resume();
- let tree=await root(h);tree.props.children[0].props.onLayout();await root(h);h.fades.at(-1)?.done?.({finished:true});
+ let tree=await root(h);tree.props.children[0].props.children.props.onLayout();await root(h);h.fades.at(-1)?.done?.({finished:true});
  assert.equal(find(await root(h),'VideoScene'),undefined);h.unmount('VideoScene');h.unmount('ApprovedStartup');
  assert.equal(find(await root(h),'VideoScene'),undefined);assert.equal(h.calls.filter(x=>x==='play').length,1);
 });
 test('Reduce Motion skips playback and fade; iOS uses the same lifecycle and remains silent',async()=>{
- const h=harness();h.reduced(true);let tree=await root(h);tree.props.children[0].props.onLayout();tree=await root(h);
+ const h=harness();h.reduced(true);let tree=await root(h);tree.props.children[0].props.children.props.onLayout();tree=await root(h);
  assert.equal(find(tree,'VideoScene'),undefined);assert.equal(h.fades.length,0);
  const ios=harness();ios.modules['react-native'].Platform.OS='ios';await mountScene(ios,find(await root(ios,false),'VideoScene').props);
  assert.ok(ios.calls.includes('allowsExternalPlayback:false'));assert.ok(ios.calls.includes('muted:true'));
@@ -124,10 +124,10 @@ test('a late prepare after unmount is unloaded and cannot play',async()=>{
 test('prepared source waits only for view layout and accessibility, not network readiness',async()=>{
  const h=harness(),props=find(await root(h,false),'VideoScene').props;
  const view=find(h.render('VideoScene',props),'VideoView');await h.flush();assert.ok(h.calls.includes('prepare'));assert.equal(h.calls.includes('play'),false);
- view.props.onLayout();await h.flush();view.props.onLayout();await h.flush();assert.equal(h.calls.filter(x=>x==='play').length,1);
+ view.props.onLayout();await h.flush();assert.equal(h.calls.includes('play'),false,'Prepared source must render its first frame before the timeline starts');view.props.onFirstFrameRender();await h.flush();view.props.onLayout();await h.flush();assert.equal(h.calls.filter(x=>x==='play').length,1);
 });
 test('lost fade callback and stalled initialization have bounded recovery',async()=>{
- const h=harness();let tree=await root(h);await mountScene(h,find(tree,'VideoScene').props);tree.props.children[0].props.onLayout();h.events.playToEnd();await root(h);
+ const h=harness();let tree=await root(h);await mountScene(h,find(tree,'VideoScene').props);tree.props.children[0].props.children.props.onLayout();h.events.playToEnd();await root(h);
  h.timers.find(t=>t.ms===1200&&!t.cleared)!.fn();assert.equal(find(await root(h),'VideoScene'),undefined);
  const slow=harness();await root(slow,false);slow.timers.find(t=>t.ms===20000&&!t.cleared)!.fn();
  assert.throws(()=>slow.render('ApprovedStartup',{ready:false,children:'app'}),/initialization/i,'Use existing app error boundary, never bypass authentication');
@@ -145,15 +145,52 @@ test('exact first-frame still is portrait, and destination readiness changes can
  const png=readFileSync(new URL('../assets/launch/approved-first-frame.png',import.meta.url));
  assert.equal(png.readUInt32BE(16),1320);assert.equal(png.readUInt32BE(20),2868);
  assert.equal(createHash('sha256').update(png).digest('hex'),'5a9490d5c5e575bedd6783806df2002ae91cf2156d36917c48a11d5d0466c036');
- const h=harness();let tree=await root(h);tree.props.children[0].props.onLayout();await root(h);
+ const h=harness();let tree=await root(h);tree.props.children[0].props.children.props.onLayout();await root(h);
  assert.equal(h.fades.length,0);assert.ok(find(await root(h,false),'VideoScene'));
  tree=await root(h,true);assert.ok(find(tree,'VideoScene'));assert.equal(h.fades.length,0);
 });
 
 test('a delayed accessibility response is not incorrectly converted into reduced motion after one second',async()=>{
  const h=harness();h.modules['react-native'].AccessibilityInfo.isReduceMotionEnabled=()=>new Promise(()=>{});
- let tree=await root(h);await mountScene(h,find(tree,'VideoScene').props);
+ let tree=await root(h);await mountScene(h,find(tree,'VideoScene').props,false);
  assert.equal(h.timers.some(t=>t.ms===1000),false);
- h.timers.find(t=>t.ms===8000&&!t.cleared)!.fn();tree=await root(h);tree.props.children[0].props.onLayout();await root(h);
+ h.timers.find(t=>t.ms===8000&&!t.cleared)!.fn();tree=await root(h);tree.props.children[0].props.children.props.onLayout();await root(h);
  h.fades.at(-1)?.done?.({finished:true});assert.equal(find(await root(h),'VideoScene'),undefined,'Real stalled preparation still recovers');
 });
+
+test('releases the native pre-draw gate without waiting for blocked image or first-video-frame callbacks',async()=>{
+ const h=harness();const tree=await root(h,false);
+ assert.ok(h.calls.includes('hideSplash'),'Android native splash prevents pre-draw; frame callbacks cannot release it');
+ await mountScene(h,find(tree,'VideoScene').props);
+ assert.ok(h.calls.indexOf('hideSplash')<h.calls.indexOf('play'));
+ assert.equal(h.calls.filter(x=>x==='play').length,1);
+});
+
+test('native video view is drawable before the first-frame event; never hide its parent with zero opacity',async()=>{
+ const h=harness();const props=find(await root(h,false),'VideoScene').props;const view=await mountScene(h,props);
+ const style=find(view,'VideoView').props.style;
+ const resolved=Object.assign({},...(Array.isArray(style)?style:[style]));
+ assert.notEqual(resolved.opacity,0,'Android TextureView must draw to create the surface that produces its first frame');
+});
+
+ test('decoder surface stays drawable beneath the exact cover until its first frame, then starts the movie clock',async()=>{
+ const h=harness();const props=find(await root(h,false),'VideoScene').props;
+ let view=await mountScene(h,props,false);const video=find(view,'VideoView');
+ assert.equal(video.props.useExoShutter,true,'Transparent shutter makes Android hide the TextureView until a frame is rendered');
+ assert.ok(find(view,'Image'),'Cover the opaque decoder without hiding its surface');
+ assert.equal(h.calls.includes('play'),false,'Do not consume the movie timeline before its surface is ready');
+ video.props.onFirstFrameRender();await h.flush();view=h.render('VideoScene',props);await h.flush();
+ assert.equal(find(view,'Image'),undefined);assert.equal(h.calls.filter(x=>x==='play').length,1);
+ });
+
+ test('ignores the native empty-player end event before the approved source starts',async()=>{
+ const h=harness();let prepared:()=>void=()=>{};
+ h.player.replaceAsync=(source:any)=>{h.calls.push(source===null?'unload':'prepare');return source===null?Promise.resolve():new Promise<void>(resolve=>{prepared=resolve;});};
+ const props=find(await root(h,false),'VideoScene').props;
+ const view=await mountScene(h,props,false);
+ h.events.playToEnd();let tree=await root(h,true);tree.props.children[0].props.children.props.onLayout();await root(h,true);
+ assert.equal(h.fades.length,0,'Initial native ENDED must not dismiss the unplayed video');
+ prepared();await h.flush();find(view,'VideoView').props.onFirstFrameRender();await h.flush();
+ assert.equal(h.calls.filter(x=>x==='play').length,1);
+ h.events.playToEnd();await root(h,true);assert.equal(h.fades.length,1,'The real started video still completes normally');
+ });

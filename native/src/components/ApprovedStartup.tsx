@@ -42,7 +42,6 @@ class VideoBoundary extends Component<{children:ReactNode;onFailure:()=>void},{f
 function VideoScene({onComplete,enabled=true}:{onComplete:()=>void;enabled?:boolean}){
  const [player]=useState(playerForLaunch),[visible,setVisible]=useState(false);
  const firstFrame=useRef<()=>void>(()=>{});
- useEffect(()=>{if(visible)void hideNativeSplash();},[visible]);
  const laidOut=useRef(false),startWhenReady=useRef<()=>void>(()=>{}),allowed=useRef(enabled);
  allowed.current=enabled;
  useEffect(()=>{startWhenReady.current();},[enabled]);
@@ -56,16 +55,24 @@ function VideoScene({onComplete,enabled=true}:{onComplete:()=>void;enabled?:bool
   firstFrame.current=()=>{
    if(!active||framed)return;framed=true;setVisible(true);clearTimeout(timer);
    timer=setTimeout(finish,4500); // full 2.5s video plus decoder-stall allowance
+   startWhenReady.current();
   };
   const subs:Array<{remove:()=>void}>=[];
   try{
-   subs.push(player.addListener('playToEnd',finish));
+   // Android can emit ENDED for the initial empty player before replaceAsync resolves.
+   // Only our prepared, framed, started movie is allowed to complete startup.
+   subs.push(player.addListener('playToEnd',()=>{if(started&&framed)finish();}));
    subs.push(player.addListener('statusChange',event=>{if(event.status==='error')finish();}));
    subs.push(AppState.addEventListener('change',state=>{if(state==='background')finish();else if(state==='active')startWhenReady.current();}));
    startWhenReady.current=()=>{
-    if(!active||!prepared||!laidOut.current||!allowed.current||started)return;
+    if(!active||!prepared||!laidOut.current||!allowed.current||!framed||started)return;
     if(AppState.currentState!=='active')return;started=true;
-    try{player.play();}catch{finish();}
+    // Android's native splash blocks pre-draw and TextureView frames. Never
+    // wait for a first-frame/image-load callback before releasing that gate.
+    void hideNativeSplash().then(()=>{
+     if(active&&AppState.currentState==='active')player.play();
+     else if(active)started=false;
+    }).catch(finish);
    };
    if(AppState.currentState==='background')finish();
    else{
@@ -79,10 +86,12 @@ function VideoScene({onComplete,enabled=true}:{onComplete:()=>void;enabled?:bool
    unload();void loading?.then(unload,unload);
   };
  },[player,onComplete]);
- return <VideoView player={player} style={[StyleSheet.absoluteFill,{opacity:visible?1:0}]} contentFit="contain" surfaceType="textureView"
-  nativeControls={false} allowsPictureInPicture={false} fullscreenOptions={{enable:false}} useExoShutter={false}
+ return <View collapsable={false} style={StyleSheet.absoluteFill}><VideoView player={player} style={[StyleSheet.absoluteFill,{opacity:1}]} contentFit="contain" surfaceType="textureView"
+  nativeControls={false} allowsPictureInPicture={false} fullscreenOptions={{enable:false}} useExoShutter={true}
   onLayout={()=>{laidOut.current=true;startWhenReady.current();}}
-  onFirstFrameRender={()=>firstFrame.current()}/>;
+  onFirstFrameRender={()=>firstFrame.current()}/>
+  {!visible?<Image source={require('../../assets/launch/approved-first-frame.png')} style={StyleSheet.absoluteFill} resizeMode="contain" resizeMethod="resize"/>:null}
+ </View>;
 }
 /** Prepare immediately; retain one overlay while authorized navigation mounts underneath. */
 export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNode}){
@@ -98,7 +107,7 @@ export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNo
  const destinationLayout=useCallback(()=>setLaidOut(true),[]);
  useEffect(()=>{if(!ready)setLaidOut(false);},[ready]);
  useEffect(()=>{
-  if(phase==='playing')claimed=true;
+  if(phase==='playing'){claimed=true;void hideNativeSplash();}
   return()=>{if(claimed)completed=true;};
  },[]);
  useEffect(()=>{
@@ -122,15 +131,17 @@ export function ApprovedStartup({ready,children}:{ready:boolean;children:ReactNo
   return()=>{clearTimeout(timer);animation.stop();};
  },[phase,appReady,foreground,ended,reduced,opacity,finish]);
  if(timedOut)throw Error('TownLoop initialization did not finish. Please retry.');
- return <View style={{flex:1,backgroundColor:background}}>
-  {ready?<View key="destination" style={{flex:1}} onLayout={destinationLayout}
-   accessibilityElementsHidden={phase!=='done'} importantForAccessibility={phase==='done'?'auto':'no-hide-descendants'}>{children}</View>:null}
-  {phase!=='done'?<Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:background,opacity,zIndex:1000}]}
+ return <View collapsable={false} style={{flex:1,backgroundColor:background}}>
+  <View key="destination" collapsable={false} style={{flex:1}}
+   accessibilityElementsHidden={phase!=='done'} importantForAccessibility={phase==='done'?'auto':'no-hide-descendants'}>
+   {ready?<View style={{flex:1}} onLayout={destinationLayout}>{children}</View>:null}
+  </View>
+  {phase!=='done'?<Animated.View key="launch-overlay" collapsable={false} style={[StyleSheet.absoluteFill,{backgroundColor:background,opacity,zIndex:1000}]}
    accessibilityLabel="Starting TownLoop" accessibilityRole="progressbar">
    <LinearGradient pointerEvents="none" colors={['#f1e4d3','#f0e6d7','#f2e8d9','#f0e6d7','#f1e4d3']} locations={[0,.25,.5,.75,1]}
     style={{position:'absolute',left:0,right:0,top:frame.top,height:frame.height}}/>
-   <View style={{position:'absolute',...frame}}>
-    <Image source={require('../../assets/launch/approved-first-frame.png')} style={StyleSheet.absoluteFill} resizeMode="contain" resizeMethod="resize" onLoad={()=>{void hideNativeSplash();}}/>
+   <View collapsable={false} style={{position:'absolute',...frame}}>
+    <Image source={require('../../assets/launch/approved-first-frame.png')} style={StyleSheet.absoluteFill} resizeMode="contain" resizeMethod="resize"/>
     {reduced!==true?<VideoBoundary onFailure={videoEnded}><VideoScene onComplete={videoEnded} enabled={reduced===false}/></VideoBoundary>:null}
    </View>
   </Animated.View>:null}

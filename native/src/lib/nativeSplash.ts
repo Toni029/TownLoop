@@ -1,7 +1,8 @@
 import * as SplashScreen from 'expo-splash-screen';
 
-// Keep the OS launch screen only until initialized navigation (or its error UI)
-// has laid out, or until the approved startup first frame is visible.
+// Release after startup content commits, or initialized navigation/error layout.
+// Android holds pre-draw while this splash is visible: never wait for a video
+// first-frame or image-load callback before hiding it.
 try { void SplashScreen.preventAutoHideAsync().catch(() => undefined); } catch {}
 
 export async function hideNativeSplash() {
