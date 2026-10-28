@@ -53,10 +53,11 @@ function harness(initial, authorizeProcessing = false) {
   vm.runInNewContext(fs.readFileSync(require.resolve('./accountDeletion.cjs'), 'utf8') + '\nmodule.exports.run = processJob;', context);
   return { warnings, adminAlerts, enableAdminAlerts:()=>{context.process.env.TOWNLOOP_DELETION_ADMIN_ALERTS_ENABLED='true';}, records, db, auth, authCalls, schedule: context.module.exports.resumeAccountDeletions, escalate:context.module.exports.escalateAccountDeletionRequests, request: context.module.exports.requestAccountDeletion, requestOnly: context.module.exports.submitAccountDeletionRequest, status: context.module.exports.getAccountDeletionStatus, list: context.module.exports.listAccountDeletionRequests, review: context.module.exports.reviewAccountDeletionRequest, run: context.module.exports.run, ref: doc('account_deletion_jobs/job') };
 }
-test('deletion request requires exact confirmation and recent authentication, not just a refreshed token', () => {
+test('deletion request requires the confirmation word and recent authentication, not just a refreshed token', () => {
   const now = 100000000, auth = { uid: 'alice', token: { auth_time: now / 1000 } };
   assert.equal(validateRequest(null, { confirmation: 'DELETE' }, now), 'unauthenticated');
-  assert.equal(validateRequest(auth, { confirmation: 'delete' }, now), 'confirmation-required');
+  for(const confirmation of ['DELETE','delete','Delete','DeLeTe','  dElEtE  ']) assert.equal(validateRequest(auth, {confirmation}, now),null);
+  for(const confirmation of ['delet','delete now','delete delete','',null,{},['delete']]) assert.equal(validateRequest(auth, {confirmation}, now),'confirmation-required');
   assert.equal(validateRequest({ ...auth, token: { auth_time: now / 1000 - 301 } }, { confirmation: 'DELETE' }, now), 'recent-login-required');
   assert.equal(validateRequest({ ...auth, token: { auth_time: Infinity } }, { confirmation: 'DELETE' }, now), 'recent-login-required');
   assert.equal(validateRequest(auth, { confirmation: 'DELETE' }, now), null);

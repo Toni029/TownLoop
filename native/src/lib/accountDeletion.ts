@@ -1,3 +1,4 @@
+import {validDeletionConfirmation} from '../profile/deletionConfirmation';
 import {clearPushAccount} from '../notifications/device';
 import { clearPrivateMediaCache } from '../localData/privateMediaCache';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,7 +12,7 @@ import { reauthenticateDeletionGoogle } from './accountDeletionGoogle';
 export async function requestAccountDeletion(password: string, confirmation: string): Promise<{ jobId: string; status: string }> {
   const user = auth.currentUser;
   if (!user) throw new Error('Sign in first.');
-  if (confirmation !== 'DELETE') throw new Error('Type DELETE exactly to confirm.');
+  if (!validDeletionConfirmation(confirmation)) throw new Error('Type DELETE to confirm.');
   const providers = user.providerData.map(provider => provider.providerId);
   if (providers.includes('password') && user.email && password) {
     await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
@@ -26,7 +27,7 @@ export async function requestAccountDeletion(password: string, confirmation: str
   await user.getIdToken(true);
   if (auth.currentUser?.uid !== user.uid) throw new Error('Your session changed. Sign in again.');
   const request = httpsCallable<{ confirmation: string; requestOnly: boolean }, { jobId: string; status: string }>(getFunctions(app, 'us-central1'), 'submitAccountDeletionRequest');
-  return (await request({ confirmation, requestOnly: true })).data;
+  return (await request({ confirmation: 'DELETE', requestOnly: true })).data;
 }
 
 /** Exact account-scoped keys only; never clear another account's data or all AsyncStorage. */

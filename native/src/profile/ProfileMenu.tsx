@@ -1137,7 +1137,7 @@ export function ProfileMenu({
                         <AccountDeletionButton onPress={() => go("accountDeletion")} />
                       </>
                     )}
-                    {view === "accountDeletion" && <AccountDeletion />}
+                    {view === "accountDeletion" && <AccountDeletion onDone={back} />}
                     {view === "menu" && (
                       <>
                         <View style={s.profile}>

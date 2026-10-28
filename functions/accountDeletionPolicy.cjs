@@ -6,7 +6,7 @@ function validateRequest(auth, data, now = Date.now()) {
   if (!auth?.uid) return 'unauthenticated';
   const authenticatedAt = Number(auth.token?.auth_time) * 1000;
   if (!Number.isFinite(authenticatedAt) || authenticatedAt > now + 30000 || now - authenticatedAt > 5 * 60000) return 'recent-login-required';
-  if (data?.confirmation !== 'DELETE') return 'confirmation-required';
+  if (typeof data?.confirmation !== 'string' || data.confirmation.trim().toLowerCase() !== 'delete') return 'confirmation-required';
   return null;
 }
 function referencesUid(data, uid) {
