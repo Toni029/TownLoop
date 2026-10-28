@@ -1,6 +1,8 @@
 import { ScrollView } from '../keyboard/KeyboardScrollView';
-import { useState } from "react";
-import { Platform, Pressable,  View } from "react-native";
+import { useRef, useState } from "react";
+import { Modal, Pressable, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { categoryMenuBounds } from "./categoryMenuBounds";
 import { Check, ChevronDown } from "lucide-react-native";
 import Animated, {
   Easing,
@@ -19,8 +21,11 @@ export function CategoryPicker({
   onChange: (v: string) => void;
   disabled: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const Options = Platform.OS === "web" ? ScrollView : View;
+  const [anchor, setAnchor] = useState<{x:number;y:number;width:number;height:number}|null>(null);
+  const open = !!anchor;
+  const trigger = useRef<View>(null);
+  const screen = useWindowDimensions(),insets=useSafeAreaInsets();
+  const bounds = anchor ? categoryMenuBounds(anchor,screen,insets) : null;
   const dark = !!usePresentation()?.dark;
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
@@ -38,11 +43,12 @@ export function CategoryPicker({
         CATEGORY
       </Copy>
       <Pressable
+        ref={trigger}
         disabled={disabled}
         accessibilityRole="button"
         accessibilityLabel="Work order category"
         accessibilityState={{ expanded: open, disabled }}
-        onPress={() => setOpen(!open)}
+        onPress={() => trigger.current?.measureInWindow((x,y,width,height) => setAnchor({x,y,width,height}))}
         style={{
           paddingHorizontal: 14,
           paddingVertical: 10,
@@ -66,8 +72,9 @@ export function CategoryPicker({
           <ChevronDown size={16} color={open ? "#059669" : muted} />
         </Animated.View>
       </Pressable>
-      {open && (
-        <Animated.View
+      {open && bounds && <Modal transparent visible animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setAnchor(null)}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close category menu" onPress={() => setAnchor(null)} style={{position:'absolute',top:0,left:0,right:0,bottom:0}}/>
+        <Animated.View accessibilityViewIsModal
           entering={new Keyframe({
             0: { opacity: 0, transform: [{ translateY: -6 }, { scale: 0.98 }] },
             100: {
@@ -85,10 +92,8 @@ export function CategoryPicker({
             },
           }).duration(180)}
           style={{
-            position: Platform.OS === "web" ? "absolute" : "relative",
-            left: 0,
-            right: 0,
-            top: Platform.OS === "web" ? 70 : undefined,
+            position: "absolute",
+            ...bounds,
             borderRadius: 16,
             borderWidth: 1,
             borderColor: dark ? "#334155" : "#e7e5e4",
@@ -99,14 +104,7 @@ export function CategoryPicker({
             zIndex: 50,
           }}
         >
-          <Options
-            // Native uses the form's single scroll surface so all nine options
-            // remain reachable without a clipped nested dropdown.
-            style={{ maxHeight: Platform.OS === "web" ? 244 : undefined, gap: 4 }}
-            {...(Platform.OS === "web"
-              ? { keyboardShouldPersistTaps: "handled" as const, contentContainerStyle: { gap: 4 } }
-              : {})}
-          >
+          <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled style={{maxHeight:Math.max(1,bounds.maxHeight-12)}} contentContainerStyle={{gap:4}}>
             {WORK_ORDER_CATEGORIES.map((c) => {
               const active = c.name === value;
               return (
@@ -117,7 +115,7 @@ export function CategoryPicker({
                   disabled={disabled}
                   onPress={() => {
                     onChange(c.name);
-                    setOpen(false);
+                    setAnchor(null);
                   }}
                   style={({ pressed }) => ({
                     flexDirection: "row",
@@ -177,9 +175,9 @@ export function CategoryPicker({
                 </Pressable>
               );
             })}
-          </Options>
+          </ScrollView>
         </Animated.View>
-      )}
+      </Modal>}
     </View>
   );
 }

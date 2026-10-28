@@ -131,6 +131,7 @@ export function readPost(id: string, d: Record<string, any>): Post {
   };
 }
 export function readListing(id: string, d: Record<string, any>): Listing {
+  const clearedMedia = Array.isArray(d.media) && !d.media.length && d.mediaUrl === "";
   return {
     id,
     title: d.title || "Market Item",
@@ -146,8 +147,8 @@ export function readListing(id: string, d: Record<string, any>): Listing {
     claimed: !!(d.claimed || d.sold),
     sold: !!(d.sold || d.claimed),
     mediaUrl: d.mediaUrl,
-    photoUrl: d.photoUrl || d.mediaUrl,
-    media: mediaFor(d),
+    photoUrl: clearedMedia ? "" : d.photoUrl || d.mediaUrl,
+    media: clearedMedia ? [] : mediaFor(d),
     comments: commentsFor(d),
     createdAt: time(d.createdAt),
   };

@@ -15,25 +15,27 @@ import {
 } from "../news/ui";
 import { ProductDialog } from "../components/ProductDialog";
 import { pickAndUpload } from "../components/media";
-import { formatPrice } from "./model";
-import { newSocialId, publishSocial, type SocialKind } from "./actions";
+import { formatPrice, mediaFor, type Listing } from "./model";
+import { newSocialId, publishSocial, editListing, type SocialKind } from "./actions";
 export function CreateEditor({
   initialKind,
+  listing,
   onClose,
   onSaved,
 }: {
   initialKind: SocialKind;
+  listing?: Listing;
   onClose: () => void;
   onSaved: (kind: SocialKind) => void;
 }) {
   const s = useNewsStyles();
   const dark = !!usePresentation()?.dark;
   const [kind, setKind] = useState(initialKind);
-  const [id] = useState(newSocialId);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [media, setMedia] = useState<MediaAttachment[]>([]);
+  const [id] = useState(() => listing ? String(listing.id) : newSocialId());
+  const [title, setTitle] = useState(listing?.title || "");
+  const [description, setDescription] = useState(listing?.description || "");
+  const [price, setPrice] = useState(listing?.price || "");
+  const [media, setMedia] = useState<MediaAttachment[]>(listing ? mediaFor(listing) : []);
   const [pendingMedia, setPendingMedia] = useState<ImagePickerAsset[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -123,7 +125,8 @@ export function CreateEditor({
           });
         attachments = [...media, ...uploaded];
       }
-      await publishSocial(id, kind, { title, description, price, media: attachments });
+      if (listing) await editListing(id, { title, description, price, media: attachments });
+      else await publishSocial(id, kind, { title, description, price, media: attachments });
       onSaved(kind);
       onClose();
     } catch (e) {
@@ -139,7 +142,7 @@ export function CreateEditor({
       sheet
       serif
       title={
-        kind === "post" ? "Create Community Post" : "Post Item for Sale / Free"
+        listing ? "Edit Marketplace Listing" : kind === "post" ? "Create Community Post" : "Post Item for Sale / Free"
       }
       subtitle={
         kind === "post"
@@ -150,7 +153,7 @@ export function CreateEditor({
       nativeWindowKey={nativeWindowKey}
       onClose={onClose}
     >
-      <View style={{ gap: 6 }}>
+      {!listing && <View style={{ gap: 6 }}>
         <Copy weight="bold">Post Category</Copy>
         <View
           style={[
@@ -206,7 +209,7 @@ export function CreateEditor({
             );
           })}
         </View>
-      </View>
+      </View>}
       <Field
         labelCase="natural"
         style={{
@@ -341,8 +344,8 @@ export function CreateEditor({
         radius={16}
         label={
           busy
-            ? progress !== null ? "Uploading media…" : "Publishing…"
-            : kind === "post"
+            ? progress !== null ? "Uploading media…" : listing ? "Saving Changes…" : "Publishing…"
+            : listing ? "Save Changes" : kind === "post"
               ? "Publish Post to Discussion Feed"
               : "Publish Item to Marketplace"
         }

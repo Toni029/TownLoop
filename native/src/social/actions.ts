@@ -109,3 +109,20 @@ export async function changeChat(id: string, action: "reply" | "read" | "leave",
     if(action==='read')void refreshBadge(String(user.id),{category:'marketplace',conversationId:id}).catch(()=>{});
   });
 }
+
+/** Edit only seller-owned content; transaction updates preserve identity, history and availability. */
+export async function editListing(id: string, draft: {title:string;description:string;price:string;media:MediaAttachment[]}) {
+  return runSocial(`edit:${id}`, async () => {
+    if (!draft.title.trim() || !draft.description.trim()) throw Error('Please provide a title and description.');
+    if (draft.title.trim().length > 1000 || draft.description.trim().length > 20000) throw Error('Please shorten the listing text.');
+    const user = await approvedUser();
+    const reference = doc(db, 'marketplace_posts', id);
+    await runTransaction(db, async tx => {
+      const snap = await tx.get(reference);
+      if (!snap.exists() || snap.data().storageDraft !== false) throw Error('This listing is no longer available.');
+      const data = snap.data();
+      if ((data.userId ?? data.authorId ?? data.uid) !== String(user.id)) throw Error('Only the seller can edit this listing.');
+      tx.update(reference, {title:draft.title.trim(),description:draft.description.trim(),price:formatPrice(draft.price),media:draft.media,mediaUrl:draft.media[0]?.url || '',updatedAt:serverTimestamp()});
+    });
+  });
+}

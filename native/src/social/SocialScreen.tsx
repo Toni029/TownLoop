@@ -51,6 +51,7 @@ export default function SocialScreen() {
   const uid = String(user?.id || "");
   const [view, setView] = useState<SocialKind>("post");
   const [create, setCreate] = useState(false);
+  const [editing, setEditing] = useState<Listing | null>(null);
   const [selected, setSelected] = useState<{
     kind: SocialKind;
     id: string;
@@ -167,6 +168,7 @@ export default function SocialScreen() {
         busy={busy}
         reactionsReady={!posts.loading && !posts.error}
         unread={unread}
+        onEdit={listing => { setSelected(null); setEditing(listing); }}
         onCreate={() => {
           setError("");
           setCreate(true);
@@ -197,6 +199,8 @@ export default function SocialScreen() {
           }}
         />
       )}
+      {editing && <CreateEditor key={String(editing.id)} initialKind="listing" listing={editing}
+        onClose={() => setEditing(null)} onSaved={() => setToast('Marketplace listing updated!')}/>}
       {selected && item && (
         <Detail targetCommentId={selected.commentId}
           error={error}
@@ -208,6 +212,7 @@ export default function SocialScreen() {
           onClose={() => setSelected(null)}
           onAction={action}
           onMessage={onMessage}
+          onEdit={listing => { setSelected(null); setEditing(listing); }}
           onMedia={onMedia}
         />
       )}

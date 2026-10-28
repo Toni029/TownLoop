@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Languages,
   Trash2,
+  Pencil,
   Camera,
   CheckCircle2,
   RotateCcw,
@@ -47,7 +48,7 @@ import {
 import { Collapsible } from "../components/Collapsible";
 import { MarketplaceGallery } from "../components/MarketplaceGallery";
 import { pickAndUpload } from "../components/media";
-import { pendingQueuePositions, sortWorkOrders, editableResolution, isResolutionComment, type WorkOrder } from "./model";
+import { pendingQueuePositions, sortWorkOrders, editableResolution, canEditRequest, isResolutionComment, type WorkOrder } from "./model";
 import { translateWorkOrder, type TranslatedContent } from "./translator";
 import { Ticket } from "./Ticket";
 export type OrderAction = "delete" | "reopen" | "complete" | "note" | "deleteComment";
@@ -61,6 +62,7 @@ export function WorkOrdersFeed({
   onRefresh,
   busy,
   onCreate,
+  onEdit,
   onAction,
   queuePositions,
 }: {
@@ -74,6 +76,7 @@ export function WorkOrdersFeed({
   onRefresh: () => Promise<void>;
   busy: boolean;
   onCreate: () => void;
+  onEdit: (order: WorkOrder) => void;
   onAction: (
     id: string,
     action: OrderAction,
@@ -280,6 +283,7 @@ export function WorkOrdersFeed({
             toggle={toggleOrder}
             busy={busy}
             onAction={onAction}
+            onEdit={onEdit}
           />
         ))}
       </ScrollView>
@@ -295,8 +299,10 @@ const OrderCard = memo(function OrderCard({
   toggle,
   busy,
   onAction,
+  onEdit,
 }: {
   order: WorkOrder;
+  onEdit: (order: WorkOrder) => void;
   now: number;
   position: number;
   user: UserProfile | null;
@@ -475,6 +481,7 @@ const OrderCard = memo(function OrderCard({
             {!q.done && !expanded && <Copy style={{color: "#78716c", fontSize: 10, lineHeight: 15}}>{relativePostedTime(order.createdAt, now, "Just requested")}</Copy>}
           </View>
         </Pressable>
+          {canEditRequest(order,user) && <Pressable accessibilityRole="button" accessibilityLabel="Edit work order" disabled={busy} onPress={() => onEdit(order)} style={{width:44,height:44,alignItems:'center',justifyContent:'center'}}><Pencil size={17} color="#059669"/></Pressable>}
         {!expanded && canTranslateWorkOrder(user) && (
           <Pressable
             accessibilityRole="button"

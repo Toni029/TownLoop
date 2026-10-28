@@ -27,3 +27,8 @@ export function queueState(order:WorkOrderItem, all:WorkOrderItem[]) {
   return {done,inProgress:!done && (index===0 || (index===-1 && order.placeInLine===1)),place,ahead:index>=0 ? index : Math.max(0,place-1)};
 }
 export { editableResolution, resolutionPatch, isResolutionComment, removeResolutionComment } from '../../../src/data/workOrderResolution.ts';
+
+/** Editing is based only on the verified creator UID, never a name/email fallback. */
+export function canEditRequest(order: {userId?: string|number;status?:string}, user: {id:string|number}|null|undefined) {
+  return !!user && !!order.userId && String(order.userId) === String(user.id) && order.status !== 'Done';
+}

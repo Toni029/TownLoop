@@ -15,22 +15,25 @@ import {
 } from "../news/ui";
 import { WorkOrderSheet } from "./WorkOrderSheet";
 import { pickAndUpload } from "../components/media";
-import { newOrderId, submitWorkOrder } from "./actions";
+import { newOrderId, submitWorkOrder, editWorkOrder } from "./actions";
+import type { WorkOrder } from "./model";
 export function RequestEditor({
+  order,
   onClose,
   onSaved,
 }: {
+  order?: WorkOrder;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const s = useNewsStyles();
   const dark = !!usePresentation()?.dark;
-  const [id] = useState(newOrderId);
-  const [category, setCategory] = useState(WORK_ORDER_CATEGORIES[0].name);
+  const [id] = useState(() => order ? String(order.id) : newOrderId());
+  const [category, setCategory] = useState(order?.category || WORK_ORDER_CATEGORIES[0].name);
   const [dismissRequested, setDismissRequested] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [title, setTitle] = useState(order?.title || "");
+  const [description, setDescription] = useState(order?.description || "");
+  const [photos, setPhotos] = useState<string[]>(order?.photos || (order?.photoUrl ? [order.photoUrl] : []));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
@@ -58,7 +61,8 @@ export function RequestEditor({
     setBusy(true);
     setError("");
     try {
-      await submitWorkOrder(id, { title, description, category, photos });
+      if (order) await editWorkOrder(id, { title, description, category, photos });
+      else await submitWorkOrder(id, { title, description, category, photos });
       onSaved();
       setDismissRequested(true);
     } catch (e) {
@@ -70,8 +74,8 @@ export function RequestEditor({
   }
   return (
     <WorkOrderSheet
-      title="🛠️ New Work Order Request"
-      subtitle="Submit an issue to the maintenance crew"
+      title={order ? "🛠️ Edit Work Order Request" : "🛠️ New Work Order Request"}
+      subtitle={order ? "Update your maintenance request" : "Submit an issue to the maintenance crew"}
       busy={busy}
       onClose={onClose}
       dismissRequested={dismissRequested}
@@ -159,8 +163,8 @@ export function RequestEditor({
           busy
             ? progress !== null
               ? `Uploading Photos (${progress}%)…`
-              : "Submitting Request…"
-            : "Submit Work Order"
+              : order ? "Saving Changes…" : "Submitting Request…"
+            : order ? "Save Changes" : "Submit Work Order"
         }
         disabled={busy}
         onPress={() => void submit()}

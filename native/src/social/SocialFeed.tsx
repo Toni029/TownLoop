@@ -20,6 +20,7 @@ import {
   Plus,
   Mail,
   Trash2,
+  Pencil,
   Send,
   CheckCircle2,
   RotateCcw,
@@ -504,6 +505,7 @@ export function SocialFeed({
   onInbox,
   onAction,
   onMessage,
+  onEdit,
 }: {
   posts: Post[];
   listings: Listing[];
@@ -522,6 +524,7 @@ export function SocialFeed({
   onInbox: () => void;
   onAction: SocialAction;
   onMessage: (item: Listing) => void;
+  onEdit?: (item: Listing) => void;
 }) {
   const push=useInboxPush();
   const dark = !!usePresentation()?.dark;
@@ -727,6 +730,7 @@ export function SocialFeed({
                             : "amber"
                       }
                     />
+                    {owns(item,user) && onEdit && <Pressable accessibilityRole="button" accessibilityLabel="Edit listing" disabled={busy} onPress={() => onEdit(item)} style={{width:44,height:44,alignItems:'center',justifyContent:'center'}}><Pencil size={16} color="#059669"/></Pressable>}
                     {(owns(item, user) || canDeleteAnyPost(user)) && (
                       <DeleteControl
                         compact
@@ -990,6 +994,7 @@ export function Detail({
   onAction,
   onMessage,
   onMedia,
+  onEdit,
 }: {
   error?: string;
   targetCommentId?:string;
@@ -1001,6 +1006,7 @@ export function Detail({
   onClose: () => void;
   onAction: SocialAction;
   onMessage: (item: Listing) => void;
+  onEdit?: (item: Listing) => void;
   onMedia: (media: MediaAttachment[], title: string, index?: number) => void;
 }) {
   const [revealContentY,setRevealContentY]=useState<number|undefined>();
@@ -1023,6 +1029,7 @@ export function Detail({
         </Copy>
         <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0 }}>
           {listing && <Pill solid price label={listing.price} tone={listing.sold ? "stone" : listing.price.toUpperCase() === "FREE" ? "green" : "amber"} />}
+          {listing && owns(listing,user) && onEdit && <Pressable accessibilityRole="button" accessibilityLabel="Edit listing" disabled={busy} onPress={() => onEdit(listing)} style={{width:44,height:44,alignItems:'center',justifyContent:'center'}}><Pencil size={16} color="#059669"/></Pressable>}
           <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
           {(owns(item, user) || canDeleteAnyPost(user)) && (
             <DeleteControl compact confirmation={!listing} busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />

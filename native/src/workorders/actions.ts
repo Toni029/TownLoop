@@ -17,7 +17,7 @@ import type { WorkOrderComment } from "../../../src/types";
 import { db } from "../lib/firebase";
 import { approvedUser } from "../news/actions";
 import { singleFlight } from "../news/model";
-import { readWorkOrder, resolutionPatch, editableResolution, removeResolutionComment } from "./model";
+import { readWorkOrder, canEditRequest, resolutionPatch, editableResolution, removeResolutionComment } from "./model";
 export const runWorkOrder = singleFlight();
 export const newOrderId = () => doc(collection(db, "work_orders")).id;
 export async function submitWorkOrder(
@@ -143,6 +143,21 @@ export async function changeWorkOrder(
           updatedAt: serverTimestamp(),
         });
       }
+    });
+  });
+}
+
+export async function editWorkOrder(id:string, draft:{title:string;description:string;category:string;photos:string[]}) {
+  return runWorkOrder(`order:${id}`, async () => {
+    if (!draft.title.trim()) throw Error('Please describe what needs fixing.');
+    if (draft.title.trim().length > 1000 || draft.description.trim().length > 20000) throw Error('Please shorten the request text.');
+    const user = await approvedUser();
+    const reference = doc(db,'work_orders',id);
+    await runTransaction(db,async tx => {
+      const snap = await tx.get(reference);
+      if (!snap.exists() || snap.data().storageDraft !== false) throw Error('This work order is no longer available.');
+      if (!canEditRequest(snap.data(),user)) throw Error('Only the creator can edit a work order before it is marked Done.');
+      tx.update(reference,{title:draft.title.trim(),description:draft.description.trim(),category:draft.category,categoryEmoji:getCategoryEmoji(draft.category),photos:draft.photos,photoUrl:draft.photos[0] || '',updatedAt:serverTimestamp()});
     });
   });
 }
