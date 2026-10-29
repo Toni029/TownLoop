@@ -176,21 +176,22 @@ test('one-tap Office and Crew leave removes only the authenticated member and em
 test('legacy leave and cutover are atomic; unresolved Office ownership produces no changes',async()=>{
  const {hash}=require('./inbox-groups.cjs'),h=fixture();
  const old={residentId:'a',messages:[{id:'old',senderId:'a',body:'Keep this history',createdAt:1}]};h.records.set('office_chats/old',old);
- const request={op:'leaveLegacy',source:'office_chats',legacyId:'old'};
- const before=h.records.size;await assert.rejects(h.call('admin',request),/failed-precondition/);assert.equal(h.records.size,before);assert.deepEqual(h.records.get('office_chats/old'),old);
+ const request={source:'office_chats',legacyId:'old'};
+ const run=uid=>require('./inbox-group-legacy.cjs').upgradeLegacy(h.db,uid,request,h.now+1,{leave:true});
+ const before=h.records.size;await assert.rejects(run('admin'),/failed-precondition/);assert.equal(h.records.size,before);assert.deepEqual(h.records.get('office_chats/old'),old);
  h.records.set(`inbox_legacy_authorizations/${hash('office_chats/old')}`,{sourceHash:hash(JSON.stringify(old)),participantIds:['a','admin','vip'],reviewedBy:'admin',evidenceReference:'verified_fixture',expiresAt:h.now+10000});
  const transaction=h.db.runTransaction;
  h.db.runTransaction=fn=>transaction(tx=>fn({...tx,update:(ref,data)=>{if(ref.path==='office_chats/old')throw Error('fixture_write_failed');tx.update(ref,data);}}));
- const size=h.records.size;await assert.rejects(h.call('admin',request),/fixture_write_failed/);assert.equal(h.records.size,size);assert.deepEqual(h.records.get('office_chats/old'),old);
+ const size=h.records.size;await assert.rejects(run('admin'),/fixture_write_failed/);assert.equal(h.records.size,size);assert.deepEqual(h.records.get('office_chats/old'),old);
  h.db.runTransaction=transaction;
- const result=await h.call('admin',request);assert.equal(result.left,true);assert.equal(result.cleanupPending,false);
+ const result=await run('admin');assert.equal(result.left,true);assert.equal(result.cleanupPending,false);
  assert.equal(membership(h,result.conversationId,'admin').status,'left');assert.equal(membership(h,result.conversationId,'vip').status,'active');
  assert.deepEqual(h.records.get('office_chats/old').messages,old.messages);
- const repeat=await h.call('admin',request);assert.equal(repeat.left,true);assert.equal(repeat.unchanged,true);
+ const repeat=await run('admin');assert.equal(repeat.left,true);assert.equal(repeat.unchanged,true);
 });
 test('atomic legacy leave projects the remaining count and own visible sequence accurately',async()=>{
  const h=fixture();h.records.set('resident_chats/projection',{identityVersion:2,participantIds:['a','b'],messages:[{id:'original',senderId:'a',body:'Fixture',createdAt:1}]});
- const {conversationId:id}=await h.call('a',{op:'leaveLegacy',source:'resident_chats',legacyId:'projection'});
+ const {conversationId:id}=await require('./inbox-group-legacy.cjs').upgradeLegacy(h.db,'a',{source:'resident_chats',legacyId:'projection'},h.now+1,{leave:true});
  assert.equal(membership(h,id,'b').activeCount,1);assert.equal(membership(h,id,'a').activeCount,1);
  assert.equal(membership(h,id,'a').sequence,1);assert.equal(membership(h,id,'b').sequence,2);
 });

@@ -1,4 +1,8 @@
-# Stage A Inbox rollout — PREPARED, NOT DEPLOYED
+# Stage A Inbox rollout — deployment checkpoint `647da3d`
+
+Stage A was subsequently deployed and verified active. The historical findings and
+rollout below describe that checkpoint. See [LEGACY_SELF_LEAVE.md](LEGACY_SELF_LEAVE.md)
+for the new, not-yet-deployed legacy departure correction.
 
 ## Confirmed missing integration (2026-10-29, read-only metadata)
 

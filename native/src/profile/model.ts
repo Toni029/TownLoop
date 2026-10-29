@@ -82,7 +82,7 @@ export function readThread(
   data: Record<string, any>,
   user: UserProfile,
 ): Thread | null {
-  if (!getUserRole(user)) return null;
+  if (!getUserRole(user) || data.leftBy?.[String(user.id)] === true) return null;
   let recipient: UserProfile, unread: boolean;
   if (category === "friend") {
     const participants = Array.isArray(data.participants)
@@ -165,7 +165,7 @@ export function readThread(
         : data.updatedAt?.toMillis?.() || 0,
     data,
     recipient,
-    otherLeft: category === "friend" ? privateChatLeft(data, String(recipient.id)) : data.sideLeft?.[staffChatSide(category, data, user) === "resident" ? "team" : "resident"] === true,
+    otherLeft: category === "friend" ? privateChatLeft(data, String(recipient.id)) : (data.sideLeft?.[staffChatSide(category, data, user) === "resident" ? "team" : "resident"] === true || (staffChatSide(category,data,user)==="team"&&data.leftBy?.[String(data.residentId)]===true)),
     teamAction: category !== "friend" && staffChatSide(category, data, user) === "team",
   };
 }

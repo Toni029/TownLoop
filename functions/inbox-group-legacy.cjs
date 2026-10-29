@@ -5,7 +5,7 @@ const { memberPath, visibilityKey, hash, load, stageLeave, writeProjection } = r
 const sources = { resident_chats: 'private', office_chats: 'office', maintenance_chats: 'maintenance' };
 const fail = code => { const error=Error(code);if(code==='failed-precondition')error.safeReason='legacy-review';throw error; };
 const exact = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
-async function legacyList(db, uid) {
+async function legacyList(db, uid, {includeLeft=false}={}) {
   const actor = { ...(await db.doc(`users/${uid}`).get()).data(), id: uid };
   if (!approved(actor)) fail('permission-denied');
   const rows = [];
@@ -16,8 +16,9 @@ async function legacyList(db, uid) {
     const found = await query.limit(100).get();
     // Bounded legacy listing. Never silently imply complete history for a larger inbox.
     if (found.docs.length === 100) fail('resource-exhausted');
-    for (const s of found.docs) if (!s.data().groupConversationId && member(collection, s.data(), actor) &&
-      (collection === 'resident_chats' ? s.data().leftBy?.[uid] !== true : s.data().sideLeft?.[s.data().residentId === uid ? 'resident' : 'team'] !== true)) rows.push({ collection, id: s.id, data: s.data() });
+    for (const s of found.docs) if (!s.data().groupConversationId && member(collection, s.data(), actor, {allowLeft:includeLeft}) &&
+      (includeLeft ||
+      (collection === 'resident_chats' ? s.data().leftBy?.[uid] !== true : s.data().sideLeft?.[s.data().residentId === uid ? 'resident' : 'team'] !== true))) rows.push({ collection, id: s.id, data: s.data() });
   }
   return { rows };
 }
@@ -26,7 +27,7 @@ async function upgradeLegacy(db, uid, data, now, {leave=false}={}) {
   return db.runTransaction(async tx => {
     const sourceRef = db.doc(`${data.source}/${data.legacyId}`), snapshot = await tx.get(sourceRef), old = snapshot.data();
     const actor = { ...(await tx.get(db.doc(`users/${uid}`))).data(), id: uid };
-    if (!old || !member(data.source, old, actor)) fail('permission-denied');
+    if (!old || !member(data.source, old, actor, {allowLeft:leave})) fail('permission-denied');
     if (old.groupConversationId) {
       const state=await load(tx,db,old.groupConversationId);
       if(leave){

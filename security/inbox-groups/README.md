@@ -1,8 +1,13 @@
-# Native Inbox membership upgrade — LOCAL / NOT DEPLOYED
+# Native Inbox membership upgrade
 
 This extends the existing `(default)` Inbox and existing push infrastructure. It does
 not change Marketplace, the website/named database, Auth roles, account deletion,
 Storage rules/tokens, six quarantined objects, or notification delivery configuration.
+
+Stage A from `647da3d` has been deployed. The follow-up
+[legacy self-leave correction](LEGACY_SELF_LEAVE.md) is LOCAL and requires its own
+scoped backend/rules deployment plus client OTA. It separates leaving an old chat
+from converting its full history; ownership review remains required for conversion.
 
 ## Stage A implementation
 

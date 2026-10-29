@@ -1,3 +1,4 @@
+import {confirmedLegacyLeave,onConfirmedLegacyLeave} from './legacyLeaveEvents';
 import { useEffect, useState } from 'react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -10,6 +11,7 @@ export async function groupAction(op: string, input: Record<string, unknown> = {
   if (!uid) throw Error('Please sign in again.');
   const result = await callable({ ...input, op });
   if (auth.currentUser?.uid !== uid) throw Error('Your session changed. Please sign in again.');
+  confirmedLegacyLeave(uid,op,input,result.data);
   return result.data;
 }
 export type GroupRosterMember = { uid: string; name: string; avatar: string; role: string; status: 'active' | 'left' };
@@ -22,11 +24,16 @@ export function useGroupInbox(user: UserProfile | null) {
     if (!accountKey || !user) return;
     let active = true, stop = () => {}, timer: ReturnType<typeof setInterval> | undefined;
     const update = (patch: Partial<typeof state>) => { if (active) setState(s => ({ ...(s.uid === accountKey ? s : {uid:accountKey,enabled:false,threads:[],legacy:[],error:''}), ...patch })); };
+    const departedLegacy=new Set<string>();
+    const stopLeaves=onConfirmedLegacyLeave(uid,(source,id)=>{
+      departedLegacy.add(`${source}/${id}`);
+      if(active)setState(s=>s.uid===accountKey?{...s,legacy:s.legacy.filter(t=>!(t.id===id&&({friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats'}[t.category])===source))}:s);
+    });
     const legacy = async () => {
       try {
         const result = await groupAction('listLegacy');
         if (!active) return;
-        update({legacy:result.rows.map((row:any) => readThread(categoryFor(({resident_chats:'private',office_chats:'office',maintenance_chats:'maintenance'} as Record<string,string>)[row.collection] || ''),row.id,row.data,user)).filter(Boolean),error:''});
+        update({legacy:result.rows.filter((row:any)=>!departedLegacy.has(`${row.collection}/${row.id}`)).map((row:any) => readThread(categoryFor(({resident_chats:'private',office_chats:'office',maintenance_chats:'maintenance'} as Record<string,string>)[row.collection] || ''),row.id,row.data,user)).filter(Boolean),error:''});
       } catch { update({error:'Unable to refresh Inbox. Reopen the Inbox to retry.'}); }
     };
     void groupAction('capabilities').then(result => {
@@ -42,7 +49,7 @@ export function useGroupInbox(user: UserProfile | null) {
       }, () => update({error:'Unable to load group conversations.'}));
       void legacy(); timer=setInterval(() => void legacy(),30_000);
     }).catch(() => { /* Unpublished backend: keep the current Inbox intact. */ });
-    return () => { active=false; stop(); if(timer)clearInterval(timer); };
+    return () => { active=false; stopLeaves(); stop(); if(timer)clearInterval(timer); };
     // Account identity/authorization changes discard all previous projections.
   }, [uid,user?.role,user?.approved]);
   return accountKey && state.uid === accountKey ? state : {uid,enabled:false,threads:[],legacy:[],error:''};

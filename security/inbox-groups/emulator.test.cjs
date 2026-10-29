@@ -66,12 +66,13 @@ test('legacy team-write mismatch is denied; authorized atomic individual leave s
  const deniedTeamWrite=await fetch(`${documents}/office_chats/leave-fixture?updateMask.fieldPaths=sideLeft`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token('admin')}`},body:JSON.stringify({fields:{sideLeft:{mapValue:{fields:{team:{booleanValue:true}}}}}})});
  assert.equal(deniedTeamWrite.status,403,await deniedTeamWrite.text());
  await rules(readFileSync(path.resolve(__dirname,'../../.release/inbox-groups/firestore.rules'),'utf8'));
- const request={op:'leaveLegacy',source:'office_chats',legacyId:'leave-fixture'};
+ const request={op:'upgradeLegacy',source:'office_chats',legacyId:'leave-fixture'};
  await assert.rejects(operate(db,'admin',request,{enabled:true}),/failed-precondition/);
  assert.deepEqual((await source.get()).data(),old);
  const {hash}=require('../../functions/inbox-groups.cjs');
  await db.doc(`inbox_legacy_authorizations/${hash('office_chats/leave-fixture')}`).set({sourceHash:hash(JSON.stringify((await source.get()).data())),participantIds:['leaveResident','admin','vip'],reviewedBy:'admin',evidenceReference:'verified_local_fixture',expiresAt:Date.now()+60000});
- const result=await operate(db,'admin',request,{enabled:true});assert.equal(result.left,true);
+ await operate(db,'admin',request,{enabled:true});
+ const result=await operate(db,'admin',{...request,op:'leaveLegacy'},{enabled:true});assert.equal(result.left,true);
  assert.equal((await db.doc(memberPath(result.conversationId,'admin')).get()).data().status,'left');
  assert.equal((await db.doc(memberPath(result.conversationId,'vip')).get()).data().status,'active');
  assert.deepEqual((await source.get()).data().messages,old.messages);assert.equal((await source.get()).data().sideLeft,undefined);
@@ -81,4 +82,32 @@ test('legacy team-write mismatch is denied; authorized atomic individual leave s
  const final=await operate(db,'vip',{op:'leave',conversationId:result.conversationId},{enabled:true});assert.equal(final.cleanupPending,true);
  assert((await db.doc(`inbox_conversations/${result.conversationId}`).get()).exists);assert((await source.get()).exists);
  assert.equal((await db.doc(`inbox_cleanup_requests/${result.conversationId}`).get()).data().status,'awaiting_separate_approval');
+});
+test('legacy individual leave without manifest revokes only the caller, preserves history and denies spoofing',async()=>{
+ for(const [source,actor,other]of [['office_chats','admin','vip'],['maintenance_chats','crew','crew2'],['resident_chats','resident','outsider']]){
+  await db.doc('users/crew2').set({approved:true,role:'crew',name:'Crew Fixture'});
+  const old={id:`self-${source}`,residentId:'resident',residentName:'Resident Fixture',identityVersion:2,participantIds:['resident','outsider'],participants:[{id:'resident'},{id:'outsider'}],messages:[{id:'old:unmodeled',senderId:'historical_alias',body:'Kept fixture',createdAt:1,legacyExtra:'preserved'}],subject:'Fixture',updatedAt:1};
+  const ref=db.doc(`${source}/self-leave`);await ref.set(old);
+  const request={op:'leaveLegacy',source,legacyId:'self-leave'};
+  const result=await operate(db,actor,request,{enabled:true});assert.equal(result.left,true);
+  const next=(await ref.get()).data();assert.deepEqual(next.messages.slice(0,-1),old.messages);assert.equal(next.leftBy[actor],true);assert.equal(next.groupConversationId,undefined);assert.equal(next.sideLeft,undefined);
+  denied(await read(actor,`${source}/self-leave`));ok(await read(other,`${source}/self-leave`));
+  denied(await forgedWrite(other,`${source}/self-leave`,{leftBy:{mapValue:{fields:{[other]:{booleanValue:true}}}}}));
+  const response=await operate(db,actor,request,{enabled:true});assert.equal(response.unchanged,true);assert.equal((await ref.get()).data().messages.length,2);
+ }
+});
+test('legacy remaining private participant can read/ack but cannot send; remaining Office staff can still reply',async()=>{
+ const field=value=>value===null?{nullValue:null}:typeof value==='string'?{stringValue:value}:typeof value==='boolean'?{booleanValue:value}:typeof value==='number'?{integerValue:String(value)}:Array.isArray(value)?{arrayValue:{values:value.map(field)}}:{mapValue:{fields:Object.fromEntries(Object.entries(value).map(([k,v])=>[k,field(v)]))}};
+ async function write(uid,source,data){return forgedWrite(uid,source,field(data).mapValue.fields);}
+ await db.doc('resident_chats/guard').set({id:'guard',identityVersion:2,participantIds:['resident','outsider'],participants:[{id:'resident'},{id:'outsider'}],messages:[],subject:'Fixture',lastMessage:'',updatedAt:1,unreadBy:[]});
+ await operate(db,'resident',{op:'leaveLegacy',source:'resident_chats',legacyId:'guard'},{enabled:true});
+ let old=(await db.doc('resident_chats/guard').get()).data();ok(await write('outsider','resident_chats/guard',{...old,readBy:{outsider:old.messages.length}}));
+ const makeMessage=uid=>({id:'new',senderId:uid,senderName:uid,senderRole:uid==='vip'?'vip':'resident',senderAvatar:'',body:'Fixture reply',createdAt:Date.now(),time:'Fixture'});
+ const privateMessage=makeMessage('outsider');old=(await db.doc('resident_chats/guard').get()).data();
+ denied(await write('outsider','resident_chats/guard',{...old,messages:[...old.messages,privateMessage],lastMessage:privateMessage.body,updatedAt:privateMessage.createdAt,unreadBy:['resident']}));
+ await db.doc('office_chats/guard').set({id:'guard',residentId:'resident',messages:[],subject:'Fixture',lastMessage:'',updatedAt:1,unreadByResident:false,unreadByVip:true});
+ await operate(db,'admin',{op:'leaveLegacy',source:'office_chats',legacyId:'guard'},{enabled:true});
+ old=(await db.doc('office_chats/guard').get()).data();const reply=makeMessage('vip');
+ ok(await write('vip','office_chats/guard',{...old,messages:[...old.messages,reply],lastMessage:reply.body,updatedAt:reply.createdAt,unreadByResident:true,unreadByVip:false}));
+ denied(await write('admin','office_chats/guard',{...old,messages:[...old.messages,{...reply,senderId:'admin',senderName:'admin',senderRole:'admin'}],lastMessage:reply.body,updatedAt:reply.createdAt,unreadByResident:true,unreadByVip:false}));
 });

@@ -2,8 +2,9 @@ const collections = { resident_chats: 'friend', office_chats: 'office', maintena
 const { isDeepStrictEqual } = require('node:util');
 function aliases(p) { return typeof p?.id === 'string' && p.id ? [p.id] : []; }
 const approved = p => !!p && p.approved === true && !p.deletionPending && ['resident', 'admin', 'vip', 'crew'].includes(p.role);
-function member(collection, chat, user) {
+function member(collection, chat, user, {allowLeft=false}={}) {
   if (!chat || !approved(user)) return false;
+  if (!allowLeft && ['resident_chats','office_chats','maintenance_chats'].includes(collection) && chat.leftBy?.[user.id] === true) return false;
   const ids = aliases(user);
   if (collection === 'marketplace_chats') return Array.isArray(chat.participantIds) && chat.participantIds.length === 2 && chat.buyerId !== chat.sellerId && chat.participantIds.includes(chat.buyerId) && chat.participantIds.includes(chat.sellerId) && chat.participantIds.includes(user.id) && [chat.buyerId,chat.sellerId].includes(user.id) && !['buyer','seller'].some(side => chat[side+'Left'] === true || chat['deletedBy'+side[0].toUpperCase()+side.slice(1)] === true || chat.deletedBy?.includes(side));
   if (collection === 'resident_chats') return chat.identityVersion === 2 && (chat.participantIds || []).some(id => ids.includes(id));

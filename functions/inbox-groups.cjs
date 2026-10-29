@@ -197,11 +197,11 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
   if (data.op === 'capabilities') return { protocolVersion: 3, enabled, permanentCleanup: false };
   if (!enabled) fail('failed-precondition');
   if (data.op === 'listLegacy') return require('./inbox-group-legacy.cjs').legacyList(db, uid);
-  if (data.op === 'leaveLegacy') return require('./inbox-group-legacy.cjs').upgradeLegacy(db, uid, data, now, {leave:true});
+  if (data.op === 'leaveLegacy') return require('./inbox-legacy-leave.cjs').leaveLegacy(db, uid, data, now);
   if (data.op === 'upgradeLegacy') return require('./inbox-group-legacy.cjs').upgradeLegacy(db, uid, data, now);
   if (data.op === 'create') {
     const { legacyList, upgradeLegacy } = require('./inbox-group-legacy.cjs');
-    const legacy = await legacyList(db, uid);
+    const legacy = await legacyList(db, uid, {includeLeft:true});
     const source = { private: 'resident_chats', office: 'office_chats', maintenance: 'maintenance_chats' }[data.type];
     const matches = legacy.rows.filter(row => (row.collection === source || data.type === 'office' && row.collection === 'resident_chats' && row.data.officeDirect === true && row.data.participantIds?.includes(data.residentId || uid)) && (data.type === 'private'
       ? data.recipientIds?.length === 1 && row.data.participantIds?.includes(data.recipientIds[0])

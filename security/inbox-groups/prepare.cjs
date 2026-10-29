@@ -21,10 +21,11 @@ function prepare(baselineFile){
  const insert=rules.lastIndexOf('\n  }');if(insert<0)throw Error('Unexpected rule root.');
  rules=rules.slice(0,insert)+'\n'+fragment+rules.slice(insert);
  fs.mkdirSync(path.join(out,'functions'),{recursive:true});
- for(const file of ['inbox-groups-entry.cjs','inbox-groups.cjs','inbox-groups-push.cjs','inbox-group-legacy.cjs','inbox-group-roles.cjs','inbox.cjs','inbox-push.cjs','inbox-policy.cjs','notification-events.cjs','package-lock.json'])fs.copyFileSync(path.join(root,'functions',file),path.join(out,'functions',file));
+ for(const file of ['inbox-groups-entry.cjs','inbox-groups.cjs','inbox-groups-push.cjs','inbox-group-legacy.cjs','inbox-legacy-leave.cjs','inbox-group-roles.cjs','inbox.cjs','inbox-push.cjs','inbox-policy.cjs','notification-events.cjs','package-lock.json'])fs.copyFileSync(path.join(root,'functions',file),path.join(out,'functions',file));
  fs.writeFileSync(path.join(out,'functions/package.json'),JSON.stringify({...require(path.join(root,'functions/package.json')),main:'index.cjs'},null,2));
  fs.writeFileSync(path.join(out,'functions/index.cjs'),"require('firebase-admin/app').initializeApp();\nObject.assign(exports,require('./inbox-groups-entry.cjs'));\nexports.getNotificationState=require('./inbox.cjs').getNotificationState;\nexports.registerInboxDevice=require('./inbox.cjs').registerInboxDevice;\n");
  fs.writeFileSync(path.join(out,'functions/.env.cc-livingcommunity-app'),'INBOX_GROUPS_ENABLED=false\nINBOX_GROUP_PUSH_ENABLED=false\nINBOX_PUSH_ENABLED=false\nPUSH_RECIPIENT_SCOPE=testers\nPUSH_TESTER_UIDS=\nPUSH_TESTER_PLATFORMS=android\n',{mode:0o600});
+ rules=require('./legacy-leave-rules.cjs').patchLegacyLeaveRules(rules);
  fs.writeFileSync(path.join(out,'firestore.rules'),rules);
  fs.writeFileSync(path.join(out,'indexes.json'),fs.readFileSync(path.join(__dirname,'indexes.json')));
  const indexes=require('./indexes.json').indexes;
