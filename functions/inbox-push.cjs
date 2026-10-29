@@ -26,7 +26,7 @@ async function registerDevice(db,uid,data,{now=Date.now(),authTime=now/1000}={})
   if(old&&old.uid!==uid&&old.capability!==key)error('permission-denied');
   for(const snap of previous)if(snap.data()?.uid===uid&&snap.data().capability===key)tx.delete(snap.ref);
   tx.set(ref,{uid,token:data.token,platform:data.platform,capability:key,enabled:data.enabled!==false,
-   preferences:preferences(data.preferences),authTime,updatedAt:new Date(now),expiresAt:new Date(now+days)});
+   preferences:preferences(data.preferences),inboxGroupProtocol:data.inboxGroupProtocol===3?3:0,authTime,updatedAt:new Date(now),expiresAt:new Date(now+days)});
  });
  return {registered:!data.remove,protocolVersion:2,discussionReplies:process.env.DISCUSSION_REPLIES_ENABLED==='true'};
 }
@@ -62,16 +62,17 @@ async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()
    const current=await db.runTransaction(async tx=>{
     const [sent,dev,event,profile,read]=await Promise.all([tx.get(claim),tx.get(device.ref),tx.get(notice),tx.get(db.doc(`users/${uid}`)),tx.get(db.doc(`notification_reads/${readKey(uid,targetKey(d))}`))]);
     const token=dev.data();
-    if(millis(read.data()?.until)>=d.eventTime||sent.exists||event.data()?.seen===true||!token||!deviceAllowed(token)||token.uid!==uid||token.enabled!==true||
+    if(d.collection!=='inbox_conversations'&&millis(read.data()?.until)>=d.eventTime||sent.exists||event.data()?.seen===true||!token||!deviceAllowed(token)||token.uid!==uid||token.enabled!==true||
      preferences(token.preferences)[prefCategory(d.category)]!==true||!validToken(token.token)||millis(token.expiresAt)<=now||
      !approved(profile.data())||!await verify(tx,uid)||await blocked(db,d.senderId,uid,tx))return null;
-    if(!event.exists)tx.create(notice,{uid,category:prefCategory(d.category),target:targetKey(d),senderId:d.senderId,destination:{category:d.category,conversationId:d.documentId,...(d.commentId?{commentId:d.commentId}:{})},seen:false,createdAt:new Date(d.eventTime),expiresAt:new Date(d.eventTime+days)});
-    tx.create(claim,{kind:'inbox',state:'sending',createdAt:new Date(now),expiresAt:new Date(now+days),deviceId:device.id,uid,capability:token.capability});return token;
+    if(!event.exists)tx.create(notice,{...(d.collection==='inbox_conversations'?{sequence:d.sequence}:{}),uid,category:prefCategory(d.category),target:targetKey(d),senderId:d.senderId,destination:{category:d.category,conversationId:d.documentId,...(d.commentId?{commentId:d.commentId}:{})},seen:false,createdAt:new Date(d.eventTime),expiresAt:new Date(d.eventTime+days)});
+    tx.create(claim,{...(d.collection==='inbox_conversations'?{target:targetKey(d),noticeId:notice.id}:{}),kind:'inbox',state:'sending',createdAt:new Date(now),expiresAt:new Date(now+days),deviceId:device.id,uid,capability:token.capability});return token;
    });
    if(!current){trace('device_or_recipient_ineligible');continue;}
    const latest=(await device.ref.get()).data(),latestRead=(await db.doc(`notification_reads/${readKey(uid,targetKey(d))}`).get()).data();
-   if(millis(latestRead?.until)>=d.eventTime||!latest||!deviceAllowed(latest)||latest.uid!==uid||latest.capability!==current.capability||latest.enabled!==true||preferences(latest.preferences)[prefCategory(d.category)]!==true||
-    !await activeIdentity(identity,uid,current)||await blocked(db,d.senderId,uid)){
+   if(d.collection!=='inbox_conversations'&&millis(latestRead?.until)>=d.eventTime||!latest||!deviceAllowed(latest)||latest.uid!==uid||latest.capability!==current.capability||latest.enabled!==true||preferences(latest.preferences)[prefCategory(d.category)]!==true||
+    !await activeIdentity(identity,uid,current)||await blocked(db,d.senderId,uid)||
+    d.collection==='inbox_conversations'&&!await db.runTransaction(tx=>verify(tx,uid))){
     await claim.update({state:'suppressed'});trace('authorization_changed');continue;
    }
    try{
@@ -123,6 +124,11 @@ async function deliverContent(db,event,collection,{now=Date.now(),identity,trans
    (live.userId===uid||live.comments.some(c=>String(c.id)===event.data.after.data().comments.at(-1).replyToCommentId&&c.authorId===uid));
  }});
 }
+async function groupAccess(db,uid,conversation,profile){
+ const {memberAllowed,memberPath}=require('./inbox-groups.cjs');
+ const m=(await db.doc(memberPath(conversation.id,uid)).get()).data();
+ return memberAllowed(conversation,m,profile);
+}
 async function notificationState(db,uid,data,{now=Date.now()}={}){
  if(!id(uid))error('unauthenticated');if(!approved((await db.doc(`users/${uid}`).get()).data()))error('permission-denied');
  if(data?.resolve){
@@ -130,26 +136,36 @@ async function notificationState(db,uid,data,{now=Date.now()}={}){
   const notice=(await db.doc(`notification_events/${data.resolve}`).get()).data();
   if(!notice||notice.uid!==uid||millis(notice.expiresAt)<=now)error('permission-denied');
   const target=notice.destination;
-  const collection={friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats',marketplace:'marketplace_chats',discussion:'discussion_feed',workorders:'work_orders'}[target?.category];
+  let collection={friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats',marketplace:'marketplace_chats',discussion:'discussion_feed',workorders:'work_orders'}[target?.category];
+  if(/^v3_[a-f0-9]{64}$/.test(target?.conversationId||'')&&['friend','office','maintenance'].includes(target.category))collection='inbox_conversations';
   if(!collection||!id(target.conversationId))error('permission-denied');
   const profile=(await db.doc(`users/${uid}`).get()).data(),record=(await db.doc(`${collection}/${target.conversationId}`).get()).data();
-  const allowed=record&&(collections[collection]?member(collection,record,{...profile,id:uid}):collection==='work_orders'?record.userId===uid||['admin','vip','crew'].includes(profile.role):record.storageDraft===false);
+  if(record?.groupConversationId){
+   const c=(await db.doc(`inbox_conversations/${record.groupConversationId}`).get()).data();
+   if(!c||!await groupAccess(db,uid,c,profile))error('permission-denied');
+   target.conversationId=c.id;target.category=c.type==='private'?'friend':c.type;
+  }
+  const allowed=record&&(collection==='inbox_conversations'?await groupAccess(db,uid,record,profile):collections[collection]?member(collection,record,{...profile,id:uid}):collection==='work_orders'?record.userId===uid||['admin','vip','crew'].includes(profile.role):record.storageDraft===false);
   if(!allowed||id(notice.senderId)&&await blocked(db,notice.senderId,uid))error('permission-denied');
   return {protocolVersion:2,target};
  }
  let ackPending=false;
  if(data?.ack){
   const {category,conversationId}=data.ack;
-  const collection={friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats',marketplace:'marketplace_chats',discussion:'discussion_feed',workorders:'work_orders'}[category];
+  let collection={friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats',marketplace:'marketplace_chats',discussion:'discussion_feed',workorders:'work_orders'}[category];
+  if(/^v3_[a-f0-9]{64}$/.test(conversationId||'')&&['friend','office','maintenance'].includes(category))collection='inbox_conversations';
   if(!collection||!id(conversationId))error('invalid-argument');
   const ref=db.doc(`${collection}/${conversationId}`),profile=(await db.doc(`users/${uid}`).get()).data(),record=await ref.get();
-  if(record.exists){const allowed=collections[collection]?member(collection,record.data(),{...profile,id:uid}):collection==='work_orders'?record.data().userId===uid||['admin','vip','crew'].includes(profile.role):record.data().storageDraft===false;if(!allowed)error('permission-denied');}
+  if(record.exists){const allowed=collection==='inbox_conversations'?await groupAccess(db,uid,record.data(),profile):collections[collection]?member(collection,record.data(),{...profile,id:uid}):collection==='work_orders'?record.data().userId===uid||['admin','vip','crew'].includes(profile.role):record.data().storageDraft===false;if(!allowed)error('permission-denied');}
   // Missing/deleted targets can be dismissed; only this account's receipts are touched.
   const requested=Number(data.ack.readAt);
-  const until=Number.isFinite(requested)&&requested>0?Math.min(requested,now):now;
+  let groupReadSequence=null;
+  let until=Number.isFinite(requested)&&requested>0?Math.min(requested,now):now;
+  if(collection==='inbox_conversations'){const {memberPath}=require('./inbox-groups.cjs');const m=(await db.doc(memberPath(conversationId,uid)).get()).data();until=Math.min(until,m?.readAt||0);groupReadSequence=m?.readSequence||0;}
   const readRef=db.doc(`notification_reads/${readKey(uid,`${collection}/${conversationId}`)}`);
   await db.runTransaction(async tx=>{const previous=(await tx.get(readRef)).data();tx.set(readRef,{uid,target:`${collection}/${conversationId}`,until:new Date(Math.max(until,millis(previous?.until)||0)),expiresAt:new Date(now+days)});});
-  const query=db.collection('notification_events').where('uid','==',uid).where('target','==',`${collection}/${conversationId}`).where('seen','==',false).where('createdAt','<=',new Date(until)).limit(100);
+  const base=db.collection('notification_events').where('uid','==',uid).where('target','==',`${collection}/${conversationId}`).where('seen','==',false);
+  const query=(groupReadSequence===null?base.where('createdAt','<=',new Date(until)):base.where('sequence','<=',groupReadSequence)).limit(100);
   const notices=await query.get();
   await Promise.all(notices.docs.map(notice=>notice.ref.update({seen:true,seenAt:new Date(now)})));
   ackPending=notices.docs.length===100;
@@ -166,4 +182,4 @@ async function checkReceipts(db,{now=Date.now(),transport}={}){
   if(r?.details?.error==='DeviceNotRegistered')await removeInvalidDevice(db,db.doc(`notification_devices/${d.deviceId}`),d.uid,d.capability);
  }
 }
-module.exports={registerDevice,deliver,deliverContent,notificationState,checkReceipts};
+module.exports={registerDevice,deliver,deliverContent,notificationState,checkReceipts,sendEvent};

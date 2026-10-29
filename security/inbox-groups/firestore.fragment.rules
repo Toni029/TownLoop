@@ -1,0 +1,36 @@
+    // Additive Stage A rules. Server-only writes; queries must include the caller's epoch key.
+    function groupApproved() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('deletionPending', false) == false &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['resident','admin','vip','crew'];
+    }
+    function groupMember(cid) {
+      // Deterministic IDs use SHA-256 on the server; authoritative lookup is also stored on the conversation.
+      return get(/databases/$(database)/documents/inbox_memberships/$(get(/databases/$(database)/documents/inbox_conversations/$(cid)).data.memberRefs[request.auth.uid])).data;
+    }
+    function groupAccess(cid) {
+      let c = get(/databases/$(database)/documents/inbox_conversations/$(cid)).data;
+      let m = groupMember(cid);
+      let role = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return groupApproved() && m.uid == request.auth.uid && m.status == 'active' &&
+        (c.type == 'private' || c.residentId == request.auth.uid || (c.type == 'office' && role in ['admin','vip']) || (c.type == 'maintenance' && role == 'crew'));
+    }
+    function legacyGroupAccess(data) {
+      return !('groupConversationId' in data) || (groupAccess(data.groupConversationId) &&
+        request.auth.uid + ':' + string(groupMember(data.groupConversationId).epoch) in get(/databases/$(database)/documents/inbox_conversations/$(data.groupConversationId)).data.legacyVisibility);
+    }
+    match /inbox_conversations/{cid} {
+      allow get: if groupAccess(cid);
+      allow list, write: if false;
+      match /messages/{mid} {
+        allow get, list: if groupAccess(cid) && request.auth.uid + ':' + string(groupMember(cid).epoch) in resource.data.visibility;
+        allow write: if false;
+      }
+    }
+    match /inbox_memberships/{mid} {
+      allow get, list: if groupApproved() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+    match /inbox_cleanup_requests/{id} { allow read, write: if false; }
+    match /inbox_group_commands/{id} { allow read, write: if false; }
+    match /inbox_legacy_authorizations/{id} { allow read, write: if false; }

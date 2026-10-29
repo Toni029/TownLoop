@@ -53,3 +53,6 @@ Object.assign(exports,require('./accountDeletionOperations.cjs'));
 
 // Read-only resident queue lookup; deploy separately from all workers.
 exports.getWorkOrderQueuePositions = require("./workOrderQueue.cjs").getWorkOrderQueuePositions;
+
+// Stage A only, disabled by default; scoped deployment and rules require separate approval.
+Object.assign(exports, require('./inbox-groups-entry.cjs'));

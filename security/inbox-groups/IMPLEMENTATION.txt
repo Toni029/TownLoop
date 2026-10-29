@@ -1,0 +1,6 @@
+1. Server-controlled Inbox v3 records, per-member epochs and immutable per-message visibility; default DB only. Transactional create/add/sync/send/read/leave. Explicit left memberships never auto-rejoin. Safe legacy bridge preserves source history and fences writes; unresolved legacy identity/attachments excluded.
+2. Additive rules + indexes + emulator fixtures. No client membership/message mutation. Query visibility key AND active authorized membership, not UI filtering. Stage A disabled by default.
+3. Group message push through existing transport/preferences/receipt logic; live authorization recheck; no system/historical replay. Secure resolve/read acknowledgements.
+4. Native Inbox integrates gated capability, shared groups, roster/add-office, private header and block placement. Legacy remains readable before rollout; migrated old clients must update. No Marketplace changes.
+5. Stage B dry-run planner only; no exported destructive worker. Evidence/unknown/shared attachments hold deletion; no automatic removal; separate activation required.
+6. Focused transaction/notification and Firestore emulator checks, TypeScript; logical local commits. No live changes.

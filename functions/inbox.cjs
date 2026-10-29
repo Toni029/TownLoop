@@ -51,3 +51,4 @@ for(const [collection,name]of [['discussion_feed','notifyDiscussion'],['work_ord
  if(!sendingAllowed())return;
  await deliverContent(getFirestore(),event,collection,{identity:uid=>getAuth().getUser(uid),transport,recipientAllowed,deviceAllowed,trace:deliveryTrace()});
 });
+Object.defineProperty(exports, 'groupDeliveryDependencies', { value: { sendingAllowed, recipientAllowed, deviceAllowed, transport }, enumerable: false });
