@@ -52,7 +52,7 @@ const deletionCall = <T, R>(name: string, data: T) => httpsCallable<T, R>(getFun
 export const getAccountDeletionStatus = () => deletionCall<Record<string, never>, DeletionRequestStatus>('getAccountDeletionStatus', {});
 export const listAccountDeletionRequests = (cursor?: string) => deletionCall<{cursor?: string}, { requests: DeletionReviewItem[]; policyReady: boolean; exceptionsAvailable?:boolean; processingAvailable?:boolean; nextCursor: string | null }>('listAccountDeletionRequests', cursor ? {cursor} : {});
 export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved' | 'rejected' | 'delayed', reason: string, context?: {reasonCategory?:string;reasonReference?:string;delayUntil?:number}) =>
-  deletionCall('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision, ...context });
+  deletionCall<Record<string,unknown>,{jobId:string;status:string}>('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision, ...context });
 export function deletionStatusText(request: DeletionRequestStatus): string {
   const labels: Record<string, string> = {
     waiting_for_media:'Verified record processing is waiting for attachment cleanup; account deletion is not complete.',

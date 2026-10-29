@@ -1,78 +1,70 @@
 import {useSession} from '../lib/session';
-import {deletionScopes,deletionExceptions,recheckDeletionException,recheckDeletionScope,authorizeDeletionProcessing,type DeletionException} from '../lib/accountDeletionOperations';
-import { useEffect, useState } from 'react';
-import { View } from 'react-native';
-import { Action, Copy, ErrorNotice, Field } from '../news/ui';
-import { listAccountDeletionRequests, reviewAccountDeletionRequest, deletionStatusText, type DeletionReviewItem } from '../lib/accountDeletion';
+import {useEffect,useRef,useState} from 'react';
+import {Pressable,View} from 'react-native';
+import {Action,Copy,ErrorNotice,Field} from '../news/ui';
+import {listAccountDeletionRequests,reviewAccountDeletionRequest,deletionStatusText,type DeletionReviewItem} from '../lib/accountDeletion';
 
-/** Review only: approvals remain held; this panel never executes deletion. */
-export function AccountDeletionRequests() {
-  const {profile}=useSession();
-  const isAdmin=profile?.approved===true&&profile.role==='admin';
-  const [capabilities,setCapabilities]=useState({exceptions:false,processing:false});
-  const [requests, setRequests] = useState<DeletionReviewItem[]>([]);
-  const [policyReady, setPolicyReady] = useState(false);
-  const [reasonCategories,setReasonCategories]=useState<Record<string,string>>({});
-  const [references,setReferences]=useState<Record<string,string>>({});
-  const [delayDates,setDelayDates]=useState<Record<string,string>>({});
-  const [notes, setNotes] = useState<Record<string, string>>({});
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState('');
-  const [busy, setBusy] = useState(false), [error, setError] = useState('');
-  async function refresh(cursor?: string) {
-    setBusy(true); setError('');
-    try { const result = await listAccountDeletionRequests(cursor); setRequests(result.requests); setPolicyReady(result.policyReady);setCapabilities({exceptions:result.exceptionsAvailable===true,processing:result.processingAvailable===true}); setNextCursor(result.nextCursor); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to load requests.'); }
-    finally { setBusy(false); }
-  }
-  useEffect(() => { void refresh(); }, []);
-  async function review(item: DeletionReviewItem, decision: 'approved' | 'rejected' | 'delayed') {
-    setBusy(true); setError('');
-    try { await reviewAccountDeletionRequest(item.jobId, decision, notes[item.jobId] || '', {reasonCategory:reasonCategories[item.jobId],reasonReference:references[item.jobId],delayUntil:delayDates[item.jobId]?Date.parse(delayDates[item.jobId]):undefined}); setConfirmation(''); await refresh(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to review request.'); }
-    finally { setBusy(false); }
-  }
-  return <View style={{ gap: 12 }}>
-    <Copy weight="bold">Account deletion requests</Copy>
-    <Copy>Oldest pending requests first, 50 per page. Review within 3 business days; unresolved requests escalate after 7 calendar days. Approval targets processing within 7 days. Workers remain held until activation.</Copy>
-    {!policyReady && <Copy>Deletion processing remains held. You may review requests; approval does not authorize deletion.</Copy>}
-    {!!error && <ErrorNotice message={error} />}
-    <Action compact label={busy ? 'Loading requests…' : 'Refresh deletion requests'} disabled={busy} onPress={() => void refresh()} />
-    {!busy && !requests.length && <Copy>No pending deletion requests.</Copy>}
-    {!!nextCursor && <Action compact label="Next requests" disabled={busy} onPress={() => void refresh(nextCursor)} />}
-    {requests.map(item => <View key={item.jobId} style={{ padding: 12, borderWidth: 1, borderColor: '#94a3b8', borderRadius: 16, gap: 8 }}>
-      <Copy weight="bold">{item.name}</Copy>
-      <Copy>{deletionStatusText(item)}{item.createdAt ? ` Submitted ${new Date(item.createdAt).toLocaleDateString()}.` : ''}</Copy>
-      {!!item.reviewDueAt && <Copy>Review due {new Date(item.reviewDueAt).toLocaleString()}.</Copy>}
-      {(item.escalated || item.processingOverdue || item.retentionOverdue) && <Copy weight="bold">Escalated — office action required; original deadlines have not been extended.</Copy>}
-      {isAdmin&&capabilities.exceptions&&item.status==='needs_review'&&!item.isOwnRequest&&<DeletionExceptionPanel jobId={item.jobId} onResume={()=>void refresh()}/>}
-      {isAdmin&&capabilities.processing&&item.status==='approved_held'&&!item.isOwnRequest&&<Action compact label={confirmation===`${item.jobId}:process`?'Confirm authorized processing':'Authorize approved processing…'} disabled={busy} onPress={()=>{if(confirmation!==`${item.jobId}:process`){setConfirmation(`${item.jobId}:process`);return;}setBusy(true);void authorizeDeletionProcessing(item.jobId).then(()=>refresh()).catch(e=>setError(e instanceof Error?e.message:'Processing authorization failed.')).finally(()=>setBusy(false));}}/>}
-      {item.isOwnRequest ? <Copy>Another Admin/VIP must review this request.</Copy> : item.canReview && <>
-        <Field label="Decision reason" value={notes[item.jobId] || ''} onChangeText={value => setNotes(previous => ({ ...previous, [item.jobId]: value }))} maxLength={1000} editable={!busy} />
-        <Field label="Rejection/delay category (requester_withdrawal, legal_obligation, security_investigation)" value={reasonCategories[item.jobId] || ''} onChangeText={value=>setReasonCategories(p=>({...p,[item.jobId]:value.trim()}))} editable={!busy} />
-        <Field label="Documented case or withdrawal reference" value={references[item.jobId] || ''} onChangeText={value=>setReferences(p=>({...p,[item.jobId]:value}))} maxLength={200} editable={!busy} />
-        <Field label="Delay review date (ISO date and time with timezone)" value={delayDates[item.jobId] || ''} onChangeText={value=>setDelayDates(p=>({...p,[item.jobId]:value}))} editable={!busy} />
-        {(['approved', 'rejected', 'delayed'] as const).map(decision => {
-          const key = `${item.jobId}:${decision}`;
-          return <Action key={decision} compact label={`${confirmation === key ? 'Confirm ' : ''}${decision === 'approved' ? 'approve request' : decision === 'delayed' ? 'document delay' : 'record requester withdrawal'}`} disabled={busy || !notes[item.jobId]?.trim() || (decision !== 'approved' && (!references[item.jobId]?.trim() || !reasonCategories[item.jobId]))} onPress={() => confirmation === key ? void review(item, decision) : setConfirmation(key)} />;
-        })}
-      </>}
-    </View>)}
-  </View>;
-}
-
-function DeletionExceptionPanel({jobId,onResume}:{jobId:string;onResume:()=>void}) {
- const [scope,setScope]=useState(deletionScopes[0].id),[items,setItems]=useState<DeletionException[]>([]),[cursor,setCursor]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[confirm,setConfirm]=useState('');
- async function load(databaseId:string,next?:string){setBusy(true);setError('');try{const result=await deletionExceptions(jobId,databaseId,next);setScope(databaseId);setItems(result.exceptions);setError(result.summary||'');setCursor(result.nextCursor);}catch(e){setError(e instanceof Error?e.message:'Unable to load exceptions.');}finally{setBusy(false);}}
- return <View style={{gap:8}}>
-  <Copy weight="bold">Unresolved exceptions — preserved for Admin review</Copy>
-  <Copy>Ownership cannot be guessed. Resolve verified identity or attachment linkage through the approved office process, then recheck. This panel cannot assign ownership or skip an exception.</Copy>
-  {deletionScopes.map(s=><Action key={s.id} compact label={`Review ${s.label.toLowerCase()}`} disabled={busy} onPress={()=>void load(s.id)}/>)}
+const denialRestriction='Denial is unavailable under the current policy. Only a documented withdrawal by the resident can close this request.';
+/** Review only: approvals remain held; this panel never authorizes processing. */
+export function AccountDeletionRequests(){
+ const {profile,user}=useSession();
+ const manager=!!user?.uid&&profile?.approved===true&&profile.source?.deletionPending!==true&&['admin','vip'].includes(profile.role||'');
+ const accountKey=manager?`${user?.uid}/${profile?.role}`:'';
+ const [requests,setRequests]=useState<DeletionReviewItem[]>([]),[loadedFor,setLoadedFor]=useState('');
+ const [notes,setNotes]=useState<Record<string,string>>({}),[nextCursor,setNextCursor]=useState<string|null>(null);
+ const [busy,setBusy]=useState(false),[error,setError]=useState('');
+ const operation=useRef(false),epoch=useRef(0);
+ async function refresh(cursor?:string){
+  if(!manager||operation.current)return;
+  const current=epoch.current;operation.current=true;setBusy(true);setError('');
+  try{
+   const result=await listAccountDeletionRequests(cursor);
+   if(current!==epoch.current)return;
+   setRequests(result.requests);setLoadedFor(accountKey);setNextCursor(result.nextCursor);
+  }catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:'Unable to load requests.');}
+  finally{if(current===epoch.current){operation.current=false;setBusy(false);}}
+ }
+ useEffect(()=>{
+  epoch.current++;operation.current=false;setRequests([]);setLoadedFor('');setNotes({});setNextCursor(null);setError('');setBusy(false);
+  if(manager)void refresh();
+  return()=>{epoch.current++;};
+ },[accountKey]);
+ async function approve(item:DeletionReviewItem){
+  if(operation.current||busy||!manager||!item.canReview||item.isOwnRequest)return;
+  const current=epoch.current;operation.current=true;setBusy(true);setError('');
+  try{
+   // The existing backend requires an audit reason; a blank optional note is recorded honestly.
+   const reason=notes[item.jobId]?.trim()||'Approved without an additional note.';
+   const result=await reviewAccountDeletionRequest(item.jobId,'approved',reason);
+   if(current!==epoch.current)return;
+   if(result.jobId!==item.jobId||!result.status)throw Error('Could not confirm the decision. Refresh the requests before trying again.');
+   setRequests(rows=>rows.map(row=>row.jobId===item.jobId?{...row,status:result.status,canReview:false}:row));
+  }catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:'Unable to approve this request.');}
+  finally{if(current===epoch.current){operation.current=false;setBusy(false);}}
+ }
+ if(!manager)return <Copy>Admin/VIP access required.</Copy>;
+ const visible=loadedFor===accountKey?requests:[];
+ return <View style={{gap:12}}>
+  <Copy weight="bold">Account deletion requests</Copy>
   {!!error&&<ErrorNotice message={error}/>}
-  <Action compact label={confirm==='scope'?'Confirm scope safeguard recheck':'Recheck resolved scope safeguards'} disabled={busy} onPress={()=>{if(confirm!=='scope'){setConfirm('scope');return;}setBusy(true);void recheckDeletionScope(jobId).then(onResume).catch(e=>setError(e instanceof Error?e.message:'Scope is still unresolved.')).finally(()=>setBusy(false));}}/>
-  {items.map(item=><View key={item.id} style={{gap:6}}><Copy>{item.collection}{item.recordId?` / ${item.recordId}`:''}: {item.reason}</Copy>
-   <Action compact label={confirm===item.id?'Confirm server recheck':'Recheck resolved exception'} disabled={busy} onPress={()=>{if(confirm!==item.id){setConfirm(item.id);return;}setBusy(true);void recheckDeletionException(jobId,scope,item.id).then(onResume).catch(e=>setError(e instanceof Error?e.message:'Exception is still unresolved.')).finally(()=>setBusy(false));}}/>
-  </View>)}
-  {!!cursor&&<Action compact label="Next exceptions" disabled={busy} onPress={()=>void load(scope,cursor)}/>}
+  <Action compact label={busy?'Loading requests…':'Refresh'} disabled={busy} onPress={()=>void refresh()}/>
+  {!busy&&loadedFor===accountKey&&!visible.length&&<Copy>No pending deletion requests.</Copy>}
+  {visible.map(item=>{
+   const disabled=busy||!item.canReview||item.isOwnRequest;
+   return <View key={item.jobId} style={{padding:16,borderWidth:1,borderColor:'#94a3b8',borderRadius:16,gap:10}}>
+    <Copy weight="bold" style={{fontSize:15,lineHeight:21}}>{item.name}</Copy>
+    <Copy style={{color:'#78716c'}}>Submitted {item.createdAt?new Date(item.createdAt).toLocaleDateString():'Date unavailable'}</Copy>
+    <Field label="Note (optional)" value={notes[item.jobId]||''} onChangeText={value=>setNotes(previous=>({...previous,[item.jobId]:value}))} maxLength={1000} editable={!disabled} multiline/>
+    <View style={{flexDirection:'row',flexWrap:'wrap',gap:10}}>
+     {(['Deny','Approve'] as const).map(label=><Pressable key={label} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={label==='Deny'?denialRestriction:undefined} accessibilityState={{disabled}} disabled={disabled}
+      onPress={()=>{if(label==='Approve')void approve(item);else if(!operation.current)setError(denialRestriction);}}
+      style={({pressed})=>({flex:1,minWidth:96,minHeight:44,paddingHorizontal:16,paddingVertical:10,borderRadius:14,alignItems:'center',justifyContent:'center',backgroundColor:label==='Deny'?'#dc2626':'#047857',opacity:disabled?0.5:pressed?0.8:1,transform:[{scale:pressed?0.98:1}]})}>
+       <Copy weight="bold" style={{color:'#fff',fontSize:14,lineHeight:20}}>{label}</Copy>
+      </Pressable>)}
+    </View>
+    {item.isOwnRequest?<Copy>Another Admin/VIP must review this request.</Copy>:!item.canReview&&<Copy accessibilityLiveRegion="polite">{deletionStatusText(item)}</Copy>}
+   </View>;
+  })}
+  {!!nextCursor&&<Action compact label="Next requests" disabled={busy} onPress={()=>void refresh(nextCursor)}/>}
  </View>;
 }

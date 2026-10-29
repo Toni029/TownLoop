@@ -338,3 +338,10 @@ test('permission failures pause for human repair instead of endlessly retrying',
  const h=harness({'account_deletion_jobs/job':{uid:'alice',phase:'auth',status:'queued',createdAt:Date.now()}},true);h.records.get(h.ref.path).databaseCompletion=completedScopes(h.records.get(h.ref.path));
  let attempts=0;h.auth.deleteUser=async()=>{attempts++;throw Object.assign(Error('synthetic denied'),{code:7});};await h.schedule();assert.equal(h.records.get(h.ref.path).status,'needs_review');await h.schedule();assert.equal(attempts,1);
 });
+test('optional review note and standard approval audit entry remain held and preserve audit evidence',async()=>{
+ for(const reason of ['Approved without an additional note.','Reviewer fixture note']){
+  const h=harness(reviewFixture());const result=await h.review(reviewInput('bob',{jobId:jobIdFor('alice'),decision:'approved',confirmation:'approved',reason}));
+  assert.equal(result.status,'approved_held');const job=h.records.get(`account_deletion_jobs/${jobIdFor('alice')}`);assert.equal(job.review.reason,reason);assert.equal(job.review.processingAuthorized,false);assert.deepEqual(h.authCalls,[]);
+  const receipts=[...h.records].filter(([path])=>path.startsWith(`account_deletion_jobs/${jobIdFor('alice')}/reviews/`));assert.equal(receipts.length,1);assert.equal(receipts[0][1].reason,reason);
+ }
+});
