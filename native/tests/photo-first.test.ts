@@ -36,13 +36,15 @@ function editor(kind: 'post' | 'listing', pendingDraft = false, failUpload = fal
     'react/jsx-runtime': { jsx, jsxs: jsx },
     react: {
       useState: (initial: any) => { const i = cursor++; if (!(i in state)) state[i] = typeof initial === 'function' ? initial() : initial; return [state[i], (value: any) => { state[i] = typeof value === 'function' ? value(state[i]) : value; }]; },
+      useEffect: (effect: any) => { const i=cursor++; if (!(i in state)) {state[i]=true;effect();} },
       useRef: (initial: any) => { const i = cursor++; return state[i] ||= { current: initial }; },
     },
-    'react-native': { Image: 'Image', View: 'View', Pressable: 'Pressable' },
+    'react-native': { Image: 'Image', View: 'View', Pressable: 'Pressable', Platform: {OS:'android'} },
     'lucide-react-native': { Trash2: 'Trash2', MessageSquare: 'MessageSquare', Tag: 'Tag' },
     '../shell/TownLoopShell': { usePresentation: () => ({ dark: false }) },
     '../news/ui': { Action: 'Action', Copy: 'Copy', Field: 'Field', ErrorNotice: 'ErrorNotice', UploadTarget: 'UploadTarget', useNewsStyles: () => ({ row: {}, input: {} }) },
     '../components/ProductDialog': { ProductDialog: 'ProductDialog' },
+    '../components/PrivateImage': { PrivateImage: 'Image' },
     '../components/media': pick,
     './model': { formatPrice: (p: string) => p },
     './actions': { newSocialId: () => 'draft-id', publishSocial: async () => {} },
@@ -56,26 +58,36 @@ function editor(kind: 'post' | 'listing', pendingDraft = false, failUpload = fal
   return { render, find: (type: string) => walk(type, render()),
     field: (label: string) => walk('Field', render(), props => props.label === label),
     action: (label: string) => walk('Action', render(), props => props.label === label),
+    publish: () => {
+      const title=kind==='post'?'Subject / Title':'Item Name',body=kind==='post'?'Post Content & Discussion Details':'Details & Pickup Information';
+      if(!walk('Field',render(),p=>p.label===title).props.value)walk('Field',render(),p=>p.label===title).props.onChangeText('Fixture title');
+      if(!walk('Field',render(),p=>p.label===body).props.value)walk('Field',render(),p=>p.label===body).props.onChangeText('Fixture body');
+      return walk('Action',render(),p=>p.label===(kind==='post'?'Publish Post to Discussion Feed':'Publish Item to Marketplace')).props.onPress();
+    },
     ready: () => { pendingDraft = false; failUpload = false; },
     pickerCalls: () => pickerCalls, linkReads: () => linkReads, drafts, uploads };
 }
-// Discussion selection is staged until explicit Post; covered by feed-picker-editor.
-for (const kind of ['listing'] as const) {
+// Both Social composers stage first, then reuse the existing transfer on Publish.
+for (const kind of ['post', 'listing'] as const) {
   test(`${kind}: attach photo with empty text, preserving fields and releasing busy state`, async () => {
     const h = editor(kind);
     h.find('UploadTarget').props.onUpload();
     await new Promise(resolve => setTimeout(resolve, 25));
-    assert.equal(h.uploads.length, 1);
-    assert.equal(h.uploads[0].metadata.customMetadata.collection, kind === 'post' ? 'discussion_feed' : 'marketplace_posts');
+    assert.equal(h.uploads.length, 0);
+    assert.equal(h.drafts.length, 0);
     assert.equal(h.render().props.busy, false);
     assert.equal(h.find('Field').props.value, '');
     assert.ok(h.find('Image'), 'Selected photo remains visible before entering text');
+    h.publish(); await new Promise(resolve=>setTimeout(resolve,25));
+    assert.equal(h.uploads.length,1);
+    assert.equal(h.uploads[0].metadata.customMetadata.collection,kind==='post'?'discussion_feed':'marketplace_posts');
   });
   test(`${kind}: completed transfer retries only the photo link without uploading twice`, async () => {
     const h = editor(kind, false, false, true);
     h.find('UploadTarget').props.onUpload();
     await new Promise(resolve => setTimeout(resolve, 25));
     assert.equal(h.render().props.busy, false);
+    h.publish(); await new Promise(resolve=>setTimeout(resolve,25));
     assert.equal(h.uploads.length, 1);
     h.action('Retry selected media').props.onPress();
     await new Promise(resolve => setTimeout(resolve, 25));
@@ -90,6 +102,7 @@ for (const kind of ['listing'] as const) {
     await new Promise(resolve => setTimeout(resolve, 25));
     assert.equal(h.render().props.busy, false);
     assert.equal(h.find('Field').props.value, 'Keep my title');
+    h.publish(); await new Promise(resolve=>setTimeout(resolve,25));
     assert.equal(h.find('Image').props.source.uri, 'file:///photo.jpg');
     assert.match(h.find('ErrorNotice').props.message, /denied/);
     h.ready();
@@ -105,6 +118,8 @@ for (const kind of ['listing'] as const) {
     assert.equal(h.find('Field').props.editable, true, 'Text stays editable while a photo is uploading');
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(h.render().props.busy, false, 'Draft wait must not lock every control indefinitely');
+    assert.equal(h.drafts.length,0,'stalled backend cannot block selection');
+    h.publish(); await new Promise(resolve=>setTimeout(resolve,30));
     assert.match(h.find('ErrorNotice')?.props.message || '', /try again/i);
     assert.equal(h.uploads.length, 0);
     assert.equal(h.find('Image').props.source.uri, 'file:///photo.jpg');

@@ -56,7 +56,7 @@ export async function pickAndUpload(
   // A dismissed editor must not start processing a late native picker result.
   if (selection?.isActive?.() === false || selected.canceled || !selected.assets?.length) return [];
   selection?.onSelected?.(selected.assets);
-  // Discussion drafts stage local selections; no processing or backend work until Post.
+  // Social editors stage local selections; processing/backend work starts only on Publish.
   if (selection?.selectOnly) return [];
   if (!link) throw new Error("An attachment must be linked to its record before uploading.");
   await deadline(ensureMediaDraft(db, link, String(user.id)), 20_000, 'Preparing photo upload');

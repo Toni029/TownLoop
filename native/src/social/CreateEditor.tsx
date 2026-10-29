@@ -55,7 +55,7 @@ export function CreateEditor({
     setPicking(!retry);
     setBusy(retry);
     setError("");
-    setProgress(retry ? 0 : null);
+    setProgress(null);
     try {
       await pickAndUpload(
         kind === "post" ? "feed" : "marketplace",
@@ -65,20 +65,21 @@ export function CreateEditor({
         {
           assets: retry ? pendingMedia : undefined,
           isActive: () => mounted.current,
-          onPickerSettled: outcome => {
+          onPickerSettled: () => {
             if (!mounted.current) return;
             setPicking(false);
-            if (outcome !== 'selected' && Platform.OS === 'android') {
+            if (Platform.OS === 'android') {
               // Recreate only the native window/touch dispatch after the external
-              // activity. Editor data, expansion and animation state stay mounted.
+              // activity, including successful selection. Editor data, expansion
+              // and animation state stay mounted.
               setNativeWindowKey(value => value + 1);
             }
           },
-          selectOnly: kind === "post" && !retry,
+          selectOnly: !retry,
           onSelected: assets => {
             if (!mounted.current) return;
-            setPendingMedia(assets);
-            setBusy(kind !== 'post' || retry);
+            if (!retry) setPendingMedia(previous => [...previous, ...assets]);
+            setBusy(retry);
           },
           onUploaded: (file, asset) => {
             if (!mounted.current) return;
@@ -100,11 +101,7 @@ export function CreateEditor({
   }
   async function publish() {
     if (lock.current) return;
-    if (kind !== "post" && pendingMedia.length) {
-      setError("Retry or remove the selected photos before publishing.");
-      return;
-    }
-    if (kind === "post" && (!title.trim() || !description.trim())) {
+    if (!title.trim() || !description.trim()) {
       setError("Please provide a title and description.");
       return;
     }
@@ -113,28 +110,29 @@ export function CreateEditor({
     setError("");
     try {
       let attachments = media;
-      if (kind === "post" && pendingMedia.length) {
-        setProgress(0);
-        const uploaded = await pickAndUpload("feed", setProgress, false,
-          { recordId: id, collection: "discussion_feed" }, {
+      if (pendingMedia.length) {
+        const uploaded = await pickAndUpload(kind === "post" ? "feed" : "marketplace",
+          value => { if (mounted.current) setProgress(value); }, false,
+          { recordId: id, collection: kind === "post" ? "discussion_feed" : "marketplace_posts" }, {
+            isActive: () => mounted.current,
             assets: pendingMedia,
             onUploaded: (file, asset) => {
+              if (!mounted.current) return;
               setMedia(previous => [...previous, file]);
               setPendingMedia(previous => previous.filter(item => item !== asset));
             },
           });
         attachments = [...media, ...uploaded];
       }
+      if (!mounted.current) return;
       if (listing) await editListing(id, { title, description, price, media: attachments });
       else await publishSocial(id, kind, { title, description, price, media: attachments });
-      onSaved(kind);
-      onClose();
+      if (mounted.current) { onSaved(kind); onClose(); }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to publish.");
+      if (mounted.current) setError(e instanceof Error ? e.message : "Unable to publish.");
     } finally {
       lock.current = false;
-      setBusy(false);
-      setProgress(null);
+      if (mounted.current) { setBusy(false); setProgress(null); }
     }
   }
   return (
@@ -274,7 +272,7 @@ export function CreateEditor({
         <UploadTarget
           label="Tap to upload photos or videos"
           note="Supports JPG, PNG, WebP, MP4, MOV up to 25MB"
-          disabled={busy || picking || pendingMedia.length > 0}
+          disabled={busy || picking}
           onUpload={() => void upload()}
           onCamera={() => void upload(true)}
         />
@@ -289,7 +287,11 @@ export function CreateEditor({
           <View style={s.row}>
             {pendingMedia.map((asset, index) => (
               <View key={`${asset.uri}-${index}`} style={{ gap: 6 }}>
-                {asset.type !== "video" && (
+                {asset.type === "video" ? (
+                  <View style={{ width: 96, height: 96, borderRadius: 12, backgroundColor: "#0c0a09", justifyContent: "center", alignItems: "center" }}>
+                    <Copy style={{ color: "#fff" }}>▶ Video</Copy>
+                  </View>
+                ) : (
                   <Image source={{ uri: asset.uri }} style={{ width: 96, height: 96, borderRadius: 12 }} accessibilityLabel="Selected photo awaiting upload" />
                 )}
                 <Action label="Remove selected media" icon={Trash2} tone="rose" compact disabled={busy}
@@ -297,7 +299,7 @@ export function CreateEditor({
               </View>
             ))}
           </View>
-          {!busy && (kind !== "post" || !!error) && <Action label="Retry selected media" onPress={() => void upload(false, true)} />}
+          {!busy && !!error && <Action label="Retry selected media" onPress={() => void upload(false, true)} />}
         </View>
       )}
       {!!media.length && (
@@ -344,7 +346,7 @@ export function CreateEditor({
         radius={16}
         label={
           busy
-            ? progress !== null ? "Uploading media…" : listing ? "Saving Changes…" : "Publishing…"
+            ? progress !== null ? "Uploading media…" : pendingMedia.length ? "Preparing media…" : listing ? "Saving Changes…" : "Publishing…"
             : listing ? "Save Changes" : kind === "post"
               ? "Publish Post to Discussion Feed"
               : "Publish Item to Marketplace"

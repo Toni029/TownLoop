@@ -27,12 +27,13 @@ function fixture(initialKind = 'post') {
  let finishProcessing: (image: any) => void = () => {};
  let failProcessing: (error: Error) => void = () => {};
  let picker: (() => Promise<any>) | undefined;
+ let pickerOptions: any;
  const cleanups: (()=>void)[] = [];
  const pickerResult: any = { canceled: false, assets: [asset] };
  let processing: Promise<any> = new Promise((resolve, reject) => { finishProcessing = resolve; failProcessing = reject; });
  const media = load('../src/components/media.ts', {
   'react-native': { Platform: { OS: 'android' } },
-  'expo-image-picker': { launchImageLibraryAsync: async () => { pickerCalls++; return picker ? picker() : pickerResult; } },
+  'expo-image-picker': { launchImageLibraryAsync: async (options: any) => { pickerOptions=options; pickerCalls++; return picker ? picker() : pickerResult; } },
   'expo-image-manipulator': { SaveFormat: { JPEG: 'jpeg' }, manipulateAsync: () => processing },
   'expo-file-system/legacy': { cacheDirectory: 'file:///cache/', copyAsync: async () => {}, getInfoAsync: async () => ({ exists: true, size: 100000 }), deleteAsync: async () => {} },
   '../../../src/services/mediaAuthorization': { ensureMediaDraft: async (_db: any, link: any, uid: string) => { drafts.push({ link, uid }); } },
@@ -66,6 +67,8 @@ function fixture(initialKind = 'post') {
  function render() { cursor = 0; return CreateEditor({ initialKind, onClose: () => { closes++; }, onSaved: () => { saves++; } }); }
  const field = (label: string) => nodes(render()).find(node => node.type === 'Field' && node.props.label === label);
  return { render, field, asset, drafts, publications, pickerResult,
+  pickerOptions: () => pickerOptions,
+  workOrder: () => media.pickAndUpload('work_orders',()=>{},false,{recordId:'fixture-order',collection:'work_orders'}),
   picker: (fn:()=>Promise<any>) => { picker=fn; }, unmount: () => cleanups.forEach(fn=>fn?.()),
   confirm: () => nodes(render()).find(node => node.type === 'UploadTarget').props.onUpload(),
   recover: () => { processing = Promise.resolve({ uri: 'file:///cache/recovered.jpg' }); },
@@ -180,3 +183,58 @@ for (const kind of ['post', 'listing']) {
   assert.equal(h.drafts.length,0); assert.equal(h.stats().uploads,0);
  });
 }
+
+for (const kind of ['post', 'listing']) {
+ for (const filled of [false, true]) {
+  test(`${kind}: selected picker result restores the native window and stages without blocking preparation (${filled ? 'filled' : 'empty'})`,async()=>{
+   const h=fixture(kind),title=kind==='post'?'Subject / Title':'Item Name',body=kind==='post'?'Post Content & Discussion Details':'Details & Pickup Information';
+   if(filled){h.field(title).props.onChangeText('Fixture title');h.field(body).props.onChangeText('Fixture body');}
+   h.confirm();await tick();
+   const tree=h.render();
+   assert.equal(tree.props.busy,false,'selection alone must not lock the native sheet behind draft/processing work');
+   assert.equal(h.drafts.length,0,'selection must not start a backend draft');
+   assert.equal(h.stats().uploads,0);
+   assert.equal(h.field(title).props.editable,true);assert.equal(h.field(body).props.editable,true);
+   assert.equal(tree.props.nativeWindowKey,1,'successful return needs the same Android native-window recovery as cancellation');
+   assert.equal(nodes(tree).find(n=>n.type==='Image')?.props.source.uri,h.asset.uri);
+   assert.equal(h.stats().closes,0);assert.equal(h.publications.length,0);
+  });
+ }
+}
+
+for(const kind of ['post','listing']) {
+ test(`${kind}: selected photo can be removed/replaced, and staged video preserves video support`,async()=>{
+  const h=fixture(kind);h.confirm();await tick();
+  nodes(h.render()).find(n=>n.type==='Action'&&n.props.label==='Remove selected media').props.onPress();
+  assert.equal(nodes(h.render()).find(n=>n.type==='Image'),undefined);
+  h.pickerResult.assets=[{...h.asset,uri:'file:///fixture-replacement.jpg'}];h.confirm();await tick();
+  assert.equal(nodes(h.render()).find(n=>n.type==='Image')?.props.source.uri,'file:///fixture-replacement.jpg');
+  nodes(h.render()).find(n=>n.type==='Action'&&n.props.label==='Remove selected media').props.onPress();
+  h.pickerResult.assets=[{...h.asset,type:'video',uri:'file:///fixture.mp4',mimeType:'video/mp4'}];h.confirm();await tick();
+  assert.deepEqual(Array.from(h.pickerOptions().mediaTypes),['images','videos']);
+  assert.ok(nodes(h.render()).some(n=>n.type==='Copy'&&n.props.children==='▶ Video'));
+  assert.equal(h.stats().uploads,0);assert.equal(h.drafts.length,0);
+  h.field(kind==='post'?'Subject / Title':'Item Name').props.onChangeText('Fixture title');
+  h.field(kind==='post'?'Post Content & Discussion Details':'Details & Pickup Information').props.onChangeText('Fixture body');
+  nodes(h.render()).find(n=>n.type==='Action'&&n.props.label===(kind==='post'?'Publish Post to Discussion Feed':'Publish Item to Marketplace')).props.onPress();await tick();
+  assert.equal(h.publications.length,1);assert.equal(h.publications[0].media[0].type,'video');assert.equal(h.stats().uploads,1);
+ });
+ test(`${kind}: missing text on explicit Publish never starts processing or upload`,async()=>{
+  const h=fixture(kind);h.confirm();await tick();
+  nodes(h.render()).find(n=>n.type==='Action'&&n.props.label===(kind==='post'?'Publish Post to Discussion Feed':'Publish Item to Marketplace')).props.onPress();await tick();
+  assert.equal(h.drafts.length,0);assert.equal(h.stats().uploads,0);assert.equal(h.render().props.busy,false);
+  assert.equal(nodes(h.render()).find(n=>n.type==='Image')?.props.source.uri,h.asset.uri);
+ });
+}
+test('Work Orders retain the image-only picker and reject a video without transfer',async()=>{
+ const h=fixture();h.pickerResult.assets=[{...h.asset,type:'video',uri:'file:///fixture.mp4'}];
+ await assert.rejects(h.workOrder(),/Photos Only/);assert.deepEqual(Array.from(h.pickerOptions().mediaTypes),['images']);assert.equal(h.stats().uploads,0);
+});
+
+test('adding another local photo and then cancelling keeps both staged selections',async()=>{
+ const h=fixture('listing');h.confirm();await tick();
+ h.pickerResult.assets=[{...h.asset,uri:'file:///second-fixture.jpg'}];h.confirm();await tick();
+ assert.equal(nodes(h.render()).filter(n=>n.type==='Image').length,2);
+ h.pickerResult.canceled=true;h.pickerResult.assets=null;h.confirm();await tick();
+ assert.equal(nodes(h.render()).filter(n=>n.type==='Image').length,2);assert.equal(h.drafts.length,0);assert.equal(h.render().props.busy,false);
+});
