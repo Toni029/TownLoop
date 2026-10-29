@@ -39,13 +39,6 @@ def generate():
     points = outline(art)
     background = Image.open(ASSETS / 'branding/launcher-background.png').convert('RGBA')
     assert background.size == (SIZE, SIZE)
-    # Complete panel, not merely the lettering, stays inside Android's 66dp circle.
-    radius = SIZE * 33 / 108 - 4
-    scale = radius / max(hypot(x, y) for x, y in points)
-    foreground = layer(art, scale)
-    foreground.save(ASSETS / 'adaptive-icon-foreground.png', optimize=True)
-    background.convert('RGB').save(ASSETS / 'adaptive-icon-background.png', optimize=True)
-
     # Largest proportional iOS placement retaining the full rounded panel under
     # a conservative rounded-square mask. Padding is background, never black.
     corner = SIZE * .225
@@ -63,7 +56,16 @@ def generate():
     icon = Image.alpha_composite(background, layer(art, low)).convert('RGB')
     icon.save(ASSETS / 'icon.png', optimize=True)
     icon.save(ASSETS / 'android-icon.png', optimize=True)
-    print(f'Android artwork: {round(art.width * scale)}px; iOS artwork: {round(art.width * low)}px; complete composition retained')
+    # Owner approved iPhone-sized artwork on Android, including cropping by
+    # circular OEM masks. Put the same composition in the 72dp visible viewport
+    # of a 108dp adaptive layer; do not shrink it to the former 66dp safe circle.
+    visible = round(SIZE * 72 / 108)
+    inset = (SIZE - visible) // 2
+    foreground = Image.new('RGBA', (SIZE, SIZE))
+    foreground.paste(icon.resize((visible, visible), Image.Resampling.LANCZOS), (inset, inset))
+    foreground.save(ASSETS / 'adaptive-icon-foreground.png', optimize=True)
+    background.convert('RGB').save(ASSETS / 'adaptive-icon-background.png', optimize=True)
+    print(f'Android visible composition matches iOS; {visible}px viewport in {SIZE}px adaptive layer. Circular mask cropping approved.')
 
 
 if __name__ == '__main__':

@@ -1,8 +1,9 @@
 # Complete original TownLoop launcher artwork — Android and iOS
 
-Owner decision: preserve the full original rounded-square composition and wordmark,
-accepting necessary padding on circular Android launchers. This supersedes the
-edge-extension/reframing experiment in 6d2c1a0.
+Owner decision: use the same large composition and relative artwork size as the
+iPhone icon on Samsung and other Android launchers. The owner explicitly accepts
+cropping by circular Android masks, including possible lettering clipping. This
+supersedes the whole-panel safe-circle padding choice in f21d732.
 
 Source: the latest owner attachment
 `/home/tonio/Downloads/file_00000000ce2c8230b27c45f7dee20ef0.png` matches the existing
@@ -17,17 +18,18 @@ Lanczos downsampling from the 1254px source. The opaque blue/cream backing is th
 existing background asset from c9008bf, preserved in launcher-background.png.
 There is no stretched landscape or altered composition.
 
-Android's entire visible panel fits inside the centered 66dp safe circle in its
-108dp adaptive layer, with a small rasterization margin. This necessarily makes
-it smaller than the edge-to-edge experiment. iOS uses the largest proportional
-placement preserving the panel under a conservative rounded-square mask; the
-1024px icon is opaque. Pre-adaptive Android uses that same flattened image.
-Android launchers control the outer mask and user-selected theming. The app
-cannot guarantee a rounded-square outer shape, identical apparent size, or
-untinted appearance under every launcher/theme.
+Android places the exact flattened iPhone composition in the centered 72dp visible
+viewport of its 108dp adaptive layer (683px in a 1024px asset). This removes the
+extra 66dp-safe-circle shrinkage. Android's foreground contains the same complete
+image, but the launcher can crop it. The backing fills overscan during launcher
+effects. iOS and pre-adaptive Android assets remain byte-for-byte unchanged.
+Android launchers control the outer mask, effects and user-selected theming. A
+rounded-square preview matches the iPhone framing; circular masks intentionally
+clip the enlarged artwork. Identical shape or appearance across every launcher,
+custom mask and theme cannot be guaranteed.
 Reference: https://developer.android.com/develop/ui/compose/system/icon_design_adaptive
 
-Local checks: exact source identity, full-panel mask containment, 1024px layers,
+Local checks: exact source identity, matching Android viewport/iOS composition, 1024px layers,
 opaque iOS/legacy backgrounds, and resolved Expo icon paths. Launcher previews
 are simulated, not physical-device verification. Startup, notification icons,
 authentication, and all app functionality remain unchanged.
