@@ -96,7 +96,7 @@ async function upgradeLegacy(db, uid, data, now, {leave=false}={}) {
     });
     for (const m of members) tx.create(db.doc(memberPath(cid,m.uid)), { ...m, conversationId: cid, type, residentId: c.residentId,
       subject: c.subject, name: type === 'private' ? profiles.find(p => p.id !== m.uid)?.name || 'Resident' : type === 'office' ? 'Community Office' : 'Maintenance Crew',
-      activeCount: visibility.length, peerId: type === 'private' ? ids.find(id=>id!==m.uid) : '', sequence: c.sequence, updatedAt: now, conversationStatus: c.status });
+      activeCount: members.filter(member => member.status === 'active').length, peerId: type === 'private' ? ids.find(id=>id!==m.uid) : '', sequence: m.lastVisibleSequence || 0, updatedAt: now, conversationStatus: c.status });
     tx.update(sourceRef, { groupConversationId: cid });
     return { ...result, conversationId: cid, type };
   });

@@ -100,6 +100,9 @@ cleanup receipts expire after 60 days (future approved TTL/maintenance required;
 no expiry worker/TTL was enabled). Prior legacy delivery receipts without target
 metadata follow their existing expiry; never claim instant backup/offline erasure.
 
+See [STAGE_A_ROLLOUT.md](STAGE_A_ROLLOUT.md) for the verified missing live
+components, exact function/index scope, activation settings and legacy limits.
+
 ## Deployment dependencies / approval gates
 
 1. Review/rebase the generated candidate against the CURRENT deployed default DB

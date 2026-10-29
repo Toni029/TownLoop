@@ -4,6 +4,7 @@ function prepare(baselineFile){
  if(!baselineFile)throw Error('Supply the reviewed default-database baseline rules path.');
  const root=path.resolve(__dirname,'../..'),out=path.join(root,'.release/inbox-groups');
  const baseline=fs.readFileSync(baselineFile,'utf8');let rules=baseline;
+ if(baseline.includes('function groupAccess(')||baseline.includes('match /inbox_conversations/'))throw Error('Stage A already present: review the live baseline instead of applying twice.');
  for(const name of ['resident_chats','office_chats','maintenance_chats']){
   const start=rules.indexOf(`match /${name}/{chatId}`),end=rules.indexOf('\n    }',start);
   if(start<0||end<0)throw Error('Unexpected legacy Inbox rule structure.');
@@ -26,8 +27,11 @@ function prepare(baselineFile){
  fs.writeFileSync(path.join(out,'functions/.env.cc-livingcommunity-app'),'INBOX_GROUPS_ENABLED=false\nINBOX_GROUP_PUSH_ENABLED=false\nINBOX_PUSH_ENABLED=false\nPUSH_RECIPIENT_SCOPE=testers\nPUSH_TESTER_UIDS=\nPUSH_TESTER_PLATFORMS=android\n',{mode:0o600});
  fs.writeFileSync(path.join(out,'firestore.rules'),rules);
  fs.writeFileSync(path.join(out,'indexes.json'),fs.readFileSync(path.join(__dirname,'indexes.json')));
+ const indexes=require('./indexes.json').indexes;
+ // Do not use firebase deploy --only firestore:indexes: it can remove unrelated indexes.
+ fs.writeFileSync(path.join(out,'index-create-requests.json'),JSON.stringify({mode:'create-only',deleteRequests:[],requests:indexes.map(index=>({method:'POST',url:`https://firestore.googleapis.com/v1/projects/cc-livingcommunity-app/databases/(default)/collectionGroups/${index.collectionGroup}/indexes`,body:{queryScope:index.queryScope,fields:index.fields}}))},null,2));
  fs.writeFileSync(path.join(out,'firebase.json'),JSON.stringify({functions:[{source:'functions',codebase:'default',runtime:'nodejs22',ignore:['node_modules','*.test.cjs']}],firestore:[{database:'(default)',rules:'firestore.rules'}]},null,2));
- fs.writeFileSync(path.join(out,'scope.json'),JSON.stringify({project:'cc-livingcommunity-app',database:'(default)',exports:['manageInboxConversation','notifyInboxGroupMessage','revokeInboxGroupMemberships','getNotificationState','registerInboxDevice'],stageAEnabled:false,pushEnabled:false,stageBExported:false,baselineSHA256:createHash('sha256').update(baseline).digest('hex'),hosting:false,storageRules:false,namedDatabase:false},null,2));
+ fs.writeFileSync(path.join(out,'scope.json'),JSON.stringify({project:'cc-livingcommunity-app',database:'(default)',exports:['manageInboxConversation','notifyInboxGroupMessage','revokeInboxGroupMemberships','getNotificationState','registerInboxDevice'],requiredFunctions:['manageInboxConversation','revokeInboxGroupMemberships','registerInboxDevice','getNotificationState','notifyInboxGroupMessage'],deployOnly:'functions:manageInboxConversation,functions:revokeInboxGroupMemberships,functions:registerInboxDevice,functions:getNotificationState,functions:notifyInboxGroupMessage',activationRequiresApproval:true,stageAEnabled:false,pushEnabled:false,stageBExported:false,baselineSHA256:createHash('sha256').update(baseline).digest('hex'),hosting:false,storageRules:false,namedDatabase:false},null,2));
  return out;
 }
 if(require.main===module)console.log(prepare(process.argv[2]));module.exports={prepare};

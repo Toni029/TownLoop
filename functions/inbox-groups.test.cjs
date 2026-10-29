@@ -188,3 +188,9 @@ test('legacy leave and cutover are atomic; unresolved Office ownership produces 
  assert.deepEqual(h.records.get('office_chats/old').messages,old.messages);
  const repeat=await h.call('admin',request);assert.equal(repeat.left,true);assert.equal(repeat.unchanged,true);
 });
+test('atomic legacy leave projects the remaining count and own visible sequence accurately',async()=>{
+ const h=fixture();h.records.set('resident_chats/projection',{identityVersion:2,participantIds:['a','b'],messages:[{id:'original',senderId:'a',body:'Fixture',createdAt:1}]});
+ const {conversationId:id}=await h.call('a',{op:'leaveLegacy',source:'resident_chats',legacyId:'projection'});
+ assert.equal(membership(h,id,'b').activeCount,1);assert.equal(membership(h,id,'a').activeCount,1);
+ assert.equal(membership(h,id,'a').sequence,1);assert.equal(membership(h,id,'b').sequence,2);
+});
