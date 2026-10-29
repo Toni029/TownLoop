@@ -2,6 +2,7 @@ import {useInboxPush} from '../notifications/InboxPushProvider';
 import {relativePostedTime} from '../time/relativePostedTime';
 import {useMinuteNow} from '../time/useMinuteNow';
 import { PrivateImage } from '../components/PrivateImage';
+import type { ImagePickerAsset } from "expo-image-picker";
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from "react";
@@ -349,8 +350,16 @@ const OrderCard = memo(function OrderCard({
   const photo = draft?.key === editorKey ? draft.photo : previousResolution?.photoUrl || '';
   const setReply = (text: string) => setDraft({ key: editorKey, reply: text, photo });
   const setPhoto = (uri: string) => setDraft({ key: editorKey, reply, photo: uri });
+  const [pendingPhoto, setPendingPhoto] = useState<{ key: string; asset: ImagePickerAsset } | null>(null);
+  const selectedPhoto = pendingPhoto?.key === editorKey ? pendingPhoto.asset : null;
+  const [picking, setPicking] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState<number | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [error, setError] = useState("");
   const [media, setMedia] = useState<{ urls: string[]; index: number } | null>(
     null,
@@ -359,29 +368,63 @@ const OrderCard = memo(function OrderCard({
   async function upload() {
     if (lock.current || busy) return;
     lock.current = true;
-    setUploading(true);
+    setPicking(true);
     setError("");
     try {
-      const photos = await pickAndUpload("work_orders", setProgress, false, {recordId: String(order.id), collection: "work_orders"});
-      if (photos[0]) setPhoto(photos[0].url);
+      await pickAndUpload("work_orders", () => {}, false, undefined, {
+        selectOnly: true,
+        isActive: () => mounted.current,
+        onSelected: assets => {
+          if (mounted.current && assets[0]) setPendingPhoto({ key: editorKey, asset: assets[0] });
+        },
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to upload photo.");
+      if (mounted.current) setError(e instanceof Error ? e.message : "Unable to attach photo.");
     } finally {
       lock.current = false;
-      setUploading(false);
+      if (mounted.current) setPicking(false);
     }
   }
   async function act(action: OrderAction, text = "", proof = "") {
     if (lock.current || busy) return;
+    if (action === "complete" && !text.trim()) {
+      setError("Please describe the completed work.");
+      return;
+    }
     lock.current = true;
+    setError("");
     try {
-      if (await onAction(String(order.id), action, text, proof)) {
+      let attachment = proof;
+      if (action === "complete" && selectedPhoto) {
+        setUploading(true);
+        setProgress(null);
+        const files = await pickAndUpload("work_orders",
+          value => { if (mounted.current) setProgress(value); }, false,
+          { recordId: String(order.id), collection: "work_orders" }, {
+            assets: [selectedPhoto],
+            isActive: () => mounted.current,
+            onUploaded: file => {
+              if (!mounted.current) return;
+              setPhoto(file.url);
+              setPendingPhoto(null);
+            },
+          });
+        if (!mounted.current || !files[0]) return;
+        attachment = files[0].url;
+      }
+      if (!mounted.current) return;
+      if (await onAction(String(order.id), action, text, attachment)) {
+        if (!mounted.current) return;
         setDraft(null);
+        setPendingPhoto(null);
         setConfirm(false);
         setDeleteComment(null);
       }
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : "Unable to save work order.");
     } finally {
       lock.current = false;
+      if (mounted.current) { setUploading(false); setProgress(null); }
     }
   }
   const disabled = busy || uploading;
@@ -813,24 +856,25 @@ const OrderCard = memo(function OrderCard({
                     placeholder="e.g. Replaced faulty washer, pressure tested at 45 PSI, tested lines."
                   />
                   <Action
-                    label="Upload Photo"
+                    label={photo || selectedPhoto ? "Replace Photo" : "Add Photo"}
                     icon={Camera}
                     tone="light"
-                    disabled={disabled}
+                    disabled={disabled || picking}
                     onPress={() => void upload()}
                   />
-                  {uploading && <Copy>Uploading photo… {progress}%</Copy>}
-                  {!!photo && (
+                  {uploading && <Copy>{progress === null ? "Preparing photo…" : `Uploading photo… ${progress}%`}</Copy>}
+                  {!!(selectedPhoto || photo) && (
                     <PrivateImage
-                      source={{ uri: photo }}
+                      source={{ uri: selectedPhoto?.uri || photo }}
                       style={{ width: 100, height: 100, borderRadius: 12 }}
                     />
                   )}
+                  {!!(selectedPhoto || photo) && <Action label="Remove Photo" icon={Trash2} tone="rose" compact disabled={disabled || picking} onPress={() => { setPhoto(""); setPendingPhoto(null); }} />}
                   {!!error && <ErrorNotice message={error} />}
                   <Action
                     label="Submit a Reply & Mark as Done"
                     icon={CheckCircle2}
-                    disabled={disabled || !reply.trim()}
+                    disabled={disabled || picking || !reply.trim()}
                     onPress={() => void act("complete", reply, photo)}
                   />
                 </View>

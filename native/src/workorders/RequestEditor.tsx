@@ -1,7 +1,8 @@
 import { PrivateImage } from '../components/PrivateImage';
 import { CategoryPicker } from "./CategoryPicker";
 import { usePresentation } from "../shell/TownLoopShell";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ImagePickerAsset } from "expo-image-picker";
 import { View } from "react-native";
 import { Trash2 } from "lucide-react-native";
 import { WORK_ORDER_CATEGORIES } from "../../../src/data/workOrderCategories";
@@ -34,42 +35,71 @@ export function RequestEditor({
   const [title, setTitle] = useState(order?.title || "");
   const [description, setDescription] = useState(order?.description || "");
   const [photos, setPhotos] = useState<string[]>(order?.photos || (order?.photoUrl ? [order.photoUrl] : []));
+  const [pendingPhotos, setPendingPhotos] = useState<ImagePickerAsset[]>([]);
+  const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
   const lock = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   async function upload() {
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
+    setPicking(true);
     setError("");
-    setProgress(0);
     try {
-      const files = await pickAndUpload("work_orders", setProgress, false, {recordId: id, collection: "work_orders"});
-      setPhotos((p) => [...p, ...files.map((f) => f.url)]);
+      await pickAndUpload("work_orders", () => {}, false, undefined, {
+        selectOnly: true,
+        isActive: () => mounted.current,
+        onSelected: assets => {
+          if (mounted.current) setPendingPhotos(previous => [...previous, ...assets]);
+        },
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to attach photos.");
+      if (mounted.current) setError(e instanceof Error ? e.message : "Unable to attach photos.");
     } finally {
       lock.current = false;
-      setBusy(false);
-      setProgress(null);
+      if (mounted.current) setPicking(false);
     }
   }
   async function submit() {
     if (lock.current) return;
+    if (!title.trim()) {
+      setError("Please describe what needs fixing.");
+      return;
+    }
     lock.current = true;
     setBusy(true);
     setError("");
     try {
-      if (order) await editWorkOrder(id, { title, description, category, photos });
-      else await submitWorkOrder(id, { title, description, category, photos });
-      onSaved();
-      setDismissRequested(true);
+      let attachments = photos;
+      if (pendingPhotos.length) {
+        const uploaded = await pickAndUpload("work_orders",
+          value => { if (mounted.current) setProgress(value); }, false,
+          { recordId: id, collection: "work_orders" }, {
+            assets: pendingPhotos,
+            isActive: () => mounted.current,
+            onUploaded: (file, asset) => {
+              if (!mounted.current) return;
+              setPhotos(previous => [...previous, file.url]);
+              setPendingPhotos(previous => previous.filter(item => item !== asset));
+            },
+          });
+        attachments = [...photos, ...uploaded.map(file => file.url)];
+      }
+      if (!mounted.current) return;
+      if (order) await editWorkOrder(id, { title, description, category, photos: attachments });
+      else await submitWorkOrder(id, { title, description, category, photos: attachments });
+      if (mounted.current) { onSaved(); setDismissRequested(true); }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to submit request.");
+      if (mounted.current) setError(e instanceof Error ? e.message : "Unable to submit request.");
     } finally {
       lock.current = false;
-      setBusy(false);
+      if (mounted.current) { setBusy(false); setProgress(null); }
     }
   }
   return (
@@ -122,8 +152,8 @@ export function RequestEditor({
           <Copy style={{ color: "#78716c" }}>Photos Only • No Videos</Copy>
         </View>
         <UploadTarget
-          label="Upload Photo"
-          disabled={busy}
+          label="Add Photo"
+          disabled={busy || picking}
           onUpload={() => void upload()}
         />
         {progress !== null && (
@@ -132,7 +162,7 @@ export function RequestEditor({
           </Copy>
         )}
         <View style={s.row}>
-          {photos.map((uri, index) => (
+          {[...photos, ...pendingPhotos.map(asset => asset.uri)].map((uri, index) => (
             <View key={`${uri}-${index}`} style={{ gap: 4 }}>
               <PrivateImage
                 source={{ uri }}
@@ -146,7 +176,9 @@ export function RequestEditor({
                 tone="rose"
                 disabled={busy}
                 onPress={() =>
-                  setPhotos((p) => p.filter((_, i) => i !== index))
+                  index < photos.length
+                    ? setPhotos(p => p.filter((_, i) => i !== index))
+                    : setPendingPhotos(p => p.filter((_, i) => i !== index - photos.length))
                 }
               />
             </View>
@@ -163,10 +195,10 @@ export function RequestEditor({
           busy
             ? progress !== null
               ? `Uploading Photos (${progress}%)…`
-              : order ? "Saving Changes…" : "Submitting Request…"
+              : pendingPhotos.length ? "Preparing Photos…" : order ? "Saving Changes…" : "Submitting Request…"
             : order ? "Save Changes" : "Submit Work Order"
         }
-        disabled={busy}
+        disabled={busy || picking}
         onPress={() => void submit()}
       />
 
