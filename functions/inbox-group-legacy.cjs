@@ -1,7 +1,7 @@
 // Explicit, non-destructive cutover. The legacy document remains byte-for-byte except
 // for a server-owned routing marker; no source message/media is removed.
 const { approved, member } = require('./inbox-policy.cjs');
-const { memberPath, visibilityKey, hash } = require('./inbox-groups.cjs');
+const { memberPath, visibilityKey, hash, load, stageLeave, writeProjection } = require('./inbox-groups.cjs');
 const sources = { resident_chats: 'private', office_chats: 'office', maintenance_chats: 'maintenance' };
 const fail = code => { const error=Error(code);if(code==='failed-precondition')error.safeReason='legacy-review';throw error; };
 const exact = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
@@ -21,17 +21,24 @@ async function legacyList(db, uid) {
   }
   return { rows };
 }
-async function upgradeLegacy(db, uid, data, now) {
+async function upgradeLegacy(db, uid, data, now, {leave=false}={}) {
   if (!sources[data.source] || !exact(data.legacyId)) fail('invalid-argument');
   return db.runTransaction(async tx => {
     const sourceRef = db.doc(`${data.source}/${data.legacyId}`), snapshot = await tx.get(sourceRef), old = snapshot.data();
     const actor = { ...(await tx.get(db.doc(`users/${uid}`))).data(), id: uid };
     if (!old || !member(data.source, old, actor)) fail('permission-denied');
     if (old.groupConversationId) {
-      const m = (await tx.get(db.doc(memberPath(old.groupConversationId, uid)))).data();
-      if (m?.status !== 'active') fail('permission-denied');
-      const c=(await tx.get(db.doc(`inbox_conversations/${old.groupConversationId}`))).data();
-      return { conversationId: old.groupConversationId, type:c.type };
+      const state=await load(tx,db,old.groupConversationId);
+      if(leave){
+        const result=stageLeave(tx,db,uid,old.groupConversationId,state,now);
+        if(!result.unchanged){
+          tx.set(db.doc(`inbox_conversations/${old.groupConversationId}`),state.conversation);
+          writeProjection(tx,db,old.groupConversationId,state.conversation,state.members,state.profiles,now);
+        }
+        return{...result,conversationId:old.groupConversationId,type:state.conversation.type};
+      }
+      if (state.members.find(m=>m.uid===uid)?.status !== 'active') fail('permission-denied');
+      return { conversationId: old.groupConversationId, type:state.conversation.type };
     }
     let ids;
     if (data.source === 'resident_chats') {
@@ -82,6 +89,7 @@ async function upgradeLegacy(db, uid, data, now) {
       memberIds: ids, memberRefs: Object.fromEntries(ids.map(id => [id, memberPath(cid,id).split('/')[1]])),
       status: type === 'private' && visibility.length < 2 ? 'read_only' : 'open', subject: type === 'private' ? String(old.subject || 'Conversation').slice(0,160) : type === 'office' ? 'Community Office' : 'Maintenance Crew',
       sequence: messages.length, createdAt: now, updatedAt: now, legacySource: `${data.source}/${data.legacyId}`, legacyVerified: true, legacyVisibility: visibility };
+    const result=leave?stageLeave(tx,db,uid,cid,{conversation:c,members,profiles},now):{};
     tx.create(db.doc(`inbox_conversations/${cid}`), c);
     for (const [i, m] of messages.entries()) tx.create(db.doc(`inbox_conversations/${cid}/messages/${m.id}`), {
       ...m, type: m.isSystem === true ? 'legacy_event' : 'message', visibility, sequence: i + 1, notify: false, legacy: true,
@@ -90,7 +98,7 @@ async function upgradeLegacy(db, uid, data, now) {
       subject: c.subject, name: type === 'private' ? profiles.find(p => p.id !== m.uid)?.name || 'Resident' : type === 'office' ? 'Community Office' : 'Maintenance Crew',
       activeCount: visibility.length, peerId: type === 'private' ? ids.find(id=>id!==m.uid) : '', sequence: c.sequence, updatedAt: now, conversationStatus: c.status });
     tx.update(sourceRef, { groupConversationId: cid });
-    return { conversationId: cid, type };
+    return { ...result, conversationId: cid, type };
   });
 }
 module.exports = { legacyList, upgradeLegacy };

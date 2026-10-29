@@ -165,23 +165,30 @@ async function sendMessage(db, uid, cid, data, now) {
     return { messageId: message.id };
   });
 }
-async function leave(db, uid, cid, data, now) {
-  return db.runTransaction(async tx => {
-    const state = await load(tx, db, cid), { conversation: c, members, profiles } = state;
-    const index = c.memberIds.indexOf(uid), member = members[index];
-    if (!member || !approved(profiles[index])) fail('permission-denied');
-    if (member.status === 'left') return { left: true, cleanupPending: c.status === 'cleanup_pending' };
-    authorize(state, uid);
-    const remaining = active(state).filter(m => m.uid !== uid);
-    if (!remaining.length && data.confirmPermanent !== true) fail('failed-precondition');
-    Object.assign(member, { status: 'left', reason: 'left', leftAt: now });
-    event(tx, db, cid, c, members, now, `leave_${hash(`${uid}/${member.epoch}`)}`, 'leave', profiles[index], remaining.map(visibilityKey));
-    c.status = !remaining.length ? 'cleanup_pending' : c.type === 'private' ? 'read_only' : 'open';
-    c.updatedAt = now;
-    tx.set(ref(db, cid), c);
-    writeProjection(tx, db, cid, c, members, profiles, now);
-    if (!remaining.length) tx.set(db.doc(`inbox_cleanup_requests/${cid}`), { conversationId: cid, status: 'awaiting_separate_approval', requestedAt: now, schemaVersion: 1 });
-    return { left: true, cleanupPending: !remaining.length };
+// Reused by ordinary leaves and an atomic legacy cutover+leave. No client UID
+// or confirmation flag can select another participant, and cleanup is only queued.
+function stageLeave(tx,db,uid,cid,state,now) {
+  const {conversation:c,members,profiles}=state;
+  const index=c.memberIds.indexOf(uid),member=members[index];
+  if(!member||!approved(profiles[index]))fail('permission-denied');
+  if(member.status==='left')return{left:true,cleanupPending:c.status==='cleanup_pending',unchanged:true};
+  authorize(state,uid);
+  const remaining=active(state).filter(m=>m.uid!==uid);
+  Object.assign(member,{status:'left',reason:'left',leftAt:now});
+  event(tx,db,cid,c,members,now,`leave_${hash(`${uid}/${member.epoch}`)}`,'leave',profiles[index],remaining.map(visibilityKey));
+  c.status=!remaining.length?'cleanup_pending':c.type==='private'?'read_only':'open';
+  c.updatedAt=now;
+  if(!remaining.length)tx.set(db.doc(`inbox_cleanup_requests/${cid}`),{conversationId:cid,status:'awaiting_separate_approval',requestedAt:now,schemaVersion:1});
+  return{left:true,cleanupPending:!remaining.length};
+}
+async function leave(db,uid,cid,_data,now) {
+  return db.runTransaction(async tx=>{
+    const state=await load(tx,db,cid),result=stageLeave(tx,db,uid,cid,state,now);
+    if(!result.unchanged){
+      tx.set(ref(db,cid),state.conversation);
+      writeProjection(tx,db,cid,state.conversation,state.members,state.profiles,now);
+    }
+    return result;
   });
 }
 async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}) {
@@ -190,6 +197,7 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
   if (data.op === 'capabilities') return { protocolVersion: 3, enabled, permanentCleanup: false };
   if (!enabled) fail('failed-precondition');
   if (data.op === 'listLegacy') return require('./inbox-group-legacy.cjs').legacyList(db, uid);
+  if (data.op === 'leaveLegacy') return require('./inbox-group-legacy.cjs').upgradeLegacy(db, uid, data, now, {leave:true});
   if (data.op === 'upgradeLegacy') return require('./inbox-group-legacy.cjs').upgradeLegacy(db, uid, data, now);
   if (data.op === 'create') {
     const { legacyList, upgradeLegacy } = require('./inbox-group-legacy.cjs');
@@ -242,4 +250,4 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
   });
   fail('invalid-argument');
 }
-module.exports = { operate, memberAllowed, canSee, memberPath, visibilityKey, MAX_MEMBERS, hash };
+module.exports = { operate, memberAllowed, canSee, memberPath, visibilityKey, MAX_MEMBERS, hash, load, stageLeave, writeProjection };

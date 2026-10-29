@@ -32,8 +32,7 @@ test('private leave revokes all access, remaining peer is read-only, final leave
  assert.equal(canSee(conversation(h,id),membership(h,id,'a'),h.records.get('users/a'),message(h,id,'m')),false);
  await assert.rejects(h.call('b',{op:'send',conversationId:id,messageId:'next',body:'No recipient'}),/failed-precondition/);
  await assert.rejects(h.call('a',{op:'create',type:'private',recipientIds:['b']}),/permission-denied/);
- await assert.rejects(h.call('b',{op:'leave',conversationId:id}),/failed-precondition/);
- await h.call('b',{op:'leave',conversationId:id,confirmPermanent:true});
+ await h.call('b',{op:'leave',conversationId:id});
  assert.equal(conversation(h,id).status,'cleanup_pending');assert(message(h,id,'m'));
  assert.equal(h.records.get(`inbox_cleanup_requests/${id}`).status,'awaiting_separate_approval');
 });
@@ -60,11 +59,12 @@ test('duplicate/retried messages create one record; impersonation/system/attachm
  await assert.rejects(h.call('a',{...data,messageId:'attachment',attachments:[{url:'https://private'}]}),/invalid-argument/);
  h.records.set('user_blocks/a/targets/b',{});await assert.rejects(h.call('a',{...data,messageId:'blocked'}),/failed-precondition/);
 });
-test('simultaneous final leaves are serialized; confirmation is required after participant count changes',async()=>{
+test('simultaneous one-tap leaves are serialized and only queue final cleanup',async()=>{
  const h=fixture(),{conversationId:id}=await h.call('a',{op:'create',type:'private',recipientIds:['b']});
  const outcomes=await Promise.allSettled(['a','b'].map(uid=>h.call(uid,{op:'leave',conversationId:id})));
- assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);
- assert.equal(conversation(h,id).status,'read_only');
+ assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,2);
+ assert.equal(conversation(h,id).status,'cleanup_pending');
+ assert.equal(h.records.get(`inbox_cleanup_requests/${id}`).status,'awaiting_separate_approval');
 });
 test('verified bounded legacy cutover preserves source and message IDs, no historical push or fabricated joins',async()=>{
  const h=fixture();const original={identityVersion:2,participantIds:['a','b'],messages:[{id:'historical',senderId:'a',senderName:'a',body:'Old history',createdAt:1}],subject:'Existing'};
@@ -158,4 +158,33 @@ test('Stage B rejects missing, nonnumeric, infinite or expired approval expiries
   h.records.set(`inbox_cleanup_authorizations/${id}`,{status:'approved',approvedBy:'admin',expiresAt,sequence:conversation(h,id).sequence,membershipInventoryComplete:true,mediaReferenceInventoryComplete:true,evidenceReviewComplete:true});
   const size=h.records.size;assert.equal((await runConversationCleanup(h.db,null,id,{enabled:true})).state,'held');assert.equal(h.records.size,size);assert(conversation(h,id));
  }
+});
+test('one-tap Office and Crew leave removes only the authenticated member and emits one genuine event',async()=>{
+ for(const type of ['office','maintenance']){
+  const h=fixture();h.records.set('users/crew2',{role:'crew',approved:true,name:'Crew Two'});
+  const {conversationId:id}=await h.call('a',{op:'create',type,recipientIds:type==='office'?['admin','vip']:[]});
+  await h.call('a',{op:'send',conversationId:id,messageId:'history',body:'Preserved fixture'});
+  const actor=type==='office'?'admin':'crew',other=type==='office'?'vip':'crew2';
+  await h.call(actor,{op:'leave',conversationId:id});await h.call(actor,{op:'leave',conversationId:id});
+  assert.equal(membership(h,id,actor).status,'left');assert.equal(membership(h,id,other).status,'active');assert.equal(membership(h,id,'a').status,'active');
+  assert.equal(canSee(conversation(h,id),membership(h,id,other),h.records.get(`users/${other}`),message(h,id,'history')),true);
+  const events=[...h.records].filter(([p,d])=>p.startsWith(`inbox_conversations/${id}/messages/`)&&d.type==='leave');
+  assert.equal(events.length,1);assert.equal(events[0][1].body,`${actor} left the conversation.`);assert.equal(events[0][1].actorId,actor);
+  assert(!h.records.has(`inbox_cleanup_requests/${id}`));
+ }
+});
+test('legacy leave and cutover are atomic; unresolved Office ownership produces no changes',async()=>{
+ const {hash}=require('./inbox-groups.cjs'),h=fixture();
+ const old={residentId:'a',messages:[{id:'old',senderId:'a',body:'Keep this history',createdAt:1}]};h.records.set('office_chats/old',old);
+ const request={op:'leaveLegacy',source:'office_chats',legacyId:'old'};
+ const before=h.records.size;await assert.rejects(h.call('admin',request),/failed-precondition/);assert.equal(h.records.size,before);assert.deepEqual(h.records.get('office_chats/old'),old);
+ h.records.set(`inbox_legacy_authorizations/${hash('office_chats/old')}`,{sourceHash:hash(JSON.stringify(old)),participantIds:['a','admin','vip'],reviewedBy:'admin',evidenceReference:'verified_fixture',expiresAt:h.now+10000});
+ const transaction=h.db.runTransaction;
+ h.db.runTransaction=fn=>transaction(tx=>fn({...tx,update:(ref,data)=>{if(ref.path==='office_chats/old')throw Error('fixture_write_failed');tx.update(ref,data);}}));
+ const size=h.records.size;await assert.rejects(h.call('admin',request),/fixture_write_failed/);assert.equal(h.records.size,size);assert.deepEqual(h.records.get('office_chats/old'),old);
+ h.db.runTransaction=transaction;
+ const result=await h.call('admin',request);assert.equal(result.left,true);assert.equal(result.cleanupPending,false);
+ assert.equal(membership(h,result.conversationId,'admin').status,'left');assert.equal(membership(h,result.conversationId,'vip').status,'active');
+ assert.deepEqual(h.records.get('office_chats/old').messages,old.messages);
+ const repeat=await h.call('admin',request);assert.equal(repeat.left,true);assert.equal(repeat.unchanged,true);
 });

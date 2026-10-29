@@ -414,7 +414,6 @@ export function ProfileMenu({
     if(pendingMessage.current?.key !== key) pendingMessage.current={key,id:`msg_${Date.now()}_${Math.random().toString(36).slice(2,10)}`};
     return pendingMessage.current!.id;
   }
-  const [deleting, setDeleting] = useState<Thread | null>(null);
   const lock = useRef(false),
     afterClose = useRef<(() => void) | null>(null);
   const glint = useSharedValue(-1);
@@ -470,7 +469,6 @@ export function ProfileMenu({
       scene.value = 1;
       setError("");
       setNotice("");
-      setDeleting(null);
       setMounted(true);
       setClosing(false);
       progress.value = 0;
@@ -656,6 +654,16 @@ export function ProfileMenu({
       lock.current = false;
       setBusy(false);
     }
+  }
+  async function leaveConversation(thread: Thread) {
+    const navigationVersion=navigationEpoch.current;
+    await act(async()=>{
+      await deleteThread(thread);
+      // Do not leave this screen or clear a draft until Firebase confirms success.
+      if(navigationEpoch.current===navigationVersion&&selected?.id===thread.id&&selected.category===thread.category){
+        setSelected(null);setBody('');go('inbox');
+      }
+    },'You left the conversation.');
   }
   async function copy(value: string) {
     await Clipboard.setStringAsync(value);
@@ -1345,33 +1353,6 @@ export function ProfileMenu({
                         {data.errors.length > 0 && (
                           <Action title="Retry messages" onPress={data.retry} />
                         )}
-                        {deleting && (
-                          <View style={[s.bubble, panel]}>
-                            <Text style={[s.rowTitle, { color: ink }]}>
-                              {conversationRemoval(deleting).label}?
-                            </Text>
-                            <Text style={[s.small, { color: muted }]}>
-                              {conversationRemoval(deleting).description}
-                            </Text>
-                            <Action
-                              danger
-                              title={conversationRemoval(deleting).label}
-                              onPress={() =>
-                                void act(async () => {
-                                  if(data.groupsEnabled && deleting.data.schemaVersion!==3) {
-                                    const upgraded=await groupAction('upgradeLegacy',{source:{friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats'}[deleting.category],legacyId:deleting.id});
-                                    setDeleting(null);setNotice('Open the conversation to review its participants before leaving.');
-                                    void upgraded;
-                                  } else { await deleteThread(deleting);setDeleting(null); }
-                                }, "Conversation removed")
-                              }
-                            />
-                            <Action
-                              title="Cancel"
-                              onPress={() => setDeleting(null)}
-                            />
-                          </View>
-                        )}
                         {data.threads
                           .filter(
                             (t) => filter === "all" || (t.data.officeDirect ? "office" : t.category) === filter,
@@ -1550,7 +1531,8 @@ export function ProfileMenu({
                                   accessibilityRole="button"
                                   accessibilityLabel={conversationRemoval(t).label}
                                   hitSlop={6}
-                                  onPress={() => setDeleting(t)}
+                                  disabled={busy}
+                                  onPress={() => void leaveConversation(t)}
                                   style={{
                                     position: "absolute",
                                     right: 8,
@@ -2032,10 +2014,8 @@ export function ProfileMenu({
                                 <Pressable
                                   accessibilityRole="button"
                                   accessibilityLabel={conversationRemoval(conversation).label}
-                                  onPress={() => {
-                                    setDeleting(conversation);
-                                    go("inbox");
-                                  }}
+                                  disabled={busy}
+                                  onPress={() => void leaveConversation(conversation)}
                                   style={{ width:44,height:44,alignItems:'center',justifyContent:'center' }}
                                 >
                                   <Trash2 size={18} color="#dc2626" />

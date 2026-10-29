@@ -1,3 +1,4 @@
+import {leaveInboxConversation,inboxFailureMessage} from './leaveRequest';
 import {groupAction,useGroupInbox} from './groupInbox';
 import {refreshBadge} from '../notifications/device';
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
@@ -5,7 +6,6 @@ import {
   collection,
   FieldPath,
   getDocs,
-  getDocFromServer,
   limit,
   doc,
   onSnapshot,
@@ -26,9 +26,7 @@ import { readProfile, friendlyError } from "../lib/profile";
 import { subscribeSafely } from "../lib/subscription";
 import {
   collectionName,
-  privateChatPeer,
   privateChatLeft,
-  staffChatSide,
   identifiers,
   participantKey,
   residentKey,
@@ -112,8 +110,8 @@ export function useProfileData(user: UserProfile | null) {
               lists: s.key === key ? s.lists : {},
               errors: {
                 ...(s.key === key ? s.errors : {}),
-                [category]: (error as { code?: string }).code === "permission-denied"
-                  ? "The server denied this Inbox query. The matching messaging security rules may still be pending."
+                [category]: (error as {code?:string}).code?.split('/').at(-1)==='permission-denied'
+                  ? inboxFailureMessage(error,'read')
                   : friendlyError(error),
               },
             })),
@@ -156,73 +154,11 @@ export async function markRead(thread: Thread) {
   void refreshBadge(String(user.id),{category:thread.category,conversationId:thread.id}).catch(()=>{});
 }
 export async function deleteThread(thread: Thread) {
-  if (thread.data.schemaVersion === 3) {
-    await groupAction('leave',{conversationId:thread.id,confirmPermanent:thread.data.activeCount===1});
-    void refreshBadge(String(auth.currentUser?.uid),{category:thread.category,conversationId:thread.id}).catch(()=>{});
-    return;
-  }
-  const user = await approvedUser();
-  const reference = doc(db, collectionName[thread.category], thread.id);
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(reference);
-        if (!snap.exists()) return;
-        if (auth.currentUser?.uid !== String(user.id)) throw Error("Your session changed. Sign in again.");
-        const data = snap.data();
-        if (thread.category === "friend") {
-          const uid = String(user.id), peer = privateChatPeer(data, uid);
-          if (!peer) throw Error("You cannot access this conversation.");
-          if (privateChatLeft(data, peer)) throw Error("Permanent cleanup is disabled. Secure membership must be enabled before final removal.");
-          if (privateChatLeft(data, uid)) return;
-          const now = Date.now(), message = {
-            id: doc(collection(db, "resident_chats")).id,
-            type: "leave", isSystem: true, actorId: uid,
-            senderId: "system", senderName: "System", senderRole: "system", senderAvatar: "",
-            body: `${user.name || "Resident"} left the conversation.`, createdAt: now,
-            time: new Date(now).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-          };
-          tx.update(reference, { leftBy: { ...(data.leftBy || {}), [uid]: true },
-            messages: [...(data.messages || []), message], lastMessage: message.body, updatedAt: now, unreadBy: [peer] });
-          return;
-        }
-        const side = staffChatSide(thread.category, data, user);
-        if (!side) throw Error("You cannot access this conversation.");
-        const other = side === "resident" ? "team" : "resident";
-        if (data.sideLeft?.[other] === true) throw Error("Permanent cleanup is disabled. Secure membership must be enabled before final removal.");
-        if (data.sideLeft?.[side] === true) return;
-        const now = Date.now(), label = side === "resident" ? "The resident" : thread.category === "office" ? "Community Office" : "Maintenance Crew";
-        const message = { id: doc(collection(db, collectionName[thread.category])).id,
-          type: "leave", isSystem: true, actorId: String(user.id),
-          senderId: "system", senderName: "System", senderRole: "system", senderAvatar: "",
-          body: `${label} left the conversation.`, createdAt: now,
-          time: new Date(now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) };
-        tx.update(reference, { sideLeft: {...(data.sideLeft || {}), [side]: true},
-          messages: [...(data.messages || []), message], lastMessage: message.body, updatedAt: now,
-          unreadByResident: side === "team", [thread.category === "office" ? "unreadByVip" : "unreadByCrew"]: side === "resident" });
-      });
-      break;
-    } catch (error) {
-      // Strict append rules can reject the losing leave before reporting ABORTED.
-      // A fresh server read must prove completion, or the opposite side left.
-      if (attempt >= 1 || (error as {code?:string}).code !== "permission-denied") throw error;
-      if (auth.currentUser?.uid !== String(user.id)) throw error;
-      const latest = await getDocFromServer(reference);
-      if (!latest.exists()) break;
-      const current = latest.data(), peer = privateChatPeer(current, String(user.id));
-      if (thread.category === "friend") {
-        if (!peer) throw error;
-        if (privateChatLeft(current, String(user.id))) break;
-        if (!privateChatLeft(current, peer)) throw error;
-      } else {
-        const side = staffChatSide(thread.category, current, user);
-        if (!side) throw error;
-        if (current.sideLeft?.[side] === true) break;
-        if (current.sideLeft?.[side === "resident" ? "team" : "resident"] !== true) throw error;
-      }
-    }
-  }
-  void refreshBadge(String(user.id), {category:thread.category,conversationId:thread.id}).catch(()=>{});
+  await leaveInboxConversation(thread,async(op,input)=>{
+    await approvedUser();
+    return groupAction(op,input);
+  });
+  void refreshBadge(String(auth.currentUser?.uid),{category:thread.category,conversationId:thread.id}).catch(()=>{});
 }
 export async function sendMessage(
   category: Category,

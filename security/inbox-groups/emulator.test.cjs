@@ -56,3 +56,29 @@ test('server read watermark uses the displayed sequence and a real authorized vi
  const m=(await db.doc(memberPath(id,'resident')).get()).data();assert.equal(m.readSequence,1);
  assert.equal(m.readAt,(await db.doc(`inbox_conversations/${id}/messages/old`).get()).data().createdAt);
 });
+test('legacy team-write mismatch is denied; authorized atomic individual leave succeeds after the prepared rollout',async()=>{
+ const oldRules=readFileSync(path.resolve(__dirname,'../inbox-push/firestore-replies.candidate.rules'),'utf8');
+ async function rules(content){const r=await fetch(`${base}/emulator/v1/projects/${project}:securityRules`,{method:'PUT',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify({rules:{files:[{name:'firestore.rules',content}]}})});assert.equal(r.status,200,await r.text());}
+ await rules(oldRules);
+ await db.doc('users/leaveResident').set({approved:true,role:'resident',name:'Resident Fixture'});
+ const source=db.doc('office_chats/leave-fixture'),old={residentId:'leaveResident',residentName:'Resident Fixture',messages:[{id:'original',senderId:'leaveResident',senderName:'Resident Fixture',senderRole:'resident',body:'Fixture history',createdAt:1}],lastMessage:'Fixture history',updatedAt:1,subject:'Fixture'};
+ await source.set(old);
+ const deniedTeamWrite=await fetch(`${documents}/office_chats/leave-fixture?updateMask.fieldPaths=sideLeft`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token('admin')}`},body:JSON.stringify({fields:{sideLeft:{mapValue:{fields:{team:{booleanValue:true}}}}}})});
+ assert.equal(deniedTeamWrite.status,403,await deniedTeamWrite.text());
+ await rules(readFileSync(path.resolve(__dirname,'../../.release/inbox-groups/firestore.rules'),'utf8'));
+ const request={op:'leaveLegacy',source:'office_chats',legacyId:'leave-fixture'};
+ await assert.rejects(operate(db,'admin',request,{enabled:true}),/failed-precondition/);
+ assert.deepEqual((await source.get()).data(),old);
+ const {hash}=require('../../functions/inbox-groups.cjs');
+ await db.doc(`inbox_legacy_authorizations/${hash('office_chats/leave-fixture')}`).set({sourceHash:hash(JSON.stringify((await source.get()).data())),participantIds:['leaveResident','admin','vip'],reviewedBy:'admin',evidenceReference:'verified_local_fixture',expiresAt:Date.now()+60000});
+ const result=await operate(db,'admin',request,{enabled:true});assert.equal(result.left,true);
+ assert.equal((await db.doc(memberPath(result.conversationId,'admin')).get()).data().status,'left');
+ assert.equal((await db.doc(memberPath(result.conversationId,'vip')).get()).data().status,'active');
+ assert.deepEqual((await source.get()).data().messages,old.messages);assert.equal((await source.get()).data().sideLeft,undefined);
+ denied(await read('admin',`inbox_conversations/${result.conversationId}`));ok(await read('vip',`inbox_conversations/${result.conversationId}`));
+ const leaveEvents=await db.collection(`inbox_conversations/${result.conversationId}/messages`).where('type','==','leave').get();assert.equal(leaveEvents.size,1);assert.equal(leaveEvents.docs[0].data().body,'admin left the conversation.');
+ await operate(db,'leaveResident',{op:'leave',conversationId:result.conversationId},{enabled:true});
+ const final=await operate(db,'vip',{op:'leave',conversationId:result.conversationId},{enabled:true});assert.equal(final.cleanupPending,true);
+ assert((await db.doc(`inbox_conversations/${result.conversationId}`).get()).exists);assert((await source.get()).exists);
+ assert.equal((await db.doc(`inbox_cleanup_requests/${result.conversationId}`).get()).data().status,'awaiting_separate_approval');
+});

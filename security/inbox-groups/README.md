@@ -7,7 +7,7 @@ Storage rules/tokens, six quarantined objects, or notification delivery configur
 ## Stage A implementation
 
 - `manageInboxConversation`: capabilities/create/add/sync/send/read/roster/leave and
-  explicit non-destructive legacy cutover. OFF unless `INBOX_GROUPS_ENABLED=true`.
+  explicit non-destructive legacy cutover, plus atomic `leaveLegacy` cutover/leave. OFF unless `INBOX_GROUPS_ENABLED=true`.
 - `inbox_conversations` stores no embedded history; server-owned
   `inbox_memberships` stores UID, epoch, join/leave times, reason and read watermark.
   Each message has an immutable audience of `uid:epoch` keys. A re-enrolled staff
@@ -19,7 +19,7 @@ Storage rules/tokens, six quarantined objects, or notification delivery configur
   no message preview; group titles are generic. Rosters show current members only.
 - Transactional creation/reuse, idempotent send IDs and join/leave IDs, atomic
   member/message changes. Private threads become read-only when one person leaves.
-  A final leave requires explicit confirmation; it only queues held cleanup.
+  Every leave is one tap, including the final member; it only queues held cleanup.
 - `revokeInboxGroupMemberships` handles trusted profile role/approval loss and
   removes individual memberships. Direct rules deny invalid roles immediately;
   asynchronous revocation is retryable and stale loss events cannot revoke a
