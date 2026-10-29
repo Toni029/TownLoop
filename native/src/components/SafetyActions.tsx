@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { Flag, ShieldOff } from 'lucide-react-native';
@@ -6,7 +6,7 @@ import { Action, Copy, Field, ErrorNotice } from '../news/ui';
 import { ProductDialog } from './ProductDialog';
 import { app, auth, db } from '../lib/firebase';
 import { submitSafetyReport, setUserBlock, type SafetyTarget } from '../../../src/services/safety';
-export function SafetyActions({ target, allowBlock = false, blockInReport = false }: { target: SafetyTarget; allowBlock?: boolean; blockInReport?: boolean }) {
+export function SafetyActions({ target, allowBlock = false, blockInReport = false, blockBeforeOther = false }: { target: SafetyTarget; allowBlock?: boolean; blockInReport?: boolean; blockBeforeOther?: boolean }) {
   const uid = auth.currentUser?.uid;
   const other = target.authorId || (target.kind === 'user' ? target.id : '');
   const [open, setOpen] = useState(false), [reason, setReason] = useState('harassment'), [details, setDetails] = useState('');
@@ -30,8 +30,8 @@ export function SafetyActions({ target, allowBlock = false, blockInReport = fals
     {!!notice && !open && <Copy accessibilityLiveRegion="polite">{notice}</Copy>}{!!error && !open && <ErrorNotice message={error} />}
     {open && <ProductDialog title="Report a concern" onClose={() => setOpen(false)} busy={busy}>
       <Copy>Reports are reviewed by the community office. Do not include medical details or private message contents. For immediate danger, contact emergency services.</Copy>
-      <View style={{ gap: 6 }}>{['harassment','spam','unsafe','privacy','other'].map(value => <Action key={value} compact tone={reason === value ? 'green' : 'light'} label={value[0].toUpperCase()+value.slice(1)} onPress={() => setReason(value)} />)}</View>
-      {allowBlock && blockInReport && !!other && <Action compact tone="light" icon={ShieldOff} label={blocked ? 'Unblock user' : 'Block user'} disabled={busy} onPress={() => void block()} />}
+      <View style={{ gap: 6 }}>{['harassment','spam','unsafe','privacy','other'].map(value => <Fragment key={value}>{value === 'other' && blockBeforeOther && allowBlock && blockInReport && !!other && <Action compact tone="light" icon={ShieldOff} label={blocked ? 'Unblock user' : 'Block user'} disabled={busy} onPress={() => void block()} />}<Action compact tone={reason === value ? 'green' : 'light'} label={value[0].toUpperCase()+value.slice(1)} onPress={() => setReason(value)} /></Fragment>)}</View>
+      {allowBlock && blockInReport && !blockBeforeOther && !!other && <Action compact tone="light" icon={ShieldOff} label={blocked ? 'Unblock user' : 'Block user'} disabled={busy} onPress={() => void block()} />}
       {!!notice && <Copy accessibilityLiveRegion="polite">{notice}</Copy>}
       <Field label="Additional context (optional)" value={details} onChangeText={setDetails} multiline maxLength={1000} editable={!busy}/>
       {!!error && <ErrorNotice message={error}/>}<Action label="Send report" disabled={busy} onPress={() => {

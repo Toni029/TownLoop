@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import {getFunctions,httpsCallable} from 'firebase/functions';
 import {app,auth} from '../lib/firebase';
 import {serialOperations,emptyPreferences,notificationCategories,type NotificationCategory,type NotificationPreferences,type InboxTarget} from './protocol';
-type Registration={uid:string;token:string;installationId:string;secret:string;enabled:boolean;platform:string;previousTokens?:string[];preferences?:NotificationPreferences};
+type Registration={uid:string;token:string;installationId:string;secret:string;enabled:boolean;platform:string;inboxGroupProtocol?:number;previousTokens?:string[];preferences?:NotificationPreferences};
 let capabilities={protocolVersion:1,discussionReplies:false};
 export const notificationCapabilities=()=>capabilities;
 const options={keychainAccessible:SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY};
@@ -118,7 +118,7 @@ export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'
  if(auth.currentUser?.uid!==uid)return 'off';
  const previousTokens=[...new Set([...(old?.uid===uid?old.previousTokens||[]:[]),...(old?.uid===uid&&old.token!==token?[old.token]:[])])].filter(t=>t!==token);
  if(previousTokens.length>20)throw Error('notification_revocation_pending');
- const state:Registration={...JSON.parse(install),uid,token,enabled:true,platform:Platform.OS,preferences:await categoryPreferences(uid),previousTokens};
+ const state:Registration={...JSON.parse(install),uid,token,enabled:true,platform:Platform.OS,inboxGroupProtocol:3,preferences:await categoryPreferences(uid),previousTokens};
  // Persist first, so interruption after server registration still leaves a revoke capability.
  await SecureStore.setItemAsync(key,JSON.stringify(state),options);
  const registration=await call(state);

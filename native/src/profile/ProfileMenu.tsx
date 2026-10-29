@@ -1,3 +1,4 @@
+import {groupAction,useGroupConversation} from './groupInbox';
 import {menuBounds} from "../layout/phoneGeometry";
 import {useInboxPush} from '../notifications/InboxPushProvider';
 import type {InboxTarget} from '../notifications/protocol';
@@ -406,15 +407,28 @@ export function ProfileMenu({
     phone:'',address:'',dateOfBirth:'',maritalStatus:'',emergencyContactName:'',emergencyContactPhone:'',emergencyContactAddress:'',
   });
   const [recipientOpen, setRecipientOpen] = useState(false);
+  const [officeIds,setOfficeIds] = useState<string[]>([]);
+  const [participantsOpen,setParticipantsOpen] = useState(false);
+  const pendingMessage = useRef<{key:string;id:string} | null>(null);
+  function messageId(key:string) {
+    if(pendingMessage.current?.key !== key) pendingMessage.current={key,id:`msg_${Date.now()}_${Math.random().toString(36).slice(2,10)}`};
+    return pendingMessage.current!.id;
+  }
   const [deleting, setDeleting] = useState<Thread | null>(null);
   const lock = useRef(false),
     afterClose = useRef<(() => void) | null>(null);
   const glint = useSharedValue(-1);
   const progress = useSharedValue(0),
     shade = useSharedValue(0);
-  const conversation = data.threads.find(
+  const baseConversation = data.threads.find(
     (t) => t.id === selected?.id && t.category === selected.category,
   );
+  const group = useGroupConversation(baseConversation,String(user?.id || ''));
+  const conversation = baseConversation?.data.schemaVersion === 3 ? {
+    ...baseConversation,messages:group.messages,
+    recipient: baseConversation.category === 'friend' ? {...baseConversation.recipient,...data.directory.items.find(p=>String(p.id)===String(baseConversation.recipient.id))} : baseConversation.recipient,
+  } : baseConversation;
+  const groupRoster = group.roster;
   const contact =
     conversation &&
     (conversation.category === "friend" ||
@@ -424,11 +438,11 @@ export function ProfileMenu({
       ? conversation.recipient
       : null;
   useEffect(() => {
-    if (view !== "conversation" || !conversation?.unread) return;
+    if (view !== "conversation" || !conversation?.unread || conversation.data.schemaVersion===3&&!group.loaded) return;
     void markRead(conversation).catch((e) =>
       setError(e.message || "Unable to mark messages read."),
     );
-  }, [view, conversation]);
+  }, [view, conversation, group.loaded]);
   const friends = useMemo(() => user ? neighbors(data.directory.items, user) : [], [data.directory.items, user]);
   const officeRecipients = useMemo(() => data.directory.items.filter(p => p.approved !== false && officeManager(p) && String(p.id) !== String(user?.id)), [data.directory.items, user?.id]);
   const composeRecipients = category === "office" ? officeRecipients : friends;
@@ -656,21 +670,31 @@ export function ProfileMenu({
     setRecipientOpen(false);
     setCategory(target);
     setPerson(recipient || null);
+    setOfficeIds(target==='office'&&recipient?[String(recipient.id)]:[]);
     setSelected(null);
     setSubject(recipient ? `Hello ${recipient.name.split(" ")[0]}!` : "");
     setBody("");
     go("compose");
   }
   function openThread(thread: Thread) {
+    setParticipantsOpen(false);
     setSelected({ category: thread.category, id: thread.id });
     setBody("");
     go("conversation");
-    if (thread.unread) void act(() => markRead(thread));
+    if (thread.unread && thread.data.schemaVersion!==3) void act(() => markRead(thread));
   }
   function sendCompose() {
     if (!user) return;
     void act(async () => {
       if (!subject.trim()) throw new Error('Enter a subject for your message.');
+      if (data.groupsEnabled) {
+        if(category==='friend'&&!person || category==='office'&&!officeIds.length) throw Error('Select a recipient first.');
+        if(!body.trim())throw Error('Enter a message.');
+        const created=await groupAction('create',{type:category==='friend'?'private':category,recipientIds:category==='office'?officeIds:category==='friend'?[String(person!.id)]:[],subject});
+        await groupAction('send',{conversationId:created.conversationId,body,messageId:messageId(`${category}/${officeIds.join(',')}/${person?.id}/${body}`)});
+        pendingMessage.current=null;
+        setBody('');go('inbox');setNotice('Message sent.');return;
+      }
       if ((category === 'friend' || category === 'office') && !person)
         throw new Error('Select a recipient first.');
       const destination = category === 'office' ? 'friend' : category;
@@ -1334,8 +1358,11 @@ export function ProfileMenu({
                               title={conversationRemoval(deleting).label}
                               onPress={() =>
                                 void act(async () => {
-                                  await deleteThread(deleting);
-                                  setDeleting(null);
+                                  if(data.groupsEnabled && deleting.data.schemaVersion!==3) {
+                                    const upgraded=await groupAction('upgradeLegacy',{source:{friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats'}[deleting.category],legacyId:deleting.id});
+                                    setDeleting(null);setNotice('Open the conversation to review its participants before leaving.');
+                                    void upgraded;
+                                  } else { await deleteThread(deleting);setDeleting(null); }
                                 }, "Conversation removed")
                               }
                             />
@@ -1828,7 +1855,7 @@ export function ProfileMenu({
                             ]}
                           >
                             {category === "office"
-                              ? "Choose an Admin or VIP for a private conversation."
+                              ? data.groupsEnabled ? "Choose one or more authorized Office recipients for a shared conversation." : "Choose an Admin or VIP for a private conversation."
                               : category === "maintenance"
                                 ? "Your maintenance team can respond in this shared conversation."
                                 : "Choose a resident to start a private conversation."}
@@ -1864,7 +1891,7 @@ export function ProfileMenu({
                                 <Text
                                   style={[s.rowTitle, { color: ink, flex: 1 }]}
                                 >
-                                  {person
+                                  {category==='office' && data.groupsEnabled ? (officeIds.length ? `${officeIds.length} Office recipients selected` : 'Select Office recipients') : person
                                     ? person.name
                                     : category === "office" ? "Select recipient" : "Select a resident…"}
                                 </Text>
@@ -1894,9 +1921,13 @@ export function ProfileMenu({
                                         key={String(p.id)}
                                         accessibilityRole="button"
                                         accessibilityState={{
-                                          selected: person?.id === p.id,
+                                          selected: category==='office'&&data.groupsEnabled?officeIds.includes(String(p.id)):person?.id === p.id,
                                         }}
                                         onPress={() => {
+                                          if(category==='office'&&data.groupsEnabled) {
+                                            setOfficeIds(ids=>ids.includes(String(p.id))?ids.filter(id=>id!==String(p.id)):[...ids,String(p.id)]);
+                                            return;
+                                          }
                                           setPerson(p);
                                           if (!subject.trim())
                                             setSubject(
@@ -1907,7 +1938,7 @@ export function ProfileMenu({
                                         style={[
                                           s.recipientChoice,
                                           {padding:10,minHeight:44},
-                                          person?.id === p.id && {
+                                          (category==='office'&&data.groupsEnabled?officeIds.includes(String(p.id)):person?.id===p.id) && {
                                             backgroundColor: "#05966920",
                                           },
                                         ]}
@@ -1915,7 +1946,7 @@ export function ProfileMenu({
                                         <Text style={[s.small, { color: ink }]}>
                                           {p.name}
                                         </Text>
-                                        {person?.id === p.id && (
+                                        {(category==='office'&&data.groupsEnabled?officeIds.includes(String(p.id)):person?.id===p.id) && (
                                           <Check size={16} color="#059669" />
                                         )}
                                       </Pressable>
@@ -1993,18 +2024,11 @@ export function ProfileMenu({
                                   />
                                 )}
                                 <View style={{ flex: 1, minWidth: 0 }}>
-                                  <Text style={[s.rowTitle, { color: ink }]}>
+                                  <Text style={[s.rowTitle, { color: ink,fontSize:18,fontFamily:'JakartaExtra' }]}>
                                     {conversation.name}
                                   </Text>
-                                  {conversation.category === "friend" && <SafetyActions target={{kind:"user",id:String(conversation.recipient.id)}} allowBlock/>}
-                                  <Text style={[s.small, { color: muted }]}>
-                                    {conversation.category === "maintenance"
-                                      ? "Maintenance Team"
-                                      : conversation.category === "office"
-                                        ? "Community Office"
-                                        : "Resident Friend"}
-                                  </Text>
                                 </View>
+                                {conversation.category === "friend" && <SafetyActions target={{kind:"user",id:String(conversation.recipient.id)}} allowBlock blockInReport blockBeforeOther/>}
                                 <Pressable
                                   accessibilityRole="button"
                                   accessibilityLabel={conversationRemoval(conversation).label}
@@ -2012,9 +2036,9 @@ export function ProfileMenu({
                                     setDeleting(conversation);
                                     go("inbox");
                                   }}
-                                  style={{ padding: 8 }}
+                                  style={{ width:44,height:44,alignItems:'center',justifyContent:'center' }}
                                 >
-                                  <Trash2 size={18} color={muted} />
+                                  <Trash2 size={18} color="#dc2626" />
                                 </Pressable>
                               </View>
                               <Text style={[s.small, { color: muted }]}>
@@ -2045,6 +2069,19 @@ export function ProfileMenu({
                                 onPress={data.retry}
                               />
                             )}
+                            {data.groupsEnabled && conversation.data.schemaVersion!==3 && <Action title="View Participants" onPress={()=>void act(async()=>{
+                              const result=await groupAction('upgradeLegacy',{source:{friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats'}[conversation.category],legacyId:conversation.id});
+                              setSelected({category:result.type==='private'?'friend':result.type || conversation.category,id:result.conversationId});setParticipantsOpen(true);
+                            })}/>}
+                            {conversation.data.schemaVersion===3 && <>
+                              <Action title={participantsOpen?'Hide Participants':'View Participants'} onPress={()=>setParticipantsOpen(v=>!v)}/>
+                              {!!group.error && <Text style={s.error}>{group.error}</Text>}
+                              {participantsOpen && <View style={{gap:8,padding:12}}>
+                                {groupRoster.map(p=><Text key={p.uid} style={[s.small,{color:muted}]}>{p.name}{p.uid===String(user.id)?' (You)':''}{p.status==='left'?' · Left':''}</Text>)}
+                                {conversation.category==='office' && group.candidates.map(p=><Action key={p.uid} title={`Add ${p.name}`} onPress={()=>void act(async()=>{await groupAction('add',{conversationId:conversation.id,recipientIds:[p.uid]});setNotice('Participant list updated.');})}/>)}
+                              </View>}
+                              {group.hasMore && <Action title="Load earlier messages" onPress={group.loadMore}/>}
+                            </>}
                             <FlatList
                               inverted
                               data={[...conversation.messages].reverse()}
@@ -2060,7 +2097,7 @@ export function ProfileMenu({
                               contentContainerStyle={{ padding: 10, gap: 8 }}
                               ListEmptyComponent={<Text style={[s.empty, { color: muted }]}>No messages yet. Start the conversation below.</Text>}
                               renderItem={({ item: m }) => {
-                                if (m.type === "leave" && m.isSystem === true) return <View style={{padding:12,alignItems:"center"}}><Text style={[s.small,{color:muted,textAlign:"center"}]}>{m.body}</Text></View>;
+                                if (["join","leave","legacy_event"].includes(m.type || "") && m.isSystem === true) return <View style={{padding:12,alignItems:"center"}}><Text style={[s.small,{color:muted,textAlign:"center"}]}>{m.body}</Text></View>;
                                 const mine = messageIsMine(m, user);
                                 const avatar = messageAvatar(m, [
                                   user,
@@ -2076,7 +2113,7 @@ export function ProfileMenu({
                                       : null;
                                 const label = mine
                                   ? "You"
-                                  : senderLabel(m, conversation.category, user);
+                                  : conversation.data.schemaVersion===3 ? m.senderName : senderLabel(m, conversation.category, user);
                                 return (
                                   <View
                                     key={m.id}
@@ -2245,7 +2282,9 @@ export function ProfileMenu({
                                       conversation.subject,
                                       body,
                                       conversation,
+                                      {messageId:messageId(`${conversation.id}/${body}`)},
                                     );
+                                    pendingMessage.current=null;
                                     setBody("");
                                     setNotice("Reply sent.");
                                   })

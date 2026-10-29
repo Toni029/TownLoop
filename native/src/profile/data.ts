@@ -1,3 +1,4 @@
+import {groupAction,useGroupInbox} from './groupInbox';
 import {refreshBadge} from '../notifications/device';
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import {
@@ -46,6 +47,7 @@ export function useProfileData(user: UserProfile | null) {
   // Only office managers receive private profiles for approvals and profile reviews.
   const privateDirectory = user?.approved === true && ["admin", "vip"].includes(user.role || "");
   const directory = useLiveCollection(privateDirectory ? "users" : "resident_directory", readPerson, "");
+  const groups = useGroupInbox(user);
   const [attempt, retry] = useState(0);
   const uid = user ? String(user.id) : "";
   const email = user?.email || "";
@@ -61,7 +63,7 @@ export function useProfileData(user: UserProfile | null) {
     errors: Partial<Record<Category, string>>;
   }>({ key: "", lists: {}, errors: {} });
   useEffect(() => {
-    if (!uid || !approved) return;
+    if (!uid || !approved || groups.enabled) return;
     const stops = (["friend", "office", "maintenance"] as Category[]).map(
       (category) => {
         const base = collection(db, collectionName[category]);
@@ -119,14 +121,15 @@ export function useProfileData(user: UserProfile | null) {
       },
     );
     return () => stops.forEach((stop) => stop());
-  }, [key, uid, email, approved, manager, crew]);
+  }, [key, uid, email, approved, manager, crew, groups.enabled]);
   const state = owned.key === key ? owned : { lists: {}, errors: {} };
   const threads = useMemo(() => Object.values(state.lists).flat().sort((a, b) => b.updatedAt - a.updatedAt), [state.lists]);
   return {
     directory,
-    threads,
-    errors: Object.entries(state.errors).filter(([, error]) => !!error).map(([category, error]) => `${category === "friend" ? "Friends" : category === "office" ? "Office" : "Maintenance"}: ${error}`),
-    loading:
+    groupsEnabled: groups.enabled,
+    threads: groups.enabled ? [...groups.threads,...groups.legacy].sort((a,b)=>b.updatedAt-a.updatedAt) : threads,
+    errors: groups.enabled ? (groups.error ? [groups.error] : []) : Object.entries(state.errors).filter(([, error]) => !!error).map(([category, error]) => `${category === "friend" ? "Friends" : category === "office" ? "Office" : "Maintenance"}: ${error}`),
+    loading: !groups.enabled &&
       Object.keys(state.lists).length +
         Object.values(state.errors).filter(Boolean).length <
       3,
@@ -134,6 +137,11 @@ export function useProfileData(user: UserProfile | null) {
   };
 }
 export async function markRead(thread: Thread) {
+  if (thread.data.schemaVersion === 3) {
+    await groupAction('read',{conversationId:thread.id,sequence:thread.messages.length?Math.max(...thread.messages.map(m=>m.sequence||0)):thread.data.sequence});
+    void refreshBadge(String(auth.currentUser?.uid),{category:thread.category,conversationId:thread.id}).catch(()=>{});
+    return;
+  }
   const user = await approvedUser();
   await runTransaction(db, async (tx) => {
     const reference = doc(db, collectionName[thread.category], thread.id),
@@ -148,6 +156,11 @@ export async function markRead(thread: Thread) {
   void refreshBadge(String(user.id),{category:thread.category,conversationId:thread.id}).catch(()=>{});
 }
 export async function deleteThread(thread: Thread) {
+  if (thread.data.schemaVersion === 3) {
+    await groupAction('leave',{conversationId:thread.id,confirmPermanent:thread.data.activeCount===1});
+    void refreshBadge(String(auth.currentUser?.uid),{category:thread.category,conversationId:thread.id}).catch(()=>{});
+    return;
+  }
   const user = await approvedUser();
   const reference = doc(db, collectionName[thread.category], thread.id);
   for (let attempt = 0; ; attempt++) {
@@ -160,7 +173,7 @@ export async function deleteThread(thread: Thread) {
         if (thread.category === "friend") {
           const uid = String(user.id), peer = privateChatPeer(data, uid);
           if (!peer) throw Error("You cannot access this conversation.");
-          if (privateChatLeft(data, peer)) { tx.delete(reference); return; }
+          if (privateChatLeft(data, peer)) throw Error("Permanent cleanup is disabled. Secure membership must be enabled before final removal.");
           if (privateChatLeft(data, uid)) return;
           const now = Date.now(), message = {
             id: doc(collection(db, "resident_chats")).id,
@@ -176,7 +189,7 @@ export async function deleteThread(thread: Thread) {
         const side = staffChatSide(thread.category, data, user);
         if (!side) throw Error("You cannot access this conversation.");
         const other = side === "resident" ? "team" : "resident";
-        if (data.sideLeft?.[other] === true) { tx.delete(reference); return; }
+        if (data.sideLeft?.[other] === true) throw Error("Permanent cleanup is disabled. Secure membership must be enabled before final removal.");
         if (data.sideLeft?.[side] === true) return;
         const now = Date.now(), label = side === "resident" ? "The resident" : thread.category === "office" ? "Community Office" : "Maintenance Crew";
         const message = { id: doc(collection(db, collectionName[thread.category])).id,
@@ -217,11 +230,15 @@ export async function sendMessage(
   subject: string,
   body: string,
   thread?: Thread,
-  options: {officeDirect?: boolean; officeRequest?: boolean} = {},
+  options: {officeDirect?: boolean; officeRequest?: boolean; messageId?: string} = {},
 ) {
   const user = await approvedUser();
   if (!body.trim() || body.length > 10000)
     throw new Error("Enter a message of up to 10,000 characters.");
+  if (thread?.data.schemaVersion === 3) {
+    await groupAction('send',{conversationId:thread.id,body,messageId:options.messageId || doc(collection(db,'inbox_conversations')).id});
+    return;
+  }
   if (options.officeDirect && (category !== "friend" || !officeManager(recipient) || recipient.approved === false))
     throw new Error("Select an approved Admin or VIP recipient.");
   if (options.officeRequest && category !== "office") throw new Error("Profile requests must go to the community office.");

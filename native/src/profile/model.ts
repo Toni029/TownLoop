@@ -16,8 +16,9 @@ export type Message = {
   body: string;
   createdAt: number;
   senderAvatar?: string;
+  sequence?: number;
   readBy?: string[];
-  type?: "leave";
+  type?: "message" | "join" | "leave" | "legacy_event";
   isSystem?: boolean;
   actorId?: string;
 };
@@ -273,15 +274,18 @@ export function profileChanges(user: UserProfile, input: ProfileDetails): Partia
 }
 
 export function conversationRemoval(thread: Thread) {
+  if (thread.data.schemaVersion === 3) return thread.data.activeCount === 1
+    ? {label:'Delete Conversation Permanently',description:'You are the last participant. This closes the conversation and requests secure cleanup. Permanent cleanup remains disabled pending separate approval; protected records will be retained.'}
+    : {label:'Leave Conversation',description:'Only you will leave. Remaining participants keep their permitted history. You will no longer have access or receive notifications.'};
   if (thread.category !== "friend") {
     const team = thread.category === "office" ? "Community Office" : "Maintenance Crew";
     const scope = thread.teamAction ? ` for the entire ${team} team` : "";
     return thread.otherLeft
-      ? { label: `Delete conversation${scope}`, description: `The other side has left. This permanently deletes the conversation and its messages for the resident and the entire ${team} team. This cannot be undone.` }
+      ? { label: `Delete conversation${scope}`, description: `The other side has left. Secure membership must be enabled before final cleanup can be requested. Permanent cleanup remains disabled pending separate approval.` }
       : { label: `Leave conversation${scope}`, description: `You will leave this conversation${scope}. The other side keeps the history but cannot reply. Once both sides remove it, the conversation and its messages are permanently deleted.` };
   }
   return thread.otherLeft
-    ? { label: "Delete conversation", description: "The other participant has left. This permanently removes the conversation and its messages from TownLoop. This cannot be undone." }
+    ? { label: "Delete conversation", description: "The other participant has left. Secure membership must be enabled before final cleanup can be requested. Permanent cleanup remains disabled pending separate approval." }
     : { label: "Leave conversation", description: "You will leave this conversation. The other person can keep the history. Once both people remove it, the conversation and its messages are permanently deleted." };
 }
 export { privateChatPeer, privateChatLeft };
