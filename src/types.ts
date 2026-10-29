@@ -56,6 +56,7 @@ export interface WorkOrderItem {
 }
 
 export interface CommentItem {
+  createdAt?: number;
   replyToCommentId?: string;
   id: number | string;
   author: string;

@@ -1,3 +1,4 @@
+import {commentTime,commentSubmissionId} from '../time/commentTime';
 import {useInboxPush} from '../notifications/InboxPushProvider';
 import {relativePostedTime} from '../time/relativePostedTime';
 import {useMinuteNow} from '../time/useMinuteNow';
@@ -158,12 +159,12 @@ function Pill({
       <Copy
         weight={solid ? "extra" : "semi"}
         style={{
-          fontSize: price ? 14 : solid
+          fontSize: price ? 20 : solid
             ? 12
             : label === "Available" || label === "Sold"
               ? 11
               : 10,
-          lineHeight: price ? 18 : solid ? 16 : 15,
+          lineHeight: price ? 26 : solid ? 16 : 15,
           color,
         }}
       >
@@ -178,11 +179,13 @@ function DeleteControl({
   busy,
   compact = false,
   confirmation = true,
+  nearPrice = false,
 }: {
   onDelete: () => void;
   busy: boolean;
   compact?: boolean;
   confirmation?: boolean;
+  nearPrice?: boolean;
 }) {
   const [confirm, setConfirm] = useState(false);
   return confirm ? (
@@ -209,7 +212,7 @@ function DeleteControl({
       disabled={busy}
       onPress={() => confirmation ? setConfirm(true) : onDelete()}
       hitSlop={compact ? undefined : 12}
-      style={compact ? { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" } : { padding: 4 }}
+      style={compact ? { width: 44, height: 44, alignItems: nearPrice ? "center" : "flex-end", justifyContent: "center" } : { padding: 4 }}
     >
       <Trash2 size={14} color="#a8a29e" />
     </Pressable>
@@ -224,7 +227,9 @@ export function Comments({
   safetyTarget,
   targetCommentId,
   onTargetLayout,
+  now = Date.now(),
 }: {
+  now?:number;
   targetCommentId?:string;
   onTargetLayout?:(y:number)=>void;
   safetyTarget?: {kind: "post" | "listing"; id: string};
@@ -244,17 +249,22 @@ export function Comments({
   const [text, setText] = useState(draft?.text || "");
   const [id, setId] = useState(() => draft?.id || newSocialId());
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef=useRef(false);
   async function send() {
-    if (submitting || busy || !text.trim()) return;
+    if (submittingRef.current || submitting || busy || !text.trim()) return;
+    submittingRef.current=true;
     setSubmitting(true);
     try {
-      if (await onSubmit(text, id, replyTo)) {
+      const submissionId=safetyTarget?.kind==='post'?commentSubmissionId(id):id;
+      if(submissionId!==id){setId(submissionId);onDraftChange?.({text,id:submissionId});}
+      if (await onSubmit(text, submissionId, replyTo)) {
         setText("");setReplyTo(undefined);
         const nextId = newSocialId();
         setId(nextId);
         onDraftChange?.({ text: "", id: nextId });
       }
     } finally {
+      submittingRef.current=false;
       setSubmitting(false);
     }
   }
@@ -279,7 +289,7 @@ export function Comments({
             <Copy weight="bold">
               {c.author}{" "}
               <Copy style={{ color: "#a8a29e", fontSize: 10 }}>
-                {c.unit} • {c.timeAgo}
+                {safetyTarget?.kind==='post'?commentTime(c,now):`${c.unit?c.unit+' • ':''}${c.timeAgo}`}
               </Copy>
             </Copy>
             <Copy style={{ lineHeight: 20 }}>{c.text}</Copy>
@@ -530,7 +540,7 @@ export function SocialFeed({
   const dark = !!usePresentation()?.dark;
   const s = useNewsStyles();
   useNewsFonts();
-  const now = useMinuteNow(view === "listing");
+  const now = useMinuteNow();
   const [comments, setComments] = useState<string | null>(null);
   const [drafts] = useState(() => {
     const values = new Map<string, { text: string; id: string }>();
@@ -558,7 +568,7 @@ export function SocialFeed({
                           color: "#a8a29e",
                         }}
                       >
-                        {post.timeAgo}
+                        {relativePostedTime(post.createdAt,now,'Just now').replace(/^Posted /,'')}
                       </Copy>
                     </View>
                   </Pressable>
@@ -667,6 +677,7 @@ export function SocialFeed({
                   <Collapsible open={comments === String(post.id)}>
                     <Comments
                       comments={post.comments}
+                      now={now}
                       safetyTarget={{kind:"post",id:String(post.id)}}
                       draft={drafts.get(String(post.id))}
                       onDraftChange={draft => drafts.set(String(post.id), draft)}
@@ -718,6 +729,7 @@ export function SocialFeed({
                     </View>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 0, flexShrink: 0 }}>
+                    {owns(item,user) && onEdit && <Pressable accessibilityRole="button" accessibilityLabel="Edit listing" disabled={busy} onPress={() => onEdit(item)} style={{width:44,height:44,alignItems:'center',justifyContent:'center'}}><Pencil size={16} color="#059669"/></Pressable>}
                     <Pill
                       solid
                       price
@@ -730,10 +742,10 @@ export function SocialFeed({
                             : "amber"
                       }
                     />
-                    {owns(item,user) && onEdit && <Pressable accessibilityRole="button" accessibilityLabel="Edit listing" disabled={busy} onPress={() => onEdit(item)} style={{width:44,height:44,alignItems:'center',justifyContent:'center'}}><Pencil size={16} color="#059669"/></Pressable>}
                     {(owns(item, user) || canDeleteAnyPost(user)) && (
                       <DeleteControl
                         compact
+                        nearPrice
                         confirmation={false}
                         busy={busy}
                         onDelete={() =>
@@ -1009,6 +1021,7 @@ export function Detail({
   onEdit?: (item: Listing) => void;
   onMedia: (media: MediaAttachment[], title: string, index?: number) => void;
 }) {
+  const now=useMinuteNow(kind==='post');
   const [revealContentY,setRevealContentY]=useState<number|undefined>();
   const [shareError, setShareError] = useState("");
   const post = kind === "post" ? (item as Post) : null;
@@ -1016,7 +1029,7 @@ export function Detail({
   return (
     <ProductDialog revealContentY={revealContentY}
       title={item.author}
-      subtitle={`${item.unit} • ${item.timeAgo}`}
+      subtitle={`${item.unit} • ${post?relativePostedTime(post.createdAt,now,'Just now').replace(/^Posted /,''):item.timeAgo}`}
       headerLeading={<Avatar uri={item.authorAvatar} name={item.author} />}
       onClose={onClose}
       busy={busy}
@@ -1028,11 +1041,10 @@ export function Detail({
           {item.title}
         </Copy>
         <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 0 }}>
-          {listing && <Pill solid price label={listing.price} tone={listing.sold ? "stone" : listing.price.toUpperCase() === "FREE" ? "green" : "amber"} />}
           {listing && owns(listing,user) && onEdit && <Pressable accessibilityRole="button" accessibilityLabel="Edit listing" disabled={busy} onPress={() => onEdit(listing)} style={{width:44,height:44,alignItems:'center',justifyContent:'center'}}><Pencil size={16} color="#059669"/></Pressable>}
-          <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
+          {listing && <Pill solid price label={listing.price} tone={listing.sold ? "stone" : listing.price.toUpperCase() === "FREE" ? "green" : "amber"} />}
           {(owns(item, user) || canDeleteAnyPost(user)) && (
-            <DeleteControl compact confirmation={!listing} busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />
+            <DeleteControl compact nearPrice={!!listing} confirmation={!listing} busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />
           )}
         </View>
       </View>
@@ -1071,7 +1083,8 @@ export function Detail({
         />
       )}
       <View style={[s.row, { justifyContent: "space-between", flexWrap: "nowrap" }]}>
-        <Copy weight="bold" style={{ flexShrink: 1 }}>{item.comments?.length || 0} Comments</Copy>
+        <Copy weight="bold" style={{ flex: 1, minWidth: 0 }}>{item.comments?.length || 0} Comments</Copy>
+        <View style={{flexDirection:"row",alignItems:"center",gap:8,flexShrink:0}}>
         <Action
           label="Share post"
           icon={Share2}
@@ -1081,8 +1094,10 @@ export function Detail({
             message: `${item.title}\n${post?.content || listing?.description || ""}`,
           }).catch(() => setShareError("Unable to share this item. Please try again."))}
         />
+          <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
+        </View>
       </View>
-      <Comments targetCommentId={targetCommentId} onTargetLayout={setRevealContentY}
+      <Comments now={now} targetCommentId={targetCommentId} onTargetLayout={setRevealContentY}
         comments={item.comments || []}
         safetyTarget={{kind,id:String(item.id)}}
         busy={busy}

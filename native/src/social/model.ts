@@ -106,6 +106,7 @@ export function commentsFor(d: Record<string, any>): CommentItem[] {
         text: c.text || "",
         author: c.author || "Resident",
         timeAgo: c.timeAgo || "Recent",
+        createdAt: time(c.createdAt || c.timestamp),
       }))
     : [];
 }
