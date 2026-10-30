@@ -91,7 +91,7 @@ exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }
   const db = getFirestore(database), ref = db.doc(`account_deletion_jobs/${jobId}`);
   return db.runTransaction(async tx => {
     // Re-read canonical role atomically with the decision, preventing stale privileges.
-    const [profile, current] = await Promise.all([tx.get(db.doc(`users/${token.uid}`)), tx.get(ref)]);
+    const [profile, current, activation] = await Promise.all([tx.get(db.doc(`users/${token.uid}`)), tx.get(ref), tx.get(db.doc('deletion_policies/account'))]);
     const actor = profile.data(), job = current.data();
     if (actor?.approved !== true || actor.deletionPending === true || !['admin', 'vip'].includes(actor.role))
       throw new HttpsError('permission-denied', 'Admin/VIP approval is required.');
@@ -111,7 +111,10 @@ exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }
       policyReference: decision === 'approved' ? retention.POLICY_ID : null,
       processingAuthorized: false,
       reasonCategory: decision === 'approved' ? 'verified_request' : request.data.reasonCategory, reasonReference: decision === 'approved' ? '' : request.data.reasonReference.trim(), ...(decision === 'delayed' ? {nextReviewAt:delayUntil} : {}) };
-    const status = decision === 'approved' ? 'approved_held' : decision;
+    // A live, explicitly activated policy queues the reviewed request. The isolated
+    // worker independently checks its audit and authorization before any destruction.
+    const automatic=activation.data()?.automaticApprovedProcessing===true&&retention.policyReady(activation.data())&&require('./accountDeletionScope.cjs').writeFreezeReady(activation.data());
+    const status = decision === 'approved' ? automatic ? 'queued' : 'approved_held' : decision;
     tx.create(ref.collection('reviews').doc(randomUUID()), { ...review, expiresAt: new Date(retention.deadlines(job.createdAt).retentionDueAt || Date.now()) });
     tx.update(ref, { review, status, lastAttemptAt: FieldValue.serverTimestamp() });
     return { jobId, status };

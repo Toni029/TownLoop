@@ -346,3 +346,8 @@ test('optional review note and standard approval audit entry remain held and pre
   const receipts=[...h.records].filter(([path])=>path.startsWith(`account_deletion_jobs/${jobIdFor('alice')}/reviews/`));assert.equal(receipts.length,1);assert.equal(receipts[0][1].reason,reason);
  }
 });
+test('activated approved-request policy queues an independent review without invoking deletion in the callable',async()=>{
+ const h=harness(reviewFixture('vip'));const {DATABASES}=require('./accountDeletionScope.cjs');
+ h.records.set('deletion_policies/account',{ownerApproved:true,policyVersion:2,approvalReference:require('./accountDeletionRetention.cjs').POLICY_ID,identityCoverageVerified:true,mediaCoverageVerified:true,databaseScopeVerified:true,retentionDays:60,reviewBusinessDays:3,escalationCalendarDays:7,completionCalendarDays:7,automaticApprovedProcessing:true,scopeWriteFreezeVerified:Object.fromEntries(DATABASES.map(id=>[id,true])),scopeRuleHashes:Object.fromEntries(DATABASES.map(id=>[id,'a'.repeat(64)])),tokenDrainMs:3900000});
+ const result=await h.review(reviewInput('bob',decision()));assert.equal(result.status,'queued');assert.equal(h.records.get(`account_deletion_jobs/${jobIdFor('alice')}`)?.review?.processingAuthorized,false);assert.deepEqual(h.authCalls,[]);
+});

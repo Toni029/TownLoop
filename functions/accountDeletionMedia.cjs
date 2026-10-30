@@ -18,7 +18,7 @@ async function hasLiveReference(dbFor,objectHash){
 async function processAccountMedia(control,job,{dbFor,bucket,mediaPolicy}) {
  if(job.review?.processingAuthorized!==true||job.review.decision!=='approved'||job.preflight?.jobId!==job.id||job.preflight.uid!==job.uid||job.preflight.holds?.length)throw Error('media_preflight_required');
  for(const databaseId of require('./accountDeletionScope.cjs').DATABASES){const db=dbFor(databaseId),jobs=await db.collection('media_cleanup_jobs').where('accountDeletionJobId','==',job.id).limit(100).get();
-  for(const row of jobs.docs){const parent={...row.data(),databaseId};if(parent.status==='complete')continue;if(parent.uid!==job.uid||parent.databaseId!==databaseId)throw Error('media_scope_mismatch');
+  for(const row of jobs.docs){const parent={...row.data(),databaseId:row.data().databaseId||databaseId};if(parent.status==='complete')continue;if(parent.uid!==job.uid||parent.databaseId!==databaseId)throw Error('media_scope_mismatch');
    if(parentBlocksCleanup(await db.doc(`${parent.collection}/${parent.recordId}`).get(),parent))throw Error('media_parent_restored');
    const manifest=job.preflight.manifest.filter(m=>m.databaseId===databaseId&&m.collection===parent.collection&&m.recordId===parent.recordId);
    if((parent.objectHashes||[]).some(h=>!manifest.some(m=>m.objectHash===h)))throw Error('media_manifest_mismatch');
