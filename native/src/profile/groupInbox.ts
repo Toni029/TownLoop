@@ -43,7 +43,7 @@ export function useGroupInbox(user: UserProfile | null) {
         update({threads:snapshot.docs.map(d => {
           const m=d.data(); const category=categoryFor(m.type);
           return {id:m.conversationId,category,name:m.name,subject:m.subject,unread:m.sequence > m.readSequence,messages:[],updatedAt:m.updatedAt,
-            data:{...m,schemaVersion:3},recipient:{id:m.peerId||'',name:m.name} as UserProfile,otherLeft:m.conversationStatus==='read_only'};
+            data:{...m,schemaVersion:3},recipient:{id:m.peerId||'',name:m.name} as UserProfile,otherLeft:m.conversationStatus==='read_only'||m.type==='private'&&m.archived===true&&!m.inactivityResumable};
         })});
         void legacy();
       }, () => update({error:'Unable to load group conversations.'}));

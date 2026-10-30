@@ -1,7 +1,9 @@
 // Stage B is a pure, non-destructive planner. Deliberately no Firebase export or worker.
 function planConversationCleanup({ conversation, members, messages, attachments = [], evidence = [], now = Date.now() }) {
   const holds = [];
-  if (!conversation || conversation.status !== 'cleanup_pending' || members.some(m => m.status === 'active')) holds.push('active_or_incomplete_membership');
+  const inactiveArchive=conversation?.status==='archived'&&conversation.retention?.reason==='inactivity'&&
+    require('./inbox-retention.cjs').validGrace(conversation.retention,now)&&conversation.retention.deleteAfter<=now;
+  if (!conversation || !inactiveArchive&&(conversation.status !== 'cleanup_pending' || members.some(m => m.status === 'active'))) holds.push('active_or_incomplete_membership');
   if (conversation?.legacySource && !conversation.legacyVerified) holds.push('unverified_legacy_source');
   const retainedMessages = new Set();
   for (const item of evidence) {

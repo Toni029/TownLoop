@@ -3,10 +3,12 @@ function fixture() {
   const records = new Map(); let pending=Promise.resolve();
   const clone = value => value === undefined ? undefined : structuredClone(value);
   const snap = (path, data=records.get(path)) => ({id:path.split('/').at(-1),ref:doc(path),exists:data!==undefined,data:()=>clone(data)});
-  function doc(path) { return {path,id:path.split('/').at(-1),get:async()=>snap(path),delete:async()=>records.delete(path),update:async patch=>records.set(path,{...records.get(path),...clone(patch)})}; }
-  function collection(path,filters=[],sort=null,maximum=Infinity) {
-    const result=()=>[...records].filter(([p,d])=>p.startsWith(path+'/')&&p.split('/').length===path.split('/').length+1&&filters.every(([f,op,v])=>op==='=='?d[f]===v:op==='in'?v.includes(d[f]):op==='array-contains'?d[f]?.includes(v):op==='>'?d[f]>v:op==='<='?d[f]<=v:false)).sort(([,a],[,b])=>sort?(sort[1]==='desc'?-1:1)*((a[sort[0]]>b[sort[0]])?1:(a[sort[0]]<b[sort[0]]?-1:0)):0).slice(0,maximum).map(([p,d])=>snap(p,d));
-    return {get:async()=>({docs:result(),empty:result().length===0}),orderBy:(field,direction)=>collection(path,filters,[field,direction],maximum),where:(...f)=>collection(path,[...filters,f],sort,maximum),limit:maximum=>collection(path,filters,sort,maximum),count:()=>({get:async()=>({data:()=>({count:result().length})})})};
+  function doc(path) { return {path,id:path.split('/').at(-1),get:async()=>snap(path),delete:async()=>records.delete(path),update:async patch=>records.set(path,{...records.get(path),...clone(patch)}),
+    listCollections:async()=>[...new Set([...records.keys()].filter(p=>p.startsWith(path+'/')).map(p=>p.slice(path.length+1).split('/')[0]))].map(id=>({id}))}; }
+  function collection(path,filters=[],sort=null,maximum=Infinity,after='') {
+    const field=(p,d)=>sort?.[0]==='__name__'?p.split('/').at(-1):d[sort?.[0]];
+    const result=()=>[...records].filter(([p,d])=>p.startsWith(path+'/')&&p.split('/').length===path.split('/').length+1&&(!after||p.split('/').at(-1)>after)&&filters.every(([f,op,v])=>op==='=='?d[f]===v:op==='in'?v.includes(d[f]):op==='array-contains'?d[f]?.includes(v):op==='>'?d[f]>v:op==='<='?d[f]<=v:false)).sort(([pa,a],[pb,b])=>sort?(sort[1]==='desc'?-1:1)*((field(pa,a)>field(pb,b))?1:(field(pa,a)<field(pb,b)?-1:0)):0).slice(0,maximum).map(([p,d])=>snap(p,d));
+    return {get:async()=>({docs:result(),empty:result().length===0}),orderBy:(field,direction)=>collection(path,filters,[field,direction],maximum,after),where:(...f)=>collection(path,[...filters,f],sort,maximum,after),limit:maximum=>collection(path,filters,sort,maximum,after),startAfter:id=>collection(path,filters,sort,maximum,id),count:()=>({get:async()=>({data:()=>({count:result().length})})})};
   }
   const db={doc,collection,runTransaction:fn=>{
     const run=pending.then(async()=>{const writes=[];let wrote=false;

@@ -1506,7 +1506,7 @@ export function ProfileMenu({
                                       },
                                     ]}
                                   >
-                                    {t.messages.at(-1)?.body || "Conversation"}
+                                    {t.data.archived===true ? `Archived · Deletion grace ends ${new Date(t.data.deleteAfter).toLocaleDateString()}` : t.messages.at(-1)?.body || "Conversation"}
                                   </Text>
                                 </Pressable>
                                 <Pressable
@@ -2036,6 +2036,9 @@ export function ProfileMenu({
                               />
                             )}
                             {!!group.error && <Text style={s.error}>{group.error}</Text>}
+                            {conversation.data.archived===true && <View style={[s.bubble,panel]} accessibilityRole="text">
+                              <Text style={[s.small,{color:muted}]}>This conversation is archived after six months without a new message. It is scheduled for deletion after {new Date(conversation.data.deleteAfter).toLocaleDateString()}. {conversation.data.inactivityResumable===true ? 'Sending a new message before cleanup begins cancels inactivity-based deletion.' : 'This conversation remains read-only because a participant has left.'} Retention exceptions may apply.</Text>
+                            </View>}
                             {conversation.data.schemaVersion===3 && group.hasMore && <Action title="Load earlier messages" onPress={group.loadMore}/>}
                             <FlatList
                               inverted

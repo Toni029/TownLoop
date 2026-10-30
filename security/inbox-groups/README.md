@@ -86,24 +86,16 @@ quarantined files and all tokens. No photos were downloaded or inspected.
 
 ## Stage B safeguards
 
-`inbox-group-cleanup-runner.cjs` is NOT imported/exported by ANY deployment entry
-point, is not copied into the Stage A artifact, and defaults to disabled. It has
-no scheduler. Final leave never invokes it. The prepared runner requires separate
-code-level activation AND a live, expiring Admin-reviewed cleanup manifest proving
-membership, complete media-reference inventory, evidence review, matching server
-sequence, and exact legacy-source verification. Active/incomplete memberships,
-report/legal holds, shared/quarantined/unverified media, changed object generations,
-and unknown source ownership stop processing. The pure plan is always non-executing.
+The live entry point and Stage A artifacts do not import the cleanup runner or
+retention schedules. The separately prepared retention entry provides two hourly,
+bounded, default-OFF schedules. Final leave never invokes cleanup.
 
-After a separately approved activation, the runner can resume bounded, idempotent
-message/metadata cleanup and generation-conditional deletion of verified exclusive
-`inbox_groups/{conversationId}/...` objects only. It never scans/deletes historical
-Storage folders. Membership removal and root finalization are atomic. Interrupted
-runs keep a content-free retry/review receipt and lease. Evidence holds require a
-documented basis and approved expiry; no 400-day exception is introduced. Minimal
-cleanup receipts expire after 60 days (future approved TTL/maintenance required;
-no expiry worker/TTL was enabled). Prior legacy delivery receipts without target
-metadata follow their existing expiry; never claim instant backup/offline erasure.
+[RETENTION.md](RETENTION.md) defines the 30-day final-member grace, six-calendar-month
+inactivity archive with 30-day grace, in-app notices, activity cancellation,
+Admin-reviewed inventory manifests, evidence/media holds, resumable cleanup and
+60-day content-free receipt expiry. No schedule or destructive cleanup was activated.
+The pure cleanup planner remains non-executing. Existing bearer tokens, backups,
+quarantined attachments and the named database are unchanged.
 
 See [STAGE_A_ROLLOUT.md](STAGE_A_ROLLOUT.md) for the verified missing live
 components, exact function/index scope, activation settings and legacy limits.

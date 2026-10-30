@@ -12,7 +12,7 @@
       let c = get(/databases/$(database)/documents/inbox_conversations/$(cid)).data;
       let m = groupMember(cid);
       let role = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-      return groupApproved() && m.uid == request.auth.uid && m.status == 'active' &&
+      return groupApproved() && c.status != 'cleanup_in_progress' && m.uid == request.auth.uid && m.status == 'active' &&
         (c.type == 'private' || c.residentId == request.auth.uid || (c.type == 'office' && role in ['admin','vip']) || (c.type == 'maintenance' && role == 'crew'));
     }
     function legacyGroupAccess(data) {

@@ -1,6 +1,7 @@
 // Native Inbox v3, default database only. All mutations are trusted-server operations.
 const { createHash } = require('node:crypto');
 const { approved } = require('./inbox-policy.cjs');
+const {grace}=require('./inbox-retention.cjs');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const validId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 const fail = code => { throw Error(code); };
@@ -44,6 +45,9 @@ function writeProjection(tx, db, cid, c, members, profiles, now, changed = {}) {
       residentId: c.residentId || '', subject: c.subject, updatedAt: now, conversationStatus: c.status, sequence: m.lastVisibleSequence || 0,
       // Roster is loaded separately after membership authorization; no message preview here.
       activeCount: active({conversation:c,members,profiles}).length,
+      archived: c.status==='archived', deleteAfter: c.retention?.deleteAfter || null,
+      retentionReason: c.retention?.reason || null,
+      inactivityResumable:c.status==='archived'&&c.retention?.previousStatus==='open',
       peerId: c.type === 'private' ? profiles.find(p => p.id !== m.uid)?.id || '' : '',
       name: c.type === 'private' ? profiles.find(p => p.id !== m.uid)?.name || 'Resident' : c.type === 'office' ? 'Community Office' : 'Maintenance Crew',
       ...changed[m.uid] });
@@ -149,14 +153,16 @@ async function sendMessage(db, uid, cid, data, now) {
       if (m.senderId !== uid || m.body !== data.body.trim() || !m.visibility.includes(visibilityKey(sender))) fail('already-exists');
       return { messageId: m.id };
     }
-    if (c.status !== 'open') fail('failed-precondition');
+    const resume=c.status==='archived'&&c.retention?.reason==='inactivity'&&c.retention.previousStatus==='open';
+    if (c.status !== 'open'&&!resume) fail('failed-precondition');
     const recipients = [];
     for (const m of active(state)) if (m.uid !== uid && !await isBlocked(tx, db, uid, m.uid)) recipients.push(m);
     if (!recipients.length || c.type === 'private' && active(state).length !== 2) fail('failed-precondition');
     const message = { id: data.messageId, type: 'message', isSystem: false, senderId: uid, senderName: display(actor).name,
       senderRole: actor.role, senderAvatar: display(actor).avatar, body: data.body.trim(), createdAt: now,
       sequence: c.sequence + 1, visibility: [sender, ...recipients].map(visibilityKey), notify: true };
-    c.sequence++; c.updatedAt = now;
+    c.sequence++; c.updatedAt = now; c.lastMessageAt=now;
+    if(resume){c.status='open';c.retention=null;tx.set(db.doc(`inbox_cleanup_requests/${cid}`),{conversationId:cid,status:'cancelled',reason:'new_message',updatedAt:now});}
     for (const m of [sender, ...recipients]) m.lastVisibleSequence = c.sequence;
     tx.create(db.doc(`inbox_conversations/${cid}/messages/${data.messageId}`), message);
     tx.set(ref(db, cid), c);
@@ -169,6 +175,7 @@ async function sendMessage(db, uid, cid, data, now) {
 // or confirmation flag can select another participant, and cleanup is only queued.
 function stageLeave(tx,db,uid,cid,state,now) {
   const {conversation:c,members,profiles}=state;
+  if(c.status==='cleanup_in_progress')fail('failed-precondition');
   const index=c.memberIds.indexOf(uid),member=members[index];
   if(!member||!approved(profiles[index]))fail('permission-denied');
   if(member.status==='left')return{left:true,cleanupPending:c.status==='cleanup_pending',unchanged:true};
@@ -176,9 +183,14 @@ function stageLeave(tx,db,uid,cid,state,now) {
   const remaining=active(state).filter(m=>m.uid!==uid);
   Object.assign(member,{status:'left',reason:'left',leftAt:now});
   event(tx,db,cid,c,members,now,`leave_${hash(`${uid}/${member.epoch}`)}`,'leave',profiles[index],remaining.map(visibilityKey));
-  c.status=!remaining.length?'cleanup_pending':c.type==='private'?'read_only':'open';
+  const archived=c.status==='archived';
+  c.status=!remaining.length?'cleanup_pending':archived?'archived':c.type==='private'?'read_only':'open';
+  if(archived&&remaining.length&&c.type==='private')c.retention={...c.retention,previousStatus:'read_only'};
   c.updatedAt=now;
-  if(!remaining.length)tx.set(db.doc(`inbox_cleanup_requests/${cid}`),{conversationId:cid,status:'awaiting_separate_approval',requestedAt:now,schemaVersion:1});
+  if(!remaining.length){
+    c.retention=grace('last_member_left',now,c.lastMessageAt??null,c.status);
+    tx.set(db.doc(`inbox_cleanup_requests/${cid}`),{conversationId:cid,status:'awaiting_separate_approval',requestedAt:now,deleteAfter:c.retention.deleteAfter,reason:'last_member_left',schemaVersion:2});
+  }
   return{left:true,cleanupPending:!remaining.length};
 }
 async function leave(db,uid,cid,_data,now) {

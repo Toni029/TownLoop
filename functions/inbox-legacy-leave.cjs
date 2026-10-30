@@ -1,6 +1,7 @@
 // Leaving is a per-UID revocation, not a grant of historical membership to anyone.
 const {member}=require('./inbox-policy.cjs');
 const {hash}=require('./inbox-groups.cjs');
+const {GRACE_MS}=require('./inbox-retention.cjs');
 const sources=new Set(['resident_chats','office_chats','maintenance_chats']);
 async function leaveLegacy(db,uid,data,now){
  if(!sources.has(data.source)||typeof data.legacyId!=='string'||!data.legacyId||data.legacyId.includes('/')||Buffer.byteLength(data.legacyId)>1500||['.','..'].includes(data.legacyId))throw Error('invalid-argument');
@@ -18,7 +19,7 @@ async function leaveLegacy(db,uid,data,now){
   tx.update(ref,{leftBy,messages:[...old.messages,event],updatedAt:now,lastMessage:event.body});
   // Only exact private pairs establish that nobody remains. Never infer a final staff member.
   const final=data.source==='resident_chats'&&old.identityVersion===2&&Array.isArray(old.participantIds)&&old.participantIds.length===2&&new Set(old.participantIds).size===2&&old.participantIds.every(id=>typeof id==='string'&&leftBy[id]===true);
-  if(final)tx.set(db.doc(`inbox_cleanup_requests/legacy_${hash(`${data.source}/${data.legacyId}`)}`),{kind:'legacy',legacySource:`${data.source}/${data.legacyId}`,status:'awaiting_separate_approval',requestedAt:now,schemaVersion:1});
+  if(final)tx.set(db.doc(`inbox_cleanup_requests/legacy_${hash(`${data.source}/${data.legacyId}`)}`),{kind:'legacy',legacySource:`${data.source}/${data.legacyId}`,status:'awaiting_separate_approval',requestedAt:now,deleteAfter:now+GRACE_MS,schemaVersion:2});
   return{left:true,legacy:true,cleanupPending:final};
  }).then(result=>result.migrated?require('./inbox-group-legacy.cjs').upgradeLegacy(db,uid,data,now,{leave:true}):result);
 }

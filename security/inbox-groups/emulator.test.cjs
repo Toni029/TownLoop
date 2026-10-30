@@ -31,6 +31,36 @@ test('real Firestore transactions and rules allow the intended epoch query, deny
  denied(await queryMessages('vip',id,'vip:1',true));denied(await queryMessages('vip',id,'admin:1'));
  denied(await read('outsider',`inbox_conversations/${id}`));denied(await read('',`inbox_conversations/${id}`));
 });
+test('cleanup fencing denies active-member reads while an archive stays readable beforehand',async()=>{
+ for(const uid of ['fenceA','fenceB'])await db.doc(`users/${uid}`).set({approved:true,role:'resident',name:uid});
+ const {conversationId:cid}=await operate(db,'fenceA',{op:'create',type:'private',recipientIds:['fenceB']},{enabled:true});
+ await operate(db,'fenceA',{op:'send',conversationId:cid,messageId:'fence',body:'Disposable retention fixture'},{enabled:true});
+ await db.doc(`inbox_conversations/${cid}`).update({status:'archived'});
+ ok(await read('fenceB',`inbox_conversations/${cid}/messages/fence`));
+ await db.doc(`inbox_conversations/${cid}`).update({status:'cleanup_in_progress'});
+ denied(await read('fenceB',`inbox_conversations/${cid}`));denied(await read('fenceB',`inbox_conversations/${cid}/messages/fence`));
+ denied(await queryMessages('fenceB',cid,'fenceB:1'));
+});
+test('real retention transactions archive, reactivate and finalize only a reviewed overdue fixture',async()=>{
+ const {assessConversation,addCalendarMonths,GRACE_MS}=require('../../functions/inbox-retention.cjs');
+ const {readCleanupInventory,runConversationCleanup}=require('../../functions/inbox-group-cleanup-runner.cjs');
+ for(const uid of ['retentionA','retentionB'])await db.doc(`users/${uid}`).set({approved:true,role:'resident',name:uid});
+ const start=Date.UTC(2025,0,1),call=(uid,data,now)=>operate(db,uid,data,{enabled:true,now});
+ const {conversationId:cid}=await call('retentionA',{op:'create',type:'private',recipientIds:['retentionB']},start);
+ await call('retentionA',{op:'send',conversationId:cid,messageId:'first',body:'Disposable fixture'},start+1);
+ const archive=addCalendarMonths(start+1,6);
+ assert.equal((await assessConversation(db,cid,{now:archive})).state,'archived');
+ assert.equal((await db.doc(memberPath(cid,'retentionB')).get()).data().deleteAfter,archive+GRACE_MS);
+ await call('retentionB',{op:'send',conversationId:cid,messageId:'resume',body:'New fixture'},archive+1);
+ assert.equal((await db.doc(`inbox_conversations/${cid}`).get()).data().status,'open');
+ const again=addCalendarMonths(archive+1,6),due=again+GRACE_MS;
+ await assessConversation(db,cid,{now:again});const c=(await db.doc(`inbox_conversations/${cid}`).get()).data();
+ const inventory=await db.runTransaction(tx=>readCleanupInventory(db,tx,cid));
+ await db.doc(`inbox_cleanup_authorizations/${cid}`).set({status:'approved',approvedBy:'admin',expiresAt:due+86400000,sequence:c.sequence,inventoryHash:inventory.hash,membershipInventoryComplete:true,mediaReferenceInventoryComplete:true,evidenceReviewComplete:true});
+ assert.equal((await runConversationCleanup(db,{getFiles:async()=>[[],null]},cid,{enabled:true,now:due,clock:()=>due})).state,'completed');
+ assert.equal((await db.doc(`inbox_conversations/${cid}`).get()).exists,false);
+ assert.equal((await db.doc(memberPath(cid,'retentionB')).get()).exists,false);
+});
 test('client cannot forge messages, membership, timestamps, system events or read someone else membership',async()=>{
  denied(await forgedWrite('vip',memberPath(id,'vip'),{epoch:{integerValue:'0'},status:{stringValue:'active'}}));
  denied(await forgedWrite('vip',`inbox_conversations/${id}/messages/forged`,{type:{stringValue:'join'},body:{stringValue:'Forged'}}));

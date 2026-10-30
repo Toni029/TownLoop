@@ -1,3 +1,4 @@
+const emptyStorage={getFiles:async()=>[[],null]};
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const {fixture}=require('./testing/inbox-group-fixture.cjs');
 const {canSee,memberPath}=require('./inbox-groups.cjs');
@@ -127,8 +128,8 @@ test('Stage B runner has no effects when disabled and holds unapproved cleanup w
  const {runConversationCleanup}=require('./inbox-group-cleanup-runner.cjs');
  const h=fixture(),{conversationId:id}=await h.call('a',{op:'create',type:'private',recipientIds:['b']});
  await h.call('a',{op:'leave',conversationId:id});await h.call('b',{op:'leave',conversationId:id,confirmPermanent:true});
- const size=h.records.size;assert.equal((await runConversationCleanup(h.db,null,id)).state,'disabled');
- assert.equal((await runConversationCleanup(h.db,null,id,{enabled:true,now:h.now+100})).state,'held');assert.equal(h.records.size,size);
+ const size=h.records.size;assert.equal((await runConversationCleanup(h.db,emptyStorage,id)).state,'disabled');
+ assert.equal((await runConversationCleanup(h.db,emptyStorage,id,{enabled:true,now:h.now+100})).state,'held');assert.equal(h.records.size,size);
 });
 test('explicit Stage B fixture approval supports idempotent backend cleanup while protected evidence holds it',async()=>{
  const {runConversationCleanup}=require('./inbox-group-cleanup-runner.cjs');
@@ -136,12 +137,14 @@ test('explicit Stage B fixture approval supports idempotent backend cleanup whil
  await h.call('a',{op:'send',conversationId:id,messageId:'m',body:'Fixture only'});
  await h.call('a',{op:'leave',conversationId:id});await h.call('b',{op:'leave',conversationId:id,confirmPermanent:true});
  h.records.set(`inbox_cleanup_authorizations/${id}`,{status:'approved',approvedBy:'admin',expiresAt:Date.now()+60000,sequence:conversation(h,id).sequence,membershipInventoryComplete:true,mediaReferenceInventoryComplete:true,evidenceReviewComplete:true});
+ const {readCleanupInventory}=require('./inbox-group-cleanup-runner.cjs');
+ h.records.get(`inbox_cleanup_authorizations/${id}`).inventoryHash=(await h.db.runTransaction(tx=>readCleanupInventory(h.db,tx,id))).hash;
  h.records.set('inbox_retention_holds/protected',{conversationId:id,basis:'Fixture report evidence',expiresAt:Date.now()+60000,expiryApproved:true});
- assert.equal((await runConversationCleanup(h.db,null,id,{enabled:true})).state,'held');assert(message(h,id,'m'));
+ assert.equal((await runConversationCleanup(h.db,emptyStorage,id,{enabled:true})).state,'held');assert(message(h,id,'m'));
  h.records.delete('inbox_retention_holds/protected');
- assert.equal((await runConversationCleanup(h.db,null,id,{enabled:true})).state,'completed');
+ assert.equal((await runConversationCleanup(h.db,emptyStorage,id,{enabled:true})).state,'completed');
  assert(!conversation(h,id));assert(!message(h,id,'m'));assert(!membership(h,id,'a'));
- assert.equal((await runConversationCleanup(h.db,null,id,{enabled:true})).state,'completed');
+ assert.equal((await runConversationCleanup(h.db,emptyStorage,id,{enabled:true})).state,'completed');
  assert(h.records.has('users/a'));assert(h.records.has('users/b'));
 });
 test('client message IDs cannot squat on trusted membership event namespaces and block another member leaving',async()=>{
@@ -156,7 +159,7 @@ test('Stage B rejects missing, nonnumeric, infinite or expired approval expiries
   const h=fixture(),{conversationId:id}=await h.call('a',{op:'create',type:'private',recipientIds:['b']});
   await h.call('a',{op:'leave',conversationId:id});await h.call('b',{op:'leave',conversationId:id,confirmPermanent:true});
   h.records.set(`inbox_cleanup_authorizations/${id}`,{status:'approved',approvedBy:'admin',expiresAt,sequence:conversation(h,id).sequence,membershipInventoryComplete:true,mediaReferenceInventoryComplete:true,evidenceReviewComplete:true});
-  const size=h.records.size;assert.equal((await runConversationCleanup(h.db,null,id,{enabled:true})).state,'held');assert.equal(h.records.size,size);assert(conversation(h,id));
+  const size=h.records.size;assert.equal((await runConversationCleanup(h.db,emptyStorage,id,{enabled:true})).state,'held');assert.equal(h.records.size,size);assert(conversation(h,id));
  }
 });
 test('one-tap Office and Crew leave removes only the authenticated member and emits one genuine event',async()=>{

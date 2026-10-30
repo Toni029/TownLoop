@@ -2,5 +2,5 @@
 2. Additive rules + indexes + emulator fixtures. No client membership/message mutation. Query visibility key AND active authorized membership, not UI filtering. Stage A disabled by default.
 3. Group message push through existing transport/preferences/receipt logic; live authorization recheck; no system/historical replay. Secure resolve/read acknowledgements.
 4. Native Inbox integrates gated capability, shared groups, roster/add-office, private header and block placement. Legacy remains readable before rollout; migrated old clients must update. No Marketplace changes.
-5. Stage B dry-run planner only; no exported destructive worker. Evidence/unknown/shared attachments hold deletion; no automatic removal; separate activation required.
+5. Stage B retention and resumable cleanup prepared in a separate default-OFF entry, absent from live and Stage A exports. Thirty-day final-member grace; six-month inactivity archive plus thirty-day grace; activity cancels inactivity cleanup. Evidence/unknown/shared attachments hold deletion. See RETENTION.md; separate activation required.
 6. Focused transaction/notification and Firestore emulator checks, TypeScript; logical local commits. No live changes.
