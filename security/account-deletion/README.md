@@ -1,65 +1,33 @@
-# Account-deletion access protection — October 30, 2026
+# Account-deletion processing — October 30, 2026
 
-**Live status:** both scoped rules were published and hash-verified at 09:07 EDT on October 30.
-See `release-receipt.json`. Processor/access-fence creation code is local only; no worker,
-policy installation, account disablement, or deletion was deployed or activated.
+## Verified live state
 
-Owner authorized rules changes for safe requested-account deletion. This scoped release only
-blocks unauthorized/anonymous writes and prepares stale-session protection. It does not deploy
-or activate deletion workers, approve extra requests, install processing policies or delete data.
+Automatic fulfillment is active for verified resident requests independently approved by an authorized canonical Admin/VIP. Submitting a request alone cannot delete an account, and self-approval remains prohibited.
 
-## Live request inspection (read-only)
+`activation-receipt.json` records the verified deployed worker/review revisions and content-free aggregate verification. The independently approved existing request was processed successfully: Firebase Auth no longer contains the account; both database scopes independently confirm completion; profiles, directory projections and device tokens are absent; one owned Marketplace listing and four owned photos are removed. No unresolved inventory or remaining owned active Storage objects were found. All six quarantined files remain.
 
-One request exists, already independently approved by an authorized Admin/VIP. Its state is
-`approved_held`, processing authorization is false and Auth remains enabled. No duplicate
-approval is necessary. The default profile has no UID conflicts; no same-UID named profile
-exists. Exact UID metadata queries found one Marketplace listing in default and zero matching
-supported parent/membership records in named. This does NOT certify absence of embedded
-comments, aliases or unmatched historical media. No private message/comment bodies or image
-contents were read. Named profile metadata: three pending profiles, none approved; no role or
-approval was assigned by this work.
+The request accurately remains `retention_pending` for minimal audit/offline-cleanup receipts under the previously approved original 60-day window. Existing Storage soft-delete recovery is seven days (604800 seconds). Recovery settings and backups were not changed; recoverable copies are not falsely described as immediately purged. No automatic 400-day application retention was introduced.
 
-The live account-processing policy and media-deletion policy are both absent. Installing
-unverified coverage flags is not an acceptable substitute for a per-request inventory.
+## Deployment and safety
 
-## Prepared implementation
+- `reviewAccountDeletionRequest` queues a valid independent approval when the explicitly activated server policy is ready. The review callable never performs destruction.
+- `fulfillApprovedAccountDeletions` is the sole new scheduled worker, running every five minutes from the isolated `firebase.deletion-processing.json` package. Its three processing flags and server policies were explicitly activated under the owner's instruction. General orphan/draft cleanup, Inbox final-participant cleanup and unrelated workers remain untouched.
+- Per-request approval/audit verification, both-database access fences, immediate directory removal and Auth disable/revocation precede the mandatory token drain. A fresh ownership/media inventory runs before destruction.
+- Both database completion receipts, media completion and reconciliation are required before Firebase Auth removal. The original website's authorization bridge is cleared; fenced stale website sessions cannot recreate deleted profiles.
+- Unknown ownership, legacy identity paths, unsupported private subcollections, reported evidence and shared/unverified media are explicit `needs_review` exceptions. They cannot be silently declared complete. The six quarantined attachments remain excluded.
+- Account-specific media deletion rechecks both databases' remaining references and object generation/metageneration. Late resumable uploads require the original request-bound deleted-parent ownership proof and are reconciled during the finite receipt window.
+- Other residents' content survives; necessary Work Order history is anonymized. Existing clients clear account data when authoritative deletion/revocation is established on their next run/reconnect; permanently offline devices cannot be remotely erased.
 
-- Server-only `account_access_revocations/{uid}` is written independently in both scopes before
-  Auth is disabled/revoked. It binds the request, UID, policy and original expiry. Retries cannot
-  replace another request's fence. Conflicts pause for review; no silent overwrite.
-- Rules deny fenced callers even when an old token still appears valid. They prevent profile
-  recreation after erasure, profile-marker removal, and manager writes to a fenced profile.
-  Inbox v3's separate approval helper also observes the fence.
-- Fence receipts are removed only in the existing final retention phase after successful account
-  processing and Auth deletion. No 400-day period or permanent new audit exception is added.
-  Unresolved cases remain blockers; preservation is not authorization for indefinite retention.
-- Website rules require authenticated, approved canonical accounts for all chat writes and every
-  social update/delete branch; previously anonymous write paths are removed. Existing pending
-  registration and ordinary approved-account field/chat operations are covered by emulator tests.
-- Default candidate starts from the ACTUAL deployed rules, preserving Discussion reply and Inbox
-  group protections. The root `firestore.rules` file was already older than production; it is not
-  used for this release. Do not overwrite live protections with that older generic configuration.
+See `automatic-processing.md` for operation, exception and stop/recovery boundaries. The source does not automatically grant itself new permissions; existing service-account and bucket/object access were reused without IAM expansion.
 
-## Exact release scope
+## Rules checkpoint history
 
-`firebase.deploy.json` names only the two existing databases and their rules. No functions,
-indexes, Hosting, Storage, database creation or activation settings are included.
+`release-receipt.json` is the earlier **rules-only** checkpoint at 09:07 EDT. Both reviewed scoped rules hashes remain current. The rules-only checkpoint's then-disabled processing state has been superseded by `activation-receipt.json`.
 
-Run `check-rules-release.cjs before` with the existing Firebase CLI auth-module path in
-`TOWNLOOP_FIREBASE_AUTH_MODULE`; it refuses any changed baseline/candidate. Deploy only
-`firestore:rules` with this configuration and project `cc-livingcommunity-app`. Then run
-`check-rules-release.cjs after` to verify both live hashes. Authentication secrets are never
-printed or stored by this tool. The resulting receipt is rules metadata only.
+`firebase.deploy.json` still names only the two scoped Firestore rule releases. It does not contain function, Storage, Hosting or index deployment targets. Default rules started from the actual deployed protection set; do not replace them with the older root `firestore.rules` file.
 
-## Still required for deletion activation
+`check-rules-release.cjs after`, with the existing Firebase CLI auth-module path in `TOWNLOOP_FIREBASE_AUTH_MODULE`, verifies current rule hashes without reading resident documents. Never overwrite a changed baseline.
 
-Complete a trusted, non-destructive per-request inventory (including embedded author references,
-profile/media relationships and any legacy identities), verify media provenance/cutover and
-finite evidence dispositions, install the verified account/media policies, and deploy the
-isolated processing/proof/media components initially disabled. Preserve all six quarantined
-files. Recheck live rule hashes and the independent approved request before explicit processing
-authorization. Rule publication alone does not make the request operational.
+## Verification
 
-Focused verification: ten Firebase emulator rule cases and seventeen scope/processor tests;
-fixture-only deletion, retries, two-database completion, access-fence creation/expiry and conflict
-handling. No actual user deletion or physical-device testing is claimed.
+80 focused authorization, request, scoped-processing, media, pagination, expiry and retry tests passed. Independent focused review confirmed the deadline-format and >100-parent regressions fixed. Live completion was verified through Firebase Auth absence, independent database receipts, private/profile/token absence, active Storage absence and preservation of all quarantined files. No physical-device verification, new APK, OTA, Hosting update or unrelated Firebase deployment is claimed.

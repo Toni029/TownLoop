@@ -1,0 +1,59 @@
+{
+  "project": "cc-livingcommunity-app",
+  "verifiedAt": "2026-10-30T14:30:47.138Z",
+  "codeCommit": "6413754",
+  "functions": [
+    {
+      "name": "fulfillApprovedAccountDeletions",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "fulfillapprovedaccountdeletions-00004-cos",
+      "updatedAt": "2026-10-30T14:26:26.080775297Z",
+      "enabledProcessingFlags": [
+        "TOWNLOOP_AUTOMATIC_ACCOUNT_DELETION_ENABLED",
+        "TOWNLOOP_ACCOUNT_DELETION_ENABLED",
+        "TOWNLOOP_SCOPED_DELETION_ENABLED"
+      ],
+      "sourceGeneration": "1793370339170093"
+    },
+    {
+      "name": "reviewAccountDeletionRequest",
+      "state": "ACTIVE",
+      "runtime": "nodejs22",
+      "revision": "reviewaccountdeletionrequest-00002-faq",
+      "updatedAt": "2026-10-30T14:12:07.922472217Z",
+      "enabledProcessingFlags": [],
+      "sourceGeneration": "1793369206004225"
+    }
+  ],
+  "scheduler": {
+    "state": "ENABLED",
+    "schedule": "every 5 minutes",
+    "lastAttemptTime": "2026-10-30T14:23:04.820886Z",
+    "status": 0
+  },
+  "otherWorkersActivated": false,
+  "iamExpanded": false,
+  "focusedTestsPassed": 80,
+  "independentFocusedReview": "No remaining blocking findings; both reported stalls reproduced and corrected.",
+  "personalRemovalVerification": {
+    "approvedRequestsVerified": 1,
+    "firebaseAuthAbsent": true,
+    "databaseScopesVerified": 2,
+    "profilesAndDirectoryEntriesAbsent": true,
+    "deviceTokensAbsent": true,
+    "unresolvedInventoryItems": 0,
+    "ownedListingsRemoved": 1,
+    "ownedPhotosRemoved": 4,
+    "remainingOwnedActiveStorageObjects": 0,
+    "quarantinedFilesPreserved": 6
+  },
+  "retention": {
+    "ordinaryReceiptRetentionDays": 60,
+    "storageSoftDeleteRecoverySeconds": 604800,
+    "backupOrRecoverySettingsChanged": false,
+    "application400DayExceptionEnabled": false,
+    "requestStatus": "retention_pending",
+    "explanation": "Personal account removal verified. Minimal original-window audit/offline-cleanup proofs and existing provider recovery copies are not falsely described as erased."
+  }
+}
