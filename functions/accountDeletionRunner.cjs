@@ -31,6 +31,7 @@ async function runApprovedDeletions({control,dbFor,auth,bucket,verifyRules,now=D
      if(!job.preflight){const proof=await preflightDeletion(job,{dbFor,bucket,mediaPolicy,now:now()});await row.ref.update({preflight:proof,...(proof.holds.length?{status:'needs_review',lastError:proof.holds[0].reason}:{})});continue;}
     }
     if(job.phase==='scoped_run'&&job.status==='waiting_for_media')await processAccountMedia(control,job,{dbFor,bucket,mediaPolicy});
+    if(job.phase==='scoped_auth'||job.phase==='scoped_retention')await require('./accountDeletionLateMedia.cjs').reconcileLateAccountMedia(control,row.ref,job,{dbFor,bucket,mediaPolicy,now:now()});
     if(job.phase==='scoped_retention'&&now()<require('./accountDeletionRetention.cjs').deadlines(job.createdAt).retentionDueAt)break;
     await step(control,auth,row.ref,job,{dbFor,now:now(),clock:now});
    }

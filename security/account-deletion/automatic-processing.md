@@ -18,7 +18,7 @@ Before destruction, each request gets a fresh inventory of both databases, priva
 
 Supported content includes owned social posts/listings, own embedded comments/likes, verified legacy chat schemas, Inbox v3 memberships/authored messages/visibility, private profile data and notification tokens/state. Other residents' content survives. Necessary Work Order history is anonymized. A UID embedded in an older chat path requires reviewed relocation and cannot receive a false completion receipt.
 
-Account-media cleanup is limited to that request's exact manifest and account-linked jobs. It rechecks parent state, both databases' remaining references, ownership, object generation/metageneration and trusted upload provenance. No global orphan cleanup or token revocation is enabled.
+Account-media cleanup is limited to that request's exact manifest and account-linked jobs. It rechecks parent state, both databases' remaining references, ownership, object generation/metageneration and trusted upload provenance. No global orphan cleanup or download-token revocation is enabled. Resumable uploads accepted before access revocation are reconciled before Auth erasure and during the finite receipt window. Late objects require the original request-bound deleted-parent ownership receipt, current trusted metadata, fresh reference checks and generation guards; unknown or shared objects cause a truthful exception.
 
 Both database completion receipts, finished media jobs and reconciliation are required before Auth deletion. The website authorization bridge is cleared before final Auth removal. Existing client account-cleanup proofs expire within the original 60-day window and support next-run cleanup; permanently offline devices cannot be remotely erased.
 

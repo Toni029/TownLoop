@@ -53,7 +53,7 @@ async function preflightDeletion(job,{dbFor,bucket,mediaPolicy,now=Date.now()}) 
  }
  const manifest=[],seen=new Set();let pageToken;
  do{const [files,next]=await bucket.getFiles({autoPaginate:false,maxResults:100,...(pageToken?{pageToken}:{})});
-  for(const file of files){let metadata;try{[metadata]=await file.getMetadata();}catch(error){if(error.code===404)continue;throw error;}
+  for(const file of files){let metadata;try{metadata=file.metadata?.generation?file.metadata:(await file.getMetadata())[0];}catch(error){if(error.code===404)continue;throw error;}
    const h=hash(metadata.name),parent=required.get(h),custom=metadata.metadata||{};
    if(!parent&&custom.uploadedBy!==job.uid&&custom.ownerUid!==job.uid)continue;
    if(!parent||custom.uploadedBy!==job.uid||!trustedMedia(metadata,parent,mediaPolicy)||!metadata.metageneration||references.get(h)?.size!==1||!references.get(h)?.has(parent.recordKey)||provenance.quarantinedObjectHashes.includes(h)){
