@@ -8,7 +8,11 @@ const provenance=require('./deletionMediaProvenance.json');
 async function reconcileLateAccountMedia(control,ref,job,{dbFor,bucket,mediaPolicy,now=Date.now()}){
  if(job.preflight?.jobId!==job.id||job.preflight.uid!==job.uid||job.preflight.holds?.length||job.review?.processingAuthorized!==true)throw Error('media_preflight_required');
  const parents=[];
- for(const databaseId of DATABASES){const rows=await dbFor(databaseId).collection('media_cleanup_jobs').where('accountDeletionJobId','==',job.id).limit(100).get();for(const row of rows.docs){const data=row.data();if(data.uid!==job.uid||data.databaseId!==databaseId)throw Error('media_scope_mismatch');parents.push({row,parent:data});}}
+ for(const databaseId of DATABASES){let cursor;for(let page=0;;page++){
+  if(page>=100)throw Error('inventory_bound');let query=dbFor(databaseId).collection('media_cleanup_jobs').where('accountDeletionJobId','==',job.id).orderBy('__name__').limit(100);if(cursor)query=query.startAfter(cursor);const rows=await query.get();
+  for(const row of rows.docs){const data=row.data();if(data.uid!==job.uid||data.databaseId!==databaseId)throw Error('media_scope_mismatch');parents.push({row,parent:data});}
+  if(rows.size<100)break;cursor=rows.docs.at(-1).id;
+ }}
  let pageToken,changed=false;const manifest=[...job.preflight.manifest];
  for(let page=0;;page++){
   if(page>=100)throw Error('inventory_bound');const [files,next]=await bucket.getFiles({autoPaginate:false,maxResults:100,...(pageToken?{pageToken}:{})});

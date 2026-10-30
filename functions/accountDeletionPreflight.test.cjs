@@ -33,3 +33,10 @@ test('late media without a verified deleted-parent receipt or with shared refere
  if(mode==='shared'){h.stores[0].records.set('media_cleanup_jobs/a',{accountDeletionJobId:'job',uid:'alice',databaseId:DATABASES[0],collection:'marketplace_posts',recordId:'listing',objectHashes:[sha(h.path)],status:'complete'});h.stores[1].records.set('posts/other',{userId:'bob',mediaUrl:h.path});}
  const ref=h.stores[0].db.doc('account_deletion_jobs/job');await ref.create(h.job);await assert.rejects(reconcileLateAccountMedia(h.stores[0].db,ref,h.job,h.options));assert.equal(h.deleted.length,0);
 }});
+test('cleanup and late-upload reconciliation paginate beyond 100 completed parents',async()=>{for(const mode of ['ordinary','late']){
+ const h=fixture();h.job.preflight=await preflightDeletion(h.job,h.options);h.stores[0].records.delete('marketplace_posts/listing');
+ for(let n=0;n<100;n++)h.stores[0].records.set(`media_cleanup_jobs/${String(n).padStart(3,'0')}`,{accountDeletionJobId:'job',uid:'alice',databaseId:DATABASES[0],collection:'marketplace_posts',recordId:`empty${n}`,objectHashes:[],status:mode==='late'?'complete':'queued'});
+ h.stores[0].records.set('media_cleanup_jobs/zzz',{accountDeletionJobId:'job',uid:'alice',databaseId:DATABASES[0],collection:'marketplace_posts',recordId:'listing',objectHashes:[sha(h.path)],status:mode==='late'?'complete':'queued'});
+ if(mode==='ordinary')await processAccountMedia(h.stores[0].db,h.job,h.options);else {h.metadata.generation='2';const ref=h.stores[0].db.doc('account_deletion_jobs/job');await ref.create(h.job);await require('./accountDeletionLateMedia.cjs').reconcileLateAccountMedia(h.stores[0].db,ref,h.job,h.options);}
+ assert.equal(h.stores[0].records.get('media_cleanup_jobs/zzz').status,'complete');assert.deepEqual(h.deleted,[h.path],mode);assert.equal([...h.stores[0].records.values()].filter(d=>d.accountDeletionJobId==='job'&&d.status==='complete').length,101);
+}});

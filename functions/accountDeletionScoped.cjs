@@ -42,7 +42,8 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   await ref.update({phase:'scoped_drain',tokensDrainUntil:Math.max(now,clock())+policy.tokenDrainMs,scopeIndex:job.scopeIndex||0});return;
  }
  if(job.phase==='scoped_drain'){
-  if(!Number.isFinite(job.tokensDrainUntil)||now<job.tokensDrainUntil)return;
+  const drainUntil=retention.millis(job.tokensDrainUntil);
+  if(!Number.isFinite(drainUntil)||now<drainUntil)return;
   await ref.update({phase:'scoped_run',writesFrozen:true});return;
  }
  if(job.phase==='scoped_run') {

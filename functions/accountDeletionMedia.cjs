@@ -17,7 +17,9 @@ async function hasLiveReference(dbFor,objectHash){
 // Account-request jobs only. This never activates general orphan/draft cleanup.
 async function processAccountMedia(control,job,{dbFor,bucket,mediaPolicy}) {
  if(job.review?.processingAuthorized!==true||job.review.decision!=='approved'||job.preflight?.jobId!==job.id||job.preflight.uid!==job.uid||job.preflight.holds?.length)throw Error('media_preflight_required');
- for(const databaseId of require('./accountDeletionScope.cjs').DATABASES){const db=dbFor(databaseId),jobs=await db.collection('media_cleanup_jobs').where('accountDeletionJobId','==',job.id).limit(100).get();
+ for(const databaseId of require('./accountDeletionScope.cjs').DATABASES){const db=dbFor(databaseId);let cursor;
+ for(let page=0;;page++){
+  if(page>=100)throw Error('inventory_bound');let query=db.collection('media_cleanup_jobs').where('accountDeletionJobId','==',job.id).orderBy('__name__').limit(100);if(cursor)query=query.startAfter(cursor);const jobs=await query.get();
   for(const row of jobs.docs){const parent={...row.data(),databaseId:row.data().databaseId||databaseId};if(parent.status==='complete')continue;if(parent.uid!==job.uid||parent.databaseId!==databaseId)throw Error('media_scope_mismatch');
    if(parentBlocksCleanup(await db.doc(`${parent.collection}/${parent.recordId}`).get(),parent))throw Error('media_parent_restored');
    const manifest=job.preflight.manifest.filter(m=>m.databaseId===databaseId&&m.collection===parent.collection&&m.recordId===parent.recordId);
@@ -32,6 +34,8 @@ async function processAccountMedia(control,job,{dbFor,bucket,mediaPolicy}) {
    }
    await row.ref.update({status:'complete',lastAttemptAt:new Date(),completedAt:new Date()});
   }
+  if(jobs.size<100)break;cursor=jobs.docs.at(-1).id;
+ }
  }
 }
 module.exports={processAccountMedia};

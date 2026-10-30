@@ -88,3 +88,9 @@ test('request-bound access fences exist in both databases before Auth is disable
  const conflict=fixture();conflict.scopes[1].records.set('account_access_revocations/alice',{uid:'alice',jobId:'another-request'});await conflict.step();await assert.rejects(conflict.step(),/access_fence_conflict/);assert.deepEqual(conflict.calls,[]);assert.equal(conflict.scopes[1].records.get('account_access_revocations/alice').jobId,'another-request');
  }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
 });
+test('persisted Date token-drain deadlines advance the real scoped engine only after expiry',async()=>{
+ process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
+ try{const h=fixture();await h.ref.update({phase:'scoped_drain',tokensDrainUntil:new Date(h.now-1)});await h.step();assert.equal((await h.ref.get()).data().phase,'scoped_run');
+ const pending=fixture();await pending.ref.update({phase:'scoped_drain',tokensDrainUntil:new Date(pending.now+1000)});await pending.step();assert.equal((await pending.ref.get()).data().phase,'scoped_drain');
+ }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
+});
