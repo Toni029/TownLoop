@@ -1,5 +1,9 @@
 # Account-deletion access protection — October 30, 2026
 
+**Live status:** both scoped rules were published and hash-verified at 09:07 EDT on October 30.
+See `release-receipt.json`. Processor/access-fence creation code is local only; no worker,
+policy installation, account disablement, or deletion was deployed or activated.
+
 Owner authorized rules changes for safe requested-account deletion. This scoped release only
 blocks unauthorized/anonymous writes and prepares stale-session protection. It does not deploy
 or activate deletion workers, approve extra requests, install processing policies or delete data.

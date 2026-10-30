@@ -1,0 +1,24 @@
+{
+  "project": "cc-livingcommunity-app",
+  "mode": "after",
+  "verifiedAt": "2026-10-30T13:07:06.287Z",
+  "rules": [
+    {
+      "database": "(default)",
+      "sha256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "sha256": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2"
+    }
+  ],
+  "residentDocumentsRead": 0,
+  "deploymentScope": "firestore:rules only, both existing databases",
+  "deletionWorkersDeployed": false,
+  "deletionProcessingActivated": false,
+  "accountPoliciesWritten": false,
+  "residentRecordsModified": 0,
+  "authAccountsDisabledOrDeleted": 0,
+  "hostingChanged": false,
+  "storageRulesChanged": false
+}
