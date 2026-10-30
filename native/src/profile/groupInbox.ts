@@ -57,24 +57,23 @@ export function useGroupInbox(user: UserProfile | null) {
 export function useGroupConversation(thread: Thread | undefined, uid: string) {
   const id=thread?.data.schemaVersion===3 ? thread.id : '';
   const epoch=thread?.data.epoch;
-  const [state,setState]=useState<{key:string;messages:Message[];roster:GroupRosterMember[];candidates:GroupRosterMember[];error:string;hasMore:boolean;loaded:boolean}>({key:'',messages:[],roster:[],candidates:[],error:'',hasMore:false,loaded:false});
+  const [state,setState]=useState<{key:string;messages:Message[];error:string;hasMore:boolean;loaded:boolean}>({key:'',messages:[],error:'',hasMore:false,loaded:false});
   const key=`${uid}/${id}/${epoch}`;
   const [pageSize,setPageSize]=useState({key:'',size:100});
   const count=pageSize.key===key?pageSize.size:100;
   useEffect(() => {
     if (!id || !uid || !epoch) return;
     let active=true;
-    const update=(patch:Partial<typeof state>)=>{if(active)setState(s=>({... (s.key===key?s:{key,messages:[],roster:[],candidates:[],error:'',hasMore:false,loaded:false}),...patch}));};
+    const update=(patch:Partial<typeof state>)=>{if(active)setState(s=>({... (s.key===key?s:{key,messages:[],error:'',hasMore:false,loaded:false}),...patch}));};
     const stop=onSnapshot(query(collection(db,'inbox_conversations',id,'messages'),where('visibility','array-contains',`${uid}:${epoch}`),orderBy('sequence','desc'),limit(count)),snapshot=>{
       update({messages:snapshot.docs.map(d=>({...d.data(),id:d.id} as Message)).reverse(),error:'',loaded:true,hasMore:snapshot.docs.length===count});
-      void groupAction('roster',{conversationId:id}).then(result=>update({roster:result.members,candidates:result.candidates})).catch(()=>update({error:'Unable to refresh participants.'}));
-    },()=>update({messages:[],roster:[],candidates:[],loaded:false,error:'This conversation is no longer available.'}));
+    },()=>update({messages:[],loaded:false,error:'This conversation is no longer available.'}));
     const stopRoot=onSnapshot(doc(db,'inbox_conversations',id),snapshot=>{
-      if(!snapshot.exists())update({messages:[],roster:[],candidates:[],loaded:false,error:'This conversation is no longer available.'});
-    },()=>update({messages:[],roster:[],candidates:[],loaded:false,error:'This conversation is no longer available.'}));
+      if(!snapshot.exists())update({messages:[],loaded:false,error:'This conversation is no longer available.'});
+    },()=>update({messages:[],loaded:false,error:'This conversation is no longer available.'}));
     if(thread.category==='maintenance'&&thread.data.conversationStatus==='open')void groupAction('sync',{conversationId:id}).catch(()=>{});
     return()=>{active=false;stop();stopRoot();};
   },[id,uid,epoch,key,count]);
-  const current=state.key===key?state:{messages:[],roster:[],candidates:[],error:'',hasMore:false,loaded:false};
+  const current=state.key===key?state:{messages:[],error:'',hasMore:false,loaded:false};
   return {...current,loadMore:()=>setPageSize({key,size:count+100})};
 }

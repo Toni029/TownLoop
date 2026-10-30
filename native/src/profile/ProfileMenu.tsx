@@ -1,3 +1,5 @@
+import {InboxThreadIcon} from './InboxThreadIcon';
+import {InboxParticipants} from './InboxParticipants';
 import {groupAction,useGroupConversation} from './groupInbox';
 import {menuBounds} from "../layout/phoneGeometry";
 import {useInboxPush} from '../notifications/InboxPushProvider';
@@ -427,7 +429,6 @@ export function ProfileMenu({
     ...baseConversation,messages:group.messages,
     recipient: baseConversation.category === 'friend' ? {...baseConversation.recipient,...data.directory.items.find(p=>String(p.id)===String(baseConversation.recipient.id))} : baseConversation.recipient,
   } : baseConversation;
-  const groupRoster = group.roster;
   const contact =
     conversation &&
     (conversation.category === "friend" ||
@@ -1364,12 +1365,6 @@ export function ProfileMenu({
                                 : t.category === "maintenance"
                                   ? "#d97706"
                                   : "#059669";
-                            const Glyph =
-                              (t.category === "office" || t.data.officeDirect)
-                                ? Building2
-                                : t.category === "maintenance"
-                                  ? Wrench
-                                  : Users;
                             return (
                               <View
                                 key={`${t.category}:${t.id}`}
@@ -1401,20 +1396,7 @@ export function ProfileMenu({
                                       paddingRight: 36,
                                     }}
                                   >
-                                    <View
-                                      style={{
-                                        width: 32,
-                                        height: 32,
-                                        borderRadius: 12,
-                                        backgroundColor: tone + "20",
-                                        borderWidth: 1,
-                                        borderColor: tone + "33",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                      }}
-                                    >
-                                      <Glyph size={16} color={tone} />
-                                    </View>
+                                    <InboxThreadIcon category={t.category} officeDirect={!!t.data.officeDirect}/>
                                     <View style={{ flex: 1 }}>
                                       <View
                                         style={{
@@ -1995,15 +1977,12 @@ export function ProfileMenu({
                                   gap: 10,
                                 }}
                               >
-                                {contact ? (
+                                {conversation.category === 'office' || conversation.data.officeDirect ? (
+                                  <InboxThreadIcon category={conversation.category} officeDirect={!!conversation.data.officeDirect}/>
+                                ) : contact ? (
                                   <Avatar resident={contact} size={36} />
-                                ) : conversation.category === "office" ? (
-                                  <Building2 size={28} color="#2563eb" />
                                 ) : (
-                                  <Image
-                                    source={require("../../assets/crew-badge.png")}
-                                    style={{ width: 36, height: 36 }}
-                                  />
+                                  <Image source={require("../../assets/crew-badge.png")} style={{width:36,height:36}} />
                                 )}
                                 <View style={{ flex: 1, minWidth: 0 }}>
                                   <Text style={[s.rowTitle, { color: ink,fontSize:18,fontFamily:'JakartaExtra' }]}>
@@ -2037,6 +2016,13 @@ export function ProfileMenu({
                                   </Text>
                                 </Pressable>
                               )}
+                              {data.groupsEnabled && conversation.category!=='friend' && <InboxParticipants
+                                key={`${user.id}/${conversation.category}/${conversation.id}`}
+                                thread={conversation} uid={String(user.id)} open={participantsOpen}
+                                onToggle={()=>setParticipantsOpen(v=>!v)}
+                                onUpgrade={(id,type)=>setSelected({category:type==='private'?'friend':type as Category,id})}
+                                dark={dark} ink={ink} muted={muted} disabled={busy}
+                              />}
                             </View>
                             {data.errors.map((message) => (
                               <Text key={message} style={s.error}>
@@ -2049,19 +2035,8 @@ export function ProfileMenu({
                                 onPress={data.retry}
                               />
                             )}
-                            {data.groupsEnabled && conversation.data.schemaVersion!==3 && <Action title="View Participants" onPress={()=>void act(async()=>{
-                              const result=await groupAction('upgradeLegacy',{source:{friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats'}[conversation.category],legacyId:conversation.id});
-                              setSelected({category:result.type==='private'?'friend':result.type || conversation.category,id:result.conversationId});setParticipantsOpen(true);
-                            })}/>}
-                            {conversation.data.schemaVersion===3 && <>
-                              <Action title={participantsOpen?'Hide Participants':'View Participants'} onPress={()=>setParticipantsOpen(v=>!v)}/>
-                              {!!group.error && <Text style={s.error}>{group.error}</Text>}
-                              {participantsOpen && <View style={{gap:8,padding:12}}>
-                                {groupRoster.map(p=><Text key={p.uid} style={[s.small,{color:muted}]}>{p.name}{p.uid===String(user.id)?' (You)':''}{p.status==='left'?' · Left':''}</Text>)}
-                                {conversation.category==='office' && group.candidates.map(p=><Action key={p.uid} title={`Add ${p.name}`} onPress={()=>void act(async()=>{await groupAction('add',{conversationId:conversation.id,recipientIds:[p.uid]});setNotice('Participant list updated.');})}/>)}
-                              </View>}
-                              {group.hasMore && <Action title="Load earlier messages" onPress={group.loadMore}/>}
-                            </>}
+                            {!!group.error && <Text style={s.error}>{group.error}</Text>}
+                            {conversation.data.schemaVersion===3 && group.hasMore && <Action title="Load earlier messages" onPress={group.loadMore}/>}
                             <FlatList
                               inverted
                               data={[...conversation.messages].reverse()}
@@ -2241,6 +2216,7 @@ export function ProfileMenu({
                             >
                               <TextInput
                                 accessibilityLabel="Reply"
+                                onFocus={()=>setParticipantsOpen(false)}
                                 placeholder="Write a reply…"
                                 placeholderTextColor={muted}
                                 multiline
