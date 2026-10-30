@@ -1,0 +1,133 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null &&
+        !exists(/databases/$(database)/documents/account_access_revocations/$(request.auth.uid));
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function currentProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isApproved() {
+      return isSignedIn() && currentProfile().approved == true &&
+        currentProfile().get('deletionPending', false) == false &&
+        currentProfile().role in ['resident', 'admin', 'vip', 'crew'];
+    }
+
+    function isManager() {
+      return isApproved() &&
+        (currentProfile().role == 'admin' || currentProfile().role == 'vip');
+    }
+
+    function isCrewOrManager() {
+      return isApproved() &&
+        (currentProfile().role == 'crew' || isManager());
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) &&
+        request.resource.data.id == request.auth.uid &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.role == '' &&
+        request.resource.data.approved == false;
+      allow update: if !exists(/databases/$(database)/documents/account_access_revocations/$(userId)) &&
+        resource.data.get('deletionPending', false) == false &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'deletionPending']) &&
+        (isManager() || (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'address', 'avatarUrl', 'avatar_url', 'phone', 'wing',
+                    'emergencyContact', 'emergency_contact', 'dietaryPreference',
+                    'dietary_preference'])));
+      allow delete: if isManager() && !exists(/databases/$(database)/documents/account_access_revocations/$(userId)) && resource.data.get('deletionPending', false) == false;
+    }
+
+    match /posts/{postId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isApproved() && (isManager() || resource.data.authorId == request.auth.uid);
+    }
+
+    match /marketItems/{itemId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isApproved() && (isManager() || resource.data.authorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed']));
+      allow delete: if isApproved() && (isManager() || resource.data.authorId == request.auth.uid);
+    }
+
+    match /marketplace_posts/{postId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update: if isApproved() && (isManager() || resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'claimed']));
+      allow delete: if isApproved() && (isManager() || resource.data.userId == request.auth.uid);
+    }
+
+    match /discussion_feed/{postId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update: if isApproved() && (isManager() || resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'likes']));
+      allow delete: if isApproved() && (isManager() || resource.data.userId == request.auth.uid);
+    }
+
+    match /work_orders/{orderId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update: if isApproved() && (isCrewOrManager() || resource.data.userId == request.auth.uid);
+      allow delete: if isApproved() && (isManager() ||
+        (resource.data.userId == request.auth.uid && resource.data.status != 'Done') ||
+        (currentProfile().role == 'crew' && resource.data.status == 'Done'));
+    }
+
+    match /newsletters/{newsletterId} {
+      allow read: if isSignedIn();
+      allow write: if isManager();
+
+      match /chunks/{chunkId} {
+        allow read: if isSignedIn();
+        allow write: if isManager();
+      }
+    }
+
+    match /community_events/{eventId} {
+      allow read: if isApproved();
+      allow write: if isManager();
+    }
+
+    match /community_highlights/{highlightId} {
+      allow read: if isApproved();
+      allow write: if isManager();
+    }
+
+    match /maintenance_chats/{chatId} {
+      allow read, write: if isApproved();
+    }
+
+    match /office_chats/{chatId} {
+      allow read, write: if isApproved();
+    }
+
+    match /resident_chats/{chatId} {
+      allow read, write: if isApproved();
+    }
+
+    match /marketplace_chats/{chatId} {
+      allow read, write: if isApproved();
+    }
+
+    // Server-managed deletion fence: clients cannot create, clear or inspect it.
+    match /account_access_revocations/{uid} { allow read, write: if false; }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -185,7 +185,7 @@ exports.resumeAccountDeletions = onSchedule({ ...options, schedule: 'every 5 min
     try {
       // Enough phases to promptly remove identity; inventories remain bounded per invocation.
       for (let step = 0; step < 8; step++) await processJob(db, getAuth(), job.ref);
-    } catch (error) { failed = true;humanReview=[7,'permission-denied','auth/insufficient-permission','auth/user-not-found'].includes(error?.code)||['scope_identity_mismatch','missing_redaction_key','unsupported_scope_phase','missing_identity_proof','identity_mismatch'].includes(error?.message); }
+    } catch (error) { failed = true;humanReview=[7,'permission-denied','auth/insufficient-permission','auth/user-not-found'].includes(error?.code)||['access_fence_conflict','scope_identity_mismatch','missing_redaction_key','unsupported_scope_phase','missing_identity_proof','identity_mismatch'].includes(error?.message); }
     finally {
       await db.runTransaction(async tx => {
         const finalJob=(await tx.get(job.ref)).data();

@@ -1,0 +1,6 @@
+{
+  "firestore": [
+    {"database": "(default)", "rules": "firestore.default.candidate.rules"},
+    {"database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb", "rules": "firestore.website.candidate.rules"}
+  ]
+}

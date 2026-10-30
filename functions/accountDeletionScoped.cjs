@@ -22,6 +22,13 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
  }
  if(job.phase==='scoped_freeze') {
   if(!Number.isFinite(retention.millis(job.identityVerifiedAt)))throw Error('missing_identity_proof');
+  // Freeze both clients before revoking Auth. A stale website session must not recreate a profile.
+  // A crash in the second scope replays the same request-bound fence; never overwrite another job.
+  for(const databaseId of DATABASES)await dbFor(databaseId).runTransaction(async tx=>{
+   const access=dbFor(databaseId).doc(`account_access_revocations/${uid}`),existing=(await tx.get(access)).data();
+   if(existing&&(existing.uid!==uid||existing.jobId!==id||existing.policyReference!==policy.approvalReference))throw Error('access_fence_conflict');
+   if(!existing)tx.create(access,{uid,jobId:id,policyReference:policy.approvalReference,createdAt:new Date(now),expiresAt:new Date(dates.retentionDueAt)});
+  });
   // No deletion request or review invokes this. It runs only after explicit processing authorization.
   await auth.updateUser(uid,{disabled:true});await auth.revokeRefreshTokens(uid);
   // Bind proof expiry to the original request, never extend it with processing retries.
@@ -110,7 +117,11 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
    if(!page.empty){for(const receipt of page.docs)await db.runTransaction(async tx=>{const data=(await tx.get(receipt.ref)).data();if(data?.expireRecord){const recordRef=db.doc(data.path),record=await tx.get(recordRef);if(record.data()?.deletionExpiresAt===dates.retentionDueAt)tx.delete(recordRef);}tx.delete(receipt.ref);});return;}
    const media=await db.collection('media_cleanup_jobs').where('uid','==',uid).where('status','in',['complete','parent_restored']).limit(50).get();
    if(!media.empty){for(const receipt of media.docs)await db.runTransaction(async tx=>{const live=(await tx.get(receipt.ref)).data();if(live?.uid===uid&&['complete','parent_restored'].includes(live.status))tx.delete(receipt.ref);});return;}
-   await db.runTransaction(async tx=>{tx.delete(scopeRef);});
+   await db.runTransaction(async tx=>{
+    const fence=db.doc(`account_access_revocations/${uid}`),proof=(await tx.get(fence)).data();
+    if(proof&&(proof.uid!==uid||proof.jobId!==id))throw Error('access_fence_conflict');
+    tx.delete(scopeRef);if(proof)tx.delete(fence);
+   });
   }
   const devices=await control.collection('account_cleanup_devices').where('uid','==',uid).limit(50).get();
   if(!devices.empty){const batch=control.batch();for(const device of devices.docs)batch.delete(device.ref);await batch.commit();return;}

@@ -1,0 +1,18 @@
+{
+  "project": "cc-livingcommunity-app",
+  "scope": "Firestore rules only; no processing activation, record writes, Hosting, Storage or indexes",
+  "scopes": [
+    {
+      "database": "(default)",
+      "file": "firestore.default.candidate.rules",
+      "baselineSHA256": "1a3ee06055fe330fd7a69f399e84125be892e623de6b02dccf4b6527b6aa1859",
+      "candidateSHA256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "file": "firestore.website.candidate.rules",
+      "baselineSHA256": "29ea681048a0218295555da03caf21c0d8e625a722347e808feeb92cc101fdc0",
+      "candidateSHA256": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2"
+    }
+  ]
+}
