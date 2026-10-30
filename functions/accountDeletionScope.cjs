@@ -1,4 +1,5 @@
 // Exact UID metadata only. Pure preparation: no Firebase reads or writes.
+const {INVENTORY_VERSION}=require('./accountDeletionInventory.cjs');
 const {millis}=require('./accountDeletionRetention.cjs');
 const DATABASES=Object.freeze(['(default)','ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb']);
 function classifyOwnership(metadata,uid,verifiedUids) {
@@ -30,7 +31,7 @@ function databaseCompletionReady(job,now=Date.now()) {
     const s=matches[0],completed=millis(s.completedAt);
     return s.uid===job.uid && s.policyReference===job.review?.policyReference &&
       typeof s.policyReference==='string' && s.policyReference.length>0 &&
-      s.inventoryComplete===true && s.recordsComplete===true && s.writesFrozen===true &&
+      s.inventoryVersion===INVENTORY_VERSION && s.inventoryComplete===true && s.recordsComplete===true && s.writesFrozen===true &&
       s.unresolvedIdentityCount===0 && s.unresolvedMediaCount===0 &&
       Number.isFinite(completed) && completed<=now && completed>=millis(job.createdAt);
   });

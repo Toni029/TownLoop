@@ -98,7 +98,10 @@ function plan(collection, record, uid, alias=pseudonym(uid)) {
     if(record.rsvpChange?.attendee?.id===uid)patch.rsvpChange={};
     return {action:'patch',patch};
   }
-  if(['moderation_reports','moderation_audit','notification_deliveries'].includes(collection)) {
+  // Evidence retention/disposal requires a documented case and expiry; never silently erase it.
+  if(['moderation_reports','moderation_audit'].includes(collection))return {action:'review',reason:'reported_evidence_requires_disposition'};
+  if(['notification_events','notification_reads'].includes(collection))return record.uid===uid?{action:'delete_record'}:{action:'review',reason:'notification_identity_requires_review'};
+  if(collection==='notification_deliveries') {
     const keep=['status','kind','action','createdAt','handledAt'];
     return {action:'replace_audit',data:Object.fromEntries(keep.filter(k=>record[k]!==undefined).map(k=>[k,record[k]]))};
   }

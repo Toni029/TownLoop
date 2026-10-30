@@ -66,7 +66,7 @@ test('Google reauthentication stays in the secure request function and failure n
 test('native request normalizes confirmation for the deployed server while retaining reauthentication and request-only payloads',async()=>{
  const calls:any[]=[];const user={uid:'fixture',email:'fixture@example.invalid',providerData:[{providerId:'password'}],getIdToken:async()=>calls.push('token')};
  const modules:Record<string,any>={
-  '../profile/deletionConfirmation':{validDeletionConfirmation},'../notifications/device':{},'../localData/privateMediaCache':{},'@react-native-async-storage/async-storage':{},
+  './deletionStatus':{},'../profile/deletionConfirmation':{validDeletionConfirmation},'../notifications/device':{},'../localData/privateMediaCache':{},'@react-native-async-storage/async-storage':{},
   'firebase/auth':{EmailAuthProvider:{credential:()=>({})},reauthenticateWithCredential:async()=>calls.push('reauth')},
   'firebase/functions':{getFunctions:()=>({}),httpsCallable:()=>async(payload:any)=>{calls.push(payload);return {data:{status:'requested',jobId:'fixture'}};}},
   '../localData/accountCleanupQueue':{createAccountCleanupQueue:()=>({})},'../localData/nativeStorage':{},'./firebase':{auth:{currentUser:user},app:{}},'./accountDeletionGoogle':{},

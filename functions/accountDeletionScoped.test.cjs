@@ -13,7 +13,7 @@ function fixture(extra={}) {
  const calls=[],auth={getUser:async uid=>({uid}),updateUser:async(uid,patch)=>calls.push(['disable',uid,patch]),revokeRefreshTokens:async uid=>calls.push(['revoke',uid]),deleteUser:async uid=>calls.push(['delete',uid])};
  const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve('./accountDeletionV2.cjs'),'utf8'),{module,exports:module.exports,Date,process,require:name=>name==='firebase-admin/firestore'?{FieldPath:{documentId:()=> '__name__'},FieldValue:{serverTimestamp:()=>new Date(now)}}:require(name)});
  const ref=control.db.doc(`account_deletion_jobs/${id}`),dbFor=id=>scopes[DATABASES.indexOf(id)].db;
- return {scopes,control,ref,calls,policy,get now(){return now;},advance(days){now+=days*86400000;},async step(){const job=(await ref.get()).data();await advanceScopedDeletion(control.db,auth,ref,job,{dbFor,step:module.exports.processRetentionStep,clearWebAccess:async()=>calls.push(['bridge_closed']),now,clock:()=>now});},async run(){for(let n=0;n<180;n++){const job=(await ref.get()).data();if(job.phase==='scoped_drain')now=job.tokensDrainUntil+1;if(['retention_pending','needs_review','waiting_for_media'].includes(job.status))return;await this.step();if(!extra['posts/own']?.photoUrl)for(const scope of scopes)for(const [path,media]of scope.records)if(path.startsWith('media_cleanup_jobs/')&&media.status==='queued')scope.records.set(path,{...media,status:'complete',fixtureEvidence:'verified empty Storage inventory'});}throw Error('fixture did not settle');}};
+ return {scopes,control,ref,calls,policy,get now(){return now;},advance(days){now+=days*86400000;},async step(){const job=(await ref.get()).data();await advanceScopedDeletion(control.db,auth,ref,job,{dbFor,step:module.exports.processRetentionStep,clearWebAccess:async()=>calls.push(['bridge_closed']),now,clock:()=>now});},async run(){for(let n=0;n<320;n++){const job=(await ref.get()).data();if(job.phase==='scoped_drain')now=job.tokensDrainUntil+1;if(['retention_pending','needs_review','waiting_for_media'].includes(job.status))return;await this.step();if(!extra['posts/own']?.photoUrl)for(const scope of scopes)for(const [path,media]of scope.records)if(path.startsWith('media_cleanup_jobs/')&&media.status==='queued')scope.records.set(path,{...media,status:'complete',fixtureEvidence:'verified empty Storage inventory'});}throw Error('fixture did not settle');}};
 }
 test('both databases complete independently before one Auth deletion; others and reservations survive',async()=>{
  const old=process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
@@ -38,7 +38,42 @@ test('a failure in the website scope cannot overwrite app completion or prematur
 });
 test('final reconciliation catches late backend references before certifying either scope',async()=>{
  process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
- try{const h=fixture();let inserted=false;for(let n=0;n<180;n++){const root=(await h.ref.get()).data();if(root.phase==='scoped_drain')h.advance(1);if(root.status==='retention_pending')break;const scope=h.control.records.get(`account_deletion_scopes/${jobIdFor('alice')}`);if(scope?.phase==='scoped_reconcile'&&!inserted){h.control.records.set('notification_deliveries/late',{uid:'alice',status:'accepted',createdAt:new Date(h.now)});inserted=true;}await h.step();for(const store of h.scopes)for(const [path,job]of store.records)if(path.startsWith('media_cleanup_jobs/')&&job.status==='queued')store.records.set(path,{...job,status:'complete'});}
+ try{const h=fixture();let inserted=false;for(let n=0;n<320;n++){const root=(await h.ref.get()).data();if(root.phase==='scoped_drain')h.advance(1);if(root.status==='retention_pending')break;const scope=h.control.records.get(`account_deletion_scopes/${jobIdFor('alice')}`);if(scope?.phase==='scoped_reconcile'&&!inserted){h.control.records.set('notification_deliveries/late',{uid:'alice',status:'accepted',createdAt:new Date(h.now)});inserted=true;}await h.step();for(const store of h.scopes)for(const [path,job]of store.records)if(path.startsWith('media_cleanup_jobs/')&&job.status==='queued')store.records.set(path,{...job,status:'complete'});}
  assert.equal(inserted,true);assert.equal((await h.ref.get()).data().status,'retention_pending');assert.equal(h.control.records.get('notification_deliveries/late').uid,undefined);assert.equal(h.calls.filter(c=>c[0]==='delete').length,1);
  }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
+});
+
+test('new Inbox membership, nested messages and visibility epochs cannot be silently omitted',async()=>{
+ process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
+ try{const h=fixture({
+  'inbox_conversations/thread':{schemaVersion:3,memberIds:['alice','bob'],memberRefs:{alice:'a',bob:'b'}},
+  'inbox_memberships/a':{uid:'alice',conversationId:'thread',status:'left'},
+  'inbox_conversations/thread/messages/m':{senderId:'bob',body:'fixture only',visibility:['alice:1','bob:1']},
+ });await h.run();assert.equal((await h.ref.get()).data().status,'needs_review');assert.equal(h.calls.some(c=>c[0]==='delete'),false);
+ const receipts=[...h.control.records].filter(([p])=>p.includes('/inventory/')).map(([,d])=>d);
+ for(const path of ['inbox_conversations/thread','inbox_memberships/a','inbox_conversations/thread/messages/m'])assert(receipts.some(r=>r.path===path&&r.state==='needs_review'),path);
+ assert.equal(h.control.records.get('inbox_conversations/thread/messages/m').body,'fixture only');
+ }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
+});
+test('reported source content and evidence are preserved before any media cleanup is queued',async()=>{
+ process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
+ try{const h=fixture({'moderation_reports/report':{collection:'posts',id:'own',reporterId:'bob',targetUid:'alice',status:'open'},'posts/own':{userId:'alice',title:'reported fixture'}});await h.run();
+ assert.equal((await h.ref.get()).data().status,'needs_review');assert.equal(h.control.records.get('posts/own').title,'reported fixture');assert.equal(h.control.records.get('moderation_reports/report').targetUid,'alice');assert.equal(h.calls.some(c=>c[0]==='delete'),false);
+ assert.equal([...h.control.records].some(([p,d])=>p.startsWith('media_cleanup_jobs/')&&d.recordId==='own'),false);
+ }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
+});
+test('a UID in a legacy conversation document path cannot survive under a completion receipt',async()=>{
+ process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
+ try{const h=fixture({'resident_chats/alice_vs_bob':{identityVersion:2,participantIds:['alice','bob'],messages:[]}});await h.run();assert.equal((await h.ref.get()).data().status,'needs_review');assert(h.control.records.has('resident_chats/alice_vs_bob'));assert.equal(h.calls.some(c=>c[0]==='delete'),false);
+ }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
+});
+test('owned notification state is erased while another residents notification state survives',async()=>{
+ process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
+ try{const h=fixture({'notification_events/a':{uid:'alice',seen:false},'notification_reads/a':{uid:'alice',readAt:1},'notification_events/b':{uid:'bob',seen:false}});await h.run();assert.equal((await h.ref.get()).data().status,'retention_pending');for(const scope of h.scopes){assert(!scope.records.has('notification_events/a'));assert(!scope.records.has('notification_reads/a'));assert(scope.records.has('notification_events/b'));}}
+ finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
+});
+test('nested message inventory resumes by full document path beyond the first 100 records',async()=>{
+ process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
+ try{const extra=Object.fromEntries(Array.from({length:101},(_,i)=>[`inbox_conversations/t/messages/${String(i).padStart(3,'0')}`,{senderId:i===100?'alice':'bob',visibility:['bob:1']} ]));const h=fixture(extra);await h.run();assert.equal((await h.ref.get()).data().status,'needs_review');const receipt=h.control.records.get(`account_deletion_scopes/${jobIdFor('alice')}/inventory/${jobIdFor('inbox_conversations/t/messages/100')}`);assert.equal(receipt.state,'needs_review');assert.equal(h.calls.some(c=>c[0]==='delete'),false);}
+ finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
 });

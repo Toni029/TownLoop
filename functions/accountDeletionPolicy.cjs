@@ -14,8 +14,9 @@ function referencesUid(data, uid) {
   // Include embedded messages/comments and legacy participant objects; never compare display names.
   if (Array.isArray(data)) return data.some(item => referencesUid(item, uid));
   return Object.hasOwn(data, uid) || Object.entries(data).some(([key, value]) =>
-    (['userId', 'authorId', 'authorUid', 'senderId', 'residentId', 'uid', 'id', 'createdBy', 'ownerId', 'sellerId', 'buyerId', 'resolutionAuthorId', 'completedBy', 'reporterId', 'targetUid', 'actorId', 'uploadedBy'].includes(key) && value === uid) ||
-    (key === 'participantIds' && Array.isArray(value) && value.includes(uid)) ||
+    (['userId', 'authorId', 'authorUid', 'senderId', 'residentId', 'uid', 'id', 'createdBy', 'ownerId', 'sellerId', 'buyerId', 'resolutionAuthorId', 'completedBy', 'reporterId', 'targetUid', 'actorId', 'uploadedBy', 'peerId'].includes(key) && value === uid) ||
+    (['participantIds','memberIds'].includes(key) && Array.isArray(value) && value.includes(uid)) ||
+    (key === 'visibility' && Array.isArray(value) && value.some(entry => typeof entry === 'string' && entry.startsWith(`${uid}:`) && /^[1-9][0-9]*$/.test(entry.slice(uid.length+1)))) ||
     (value && typeof value === 'object' && referencesUid(value, uid)));
 }
 function approvedRetention(policy, collection) {

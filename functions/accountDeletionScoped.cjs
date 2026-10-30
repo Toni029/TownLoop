@@ -3,6 +3,7 @@ const {DATABASES,databaseCompletionReady,writeFreezeReady}=require('./accountDel
 const retention=require('./accountDeletionRetention.cjs');
 const {jobIdFor}=require('./accountDeletionPolicy.cjs');
 const {processRetentionStep}=require('./accountDeletionV2.cjs');
+const {INVENTORY_VERSION}=require('./accountDeletionInventory.cjs');
 const PRIVATE=['notification_devices','safety_limits'];
 // Every call is made under the root worker lease and per-request independent approval.
 async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('firebase-admin/firestore').getFirestore(id),step=processRetentionStep,clearWebAccess=()=>require('./storageWebAccessPolicy.cjs').syncWebMembership(control,dbFor(DATABASES[1]),job.uid),now=Date.now(),clock=Date.now}={}) {
@@ -44,6 +45,7 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   }
   const scope=snap.data();
   if(scope.uid!==uid||scope.databaseId!==databaseId||scope.review.policyReference!==job.review.policyReference)throw Error('scope_identity_mismatch');
+  if(scope.phase!=='requested'&&scope.phase!=='disable'&&scope.inventoryVersion!==INVENTORY_VERSION){await scopeRef.update({phase:'v2_inventory',status:'processing',collectionIndex:0,cursor:'',verifyCursor:'',finalInventory:false,inventoryComplete:false,inventoryVersion:INVENTORY_VERSION});return;}
   if(scope.status==='needs_review') {await ref.update({status:'needs_review',blockedDatabase:databaseId,lastError:'scope_exception_requires_review'});return;}
   if(scope.phase==='scoped_reconcile'){await scopeRef.update({phase:'v2_inventory',collectionIndex:0,cursor:'',verifyCursor:'',finalInventory:true,incomingBlocksChecked:false,blockCursor:''});return;}
   if(['requested','disable','v2_inventory','v2_redact'].includes(scope.phase)) {if(!/^[a-f0-9]{64}$/.test(scope.redactionKey||''))throw Error('missing_redaction_key');await step(db,auth,scopeRef,scope,{policy,databaseId,redactionKey:scope.redactionKey});return;}
@@ -87,7 +89,7 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   if(scope.phase==='scoped_complete') {
    // Write through to the root AFTER the independent database's transaction committed.
    // A crash between those commits simply replays this deterministic receipt.
-   const receipt={databaseId,uid,policyReference:job.review.policyReference,inventoryComplete:true,recordsComplete:true,writesFrozen:true,unresolvedIdentityCount:0,unresolvedMediaCount:0,completedAt:scope.completedAt};
+   const receipt={databaseId,uid,policyReference:job.review.policyReference,inventoryVersion:scope.inventoryVersion,inventoryComplete:true,recordsComplete:true,writesFrozen:true,unresolvedIdentityCount:0,unresolvedMediaCount:0,completedAt:scope.completedAt};
    const proofs=(job.databaseCompletion||[]).filter(s=>s.databaseId!==databaseId);
    await ref.update({databaseCompletion:[...proofs,receipt],scopeIndex:(job.scopeIndex||0)+1,status:'processing',lastError:''});return;
   }

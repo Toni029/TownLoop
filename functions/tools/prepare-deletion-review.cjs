@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = path.resolve(__dirname, '..');
 const target = path.resolve(source, '../.release/deletion-review');
-const files = ['accountDeletionReview.cjs', 'accountDeletionPolicy.cjs', 'accountDeletionRetention.cjs', 'package.json', 'package-lock.json'];
+const files = ['accountDeletionReview.cjs', 'accountDeletionStatus.cjs', 'accountDeletionPolicy.cjs', 'accountDeletionRetention.cjs', 'package.json', 'package-lock.json'];
 fs.mkdirSync(target, {recursive: true});
 // Reject stale/unreviewed source additions, rather than ship anything extra.
 const allowed = new Set([...files, 'index.cjs', 'node_modules']);

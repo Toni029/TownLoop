@@ -49,7 +49,7 @@ async function managerSession(request) {
   return token;
 }
 function requestSummary(id, job) {
-  return { jobId: id, status: job.status, createdAt: job.createdAt?.toMillis?.() || null,
+  return { ...require('./accountDeletionStatus.cjs').processingSummary(job), jobId: id, status: job.status, createdAt: job.createdAt?.toMillis?.() || null,
     reviewedAt: job.review?.reviewedAt?.toMillis?.() || null,
     ...retention.deadlines(job.createdAt, job.review?.decision === 'approved' ? job.review.reviewedAt : null),
     reason: ['rejected','delayed'].includes(job.review?.decision) ? job.review.reason : '',

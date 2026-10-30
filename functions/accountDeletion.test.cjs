@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial } = require('./accountDeletionPolicy.cjs');
-const completedScopes=job=>{job.createdAt ??=Date.now();return require('./accountDeletionScope.cjs').DATABASES.map(databaseId=>({databaseId,uid:job.uid,policyReference:job.review.policyReference,inventoryComplete:true,recordsComplete:true,writesFrozen:true,unresolvedIdentityCount:0,unresolvedMediaCount:0,completedAt:Date.now()}));};
+const completedScopes=job=>{job.createdAt ??=Date.now();return require('./accountDeletionScope.cjs').DATABASES.map(databaseId=>({databaseId,uid:job.uid,policyReference:job.review.policyReference,inventoryVersion:require('./accountDeletionInventory.cjs').INVENTORY_VERSION,inventoryComplete:true,recordsComplete:true,writesFrozen:true,unresolvedIdentityCount:0,unresolvedMediaCount:0,completedAt:Date.now()}));};
 function harness(initial, authorizeProcessing = false) {
   if (authorizeProcessing) for (const [path, job] of Object.entries(initial)) if (path.startsWith("account_deletion_jobs/") && !path.includes("/inventory/")) job.review = { decision: "approved", processingAuthorized: true, reviewerId: "fixture-manager", reviewedAt:Date.now(), policyReference: initial["deletion_policies/account"]?.approvalReference || "owner-approved-ticket", ...job.review };
   const records = new Map(Object.entries(initial));
@@ -15,17 +15,17 @@ function harness(initial, authorizeProcessing = false) {
     return { where: (key, operator, value) => { assert.ok(['==', 'in'].includes(operator)); return query(path, [...filters, [key, value, operator]], cursor, count); },
       orderBy: () => query(path, filters, cursor, count), startAfter: value => query(path, filters, value, count), limit: value => query(path, filters, cursor, value),
       doc: id => doc(`${path}/${id}`), get: async () => {
-        const docs = [...records.keys()].filter(key => key.startsWith(`${path}/`) && key.split('/').length === path.split('/').length + 1 && key.split('/').at(-1) > cursor)
+        const docs = [...records.keys()].filter(key => (path.startsWith('@group/') ? key.split('/').at(-2) === path.slice(7) && key > cursor : key.startsWith(`${path}/`) && key.split('/').length === path.split('/').length + 1 && key.split('/').at(-1) > cursor))
           .sort().filter(key => filters.every(([field, value, operator]) => operator === 'in' ? value.includes(records.get(key)[field]) : records.get(key)[field] === value)).slice(0, count).map(snapshot);
         return { docs, size: docs.length, empty: !docs.length };
       } };
   }
-  const db = { doc, collection: query, batch: () => {
+  const db = { doc, collection: query, collectionGroup:name=>query('@group/'+name), batch: () => {
     const changes = [], batch = { set: (ref, value) => changes.push(() => records.set(ref.path, value)),
       update: (ref, value) => changes.push(() => records.set(ref.path, { ...records.get(ref.path), ...value })),
       delete: ref => changes.push(() => records.delete(ref.path)), commit: async () => changes.forEach(change => change()) }; return batch;
   } };
-  db.runTransaction = async action => action({ get: async ref => snapshot(ref.path),
+  db.runTransaction = async action => action({ get: async ref => ref.get(),
     create: (ref, value) => { assert.equal(records.has(ref.path), false); records.set(ref.path, value); },
     set: (ref, value) => records.set(ref.path, value), update: (ref, value) => records.set(ref.path, { ...records.get(ref.path), ...value }),
     delete: ref => records.delete(ref.path) });
@@ -41,6 +41,7 @@ function harness(initial, authorizeProcessing = false) {
     if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs','./accountDeletionMonitor.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
     if (name === './deletionAlertExpiry.cjs') return {expireAlertClaims:async()=>{}};
     if (name === './accountDeletionAdminAlerts.cjs') return {notifyAdmins:async()=>{adminAlerts.push('generic_admin_digest');}};
+    if (name === './accountDeletionInventory.cjs' || name === './accountDeletionStatus.cjs') return require(name);
     if (name === './accountDeletionPolicy.cjs') return require(name);
     if (name === 'firebase-functions') return {logger:{warn:(_message,data)=>warnings.push(data)}};
     if (name === 'node:crypto') return require(name);
@@ -247,7 +248,7 @@ test('v2 canonical deletion is retryable, preserves the other participant and ti
  initial['posts/other']={userId:'bob',comments:[{authorId:'alice',text:'remove'},{authorId:'bob',text:'keep'}]};
  const h=harness(initial,true),ref=h.db.doc('account_deletion_jobs/'+id);
  h.records.get(ref.path).databaseCompletion=completedScopes(h.records.get(ref.path));
- for(let i=0;i<40;i++)await h.run(h.db,h.auth,ref);
+ for(let i=0;i<60;i++)await h.run(h.db,h.auth,ref);
  assert.equal(h.records.has('users/alice'),false);assert.ok(h.records.has('users/bob'));
  assert.equal(h.records.get('work_orders/one').code,'1234');assert.equal(h.records.get('work_orders/one').userId,undefined);assert.ok(h.records.has('work_order_numbers/1234'));
  assert.equal(h.records.get('posts/other').comments.length,1);assert.equal(h.records.get('resident_chats/shared').messages[1].body,other.body);
