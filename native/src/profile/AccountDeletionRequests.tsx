@@ -2,10 +2,10 @@ import {useSession} from '../lib/session';
 import {useEffect,useRef,useState} from 'react';
 import {Pressable,View} from 'react-native';
 import {Action,Copy,ErrorNotice,Field} from '../news/ui';
-import {listAccountDeletionRequests,reviewAccountDeletionRequest,deletionStatusText,type DeletionReviewItem} from '../lib/accountDeletion';
+import {listAccountDeletionRequests,reviewAccountDeletionRequest,type DeletionReviewItem} from '../lib/accountDeletion';
 
 const denialRestriction='Denial is unavailable under the current policy. Only a documented withdrawal by the resident can close this request.';
-/** Review only: approvals remain held; this panel never authorizes processing. */
+/** Pending decisions only; processing and audit records remain on the backend. */
 export function AccountDeletionRequests(){
  const {profile,user}=useSession();
  const manager=!!user?.uid&&profile?.approved===true&&profile.source?.deletionPending!==true&&['admin','vip'].includes(profile.role||'');
@@ -20,7 +20,7 @@ export function AccountDeletionRequests(){
   try{
    const result=await listAccountDeletionRequests(cursor);
    if(current!==epoch.current)return;
-   setRequests(result.requests);setLoadedFor(accountKey);setNextCursor(result.nextCursor);
+   setRequests(result.requests.filter(item=>item.canReview));setLoadedFor(accountKey);setNextCursor(result.nextCursor);
   }catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:'Unable to load requests.');}
   finally{if(current===epoch.current){operation.current=false;setBusy(false);}}
  }
@@ -38,7 +38,8 @@ export function AccountDeletionRequests(){
    const result=await reviewAccountDeletionRequest(item.jobId,'approved',reason);
    if(current!==epoch.current)return;
    if(result.jobId!==item.jobId||!result.status)throw Error('Could not confirm the decision. Refresh the requests before trying again.');
-   setRequests(rows=>rows.map(row=>row.jobId===item.jobId?{...row,status:result.status,canReview:false}:row));
+   setRequests(rows=>rows.filter(row=>row.jobId!==item.jobId));
+   setNotes(previous=>{const next={...previous};delete next[item.jobId];return next;});
   }catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:'Unable to approve this request.');}
   finally{if(current===epoch.current){operation.current=false;setBusy(false);}}
  }
@@ -48,7 +49,7 @@ export function AccountDeletionRequests(){
   <Copy weight="bold">Account deletion requests</Copy>
   {!!error&&<ErrorNotice message={error}/>}
   <Action compact label={busy?'Loading requests…':'Refresh'} disabled={busy} onPress={()=>void refresh()}/>
-  {!busy&&loadedFor===accountKey&&!visible.length&&<Copy>No pending deletion requests.</Copy>}
+  {!busy&&loadedFor===accountKey&&!visible.length&&<Copy>{nextCursor?'No pending deletion requests on this page.':'No pending deletion requests.'}</Copy>}
   {visible.map(item=>{
    const disabled=busy||!item.canReview||item.isOwnRequest;
    return <View key={item.jobId} style={{padding:16,borderWidth:1,borderColor:'#94a3b8',borderRadius:16,gap:10}}>
@@ -62,7 +63,7 @@ export function AccountDeletionRequests(){
        <Copy weight="bold" style={{color:'#fff',fontSize:14,lineHeight:20}}>{label}</Copy>
       </Pressable>)}
     </View>
-    {item.isOwnRequest?<Copy>Another Admin/VIP must review this request.</Copy>:!item.canReview&&<Copy accessibilityLiveRegion="polite">{deletionStatusText(item)}</Copy>}
+    {item.isOwnRequest&&<Copy>Another Admin/VIP must review this request.</Copy>}
    </View>;
   })}
   {!!nextCursor&&<Action compact label="Next requests" disabled={busy} onPress={()=>void refresh(nextCursor)}/>}
