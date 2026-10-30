@@ -70,3 +70,12 @@ test("new resident-role signups appear first and move out of pending on approval
     0,
   );
 });
+
+test("an approved signup frozen for deletion never reappears as a new applicant", () => {
+  const resident = { id: "original", name: "Fixture", email: "fixture@example.invalid", role: "resident", approved: true } as UserProfile;
+  assert.equal(adminDirectory([resident]).length, 1);
+  const deleting = { ...resident, approved: false, deletionPending: true };
+  const applicant = { ...resident, id: "new", email: "new@example.invalid", approved: false };
+  assert.deepEqual(adminDirectory([deleting, applicant]).map(p => p.id), ["new"]);
+  assert.equal(adminDirectory([deleting]).length, 0);
+});

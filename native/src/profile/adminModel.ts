@@ -11,6 +11,7 @@ export function adminDirectory(people: UserProfile[]): UserProfile[] {
       const id = String(p.id || "").trim(),
         email = (p.email || "").trim().toLowerCase();
       if (
+        p.deletionPending === true ||
         ["admin", "vip"].includes(getUserRole(p)) ||
         isMasterAdminEmail(email) ||
         (id && ids.has(id)) ||

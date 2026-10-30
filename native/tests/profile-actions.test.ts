@@ -58,6 +58,8 @@ function fixture(
         return { db: {}, auth: { currentUser: { uid } } };
       if (stem.endsWith("/news/actions"))
         return { approvedUser: async () => user };
+      if (stem.endsWith("/groupInbox")) return { groupAction: async () => ({}) };
+      if (stem.endsWith("/notifications/device")) return { refreshBadge: async () => {} };
       if (stem.endsWith("/lib/liveCollection") || stem.endsWith("/lib/profile"))
         return {};
       return load([stem, stem + ".ts", stem + ".tsx"].find(existsSync)!);
@@ -84,6 +86,24 @@ const chat = {
   messages: [],
 };
 const thread = { id: "chat-one", category: "friend" };
+test("Admin and VIP can approve an ordinary signup but cannot reapprove a deletion-frozen account", async () => {
+  for (const role of ["admin", "vip"]) {
+    const fresh = fixture("manager", { role: "resident", approved: false }, role);
+    await fresh.actions.manageResident("applicant", { approved: true });
+    assert.equal(fresh.writes.length, 1);
+    const deleting = fixture("manager", { role: "resident", approved: false, deletionPending: true }, role);
+    await assert.rejects(deleting.actions.manageResident("applicant", { approved: true }), /delet/i);
+    assert.equal(deleting.writes.length, 0);
+  }
+});
+test("ordinary residents cannot approve signups and missing accounts cannot be recreated by approval", async () => {
+  const resident = fixture("resident", { approved: false });
+  await assert.rejects(resident.actions.manageResident("applicant", { approved: true }), /Administrator/);
+  assert.equal(resident.writes.length, 0);
+  const absent = fixture("manager", {}, "admin", false);
+  await assert.rejects(absent.actions.manageResident("applicant", { approved: true }), /no longer/);
+  assert.equal(absent.writes.length, 0);
+});
 test("conversation deletion checks real participant identity before writing", async () => {
   const outsider = fixture("mallory", chat);
   await assert.rejects(outsider.actions.deleteThread(thread), /cannot access/);

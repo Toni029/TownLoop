@@ -313,7 +313,16 @@ export async function manageResident(
     !["resident", "crew", "vip", "admin"].includes(patch.role)
   )
     throw new Error("Invalid role.");
-  await updateDoc(doc(db, "users", id), patch);
+  const ref = doc(db, "users", id);
+  await runTransaction(db, async transaction => {
+    const target = await transaction.get(ref);
+    if (!target.exists()) throw new Error("This account is no longer available. Refresh the directory.");
+    if (target.data().deletionPending === true)
+      throw new Error("This account is already being deleted and cannot be approved or have its role changed. Refresh the directory.");
+    if (auth.currentUser?.uid !== String(user.id))
+      throw new Error("Your session changed. Sign in again.");
+    transaction.update(ref, patch);
+  });
 }
 
 /** Persist the proposal without changing approved account information. */
