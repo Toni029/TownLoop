@@ -5,3 +5,6 @@ test('attachment inventory deduplicates object identities and never saves tokens
  assert.equal(hashes.length,2);assert.equal(hashes.every(h=>/^[a-f0-9]{64}$/.test(h)),true);assert.equal(JSON.stringify(hashes).includes('synthetic'),false);
  assert.equal(pathFor(`https://example.test/file.jpg`),null);assert.equal(pathFor(`gs://other-bucket/feed/fixture.jpg`),null);assert.equal(pathFor('feed/../secret'),null);
 });
+test('legacy mediaUrl and Marketplace snapshot URLs are included without reading message bodies',()=>{
+ const h=objectHashes({mediaUrl:'marketplace/one.jpg',itemMediaUrl:'marketplace/two.jpg',avatarUrl:'feed/three.jpg',messages:[{body:'marketplace/not-attachment.jpg'}]});assert.equal(h.length,3);
+});

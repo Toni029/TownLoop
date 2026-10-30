@@ -5,12 +5,14 @@ const {parentBlocksCleanup,trustedMedia}=require('./mediaCleanupPolicy.cjs');
 const provenance=require('./deletionMediaProvenance.json');
 const hash=value=>createHash('sha256').update(value).digest('hex');
 async function hasLiveReference(dbFor,objectHash){
- for(const id of require('./accountDeletionScope.cjs').DATABASES)for(const target of TARGETS){let cursor;
+ for(const id of require('./accountDeletionScope.cjs').DATABASES){
+  let cursor;for(let page=0;;page++){if(page>=100)throw Error('inventory_bound');let q=dbFor(id).collection('users').select('avatarUrl','avatar_url').orderBy('__name__').limit(100);if(cursor)q=q.startAfter(cursor);const rows=await q.get();if(rows.docs.some(doc=>objectHashes(doc.data()).includes(objectHash)))return true;if(rows.size<100)break;cursor=rows.docs.at(-1).id;}
+  for(const target of TARGETS){let cursor;
   for(let page=0;;page++){if(page>=100)throw Error('inventory_bound');let q=(target.group?dbFor(id).collectionGroup(target.group):dbFor(id).collection(target.collection)).orderBy('__name__').limit(100);if(cursor)q=q.startAfter(cursor);const rows=await q.get();
    for(const doc of rows.docs)if((!target.group||/^inbox_conversations\/[^/]+\/messages\/[^/]+$/.test(doc.ref.path))&&objectHashes(doc.data()).includes(objectHash))return true;
    if(rows.size<100)break;cursor=target.group?rows.docs.at(-1).ref.path:rows.docs.at(-1).id;
   }
- }return false;
+ }}return false;
 }
 // Account-request jobs only. This never activates general orphan/draft cleanup.
 async function processAccountMedia(control,job,{dbFor,bucket,mediaPolicy}) {

@@ -19,6 +19,13 @@ async function preflightDeletion(job,{dbFor,bucket,mediaPolicy,now=Date.now()}) 
   if((await profileRef.listCollections()).length)holds.push({databaseId,reason:'private_subcollection_adapter_required'});
   for(const key of ['avatarUrl','avatar_url'])if(typeof profile?.[key]==='string'&&/^https?:/.test(profile[key]))holds.push({databaseId,reason:'avatar_object_ownership_adapter_required'});
   for(const c of await db.listCollections())if(!known.has(c.id))holds.push({databaseId,reason:'unclassified_collection_metadata',collection:c.id});
+  // Authorization-related media links only; never fetch another profile's private fields.
+  let profileCursor;
+  for(let page=0;;page++){
+   if(page>=100)throw Error('inventory_bound');let q=db.collection('users').select('avatarUrl','avatar_url').orderBy('__name__').limit(100);if(profileCursor)q=q.startAfter(profileCursor);const profiles=await q.get();
+   for(const doc of profiles.docs)for(const h of objectHashes(doc.data())){const refs=references.get(h)||new Set();refs.add(`${databaseId}/${doc.ref.path}`);references.set(h,refs);}
+   if(profiles.size<100)break;profileCursor=profiles.docs.at(-1).id;
+  }
   let count=0;
   for(const target of TARGETS){let cursor;
    for(let page=0;;page++){

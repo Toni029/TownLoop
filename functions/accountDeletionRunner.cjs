@@ -24,7 +24,7 @@ async function runApprovedDeletions({control,dbFor,auth,bucket,verifyRules,now=D
     if(job.accessRevokedAt&&job.phase==='requested'&&Number.isFinite(millis(job.tokensDrainUntil))){
      const identity=await auth.getUser(job.uid);if(identity.disabled!==true)throw Error('access_revocation_not_confirmed');
      for(const databaseId of DATABASES){const proof=(await dbFor(databaseId).doc(`account_access_revocations/${job.uid}`).get()).data();if(proof?.uid!==job.uid||proof.jobId!==job.id||proof.policyReference!==policy.approvalReference)throw Error('access_fence_conflict');}
-     await row.ref.update({phase:'scoped_drain',identityVerifiedAt:new Date(now())});continue;
+     await row.ref.update({phase:'scoped_drain',status:'processing',identityVerifiedAt:new Date(now())});continue;
     }
     if(job.phase==='scoped_drain'){
      if(now()<millis(job.tokensDrainUntil))break;
