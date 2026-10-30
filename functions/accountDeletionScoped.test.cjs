@@ -43,16 +43,20 @@ test('final reconciliation catches late backend references before certifying eit
  }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
 });
 
-test('new Inbox membership, nested messages and visibility epochs cannot be silently omitted',async()=>{
+test('Inbox v3 membership and nested messages are removed without erasing another participants content',async()=>{
  process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
  try{const h=fixture({
-  'inbox_conversations/thread':{schemaVersion:3,memberIds:['alice','bob'],memberRefs:{alice:'a',bob:'b'}},
+  'inbox_conversations/thread':{schemaVersion:3,type:'private',memberIds:['alice','bob'],memberRefs:{alice:'a',bob:'b'}},
   'inbox_memberships/a':{uid:'alice',conversationId:'thread',status:'left'},
+  'inbox_memberships/b':{uid:'bob',peerId:'alice',conversationId:'thread',status:'active'},
   'inbox_conversations/thread/messages/m':{senderId:'bob',body:'fixture only',visibility:['alice:1','bob:1']},
- });await h.run();assert.equal((await h.ref.get()).data().status,'needs_review');assert.equal(h.calls.some(c=>c[0]==='delete'),false);
- const receipts=[...h.control.records].filter(([p])=>p.includes('/inventory/')).map(([,d])=>d);
- for(const path of ['inbox_conversations/thread','inbox_memberships/a','inbox_conversations/thread/messages/m'])assert(receipts.some(r=>r.path===path&&r.state==='needs_review'),path);
+  'inbox_conversations/thread/messages/a':{senderId:'alice',body:'remove fixture',visibility:['alice:1','bob:1']},
+ });await h.run();assert.equal((await h.ref.get()).data().status,'retention_pending');
+ assert.equal(h.control.records.has('inbox_memberships/a'),false);assert.equal(h.control.records.has('inbox_conversations/thread/messages/a'),false);
+ assert.deepEqual(h.control.records.get('inbox_conversations/thread/messages/m').visibility,['bob:1']);
  assert.equal(h.control.records.get('inbox_conversations/thread/messages/m').body,'fixture only');
+ assert.deepEqual(h.control.records.get('inbox_conversations/thread').memberIds,['bob']);
+ assert.equal(h.control.records.get('inbox_conversations/thread').status,'read_only');
  }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
 });
 test('reported source content and evidence are preserved before any media cleanup is queued',async()=>{
@@ -72,9 +76,9 @@ test('owned notification state is erased while another residents notification st
  try{const h=fixture({'notification_events/a':{uid:'alice',seen:false},'notification_reads/a':{uid:'alice',readAt:1},'notification_events/b':{uid:'bob',seen:false}});await h.run();assert.equal((await h.ref.get()).data().status,'retention_pending');for(const scope of h.scopes){assert(!scope.records.has('notification_events/a'));assert(!scope.records.has('notification_reads/a'));assert(scope.records.has('notification_events/b'));}}
  finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
 });
-test('nested message inventory resumes by full document path beyond the first 100 records',async()=>{
+test('nested message inventory resumes beyond 100 and safely erases the final owned message',async()=>{
  process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
- try{const extra=Object.fromEntries(Array.from({length:101},(_,i)=>[`inbox_conversations/t/messages/${String(i).padStart(3,'0')}`,{senderId:i===100?'alice':'bob',visibility:['bob:1']} ]));const h=fixture(extra);await h.run();assert.equal((await h.ref.get()).data().status,'needs_review');const receipt=h.control.records.get(`account_deletion_scopes/${jobIdFor('alice')}/inventory/${jobIdFor('inbox_conversations/t/messages/100')}`);assert.equal(receipt.state,'needs_review');assert.equal(h.calls.some(c=>c[0]==='delete'),false);}
+ try{const extra=Object.fromEntries(Array.from({length:101},(_,i)=>[`inbox_conversations/t/messages/${String(i).padStart(3,'0')}`,{senderId:i===100?'alice':'bob',visibility:['bob:1']} ]));const h=fixture(extra);await h.run();assert.equal((await h.ref.get()).data().status,'retention_pending');assert.equal(h.control.records.has('inbox_conversations/t/messages/100'),false);assert(h.control.records.has('inbox_conversations/t/messages/099'));assert.equal(h.calls.some(c=>c[0]==='delete'),true);}
  finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
 });
 

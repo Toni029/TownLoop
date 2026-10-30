@@ -90,6 +90,25 @@ function plan(collection, record, uid, alias=pseudonym(uid)) {
     for(const key of ['readBy','readCursors','likedBy'])if(record[key]&&typeof record[key]==='object'&&!Array.isArray(record[key]))patch[key]=Object.fromEntries(Object.entries(record[key]).filter(([id])=>id!==uid));
     return {action:'patch',patch};
   }
+  if(collection==='inbox_conversations') {
+    if(record.schemaVersion!==3||!Array.isArray(record.memberIds)||!record.memberRefs||!['private','office','maintenance'].includes(record.type))return {action:'review',reason:'legacy_chat_identity'};
+    const patch={memberIds:record.memberIds.filter(id=>id!==uid),memberRefs:Object.fromEntries(Object.entries(record.memberRefs).filter(([id])=>id!==uid))};
+    if(record.type==='private')patch.status='read_only';
+    if(record.residentId===uid)Object.assign(patch,{residentId:alias,subject:'Conversation'});
+    return {action:'patch',patch};
+  }
+  if(collection==='inbox_memberships') {
+    if(record.uid===uid)return {action:'delete_record'};
+    const patch={};
+    if(record.peerId===uid)Object.assign(patch,{peerId:alias,name:'Deleted resident',conversationStatus:'read_only'});
+    if(record.residentId===uid)Object.assign(patch,{residentId:alias,subject:'Conversation'});
+    return {action:'patch',patch};
+  }
+  if(collection==='inbox_messages') {
+    if(record.senderId===uid||record.actorId===uid)return {action:'delete_record'};
+    if(!Array.isArray(record.visibility))return {action:'review',reason:'message_visibility_requires_review'};
+    return {action:'patch',patch:{visibility:record.visibility.filter(key=>typeof key!=='string'||!key.startsWith(`${uid}:`))}};
+  }
   if(collection==='community_events') {
     const patch={};
     if(Array.isArray(record.attendees)) {patch.attendees=record.attendees.filter(a=>a.id!==uid&&a.userId!==uid);patch.attendeesCount=patch.attendees.length;if(typeof record.spotsLeft==='number')patch.spotsLeft=record.spotsLeft+record.attendees.length-patch.attendees.length;}

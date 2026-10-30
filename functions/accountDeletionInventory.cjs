@@ -1,6 +1,6 @@
 const {SHARED,referencesUid}=require('./accountDeletionPolicy.cjs');
 // Increment whenever coverage or evidence handling changes. Old receipts are not erasure proof.
-const INVENTORY_VERSION=2;
+const INVENTORY_VERSION=3;
 const TARGETS=Object.freeze([
  ...SHARED.map(collection=>({collection})),
  ...['inbox_conversations','inbox_memberships','inbox_legacy_authorizations','inbox_media_references','inbox_retention_holds','notification_events','notification_reads'].map(collection=>({collection})),

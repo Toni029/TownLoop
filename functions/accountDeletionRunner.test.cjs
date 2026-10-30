@@ -1,0 +1,20 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {memoryFirestore}=require('./testSupport/memoryFirestore.cjs');
+const {runApprovedDeletions}=require('./accountDeletionRunner.cjs');
+const {DATABASES}=require('./accountDeletionScope.cjs');
+const {jobIdFor}=require('./accountDeletionPolicy.cjs');
+const {POLICY_ID}=require('./accountDeletionRetention.cjs');
+function fixture(){let clock=Date.parse('2026-10-30T12:00:00Z');const uid='alice',id=jobIdFor(uid),policy={ownerApproved:true,policyVersion:2,approvalReference:POLICY_ID,identityCoverageVerified:true,mediaCoverageVerified:true,databaseScopeVerified:true,retentionDays:60,reviewBusinessDays:3,escalationCalendarDays:7,completionCalendarDays:7,scopeWriteFreezeVerified:Object.fromEntries(DATABASES.map(id=>[id,true])),scopeRuleHashes:Object.fromEntries(DATABASES.map(id=>[id,'a'.repeat(64)])),tokenDrainMs:3900000};
+ const review={decision:'approved',reviewerId:'manager',reviewedAt:new Date(clock-1000),policyReference:POLICY_ID,processingAuthorized:false};
+ const job={uid,status:'processing',phase:'access_revoked_pending_inventory',createdAt:new Date(clock-86400000),lastAttemptAt:new Date(clock),accessRevokedAt:new Date(clock),tokensDrainUntil:new Date(clock+3900000),review};
+ const stores=DATABASES.map(()=>memoryFirestore({[`account_access_revocations/${uid}`]:{uid,jobId:id,policyReference:POLICY_ID}}));
+ for(const store of stores){const old=store.db.doc;store.db.doc=p=>({...old(p),listCollections:async()=>[]});store.db.listCollections=async()=>[];}
+ const control=stores[0];control.records.set('deletion_policies/account',policy);control.records.set('deletion_policies/media',{});control.records.set('users/manager',{approved:true,role:'admin'});control.records.set(`account_deletion_jobs/${id}`,job);control.records.set(`account_deletion_jobs/${id}/reviews/review`,review);
+ const calls=[],options={control:control.db,dbFor:id=>stores[DATABASES.indexOf(id)].db,auth:{getUser:async()=>({uid,disabled:true})},bucket:{getFiles:async()=>[[],null]},verifyRules:async()=>calls.push('rules'),now:()=>clock,step:async(db,auth,ref,job)=>{assert(job.preflight);assert.equal(job.preflight.holds.length,0);calls.push('advance');await ref.update(job.phase==='scoped_drain'?{phase:'scoped_run'}:{phase:'scoped_retention',status:'retention_pending'});}};
+ return {control,options,calls,ref:control.db.doc(`account_deletion_jobs/${id}`),advance:()=>clock+=3900001};
+}
+test('approved automation preserves completed access revocation and cannot bypass the real token drain',async()=>{
+ process.env.TOWNLOOP_AUTOMATIC_ACCOUNT_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';
+ try{const h=fixture();await runApprovedDeletions(h.options);let j=(await h.ref.get()).data();assert.equal(j.phase,'scoped_drain');assert.equal(j.preflight,undefined);assert(!h.calls.includes('advance'));assert.equal(j.leaseUntil,0);h.advance();await runApprovedDeletions(h.options);j=(await h.ref.get()).data();assert.equal(j.status,'retention_pending');assert.equal(j.preflight.scopes.length,2);assert(h.calls.includes('advance'));}finally{delete process.env.TOWNLOOP_AUTOMATIC_ACCOUNT_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;}
+});
+test('automation stays inert without all activation flags; changed live rules stop before authorization',async()=>{const h=fixture();await runApprovedDeletions(h.options);assert.equal(h.calls.length,0);process.env.TOWNLOOP_AUTOMATIC_ACCOUNT_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';try{h.options.verifyRules=async()=>{throw Error('deployed_rules_changed');};await assert.rejects(runApprovedDeletions(h.options),/deployed_rules_changed/);assert.equal((await h.ref.get()).data().review.processingAuthorized,false);}finally{delete process.env.TOWNLOOP_AUTOMATIC_ACCOUNT_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;}});
