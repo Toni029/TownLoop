@@ -26,8 +26,12 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   // A crash in the second scope replays the same request-bound fence; never overwrite another job.
   for(const databaseId of DATABASES)await dbFor(databaseId).runTransaction(async tx=>{
    const access=dbFor(databaseId).doc(`account_access_revocations/${uid}`),existing=(await tx.get(access)).data();
+   const profileRef=dbFor(databaseId).doc(`users/${uid}`),profile=(await tx.get(profileRef)).data();
+   if(profile&&['id','uid','userId','authorId'].some(key=>profile[key]!=null&&profile[key]!==uid))throw Error('profile_identity_conflict');
    if(existing&&(existing.uid!==uid||existing.jobId!==id||existing.policyReference!==policy.approvalReference))throw Error('access_fence_conflict');
    if(!existing)tx.create(access,{uid,jobId:id,policyReference:policy.approvalReference,createdAt:new Date(now),expiresAt:new Date(dates.retentionDueAt)});
+   if(profile)tx.update(profileRef,{approved:false,deletionPending:true});
+   tx.delete(dbFor(databaseId).doc(`resident_directory/${uid}`));
   });
   // No deletion request or review invokes this. It runs only after explicit processing authorization.
   await auth.updateUser(uid,{disabled:true});await auth.revokeRefreshTokens(uid);

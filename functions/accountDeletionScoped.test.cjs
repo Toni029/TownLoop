@@ -84,7 +84,7 @@ test('nested message inventory resumes beyond 100 and safely erases the final ow
 
 test('request-bound access fences exist in both databases before Auth is disabled and retries cannot overwrite another request',async()=>{
  process.env.TOWNLOOP_SCOPED_DELETION_ENABLED='true';process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED='true';
- try{const h=fixture();await h.step();assert.deepEqual(h.calls,[]);await h.step();for(const scope of h.scopes){const fence=scope.records.get('account_access_revocations/alice');assert.equal(fence.uid,'alice');assert.equal(fence.jobId,jobIdFor('alice'));assert(Number.isFinite(+fence.expiresAt));assert(scope.records.has('users/alice'));}assert.equal(h.calls[0][0],'disable');
+ try{const h=fixture();await h.step();assert.deepEqual(h.calls,[]);await h.step();for(const scope of h.scopes){const fence=scope.records.get('account_access_revocations/alice');assert.equal(fence.uid,'alice');assert.equal(fence.jobId,jobIdFor('alice'));assert(Number.isFinite(+fence.expiresAt));assert(scope.records.has('users/alice'));assert.equal(scope.records.get('users/alice').approved,false);assert.equal(scope.records.has('resident_directory/alice'),false);}assert.equal(h.calls[0][0],'disable');
  const conflict=fixture();conflict.scopes[1].records.set('account_access_revocations/alice',{uid:'alice',jobId:'another-request'});await conflict.step();await assert.rejects(conflict.step(),/access_fence_conflict/);assert.deepEqual(conflict.calls,[]);assert.equal(conflict.scopes[1].records.get('account_access_revocations/alice').jobId,'another-request');
  }finally{delete process.env.TOWNLOOP_SCOPED_DELETION_ENABLED;delete process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED;}
 });

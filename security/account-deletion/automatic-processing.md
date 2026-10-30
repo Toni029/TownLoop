@@ -4,7 +4,7 @@ Owner instruction, 2026-10-30: fulfill verified resident deletion requests autom
 
 ## Deployment boundary
 
-`node functions/tools/prepare-deletion-processing.cjs` creates the isolated `.release/deletion-processing` source. Deploy only `fulfillApprovedAccountDeletions` using `firebase.deletion-processing.json`. It exports one five-minute worker; general orphan/draft cleanup, Inbox permanent-conversation cleanup, alerts, unrelated retention workers and notification senders are absent.
+`node functions/tools/prepare-deletion-processing.cjs` creates the isolated `.release/deletion-processing` source. Deploy only `functions:work-order-retention:fulfillApprovedAccountDeletions` using `firebase.deletion-processing.json`. It exports one five-minute worker; general orphan/draft cleanup, Inbox permanent-conversation cleanup, alerts, unrelated retention workers and notification senders are absent.
 
 Activation requires all three explicit environment flags (`TOWNLOOP_AUTOMATIC_ACCOUNT_DELETION_ENABLED`, `TOWNLOOP_ACCOUNT_DELETION_ENABLED`, `TOWNLOOP_SCOPED_DELETION_ENABLED`) plus the server-only approved account/media policies. Live rules must match the verified hashes in `rules-manifest.json` and `deletionMediaProvenance.json`. The media cutover must match the actual Storage rules release timestamp. Drift stops processing.
 
