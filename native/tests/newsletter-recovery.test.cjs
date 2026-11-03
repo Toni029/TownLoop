@@ -41,3 +41,17 @@ test('partial recovery offers only the current manager’s hashed draft, never a
  }}});
  const result=await drafts.retainedEditions();assert.deepEqual(result.map(r=>r.id),['own']);assert.equal(result[0].partial,true);assert.equal(result[0].confirmedChunks,1);
 });
+test('Admin resume falls back from server-only orphan discovery to authorized draft listing',async()=>{
+ const paths=[],n=v=>({integerValue:String(v)});
+ const drafts=load('drafts.ts',{'./actions':{approvedUser:async()=>({id:'manager',role:'admin'})},'./pdfTransfer':{PDF_PREFIX:'data:application/pdf;base64,'},'./firestorePdf':{pdfId:id=>id,pdfRequest:async path=>{
+  paths.push(path);
+  if(new URL('https://fixture.test'+path).searchParams.get('showMissing')==='true')throw Object.assign(Error('metadata requires server authentication'),{code:'firestore-metadata-auth-required'});
+  if(path.startsWith('/newsletters?'))return {documents:[{name:'newsletters/draft',fields:{id:{stringValue:'draft'},uploadState:{stringValue:'uploaded'}}}]};
+  return {documents:[{fields:{index:n(0),totalChunks:n(1),totalSize:n(100),updatedAt:{timestampValue:'2026-11-03T19:00:00Z'}}}]};
+ }}});
+ assert.deepEqual((await drafts.retainedEditions()).map(x=>x.id),['draft']);assert.equal(paths.length,3);
+});
+test('resume never hides a real permission denial behind a listing fallback',async()=>{
+ let calls=0;const drafts=load('drafts.ts',{'./actions':{approvedUser:async()=>({id:'manager'})},'./firestorePdf':{pdfRequest:async()=>{calls++;throw Error('not authorized');}}});
+ await assert.rejects(drafts.retainedEditions(),/not authorized/);assert.equal(calls,1);
+});

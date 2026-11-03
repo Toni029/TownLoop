@@ -10,26 +10,35 @@ export type RetainedEdition = NewsletterConfig & {
     partial?: boolean;
     confirmedChunks?: number;
 };
-/** Metadata only, including legacy orphan parent IDs; no PDF contents are downloaded to list drafts. */
+/** Metadata only. Legacy orphan discovery is included only when Firebase permits it. */
 export async function retainedEditions(): Promise<RetainedEdition[]> {
     const user = await approvedUser(true);
     const fields = ['id', 'isRemoved', 'uploadState', 'editionTitle', 'monthEdition', 'fileName', 'fileSize', 'sourceBytes', 'uploadedAt', 'uploadedBy', 'totalChunks', 'totalSize'];
-    const rows: any[] = [];
-    let token: string | undefined;
-    for (let page = 0; page < 3; page++) {
-        const q = new URLSearchParams({ pageSize: '100', showMissing: 'true' });
-        for (const key of fields)
-            q.append('mask.fieldPaths', key);
-        if (token)
-            q.set('pageToken', token);
-        const r = await pdfRequest('/newsletters?' + q);
-        rows.push(...r?.documents || []);
-        token = r?.nextPageToken;
-        if (!token)
-            break;
+    async function list(includeMissing: boolean) {
+        const rows: any[] = [];
+        let token: string | undefined;
+        for (let page = 0; page < 3; page++) {
+            const q = new URLSearchParams({ pageSize: '100' });
+            if (includeMissing) q.set('showMissing', 'true');
+            for (const key of fields) q.append('mask.fieldPaths', key);
+            if (token) q.set('pageToken', token);
+            const r = await pdfRequest('/newsletters?' + q);
+            rows.push(...r?.documents || []);
+            token = r?.nextPageToken;
+            if (!token) break;
+        }
+        if (token) throw Error('There are too many retained editions to list safely. Ask the community office for the exact draft.');
+        return rows;
     }
-    if (token)
-        throw Error('There are too many retained editions to list safely. Ask the community office for the exact draft.');
+    let rows: any[];
+    try { rows = await list(true); }
+    catch (error) {
+        // Firebase user tokens cannot enumerate nonexistent parent documents.
+        // New uploads have persisted manifests; list those under unchanged rules.
+        // Never catch ordinary permission errors or invent legacy parent records.
+        if ((error as {code?: string})?.code !== 'firestore-metadata-auth-required') throw error;
+        rows = await list(false);
+    }
     const active = rows.find(r => r.name.endsWith('/current'))?.fields?.id?.stringValue;
     const candidates = rows.filter(r => !r.name.endsWith('/current') && !r.name.endsWith('/' + active) && !r.fields?.isRemoved?.booleanValue && (!r.fields?.id || ['uploaded', 'uploading'].includes(r.fields?.uploadState?.stringValue)));
     if (candidates.length > 50)

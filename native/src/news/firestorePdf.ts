@@ -38,7 +38,18 @@ export async function pdfRequest(path: string, init: RequestInit = {}, options: 
             if (response.ok) return await response.json();
             if (response.status === 401 && !refreshed) { refreshed = true; retry = true; }
             else if ([408, 429, 500, 502, 503, 504].includes(response.status)) retry = true;
-            else throw Object.assign(Error(response.status === 403 ? 'Your account is not authorized to manage newsletters. Reopen News and sign in again.' : `Firebase PDF transfer failed (${response.status}). Confirmed data is retained.`), { permanent: true });
+            else {
+                // showMissing is a server/IAM metadata operation, even when the
+                // signed-in resident has TownLoop's Admin role. Distinguish it
+                // from a real rules denial without exposing server error text.
+                const body = response.status === 403 ? await response.json().catch(() => null) : null;
+                const metadataOnly = response.status === 403 &&
+                    body?.error?.message === 'Metadata operations require admin authentication.';
+                throw Object.assign(Error(metadataOnly ? 'Legacy upload discovery requires the secure newsletter service.' : response.status === 403 ? 'Your account is not authorized to manage newsletters. Reopen News and sign in again.' : `Firebase PDF transfer failed (${response.status}). Confirmed data is retained.`), {
+                    permanent: true,
+                    ...(metadataOnly ? {code: 'firestore-metadata-auth-required'} : {}),
+                });
+            }
         } catch (error) {
             check();
             if ((error as {permanent?: boolean})?.permanent) throw error;
