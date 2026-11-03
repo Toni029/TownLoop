@@ -1,0 +1,31 @@
+# Newsletter upload + analysis recovery — local release gate
+
+## Verified findings
+
+- Preview update `01a1a256-afe5-76dd-98f8-bb3571648acd` for `e5f2857` published successfully on runtime `0b29e1676ea69d0ee2eeea48c17ed01bff1a4225`.
+- No Preview API environment variable was set. The authenticated backend is implemented in `server.ts` / `server/newsletterExtractor.ts`; only earlier local execution was documented. The local port 3000 service is stopped. `https://townloop.web.app/api/health` returns website HTML. Read-only project metadata found no analysis backend among the 25 Functions and 25 Cloud Run services in us-central1. An independently hosted service/other region has not been established. Do not invent its URL.
+- Read-only `(default)` newsletter metadata found a recent unpublished upload with 81/81 expected chunk indexes and consistent declared totals (52,580,664 encoded characters). This matches the bounded 480 KiB source-chunk format introduced in the published optimization. Another earlier attempt has only 60/79 chunks. No PDF contents, resident records or media were inspected/changed. Completeness of actual PDF bytes is validated when the resident explicitly selects recovery for analysis; metadata alone is not a content-integrity claim or proof of who uploaded a legacy draft.
+- The observed ten-minute phone upload remains the real baseline. The earlier synthetic acknowledgement benchmark was not a bandwidth or device benchmark. Firestore still carries Base64 (+33% bytes); SDK batch commits share a WebChannel write stream. That remaining transport overhead is avoidable, but its share of the reported ten minutes versus the device/network cannot be proven from metadata.
+
+## Local fixes
+
+- Bounded independent HTTPS Firestore commits replace SDK WebChannel for PDF chunk transfer. Firebase user ID tokens, default database, exact newsletter/chunk paths, metadata and server timestamps are preserved; Firestore rules authorize every write. No service-account credentials, Storage migration or public links. Existing bounded cancellation/retry and fixed document IDs remain; submitted writes may already reach Firebase when cancellation occurs.
+- Successful staging writes durable metadata under the edition ID, without changing `newsletters/current`. Recovery lists authorized newsletter metadata, including legacy orphan parent IDs, excludes active/published/incomplete drafts, and leaves legacy owner identities unassigned. Title edits and analysis retries retain the confirmed PDF instead of starting another upload.
+- Analysis readiness is checked before a new transfer. Missing URL, wrong service/database, authorization, missing Gemini configuration and declared file-size limits fail explicitly. Upload, AI and publish remain separate. UI exposes file-preparation, local-read and transfer timing; these are not pure network-bandwidth measurements.
+- Native AI requests contain only the retained newsletter ID and small metadata. Dedicated authenticated native endpoints read the PDF from `(default)` with the same Firebase user ID token, validate chunk completeness/size/header, then call the **unchanged extractor**. The phone no longer reads/sends another full 50+ MB Base64 JSON body for every analysis retry.
+- Native manager authorization uses `(default)`. The original website's existing routes/database selection remain intact. No newsletter pointer changes until the existing guarded publishing transaction succeeds.
+
+## Explicit limits
+
+TownLoop PDF publishing: 64 MiB, unchanged. Native Gemini analysis: at most **50,000,000 bytes**, conservatively interpreting Google's 50 MB PDF limit; provider also limits PDFs to 1,000 pages. https://ai.google.dev/gemini-api/docs/document-processing#technical-details
+
+The existing server text fallback remains limited to 100 pages / 500,000 readable characters and rejects unreadable pages. Its specific actionable errors are preserved. No PDF is compressed, rewritten, truncated or resampled by these fixes. Gemini may still reject documents or encounter quota/model errors. No live Gemini extraction was attempted here.
+
+## Exact release prerequisites (not executed)
+
+1. Owner supplies an existing **public HTTPS native API origin**, or approves hosting the prepared standalone API. Entry: `./node_modules/.bin/tsx server/nativeNewsletterServer.ts` (requires server dependencies, including tsx, available in the deployment). Alternatively mount the additive native routes in the existing Express server. Standalone mode does not serve the website. Configure server-only `GEMINI_API_KEY` through the host's secret store; never copy it to Expo or commit it. Provide sufficient memory/time for a 50 MB PDF, the existing Files/text fallback, and the 300-second client analysis budget.
+2. Deploy only that approved service/update. It serves `GET /api/newsletter/native/health`, authenticated `GET /api/newsletter/native/capabilities`, and authenticated `POST /api/newsletter/native/extract-content`. Do not deploy Firebase rules, Storage, Hosting or unrelated workers.
+3. Verify service identity and unauthenticated rejection using `EXPO_PUBLIC_TOWNLOOP_API_URL=<actual HTTPS origin> node native/scripts/verify-newsletter-api.cjs`. Then confirm approved Admin/VIP capability access and denied resident/pending/deleting access. Capabilities return limits and a configured boolean, never secrets; key validity still requires an authorized analysis test.
+4. With approval, set **only the public URL** as `EXPO_PUBLIC_TOWNLOOP_API_URL` in EAS **preview** (Plain text). The example in `native/.env.example` intentionally stays blank until a real endpoint is verified. No EAS environment was modified in this task.
+5. After approval push the checkpoint and publish one Android Preview OTA after the normal exact-runtime check. No new native dependency/resource/configuration was added, so an APK rebuild is not required for these fixes. iOS shares the JS implementation but is not device-verified.
+6. In News choose Resume an uploaded PDF, select the recent complete entry by size/time, supply edition title/month if absent from the legacy orphan, and retry analysis. The old published newsletter remains live through failures and review. Verify real Samsung timings and one explicit publication separately; no live upload, analysis or publication occurred here.

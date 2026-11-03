@@ -1,4 +1,6 @@
-# Newsletter PDF transfer checkpoint
+# Newsletter PDF transfer checkpoint (historical e5f2857)
+
+Superseded for analysis/recovery and transport by `NEWSLETTER_ANALYSIS_RELEASE.md`. The measurements below describe the first optimization, not a real phone speed guarantee.
 
 Local change only. No resident PDF was inspected or uploaded, no backend/rules changed, and no release was published.
 

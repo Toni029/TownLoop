@@ -13,6 +13,8 @@ import { translateWorkOrderContent } from './server/translation.ts';
 import { extractNewsletterContent } from './server/newsletterExtractor.ts';
 import { requireNewsletterManager, requireNewsletterReader, requireWorkOrderTranslator } from './server/newsletterAuth.ts';
 
+import { nativeNewsletterRouter } from './server/nativeNewsletterRoutes.ts';
+
 import { decodePdf, validatePdf, fetchNewsletterPdf, MAX_NEWSLETTER_PDF_BYTES, NEWSLETTER_JSON_LIMIT, NewsletterInputError } from './server/newsletterPdfSecurity.ts';
 
 dotenv.config();
@@ -78,6 +80,8 @@ const newsletterJson = express.json({ limit: NEWSLETTER_JSON_LIMIT });
 const translationJson = express.json({ limit: '256kb' });
 
 // ==================== API ROUTES ====================
+
+app.use('/api/newsletter/native', nativeNewsletterRouter);
 
 // Newsletter AI extraction endpoint for PDF / community bulletin documents
 app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterManager, newsletterJson, async (req: Request, res: Response) => {

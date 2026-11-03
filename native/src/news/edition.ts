@@ -6,6 +6,7 @@ import {
   getDocsFromServer,
   runTransaction,
   serverTimestamp,
+  setDoc,
   writeBatch,
 } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
@@ -14,6 +15,7 @@ import { auth, db, storage } from "../lib/firebase";
 import { approvedUser } from "./actions";
 import { assemblePdf, editionKey, hasUploadedNewsletter } from "./model";
 import { transferPdf, stringPdfSource, newUploadResume, PDF_CHUNK_BYTES, PDF_PREFIX, type PdfSource, type UploadResume, type TransferProgress } from "./pdfTransfer";
+import { commitPdfChunks } from "./firestorePdf";
 export const MAX_PDF_MB = 64;
 export const MAX_PDF_BYTES = MAX_PDF_MB * 1024 * 1024;
 export async function activeEdition(expected?: NewsletterConfig) {
@@ -149,17 +151,16 @@ export async function stageEdition(
     commit: async chunks => {
       check();
       if (options.signal?.aborted) throw new Error("Upload paused. Retry to resume.");
-      const batch = writeBatch(db);
-      for (const chunk of chunks) batch.set(doc(db, "newsletters", config.id, "chunks", String(chunk.index)), {
-        index: chunk.index, data: chunk.data, totalChunks, totalSize, updatedAt: serverTimestamp(),
-      });
-      await batch.commit();
+      await commitPdfChunks(config.id, chunks, totalChunks, totalSize, options.signal);
     },
   });
   check();
   options.onMetrics?.({ preparationMs: source.preparationMs, ...metrics });
-  // Only finishEdition may publish the pointer, after every batch is confirmed.
-  return { ...config, hasFirestoreBlob: true, totalChunks, totalSize, updatedAt: serverTimestamp() };
+  // Durable checkpoint is separate from the live pointer: closing/restarting cannot lose a confirmed PDF.
+  const metadata = { ...config, hasFirestoreBlob: true, totalChunks, totalSize, sourceBytes: source.size, uploadState: 'uploaded', updatedAt: serverTimestamp() };
+  await setDoc(doc(db, "newsletters", config.id), metadata);
+  check();
+  return metadata;
 }
 export async function finishEdition(
   metadata: NewsletterConfig & { totalChunks: number; totalSize: number },
@@ -185,12 +186,13 @@ export async function finishEdition(
       );
     for (const item of items)
       tx.set(doc(db, item.collection, item.id), item.data);
-    tx.set(doc(db, "newsletters", config.id), metadata);
+    tx.set(doc(db, "newsletters", config.id), { ...metadata, uploadState: "published" });
     // PDF bytes live at the immutable edition id. Publishing only the pointer
     // stays below Firestore's 10 MiB transaction limit for the real 16 MiB issue.
     // Web useNewsletterPdf already resolves config.id before its legacy fallback.
     tx.set(pointer, {
       ...metadata,
+      uploadState: "published",
       hasFirestoreBlob: false,
       totalChunks: 0,
       totalSize: 0,

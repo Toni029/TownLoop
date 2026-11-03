@@ -18,6 +18,8 @@ import { approvedUser, newNewsId } from "./actions";
 import { stageEdition, finishEdition, MAX_PDF_MB } from "./edition";
 import { newUploadResume, type TransferProgress } from "./pdfTransfer";
 import { auth } from "../lib/firebase";
+import { preflightAnalysis } from "./api";
+import { retainedEditions, type RetainedEdition } from "./drafts";
 import { analyzeNewsletter } from "./ai";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 import { useReducedMotion } from "../home/hooks";
@@ -40,9 +42,11 @@ export function UploadEdition({
   const [aiEnabled, setAiEnabled] = useState(true);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [editing, setEditing] = useState("");
-  const [staged, setStaged] = useState<Awaited<
-    ReturnType<typeof stageEdition>
-  > | null>(null);
+  const [staged, setStaged] = useState<(NewsletterConfig & {totalChunks:number;totalSize:number;sourceBytes?:number}) | null>(null);
+  const [retained, setRetained] = useState<RetainedEdition[]>([]);
+  const [finding, setFinding] = useState(false);
+  const [checkingService, setCheckingService] = useState(false);
+  const [timing, setTiming] = useState<{preparationMs:number;elapsedMs:number;readMs:number;commitMs:number}|null>(null);
   const [busy, setBusy] = useState(false),
     [progress, setProgress] = useState(0);
   const [step, setStep] = useState(-1),
@@ -65,6 +69,7 @@ export function UploadEdition({
     }).start();
   }, [bar, progress, reduced]);
   function resetDraft() {
+    setTiming(null);
     resume.current = newUploadResume();
     setBytes(null);
     setEditionId(newNewsId("newsletters"));
@@ -101,8 +106,20 @@ export function UploadEdition({
       setBusy(false);
     }
   }
+  async function findRetained() {
+    if (lock.current) return;
+    lock.current = true; setBusy(true); setFinding(true); setError("");
+    try { const values = await retainedEditions(); setRetained(values); if (!values.length) setError("No complete unpublished PDF was found. Partial uploads cannot be analyzed."); }
+    catch (e) { setError(e instanceof Error ? e.message : "Unable to check retained PDFs."); }
+    finally { setFinding(false); setBusy(false); lock.current = false; }
+  }
+  function editDetails() {
+    // Text edits must not throw away a confirmed 42 MB upload.
+    if (staged) { setResult(null); setEditing(""); setError(""); }
+    else resetDraft();
+  }
   async function publish() {
-    if (lock.current || !file) return;
+    if (lock.current || (!file && !staged)) return;
     lock.current = true;
     setBusy(true);
     setError("");
@@ -111,7 +128,12 @@ export function UploadEdition({
     const owner = auth.currentUser?.uid;
     try {
       let metadata = staged;
-      if (!metadata) {
+      if (aiEnabled && !result) {
+        setCheckingService(true);
+        try { await preflightAnalysis(file?.size || Number((staged as {sourceBytes?:number}|null)?.sourceBytes) || 0); }
+        finally { setCheckingService(false); }
+      }
+      if (!metadata && file) {
         const user = await approvedUser(true);
         const config = {
           id: editionId,
@@ -132,17 +154,18 @@ export function UploadEdition({
         setStep(0);
         setProgress(bytes?.percent || 0);
         metadata = await stageEdition(config, file, setProgress, {
-          signal: controller.signal, resume: resume.current, onTransfer: setBytes,
+          signal: controller.signal, resume: resume.current, onTransfer: setBytes, onMetrics: setTiming,
         });
         setStaged(metadata);
       }
+      if (!metadata) throw new Error("Select a PDF or resume a retained upload.");
+      metadata = { ...metadata, editionTitle: title.trim(), monthEdition: month.trim() };
       if (aiEnabled && !result) {
         setStep(1);
         setProgress(100);
-        // The only complete Base64 read is deferred until the existing AI request needs it.
-        const dataUrl = await file.readDataUrl();
         if (auth.currentUser?.uid !== owner) throw new Error("Please sign in again.");
-        const extracted = await analyzeNewsletter(metadata, dataUrl);
+        // Reference-only request: the server reuses confirmed Firebase bytes, never a second phone upload.
+        const extracted = await analyzeNewsletter(metadata, true);
         setResult(extracted);
         setProgress(100);
         // Keep the current newsletter live until the manager approves this inline review.
@@ -203,18 +226,23 @@ export function UploadEdition({
             }}
           >
             <Upload size={28} color="#059669" />
-            <Copy weight="bold">{file?.name || "Choose PDF document"}</Copy>
+            <Copy weight="bold">{file?.name || staged?.fileName || "Choose PDF document"}</Copy>
             <Copy>
               {file
                 ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-                : `PDF documents up to ${MAX_PDF_MB} MB`}
+                : staged?.fileSize || `PDF documents up to ${MAX_PDF_MB} MB`}
             </Copy>
           </Pressable>
+          <Action label={finding ? "Checking retained PDFs…" : "Resume an uploaded PDF"} disabled={busy} onPress={() => void findRetained()} />
+          {retained.map(draft => <Action key={draft.id} disabled={busy} label={`${draft.fileName} · ${draft.fileSize} · ${new Date(draft.retainedAt).toLocaleString()}`} onPress={() => {
+            setFile(null); setStaged(draft); setEditionId(draft.id); setTitle(draft.editionTitle || ""); setMonth(draft.monthEdition || ""); setResult(null); setStep(0); setProgress(100); setBytes({confirmedBytes:draft.sourceBytes,totalBytes:draft.sourceBytes,percent:100}); setRetained([]); setError("");
+          }} />)}
+          {!!staged && <Copy>PDF upload is retained. Retry analysis or publish with AI turned off; no PDF re-upload is needed.</Copy>}
           <Field
             label="Edition Title *"
             value={title}
             onChangeText={(v) => {
-              resetDraft();
+              editDetails();
               setTitle(v);
             }}
             editable={!busy}
@@ -223,7 +251,7 @@ export function UploadEdition({
             label="Month / Edition"
             value={month}
             onChangeText={(v) => {
-              resetDraft();
+              editDetails();
               setMonth(v);
             }}
             editable={!busy}
@@ -235,8 +263,8 @@ export function UploadEdition({
             onPress={() => {
               setAiEnabled(!aiEnabled);
               setResult(null);
-              setStep(-1);
-              setProgress(0);
+              setStep(staged ? 0 : -1);
+              setProgress(staged ? 100 : 0);
             }}
             style={{
               flexDirection: "row",
@@ -270,6 +298,8 @@ export function UploadEdition({
           </Pressable>
         </>
       )}
+      {checkingService && <Copy>Checking the secure analysis service and file-size limit…</Copy>}
+      {!!timing && <Copy>File preparation: {(timing.preparationMs/1000).toFixed(1)}s · Local reads: {(timing.readMs/1000).toFixed(1)}s · Transfer: {(timing.elapsedMs/1000).toFixed(1)}s</Copy>}
       {!reviewing && step >= 0 && (
         <View
           accessibilityRole="progressbar"
@@ -510,10 +540,10 @@ export function UploadEdition({
       ) : (
         <Pressable
           accessibilityRole="button"
-          disabled={busy || !file || !title.trim()}
+          disabled={busy || (!file && !staged) || !title.trim()}
           onPress={() => void publish()}
           style={{
-            opacity: busy || !file || !title.trim() ? 0.55 : 1,
+            opacity: busy || (!file && !staged) || !title.trim() ? 0.55 : 1,
             borderRadius: 20,
             overflow: "hidden",
             marginTop: 8,

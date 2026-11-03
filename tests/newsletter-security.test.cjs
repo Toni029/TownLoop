@@ -64,6 +64,7 @@ test('registered newsletter/translation routes authenticate before their bounded
   fs:`export default {existsSync:()=>true};`,
   dotenv:`export default {config(){}};`,
   vite:`export const createServer=async()=>({middlewares(){}});`,
+  './server/nativeNewsletterRoutes.ts':`export const nativeNewsletterRouter=()=>{};`,
   './server/newsletterExtractor.ts':`export const extractNewsletterContent=async()=>{throw Error('No AI call expected')};`,
   './server/translation.ts':`export const translateWorkOrderContent=async()=>{throw Error('No AI call expected')};`,
  });

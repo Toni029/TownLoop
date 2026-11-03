@@ -1,57 +1,40 @@
-import { Platform } from "react-native";
+import { preflightAnalysis } from "./api";
 import { doc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import type { NewsletterConfig } from "../models";
 import { approvedUser } from "./actions";
-import { activeEdition, loadPdfData } from "./edition";
+import { activeEdition } from "./edition";
 import { editionKey } from "./model";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 export async function analyzeNewsletter(
   config: NewsletterConfig,
-  selectedPdf?: string,
+  newUpload = false,
 ): Promise<AnalysisResult> {
   await approvedUser(true);
-  const configured = process.env.EXPO_PUBLIC_TOWNLOOP_API_URL;
-  const local =
-    Platform.OS === "web" &&
-    typeof location !== "undefined" &&
-    ["localhost", "127.0.0.1"].includes(location.hostname);
-  const base =
-    configured ||
-    (local ? `${location.protocol}//${location.hostname}:3000` : "");
-  if (!base)
-    throw Error(
-      "Set EXPO_PUBLIC_TOWNLOOP_API_URL to the secure TownLoop server to enable newsletter analysis.",
-    );
-  const url = new URL(base);
-  if (
-    url.protocol !== "https:" &&
-    !["localhost", "127.0.0.1"].includes(url.hostname)
-  )
-    throw Error("The TownLoop AI service must use HTTPS.");
-  const data = selectedPdf || (await loadPdfData(config));
+  const owner = auth.currentUser?.uid;
+  const base = await preflightAnalysis();
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw Error("Please sign in again.");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 300000);
   try {
     const response = await fetch(
-      `${base.replace(/\/$/, "")}/api/newsletter/extract-content`,
+      `${base.replace(/\/$/, "")}/api/newsletter/native/extract-content`,
       {
         method: "POST",
+        redirect: "error",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           newsletterId: config.id,
-          base64Data: data.split(",")[1],
           mimeType: "application/pdf",
           fileName: config.fileName,
           editionTitle: config.editionTitle,
           monthEdition: config.monthEdition,
-          isReanalysis: !selectedPdf,
-          isNewUpload: !!selectedPdf,
+          isReanalysis: !newUpload,
+          isNewUpload: newUpload,
         }),
         signal: controller.signal,
       },
@@ -59,8 +42,9 @@ export async function analyzeNewsletter(
     const result = await response.json().catch(() => null);
     if (!response.ok)
       throw Error(result?.error || "Newsletter analysis failed. Please retry.");
+    if (auth.currentUser?.uid !== owner) throw Error("Your account changed. Reopen News.");
     analysisItems(result, config); // Validate before showing or persisting output.
-    if (!selectedPdf) await activeEdition(config);
+    if (!newUpload) await activeEdition(config);
     return result;
   } catch (error) {
     if (controller.signal.aborted)

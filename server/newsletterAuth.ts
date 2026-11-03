@@ -4,7 +4,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { canManageNewsletter, canTranslateWorkOrder } from '../src/utils/permissions';
 
 /** Authenticate with Firebase, then check the same saved profile used by the UI. */
-async function requireRole(req: Request, res: Response, next: NextFunction, role: 'manager' | 'translator' | 'reader' = 'manager') {
+async function requireRole(req: Request, res: Response, next: NextFunction, role: 'manager' | 'translator' | 'reader' = 'manager', native = false) {
   const token = req.headers.authorization?.match(/^Bearer ([^\s]+)$/)?.[1];
   if (!token) {
     res.status(401).json({ error: 'Please sign in to access this service.' });
@@ -22,7 +22,7 @@ async function requireRole(req: Request, res: Response, next: NextFunction, role
       return;
     }
     const project = process.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId;
-    const database = process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
+    const database = native ? '(default)' : process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
     const profileResponse = await fetch(
       `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/${encodeURIComponent(database)}/documents/users/${encodeURIComponent(account.localId)}`,
       { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
@@ -44,3 +44,6 @@ export const requireNewsletterManager = (req: Request, res: Response, next: Next
 export const requireWorkOrderTranslator = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next, 'translator');
 
 export const requireNewsletterReader = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next, 'reader');
+
+// Dedicated native endpoint always verifies canonical roles in (default), never the website database.
+export const requireNativeNewsletterManager = (req: Request, res: Response, next: NextFunction) => requireRole(req, res, next, 'manager', true);
