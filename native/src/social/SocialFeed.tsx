@@ -159,12 +159,12 @@ function Pill({
       <Copy
         weight={solid ? "extra" : "semi"}
         style={{
-          fontSize: price ? 20 : solid
+          fontSize: price ? 14 : solid
             ? 12
             : label === "Available" || label === "Sold"
               ? 11
               : 10,
-          lineHeight: price ? 26 : solid ? 16 : 15,
+          lineHeight: price ? 20 : solid ? 16 : 15,
           color,
         }}
       >
@@ -174,49 +174,32 @@ function Pill({
     </View>
   );
 }
-function DeleteControl({
-  onDelete,
-  busy,
-  compact = false,
-  confirmation = true,
-  nearPrice = false,
-}: {
-  onDelete: () => void;
+function DeleteControl({ onRequest, busy, compact = false, nearPrice = false }: {
+  onRequest: () => void;
   busy: boolean;
   compact?: boolean;
-  confirmation?: boolean;
   nearPrice?: boolean;
 }) {
-  const [confirm, setConfirm] = useState(false);
-  return confirm ? (
-    <View style={s.row}>
-      <Copy style={{ color: "#be123c" }}>Delete?</Copy>
-      <Action
-        compact
-        label="Yes"
-        tone="rose"
-        disabled={busy}
-        onPress={onDelete}
-      />
-      <Action
-        compact
-        label="Cancel"
-        tone="light"
-        onPress={() => setConfirm(false)}
-      />
-    </View>
-  ) : (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Delete item"
-      disabled={busy}
-      onPress={() => confirmation ? setConfirm(true) : onDelete()}
-      hitSlop={compact ? undefined : 12}
-      style={compact ? { width: 44, height: 44, alignItems: nearPrice ? "center" : "flex-end", justifyContent: "center" } : { padding: 4 }}
-    >
-      <Trash2 size={14} color="#a8a29e" />
-    </Pressable>
-  );
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel="Delete item"
+    disabled={busy}
+    onPress={onRequest}
+    hitSlop={compact ? undefined : 12}
+    style={compact ? { width: 44, height: 44, alignItems: nearPrice ? "center" : "flex-end", justifyContent: "center" } : { padding: 4 }}
+  ><Trash2 size={14} color="#a8a29e" /></Pressable>;
+}
+function DeleteConfirmation({ kind, busy, onConfirm, onCancel }: {
+  kind: SocialKind;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return <View style={{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:8,paddingVertical:8,maxWidth:"100%"}}>
+    <Copy style={{color:"#be123c",flexShrink:1}}>Delete this {kind === "post" ? "post" : "listing"}?</Copy>
+    <Action compact label="Delete" tone="rose" disabled={busy} onPress={onConfirm}/>
+    <Action compact label="Cancel" tone="light" disabled={busy} onPress={onCancel}/>
+  </View>;
 }
 export function Comments({
   comments,
@@ -280,21 +263,25 @@ export function Comments({
           <View
             style={{
               flex: 1,
+              minWidth: 0,
               backgroundColor: dark ? "#1e293b" : "#f5f5f4",
               borderRadius: 16,
               padding: 12,
               gap: 4,
             }}
           >
-            <Copy weight="bold">
-              {c.author}{" "}
-              <Copy style={{ color: "#a8a29e", fontSize: 10 }}>
-                {safetyTarget?.kind==='post'?commentTime(c,now):`${c.unit?c.unit+' • ':''}${c.timeAgo}`}
-              </Copy>
-            </Copy>
+            {safetyTarget?.kind==='post' ? <View style={{flexDirection:"row",alignItems:"flex-start",gap:8}}>
+              <View style={{flex:1,minWidth:0,gap:2}}>
+                <Copy weight="bold" style={{flexShrink:1}}>{c.author}</Copy>
+                {!!commentTime(c,now) && <Copy style={{color:"#a8a29e",fontSize:10}}>
+                  {commentTime(c,now)}
+                </Copy>}
+              </View>
+              <SafetyActions target={{kind:'comment',id:safetyTarget.id,collection:'discussion_feed',commentId:String(c.id),authorId:c.authorId?String(c.authorId):undefined}}/>
+            </View> : <Copy weight="bold">{c.author}{" "}<Copy style={{color:"#a8a29e",fontSize:10}}>{`${c.unit?c.unit+' • ':''}${c.timeAgo}`}</Copy></Copy>}
             <Copy style={{ lineHeight: 20 }}>{c.text}</Copy>
             {push.repliesAvailable&&safetyTarget?.kind==='post'&&c.authorId&&<Pressable accessibilityLabel={`Reply to ${c.author}`} onPress={()=>setReplyTo(String(c.id))} style={{minHeight:44,justifyContent:'center',alignSelf:'flex-start'}}><Copy style={{color:'#059669',fontSize:12}}>Reply</Copy></Pressable>}
-            {safetyTarget && <SafetyActions target={{kind:'comment',id:safetyTarget.id,collection:safetyTarget.kind==='post'?'discussion_feed':'marketplace_posts',commentId:String(c.id),authorId:c.authorId?String(c.authorId):undefined}}/>}
+            {safetyTarget?.kind==='listing' && <SafetyActions target={{kind:'comment',id:safetyTarget.id,collection:'marketplace_posts',commentId:String(c.id),authorId:c.authorId?String(c.authorId):undefined}}/>}
           </View>
         </View>
       ))}
@@ -542,6 +529,8 @@ export function SocialFeed({
   useNewsFonts();
   const now = useMinuteNow();
   const [comments, setComments] = useState<string | null>(null);
+  const [pendingDelete,setPendingDelete]=useState<string|null>(null);
+  const confirmDelete=(kind:SocialKind,id:string)=>void onAction(kind,id,"delete").then(deleted=>{if(deleted)setPendingDelete(null);});
   const [drafts] = useState(() => {
     const values = new Map<string, { text: string; id: string }>();
     return { get: (id: string) => values.get(id), set: (id: string, draft: { text: string; id: string }) => values.set(id, draft) };
@@ -576,12 +565,11 @@ export function SocialFeed({
                   {(owns(post, user) || canDeleteAnyPost(user)) && (
                     <DeleteControl
                       busy={busy}
-                      onDelete={() =>
-                        void onAction("post", String(post.id), "delete")
-                      }
+                      onRequest={() => setPendingDelete(`post:${post.id}`)}
                     />
                   )}
                 </View>
+                {pendingDelete===`post:${post.id}` && <DeleteConfirmation kind="post" busy={busy} onCancel={()=>setPendingDelete(null)} onConfirm={()=>confirmDelete("post",String(post.id))}/>}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Read ${post.title}`}
@@ -746,15 +734,13 @@ export function SocialFeed({
                       <DeleteControl
                         compact
                         nearPrice
-                        confirmation={false}
                         busy={busy}
-                        onDelete={() =>
-                          void onAction("listing", String(item.id), "delete")
-                        }
+                        onRequest={() => setPendingDelete(`listing:${item.id}`)}
                       />
                     )}
                   </View>
                 </View>
+                {pendingDelete===`listing:${item.id}` && <DeleteConfirmation kind="listing" busy={busy} onCancel={()=>setPendingDelete(null)} onConfirm={()=>confirmDelete("listing",String(item.id))}/>}
                 <View
                   style={[
                     s.row,
@@ -1024,6 +1010,7 @@ export function Detail({
   const now=useMinuteNow(kind==='post');
   const [revealContentY,setRevealContentY]=useState<number|undefined>();
   const [shareError, setShareError] = useState("");
+  const [pendingDelete,setPendingDelete]=useState<string|null>(null);
   const post = kind === "post" ? (item as Post) : null;
   const listing = kind === "listing" ? (item as Listing) : null;
   return (
@@ -1044,10 +1031,11 @@ export function Detail({
           {listing && owns(listing,user) && onEdit && <Pressable accessibilityRole="button" accessibilityLabel="Edit listing" disabled={busy} onPress={() => onEdit(listing)} style={{width:44,height:44,alignItems:'center',justifyContent:'center'}}><Pencil size={16} color="#059669"/></Pressable>}
           {listing && <Pill solid price label={listing.price} tone={listing.sold ? "stone" : listing.price.toUpperCase() === "FREE" ? "green" : "amber"} />}
           {(owns(item, user) || canDeleteAnyPost(user)) && (
-            <DeleteControl compact nearPrice={!!listing} confirmation={!listing} busy={busy} onDelete={() => void onAction(kind, String(item.id), "delete")} />
+            <DeleteControl compact nearPrice={!!listing} busy={busy} onRequest={()=>setPendingDelete(`${kind}:${item.id}`)} />
           )}
         </View>
       </View>
+      {pendingDelete===`${kind}:${item.id}` && <DeleteConfirmation kind={kind} busy={busy} onCancel={()=>setPendingDelete(null)} onConfirm={()=>void onAction(kind,String(item.id),"delete").then(deleted=>{if(deleted)setPendingDelete(null);})}/>}
       {post && <View style={s.row}><Pill label={post.tag} /></View>}
       <Copy style={{ fontSize: 14, lineHeight: 23 }}>
         {post?.content || listing?.description}
