@@ -29,7 +29,7 @@ test('prepared package excludes local secrets/website/workers, and app targets t
 test('packaged function rejects unauthenticated inference without contacting Gemini',{skip:!runtimeInstalled},async()=>{
  const http=require('node:http'),handler=require('../.release/newsletter-api/index.cjs').newsletterApi;
  const server=http.createServer(handler);await new Promise(r=>server.listen(0,'127.0.0.1',r));
- try{const url='http://127.0.0.1:'+server.address().port;const r=await fetch(url+'/api/newsletter/native/extract-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newsletterId:'fixture',isNewUpload:true})});assert.equal(r.status,401);const health=await fetch(url+'/api/newsletter/native/health');assert.equal((await health.json()).service,'townloop-native-api');}
+ try{const url='http://127.0.0.1:'+server.address().port;const r=await fetch(url+'/api/newsletter/native/extract-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newsletterId:'fixture',isNewUpload:true})});assert.equal(r.status,401);const health=await fetch(url+'/api/newsletter/native/health');const status=await health.json();assert.equal(status.service,'townloop-native-api');assert.equal(status.pdfLoaderVersion,2);}
  finally{await new Promise(r=>server.close(r));}
 });
 test('packaged PDF.js and native canvas parse/render a synthetic PDF, independent of root dependencies',{skip:!pdfInstalled},async()=>{

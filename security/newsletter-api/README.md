@@ -5,6 +5,16 @@ Project: `cc-livingcommunity-app` · region: `us-central1` · isolated codebase:
 Live service URL:
 `https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi`
 
+## Pending local PDF-loader correction (not deployed)
+
+The live revision `newsletterapi-00001-taj` was verified against its uploaded source archive; its bundled app SHA-256 is `38ba7e1bf6fb128c528c817f71f09ac156c3c95251acbea668d9c7e41b51973d`, matching the originally prepared implementation. The function is active with Secret Manager version 1 and the dedicated service identity; health succeeds and unauthenticated inference/capabilities are rejected. This establishes deployment identity and authorization, not successful Gemini inference.
+
+The large-PDF error is a loader bug: its fixed **26-page** loop assumes Firestore delivers eight chunks per page. Read-only integrity verification of the newest complete unpublished edition found **27 pages of three chunks each**, all 81 hashes matching, 52,580,664 encoded characters and 39,435,477 original bytes matching the completed manifest. The old reader stops after 78 chunks. The PDF is intact, and neither the published pointer nor any retained data was modified. No PDF contents were written to disk or sent to Gemini during inspection.
+
+The local fix follows continuation tokens with independent row/page bounds and repeated-token detection, verifies available SHA-256 receipts and manifest totals/decoded byte size, and preserves complete legacy uploads without receipts. Verification failures and actual Gemini failures have separate response stages. Health/capabilities expose additive `pdfLoaderVersion: 2` while retaining API `version: 1` for installed-client compatibility. Focused HTTP pipeline fixtures verify that only fully verified bytes reach the Gemini adapter; live extraction is still pending approval/deployment.
+
+Required next release: deploy **only `newsletterApi`** using the isolated config already documented below. No key import, IAM change, rules/index deployment, OTA, native build, new upload, or newsletter publication is required. After deployment verify health reports loader version 2, sign in as an approved Admin/VIP and retry analysis of the existing complete retained edition. Do not publish it until the owner explicitly reviews and publishes the replacement.
+
 ## Existing key verified without disclosure
 
 Read-only checks on 2026-11-03 found:
