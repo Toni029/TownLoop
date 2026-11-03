@@ -1,8 +1,8 @@
-# Isolated newsletter analysis function — prepared, NOT deployed
+# Isolated newsletter analysis function — deployed 2026-11-03
 
 Project: `cc-livingcommunity-app` · region: `us-central1` · isolated codebase: `newsletter-api` · sole export: `newsletterApi`.
 
-Prepared public service URL (not live yet):
+Live service URL:
 `https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi`
 
 ## Existing key verified without disclosure
@@ -38,11 +38,12 @@ This bundles only the shared native Express app and existing analysis modules in
 
 The mobile client now defaults to the exact prepared Firebase URL through `native/newsletter-api.json`. Its existing readiness/size checks prevent proceeding while the function is absent or misconfigured. `EXPO_PUBLIC_TOWNLOOP_API_URL` remains an optional **public URL override**, never an API-key setting.
 
-## Owner approval required; none of these actions has run
+## Approved deployment — 2026-11-03
 
-1. **Approve secure provisioning:** import the existing backend key, create the dedicated runtime identity, and grant that identity access to this one secret. We can perform this using the existing authorized Firebase operator session; no key/password/token needs to be pasted. Command for the operator after approval: `node security/newsletter-api/provision.cjs --approve-provision` with `TOWNLOOP_FIREBASE_AUTH_MODULE` pointing to the installed Firebase CLI auth module if needed. No function is deployed by this script.
-2. **Approve deployment of this one function only:** `firebase deploy --project cc-livingcommunity-app --config firebase.newsletter-api.json --only functions:newsletter-api`. The predeploy step only repackages local source. No Hosting, rules, indexes, named-database changes or other functions are in this configuration. Do not use a blanket functions deployment.
-3. Verify public health plus unauthenticated rejection with `node native/scripts/verify-newsletter-api.cjs`; then verify approved Admin/VIP capability access and one authorized retained-PDF analysis. Keep the current published newsletter until explicit review/publishing succeeds.
-4. **Separately approve the compatible Preview OTA** containing the prepared recovery/client endpoint changes. No APK rebuild is required for this JavaScript configuration. The previous app bundle must not be described as containing these unpublished fixes.
+The owner approved provisioning, this isolated function deployment, GitHub push and one compatible Android Preview OTA. The existing private key was imported into Secret Manager version 1 without disclosure. Only the dedicated runtime identity has an explicit secretAccessor binding on this secret. No other function, rules, indexes or Hosting was deployed.
 
-Until those approvals, everything stays local: no Secret Manager import, IAM/service-account creation, deployment, Expo environment change or publication has occurred.
+Cloud Functions reports `newsletterApi` ACTIVE with the dedicated identity and secret binding. Public health returns the expected service/project identity; unauthenticated capabilities and analysis requests return HTTP 401. These checks do not establish that Gemini successfully analyzed the actual newsletter.
+
+There is no legitimate signed-in Admin/VIP app session available to the release operator. Do not impersonate a resident or mint a token to bypass this boundary. After installing the compatible Preview update, an approved Admin/VIP can select **Resume an uploaded PDF** in News and analyze the complete retained upload. No phone reupload is required; incomplete uploads are rejected. Analysis does not replace the published newsletter: the resident must explicitly complete the existing publishing action after review.
+
+Future backend releases must remain scoped to `firebase.newsletter-api.json` and `--only functions:newsletter-api`. The unchanged key provisioning procedure above is historical setup guidance; do not rotate/import another key unnecessarily.

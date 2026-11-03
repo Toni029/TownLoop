@@ -2,5 +2,5 @@
   "projectId": "cc-livingcommunity-app",
   "functionName": "newsletterApi",
   "url": "https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi",
-  "deploymentStatus": "prepared-not-deployed"
+  "deploymentStatus": "deployed"
 }

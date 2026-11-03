@@ -24,7 +24,7 @@ test('isolated function exports only newsletterApi with bound secret, low concur
 });
 test('prepared package excludes local secrets/website/workers, and app targets the deterministic function URL',()=>{
  const out='.release/newsletter-api';assert.deepEqual(fs.readdirSync(out).filter(n=>n!=='node_modules').sort(),['index.cjs','lib','package-lock.json','package.json']);const code=fs.readFileSync(path.join(out,'lib/native-app.cjs'),'utf8');assert.ok(code.includes('extractNewsletterContent'));assert.ok(code.includes('retainedNativePdf'));assert.ok(!code.includes('onSchedule'));assert.ok(!code.includes('dotenv.config'));
- const config=JSON.parse(fs.readFileSync('native/newsletter-api.json'));assert.equal(config.url,'https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi');assert.equal(config.deploymentStatus,'prepared-not-deployed');
+ const config=JSON.parse(fs.readFileSync('native/newsletter-api.json'));assert.equal(config.url,'https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi');assert.equal(config.deploymentStatus,'deployed');
 });
 test('packaged function rejects unauthenticated inference without contacting Gemini',{skip:!runtimeInstalled},async()=>{
  const http=require('node:http'),handler=require('../.release/newsletter-api/index.cjs').newsletterApi;
