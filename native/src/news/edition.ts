@@ -6,14 +6,14 @@ import {
   getDocsFromServer,
   runTransaction,
   serverTimestamp,
-  setDoc,
   writeBatch,
 } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
 import type { NewsletterConfig } from "../models";
-import { db, storage } from "../lib/firebase";
+import { auth, db, storage } from "../lib/firebase";
 import { approvedUser } from "./actions";
 import { assemblePdf, editionKey, hasUploadedNewsletter } from "./model";
+import { transferPdf, stringPdfSource, newUploadResume, PDF_CHUNK_BYTES, PDF_PREFIX, type PdfSource, type UploadResume, type TransferProgress } from "./pdfTransfer";
 export const MAX_PDF_MB = 64;
 export const MAX_PDF_BYTES = MAX_PDF_MB * 1024 * 1024;
 export async function activeEdition(expected?: NewsletterConfig) {
@@ -129,35 +129,37 @@ export async function purgeRemovedEdition(id: string) {
 }
 export async function stageEdition(
   config: NewsletterConfig,
-  dataUrl: string,
+  input: string | PdfSource,
   onProgress: (percent: number) => void,
+  options: { signal?: AbortSignal; resume?: UploadResume; onTransfer?: (value: TransferProgress) => void; onMetrics?: (value: { preparationMs: number; readMs: number; commitMs: number; elapsedMs: number; commits: number }) => void } = {},
 ) {
-  await approvedUser(true);
-  if (!/^data:application\/pdf;base64,JVBERi0/.test(dataUrl))
-    throw new Error("Please select a valid PDF.");
-  if (dataUrl.length > Math.ceil((MAX_PDF_BYTES * 4) / 3) + 64)
-    throw new Error(`Please use a PDF no larger than ${MAX_PDF_MB} MB.`);
-  const chunkSize = 650 * 1024;
-  const totalChunks = Math.ceil(dataUrl.length / chunkSize);
-  const metadata = {
-    ...config,
-    hasFirestoreBlob: true,
-    totalChunks,
-    totalSize: dataUrl.length,
-    updatedAt: serverTimestamp(),
-  };
-  // Stage the edition without changing the live pointer or exposing half a file.
-  for (let index = 0; index < totalChunks; index++) {
-    await setDoc(doc(db, "newsletters", config.id, "chunks", String(index)), {
-      index,
-      data: dataUrl.slice(index * chunkSize, (index + 1) * chunkSize),
-      totalChunks,
-      totalSize: dataUrl.length,
-      updatedAt: serverTimestamp(),
-    });
-    onProgress(Math.round(((index + 1) / totalChunks) * 80));
-  }
-  return metadata;
+  const user = await approvedUser(true);
+  const uid = auth.currentUser?.uid;
+  if (!uid || String(user.id) !== uid) throw new Error("Please sign in again.");
+  if (typeof input === "string" && !input.startsWith(PDF_PREFIX + "JVBERi0")) throw new Error("Please select a valid PDF.");
+  const source = typeof input === "string" ? stringPdfSource(input) : input;
+  if (!Number.isSafeInteger(source.size) || source.size <= 0) throw new Error("Please select a valid PDF.");
+  if (source.size > MAX_PDF_BYTES) throw new Error(`Please use a PDF no larger than ${MAX_PDF_MB} MB.`);
+  const totalChunks = Math.ceil(source.size / PDF_CHUNK_BYTES);
+  const totalSize = PDF_PREFIX.length + Math.ceil(source.size / 3) * 4;
+  const check = () => { if (auth.currentUser?.uid !== uid) throw new Error("Your account changed. Reopen the newsletter uploader."); };
+  const metrics = await transferPdf({
+    source, key: `${uid}:${config.id}`, resume: options.resume || newUploadResume(), signal: options.signal, check,
+    progress: value => { onProgress(value.percent); options.onTransfer?.(value); },
+    commit: async chunks => {
+      check();
+      if (options.signal?.aborted) throw new Error("Upload paused. Retry to resume.");
+      const batch = writeBatch(db);
+      for (const chunk of chunks) batch.set(doc(db, "newsletters", config.id, "chunks", String(chunk.index)), {
+        index: chunk.index, data: chunk.data, totalChunks, totalSize, updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+    },
+  });
+  check();
+  options.onMetrics?.({ preparationMs: source.preparationMs, ...metrics });
+  // Only finishEdition may publish the pointer, after every batch is confirmed.
+  return { ...config, hasFirestoreBlob: true, totalChunks, totalSize, updatedAt: serverTimestamp() };
 }
 export async function finishEdition(
   metadata: NewsletterConfig & { totalChunks: number; totalSize: number },

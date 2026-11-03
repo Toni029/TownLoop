@@ -16,6 +16,8 @@ import { pickPdf, type PickedPdf } from "./files";
 import { editionKey, hasUploadedNewsletter } from "./model";
 import { approvedUser, newNewsId } from "./actions";
 import { stageEdition, finishEdition, MAX_PDF_MB } from "./edition";
+import { newUploadResume, type TransferProgress } from "./pdfTransfer";
+import { auth } from "../lib/firebase";
 import { analyzeNewsletter } from "./ai";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 import { useReducedMotion } from "../home/hooks";
@@ -48,6 +50,12 @@ export function UploadEdition({
   const [editionId, setEditionId] = useState(() => newNewsId("newsletters"));
   const [expectedKey] = useState(() => editionKey(current));
   const lock = useRef(false);
+  const resume = useRef(newUploadResume());
+  const transfer = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+  const [bytes, setBytes] = useState<TransferProgress | null>(null);
+  useEffect(() => () => file?.dispose(), [file]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; transfer.current?.abort(); }; }, []);
   const [bar] = useState(() => new Animated.Value(0));
   useEffect(() => {
     Animated.timing(bar, {
@@ -57,6 +65,8 @@ export function UploadEdition({
     }).start();
   }, [bar, progress, reduced]);
   function resetDraft() {
+    resume.current = newUploadResume();
+    setBytes(null);
     setEditionId(newNewsId("newsletters"));
     setStaged(null);
     setResult(null);
@@ -72,6 +82,7 @@ export function UploadEdition({
     try {
       const next = await pickPdf();
       if (next) {
+        if (!mounted.current) { next.dispose(); return; }
         resetDraft();
         setFile(next);
         const found = next.name.match(
@@ -95,6 +106,9 @@ export function UploadEdition({
     lock.current = true;
     setBusy(true);
     setError("");
+    const controller = new AbortController();
+    transfer.current = controller;
+    const owner = auth.currentUser?.uid;
     try {
       let metadata = staged;
       if (!metadata) {
@@ -116,23 +130,27 @@ export function UploadEdition({
           pageImages: [],
         } as NewsletterConfig;
         setStep(0);
-        setProgress(2);
-        metadata = await stageEdition(config, file.dataUrl, (value) =>
-          setProgress(Math.round(value * 0.5)),
-        );
+        setProgress(bytes?.percent || 0);
+        metadata = await stageEdition(config, file, setProgress, {
+          signal: controller.signal, resume: resume.current, onTransfer: setBytes,
+        });
         setStaged(metadata);
       }
       if (aiEnabled && !result) {
         setStep(1);
-        setProgress(45);
-        const extracted = await analyzeNewsletter(metadata, file.dataUrl);
+        setProgress(100);
+        // The only complete Base64 read is deferred until the existing AI request needs it.
+        const dataUrl = await file.readDataUrl();
+        if (auth.currentUser?.uid !== owner) throw new Error("Please sign in again.");
+        const extracted = await analyzeNewsletter(metadata, dataUrl);
         setResult(extracted);
-        setProgress(75);
+        setProgress(100);
         // Keep the current newsletter live until the manager approves this inline review.
         return;
       }
       setStep(2);
-      setProgress(85);
+      if (auth.currentUser?.uid !== owner) throw new Error("Please sign in again.");
+      setProgress(100);
       const items = aiEnabled && result ? analysisItems(result, metadata) : [];
       await finishEdition(metadata, expectedKey, items);
       setProgress(100);
@@ -143,6 +161,7 @@ export function UploadEdition({
         `${e instanceof Error ? e.message : "Unable to publish newsletter."} Your current newsletter has not been replaced.`,
       );
     } finally {
+      transfer.current = null;
       lock.current = false;
       setBusy(false);
     }
@@ -150,7 +169,7 @@ export function UploadEdition({
   const labels = [
     "Uploading",
     aiEnabled ? "AI analysis" : "AI skipped",
-    "Polishing touches",
+    "Publishing",
     "Done",
   ];
   const ink = dark ? "#f5f5f4" : "#1c1917";
@@ -279,6 +298,12 @@ export function UploadEdition({
                 : `${labels[step]} · ${progress}%`}
             </Copy>
           </View>
+          {step === 0 && <>
+            <Copy>{bytes ? `${(bytes.confirmedBytes / 1048576).toFixed(1)} / ${(bytes.totalBytes / 1048576).toFixed(1)} MB confirmed` : "Preparing PDF transfer…"}</Copy>
+            <Copy>Progress updates after Firebase confirms each batch. Your current newsletter stays live until publishing finishes.</Copy>
+            {busy && <Action label="Cancel upload" onPress={() => transfer.current?.abort()} />}
+          </>}
+          {step === 1 && <Copy>PDF upload complete · 100%. AI analysis is a separate step.</Copy>}
           {step === 1 && busy && (
             <View style={{ gap: 8 }}>
               <ActivityIndicator color="#059669" />

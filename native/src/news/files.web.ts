@@ -1,7 +1,8 @@
 import { downloadPdfBytes } from './download';
 import type { NewsletterConfig } from "../models";
 import { activeEdition, loadPdfData, MAX_PDF_BYTES, MAX_PDF_MB } from "./edition";
-export type PickedPdf = { name: string; dataUrl: string; size: number };
+import { stringPdfSource, type PdfSource } from "./pdfTransfer";
+export type PickedPdf = PdfSource;
 export async function pickPdf(): Promise<PickedPdf | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
@@ -42,11 +43,7 @@ export async function pickPdf(): Promise<PickedPdf | null> {
             reject(new Error("Please select a valid PDF."));
             return;
           }
-          resolve({
-            name: file.name,
-            size: file.size,
-            dataUrl: `data:application/pdf;base64,${encoded}`,
-          });
+          resolve({ ...stringPdfSource(`data:application/pdf;base64,${encoded}`), name: file.name, size: file.size });
         };
         reader.readAsDataURL(file);
       },
