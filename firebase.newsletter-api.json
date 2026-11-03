@@ -1,0 +1,9 @@
+{
+  "functions": [{
+    "source": ".release/newsletter-api",
+    "codebase": "newsletter-api",
+    "runtime": "nodejs22",
+    "predeploy": ["node security/newsletter-api/prepare.cjs"],
+    "ignore": ["node_modules", ".git", "*.test.cjs", "*.log", ".env*"]
+  }]
+}

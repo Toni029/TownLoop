@@ -1,6 +1,6 @@
 // Read-only release preflight. The only public configuration is the HTTPS service origin.
 (async()=>{
- const base=process.env.EXPO_PUBLIC_TOWNLOOP_API_URL?.trim();
+ const base=process.env.EXPO_PUBLIC_TOWNLOOP_API_URL?.trim() || require('../newsletter-api.json').url;
  if(!base)throw Error('A verified HTTPS native API URL is required before releasing newsletter analysis. No URL was invented.');
  const url=new URL(base);
  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw Error('Use a credential-free HTTPS API origin.');

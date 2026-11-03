@@ -1,5 +1,7 @@
 # Newsletter upload + analysis recovery — local release gate
 
+Update: the isolated Firebase `newsletterApi` deployment is now prepared; see `../security/newsletter-api/README.md`. It reuses the verified existing private backend key and supplies the exact planned endpoint. No separate hosting choice or new key is required; provisioning/deployment/OTA still need approval. Earlier discovery findings below remain historical.
+
 ## Verified findings
 
 - Preview update `01a1a256-afe5-76dd-98f8-bb3571648acd` for `e5f2857` published successfully on runtime `0b29e1676ea69d0ee2eeea48c17ed01bff1a4225`.

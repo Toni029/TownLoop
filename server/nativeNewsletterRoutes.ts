@@ -25,12 +25,19 @@ const limitAiRequests: express.RequestHandler = (req, res, next) => {
     next();
 };
 export const nativeNewsletterRouter = Router();
+// Functions Framework may preparse JSON before Express. Enforce the reference-only size limit there too.
+nativeNewsletterRouter.use((req,res,next) => {
+    const bytes = (req as express.Request & {rawBody?:Uint8Array}).rawBody?.byteLength || Number(req.headers['content-length'] || 0);
+    if (bytes > 64 * 1024) { res.status(413).json({error:'Send only the retained newsletter reference. Do not upload the PDF again for analysis.'}); return; }
+    next();
+});
 nativeNewsletterRouter.use((_req,res,next) => { res.setHeader('Cache-Control','no-store'); next(); });
 nativeNewsletterRouter.get('/health', (_req,res) => res.json({status:'ok',service:'townloop-native-api',projectId:'cc-livingcommunity-app'}));
 // Native API: small reference-only requests reuse the already confirmed Firestore PDF.
 nativeNewsletterRouter.get('/capabilities', requireNativeNewsletterManager, (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json(nativeNewsletterCapabilities()); });
 nativeNewsletterRouter.post('/extract-content', requireNativeNewsletterManager, limitAiRequests, express.json({ limit: '64kb' }), async (req, res) => {
     try {
+        if (req.body?.base64Data || req.body?.fileDataUrl) throw new NewsletterInputError('Use the retained newsletter reference; PDF retransmission is not supported.');
         if (!nativeNewsletterCapabilities().configured) {
             res.status(503).json({ error: 'Gemini is not configured on the secure server. Your uploaded PDF is retained for retry.' });
             return;

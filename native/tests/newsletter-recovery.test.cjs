@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('../node_modules/typescript');
-function load(name,modules,extra={}){const m={exports:{}};const code=ts.transpileModule(fs.readFileSync('native/src/news/'+name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',...Object.keys(extra),code)(id=>modules[id],m,m.exports,...Object.values(extra));return m.exports;}
+function load(name,modules,extra={}){modules={'../../newsletter-api.json':{url:''},...modules};const m={exports:{}};const code=ts.transpileModule(fs.readFileSync('native/src/news/'+name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',...Object.keys(extra),code)(id=>modules[id],m,m.exports,...Object.values(extra));return m.exports;}
 const auth={currentUser:{uid:'manager',getIdToken:async()=> 'fixture-id-token'}};
 test('analysis rejects missing URL before any PDF read or upload',async()=>{
  const api=load('api.ts',{'../lib/firebase':{auth},'./actions':{approvedUser:async()=>({id:'manager'})},'react-native':{Platform:{OS:'android'}}},{process:{env:{}},fetch:()=>{throw Error('unexpected request');}});
@@ -27,4 +27,9 @@ test('recovery lists a complete legacy orphan but excludes active and partial PD
   const row=index=>({fields:{index:fields(index),totalChunks:fields(2),totalSize:fields(100),updatedAt:{timestampValue:'2026-11-03T17:04:30Z'}}});return {documents:path.includes('/orphan/')?[row(0),row(1)]:[row(0)]};
  }}});
  const values=await drafts.retainedEditions();assert.equal(values.length,1);assert.equal(values[0].id,'orphan');assert.equal(values[0].uploadedBy,undefined);assert.ok(paths.every(p=>!p.includes('mask.fieldPaths=data')));assert.equal(paths.some(p=>p.includes('/active/chunks')),false);
+});
+test('Android/iOS default configuration resolves the prepared Firebase endpoint without a public API key',()=>{
+ const backend=JSON.parse(fs.readFileSync('native/newsletter-api.json','utf8'));
+ for(const platform of ['android','ios']){const api=load('api.ts',{'../../newsletter-api.json':backend,'../lib/firebase':{auth},'./actions':{},'react-native':{Platform:{OS:platform}}},{process:{env:{}}});assert.equal(api.analysisServiceUrl(),'https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi');}
+ assert.deepEqual(Object.keys(backend).sort(),['deploymentStatus','functionName','projectId','url']);
 });

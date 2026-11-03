@@ -1,10 +1,11 @@
+import backend from '../../newsletter-api.json';
 import { Platform } from 'react-native';
 import { auth } from '../lib/firebase';
 import { approvedUser } from './actions';
 export function analysisServiceUrl() {
     const configured = process.env.EXPO_PUBLIC_TOWNLOOP_API_URL?.trim();
     const local = Platform.OS === 'web' && typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname);
-    const base = configured || (local ? `${location.protocol}//${location.hostname}:3000` : '');
+    const base = configured || (local ? `${location.protocol}//${location.hostname}:3000` : backend.url);
     if (!base)
         throw Error('The HTTPS newsletter analysis service is not configured. No new upload was started. You can turn off AI to publish the original PDF, or retry when the service is ready.');
     const url = new URL(base);
