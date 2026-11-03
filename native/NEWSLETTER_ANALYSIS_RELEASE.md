@@ -1,6 +1,6 @@
 # Newsletter upload + analysis recovery — local release gate
 
-Update: the isolated Firebase `newsletterApi` deployment is now prepared; see `../security/newsletter-api/README.md`. It reuses the verified existing private backend key and supplies the exact planned endpoint. No separate hosting choice or new key is required; provisioning/deployment/OTA still need approval. Earlier discovery findings below remain historical.
+Current status (2026-11-03): `newsletterApi` is deployed and ACTIVE; its existing key is bound through Secret Manager. The deployed-endpoint client shipped as OTA `01a1a2d6-f954-7657-b307-382569e3dc75` / commit `c90dbf1`. Health and unauthenticated rejection were rechecked. See `NEWSLETTER_UPLOAD_PERFORMANCE.md` for the new local DNS/timeout/partial-recovery corrections and `../security/newsletter-api/README.md` for scoped backend details. The discovery and former release prerequisites below are historical, not instructions to redeploy or supply another API key.
 
 ## Verified findings
 
@@ -23,7 +23,7 @@ TownLoop PDF publishing: 64 MiB, unchanged. Native Gemini analysis: at most **50
 
 The existing server text fallback remains limited to 100 pages / 500,000 readable characters and rejects unreadable pages. Its specific actionable errors are preserved. No PDF is compressed, rewritten, truncated or resampled by these fixes. Gemini may still reject documents or encounter quota/model errors. No live Gemini extraction was attempted here.
 
-## Exact release prerequisites (not executed)
+## Historical release prerequisites (superseded by deployed function and bundled URL)
 
 1. Owner supplies an existing **public HTTPS native API origin**, or approves hosting the prepared standalone API. Entry: `./node_modules/.bin/tsx server/nativeNewsletterServer.ts` (requires server dependencies, including tsx, available in the deployment). Alternatively mount the additive native routes in the existing Express server. Standalone mode does not serve the website. Configure server-only `GEMINI_API_KEY` through the host's secret store; never copy it to Expo or commit it. Provide sufficient memory/time for a 50 MB PDF, the existing Files/text fallback, and the 300-second client analysis budget.
 2. Deploy only that approved service/update. It serves `GET /api/newsletter/native/health`, authenticated `GET /api/newsletter/native/capabilities`, and authenticated `POST /api/newsletter/native/extract-content`. Do not deploy Firebase rules, Storage, Hosting or unrelated workers.

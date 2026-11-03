@@ -6,7 +6,6 @@ import {
   getDocsFromServer,
   runTransaction,
   serverTimestamp,
-  setDoc,
   writeBatch,
 } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
@@ -15,7 +14,7 @@ import { auth, db, storage } from "../lib/firebase";
 import { approvedUser } from "./actions";
 import { assemblePdf, editionKey, hasUploadedNewsletter } from "./model";
 import { transferPdf, stringPdfSource, newUploadResume, PDF_CHUNK_BYTES, PDF_PREFIX, type PdfSource, type UploadResume, type TransferProgress } from "./pdfTransfer";
-import { commitPdfChunks } from "./firestorePdf";
+import { commitPdfChunks, pdfReceipts, chunkDigest, savePdfDraft, pdfRequest } from "./firestorePdf";
 export const MAX_PDF_MB = 64;
 export const MAX_PDF_BYTES = MAX_PDF_MB * 1024 * 1024;
 export async function activeEdition(expected?: NewsletterConfig) {
@@ -145,20 +144,43 @@ export async function stageEdition(
   const totalChunks = Math.ceil(source.size / PDF_CHUNK_BYTES);
   const totalSize = PDF_PREFIX.length + Math.ceil(source.size / 3) * 4;
   const check = () => { if (auth.currentUser?.uid !== uid) throw new Error("Your account changed. Reopen the newsletter uploader."); };
-  const metrics = await transferPdf({
+  // The durable draft is never the published pointer. Reopening can recover
+  // partial uploads after proving every retained chunk belongs to the selected file.
+  const existing = await pdfRequest(`/newsletters/${config.id}?mask.fieldPaths=uploadState&mask.fieldPaths=uploadedBy`, {signal: options.signal});
+  if (existing?.fields?.uploadState?.stringValue === 'published') throw Error('This edition is already published. Select a new draft.');
+  if (existing?.fields?.uploadedBy?.stringValue && existing.fields.uploadedBy.stringValue !== uid) throw Error('This partial upload belongs to another account. Select a new draft.');
+  const receipts = await pdfReceipts(config.id, options.signal);
+  const confirmed = new Set<number>();
+  for (const receipt of receipts) {
+    check();
+    if (options.signal?.aborted) throw Error('Upload paused. Retry to resume.');
+    const index = receipt.index;
+    if (!Number.isInteger(index) || index < 0 || index >= totalChunks || receipt.totalChunks !== totalChunks || receipt.totalSize !== totalSize || !/^[a-f0-9]{64}$/.test(receipt.sha256)) throw Error('This retained upload cannot be safely matched. Select the PDF as a new upload.');
+    const offset = index * PDF_CHUNK_BYTES;
+    const data = (index === 0 ? PDF_PREFIX : '') + await source.readBase64(offset, Math.min(PDF_CHUNK_BYTES, source.size - offset));
+    if (await chunkDigest(data) !== receipt.sha256) throw Error('This is not the original PDF for the partial upload. Select the original file; no retained bytes were changed.');
+    confirmed.add(index);
+  }
+  check();
+  const base = {...config, hasFirestoreBlob: true, totalChunks, totalSize, sourceBytes: source.size};
+  await savePdfDraft(config.id, {...base, uploadState: 'uploading'}, options.signal);
+  await transferPdf({
     source, key: `${uid}:${config.id}`, resume: options.resume || newUploadResume(), signal: options.signal, check,
+    confirmedChunks: confirmed,
+    metrics: metrics => options.onMetrics?.({ preparationMs: source.preparationMs, ...metrics }),
     progress: value => { onProgress(value.percent); options.onTransfer?.(value); },
     commit: async chunks => {
       check();
       if (options.signal?.aborted) throw new Error("Upload paused. Retry to resume.");
-      await commitPdfChunks(config.id, chunks, totalChunks, totalSize, options.signal);
+      const pending = chunks.filter(chunk => !confirmed.has(chunk.index));
+      if (pending.length) await commitPdfChunks(config.id, pending, totalChunks, totalSize, options.signal);
     },
   });
   check();
-  options.onMetrics?.({ preparationMs: source.preparationMs, ...metrics });
-  // Durable checkpoint is separate from the live pointer: closing/restarting cannot lose a confirmed PDF.
-  const metadata = { ...config, hasFirestoreBlob: true, totalChunks, totalSize, sourceBytes: source.size, uploadState: 'uploaded', updatedAt: serverTimestamp() };
-  await setDoc(doc(db, "newsletters", config.id), metadata);
+  const metadata = { ...base, uploadState: 'uploaded', updatedAt: serverTimestamp() };
+  // Use the same bounded/retryable transport for the final acknowledgement;
+  // a queued SDK setDoc previously could hang after all PDF bytes had arrived.
+  await savePdfDraft(config.id, metadata, options.signal);
   check();
   return metadata;
 }

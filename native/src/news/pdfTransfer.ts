@@ -1,7 +1,7 @@
 /** Keeps the existing Firestore PDF format, without materializing a complete native Base64 string. */
 export const PDF_PREFIX = 'data:application/pdf;base64,';
 export const PDF_CHUNK_BYTES = 480 * 1024; // Multiple of three: concatenated Base64 remains byte-exact.
-export const PDF_BATCH_CHUNKS = 4; // <2.7 MiB encoded, comfortably below Firestore's 10 MiB request limit.
+export const PDF_BATCH_CHUNKS = 1; // ~640 KiB per request: bounded acknowledgements on slow mobile links.
 export type PdfSource = {
     name: string;
     size: number;
@@ -36,10 +36,12 @@ export const newUploadResume = (): UploadResume => ({ batches: new Map() });
 export class PdfUploadCancelled extends Error {
     constructor() { super('Upload paused. Retry to resume confirmed progress.'); this.name = 'PdfUploadCancelled'; }
 }
-function waitForCommit(promise: Promise<void>, signal?: AbortSignal, timeoutMs = 60000): Promise<void> {
+function waitForCommit(promise: Promise<void>, signal?: AbortSignal, timeoutMs?: number): Promise<void> {
     return new Promise((resolve, reject) => {
         const stop = () => finish(new PdfUploadCancelled());
-        const timer = setTimeout(() => finish(Error('Upload confirmation timed out. Retry will check the existing transfer before sending again.')), timeoutMs);
+        // The transport owns abortable per-request deadlines and bounded retries. Do not
+        // time out its whole retry sequence while retaining a live unresolved request.
+        const timer = timeoutMs === undefined ? undefined : setTimeout(() => finish(Error('Upload confirmation timed out. Retry will check the existing transfer before sending again.')), timeoutMs);
         const finish = (error?: unknown) => { clearTimeout(timer); signal?.removeEventListener('abort', stop); error ? reject(error) : resolve(); };
         signal?.addEventListener('abort', stop, { once: true });
         promise.then(() => finish(), finish);
@@ -53,7 +55,7 @@ export function stringPdfSource(dataUrl: string): PdfSource {
         readBase64: async (offset, length) => body.slice(offset / 3 * 4, Math.ceil((offset + length) / 3) * 4),
         readDataUrl: async () => dataUrl, dispose: () => { } };
 }
-/** At most two batch commits/eight chunks are in flight; progress counts server-confirmed original PDF bytes. */
+/** At most two batch commits/two chunks are in flight; progress counts server-confirmed original PDF bytes. */
 export async function transferPdf(input: {
     source: PdfSource;
     key: string;
@@ -63,6 +65,8 @@ export async function transferPdf(input: {
     commit: (chunks: PdfChunk[]) => Promise<void>;
     progress: (value: TransferProgress) => void;
     confirmationTimeoutMs?: number;
+    confirmedChunks?: Set<number>;
+    metrics?: (value: { totalChunks: number; totalSize: number; readMs: number; commitMs: number; elapsedMs: number; commits: number }) => void;
     now?: () => number;
 }) {
     const { source, resume } = input, now = input.now || (() => performance.now());
@@ -78,6 +82,13 @@ export async function transferPdf(input: {
     if (input.signal?.aborted)
         waits.abort();
     const started = now(), totalChunks = Math.ceil(source.size / PDF_CHUNK_BYTES), batches = Math.ceil(totalChunks / PDF_BATCH_CHUNKS);
+    // Server receipts were matched against this file before transfer. Seed them
+    // so recovery reports real progress immediately and never rereads them here.
+    for (let batch = 0; batch < batches; batch++) {
+        const first = batch * PDF_BATCH_CHUNKS, last = Math.min(totalChunks, first + PDF_BATCH_CHUNKS);
+        if (input.confirmedChunks && Array.from({length: last - first}, (_, i) => first + i).every(index => input.confirmedChunks!.has(index)))
+            resume.batches.set(batch, {promise: Promise.resolve(), confirmed: true, failed: false, bytes: Math.min(source.size, last * PDF_CHUNK_BYTES) - first * PDF_CHUNK_BYTES});
+    }
     const check = () => { input.check(); if (stopped || input.signal?.aborted)
         throw new PdfUploadCancelled(); };
     const report = () => { if (!stopped && !input.signal?.aborted) {
@@ -138,5 +149,6 @@ export async function transferPdf(input: {
     }
     finally {
         input.signal?.removeEventListener('abort', abortWaits);
+        input.metrics?.({totalChunks, totalSize: PDF_PREFIX.length + Math.ceil(source.size / 3) * 4, readMs, commitMs, elapsedMs: now() - started, commits});
     }
 }

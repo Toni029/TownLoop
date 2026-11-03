@@ -109,14 +109,31 @@ export function UploadEdition({
   async function findRetained() {
     if (lock.current) return;
     lock.current = true; setBusy(true); setFinding(true); setError("");
-    try { const values = await retainedEditions(); setRetained(values); if (!values.length) setError("No complete unpublished PDF was found. Partial uploads cannot be analyzed."); }
+    try { const values = await retainedEditions(); setRetained(values); if (!values.length) setError("No recoverable unpublished PDF was found."); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to check retained PDFs."); }
     finally { setFinding(false); setBusy(false); lock.current = false; }
   }
+  async function resumeRetained(draft: RetainedEdition) {
+    if (lock.current) return;
+    if (!draft.partial) {
+      setFile(null); setStaged(draft); setEditionId(draft.id); setTitle(draft.editionTitle || ""); setMonth(draft.monthEdition || ""); setResult(null); setStep(0); setProgress(100); setBytes({confirmedBytes:draft.sourceBytes,totalBytes:draft.sourceBytes,percent:100}); setRetained([]); setError("");
+      return;
+    }
+    lock.current = true; setBusy(true); setError("");
+    try {
+      const original = await pickPdf();
+      if (!original) return;
+      if (!mounted.current) { original.dispose(); return; }
+      if (original.size !== draft.sourceBytes) { original.dispose(); throw Error("Select the original PDF to resume this partial upload. Its size does not match."); }
+      // stageEdition proves all confirmed chunk hashes match before writing anything.
+      resume.current = newUploadResume(); setFile(original); setStaged(null); setEditionId(draft.id);
+      setTitle(draft.editionTitle || ""); setMonth(draft.monthEdition || ""); setResult(null); setStep(0); setProgress(0); setBytes(null); setRetained([]); setTiming(null);
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to resume this PDF."); }
+    finally { lock.current = false; setBusy(false); }
+  }
   function editDetails() {
-    // Text edits must not throw away a confirmed 42 MB upload.
-    if (staged) { setResult(null); setEditing(""); setError(""); }
-    else resetDraft();
+    // Edition/title edits must not discard confirmed or partial PDF transfer state.
+    setResult(null); setEditing(""); setError("");
   }
   async function publish() {
     if (lock.current || (!file && !staged)) return;
@@ -234,9 +251,7 @@ export function UploadEdition({
             </Copy>
           </Pressable>
           <Action label={finding ? "Checking retained PDFs…" : "Resume an uploaded PDF"} disabled={busy} onPress={() => void findRetained()} />
-          {retained.map(draft => <Action key={draft.id} disabled={busy} label={`${draft.fileName} · ${draft.fileSize} · ${new Date(draft.retainedAt).toLocaleString()}`} onPress={() => {
-            setFile(null); setStaged(draft); setEditionId(draft.id); setTitle(draft.editionTitle || ""); setMonth(draft.monthEdition || ""); setResult(null); setStep(0); setProgress(100); setBytes({confirmedBytes:draft.sourceBytes,totalBytes:draft.sourceBytes,percent:100}); setRetained([]); setError("");
-          }} />)}
+          {retained.map(draft => <Action key={draft.id} disabled={busy} label={`${draft.fileName} · ${draft.fileSize} · ${draft.partial ? `Resume ${draft.confirmedChunks}/${draft.totalChunks} parts — select original PDF` : new Date(draft.retainedAt).toLocaleString()}`} onPress={() => void resumeRetained(draft)} />)}
           {!!staged && <Copy>PDF upload is retained. Retry analysis or publish with AI turned off; no PDF re-upload is needed.</Copy>}
           <Field
             label="Edition Title *"
@@ -330,7 +345,7 @@ export function UploadEdition({
           </View>
           {step === 0 && <>
             <Copy>{bytes ? `${(bytes.confirmedBytes / 1048576).toFixed(1)} / ${(bytes.totalBytes / 1048576).toFixed(1)} MB confirmed` : "Preparing PDF transfer…"}</Copy>
-            <Copy>Progress updates after Firebase confirms each batch. Your current newsletter stays live until publishing finishes.</Copy>
+            <Copy>Progress counts Firebase-confirmed PDF bytes. Temporary connection problems retry automatically; cancel pauses safely. Your current newsletter stays live until publishing finishes.</Copy>
             {busy && <Action label="Cancel upload" onPress={() => transfer.current?.abort()} />}
           </>}
           {step === 1 && <Copy>PDF upload complete · 100%. AI analysis is a separate step.</Copy>}

@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('../node_modules/typescript');
-function load(name,modules,extra={}){modules={'../../newsletter-api.json':{url:''},...modules};const m={exports:{}};const code=ts.transpileModule(fs.readFileSync('native/src/news/'+name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',...Object.keys(extra),code)(id=>modules[id],m,m.exports,...Object.values(extra));return m.exports;}
+function load(name,modules,extra={}){modules={'../../newsletter-api.json':{url:''},'expo-crypto':{CryptoDigestAlgorithm:{SHA256:'SHA-256'},digestStringAsync:async(_,s)=>require('crypto').createHash('sha256').update(s).digest('hex')},...modules};const m={exports:{}};const code=ts.transpileModule(fs.readFileSync('native/src/news/'+name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',...Object.keys(extra),code)(id=>modules[id],m,m.exports,...Object.values(extra));return m.exports;}
 const auth={currentUser:{uid:'manager',getIdToken:async()=> 'fixture-id-token'}};
 test('analysis rejects missing URL before any PDF read or upload',async()=>{
  const api=load('api.ts',{'../lib/firebase':{auth},'./actions':{approvedUser:async()=>({id:'manager'})},'react-native':{Platform:{OS:'android'}}},{process:{env:{}},fetch:()=>{throw Error('unexpected request');}});
@@ -32,4 +32,12 @@ test('Android/iOS default configuration resolves the prepared Firebase endpoint 
  const backend=JSON.parse(fs.readFileSync('native/newsletter-api.json','utf8'));
  for(const platform of ['android','ios']){const api=load('api.ts',{'../../newsletter-api.json':backend,'../lib/firebase':{auth},'./actions':{},'react-native':{Platform:{OS:platform}}},{process:{env:{}}});assert.equal(api.analysisServiceUrl(),'https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi');}
  assert.deepEqual(Object.keys(backend).sort(),['deploymentStatus','functionName','projectId','url']);
+});
+test('partial recovery offers only the current manager’s hashed draft, never another account or unverified legacy bytes',async()=>{
+ const n=v=>({integerValue:String(v)}),size=2*480*1024,total='data:application/pdf;base64,'.length+Math.ceil(size/3)*4;
+ const drafts=load('drafts.ts',{'./actions':{approvedUser:async()=>({id:'manager'})},'./pdfTransfer':{PDF_PREFIX:'data:application/pdf;base64,',PDF_CHUNK_BYTES:480*1024},'./firestorePdf':{pdfId:id=>id,pdfRequest:async path=>{
+  if(path.startsWith('/newsletters?')) return {documents:['own','other','legacy'].map(id=>({name:'newsletters/'+id,fields:{id:{stringValue:id},uploadState:{stringValue:'uploading'},uploadedBy:{stringValue:id==='other'?'someone-else':'manager'},sourceBytes:n(size),totalChunks:n(2),totalSize:n(total)}}))};
+  return {documents:[{fields:{index:n(0),totalChunks:n(2),totalSize:n(total),sha256:{stringValue:path.includes('/legacy/')?'':'f'.repeat(64)},updatedAt:{timestampValue:'2026-11-03T19:00:00Z'}}}]};
+ }}});
+ const result=await drafts.retainedEditions();assert.deepEqual(result.map(r=>r.id),['own']);assert.equal(result[0].partial,true);assert.equal(result[0].confirmedChunks,1);
 });
