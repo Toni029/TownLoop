@@ -14,7 +14,8 @@ import type { NewsletterConfig } from "../models";
 import { db, storage } from "../lib/firebase";
 import { approvedUser } from "./actions";
 import { assemblePdf, editionKey, hasUploadedNewsletter } from "./model";
-export const MAX_PDF_BYTES = 32 * 1024 * 1024;
+export const MAX_PDF_MB = 64;
+export const MAX_PDF_BYTES = MAX_PDF_MB * 1024 * 1024;
 export async function activeEdition(expected?: NewsletterConfig) {
   const snap = await getDocFromServer(doc(db, "newsletters", "current"));
   const current = snap.exists() ? (snap.data() as NewsletterConfig) : null;
@@ -135,7 +136,7 @@ export async function stageEdition(
   if (!/^data:application\/pdf;base64,JVBERi0/.test(dataUrl))
     throw new Error("Please select a valid PDF.");
   if (dataUrl.length > Math.ceil((MAX_PDF_BYTES * 4) / 3) + 64)
-    throw new Error("Please use a PDF smaller than 32 MB.");
+    throw new Error(`Please use a PDF no larger than ${MAX_PDF_MB} MB.`);
   const chunkSize = 650 * 1024;
   const totalChunks = Math.ceil(dataUrl.length / chunkSize);
   const metadata = {

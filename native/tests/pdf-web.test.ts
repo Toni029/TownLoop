@@ -57,7 +57,8 @@ function fixture({
     source,
   )(
     () => ({
-      MAX_PDF_BYTES: 32 * 1024 * 1024,
+      MAX_PDF_BYTES: 64 * 1024 * 1024,
+      MAX_PDF_MB: 64,
       loadPdfData: async () => data,
       activeEdition: async () => {
         if (stale) throw Error("Edition changed");
@@ -98,10 +99,10 @@ test("browser picker normalizes valid PDF, handles cancellation and rejects inva
   const rejected = bad.api.pickPdf();
   bad.input().events.change();
   await assert.rejects(rejected, /valid PDF/);
-  const big = fixture({ file: { name: "big.pdf", size: 33 * 1024 * 1024 } });
+  const big = fixture({ file: { name: "big.pdf", size: 65 * 1024 * 1024 } });
   const oversized = big.api.pickPdf();
   big.input().events.change();
-  await assert.rejects(oversized, /32 MB/);
+  await assert.rejects(oversized, /64 MB/);
 });
 test("browser reader validates bytes, checks edition and releases object URLs", async () => {
   const good = fixture();

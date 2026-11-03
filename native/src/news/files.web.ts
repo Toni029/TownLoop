@@ -1,6 +1,6 @@
 import { downloadPdfBytes } from './download';
 import type { NewsletterConfig } from "../models";
-import { activeEdition, loadPdfData, MAX_PDF_BYTES } from "./edition";
+import { activeEdition, loadPdfData, MAX_PDF_BYTES, MAX_PDF_MB } from "./edition";
 export type PickedPdf = { name: string; dataUrl: string; size: number };
 export async function pickPdf(): Promise<PickedPdf | null> {
   return new Promise((resolve, reject) => {
@@ -28,7 +28,7 @@ export async function pickPdf(): Promise<PickedPdf | null> {
           return;
         }
         if (file.size > MAX_PDF_BYTES) {
-          reject(new Error("Please use a PDF smaller than 32 MB."));
+          reject(new Error(`Please use a PDF no larger than ${MAX_PDF_MB} MB.`));
           return;
         }
         const reader = new FileReader();
@@ -74,7 +74,7 @@ export async function preparePdf(
     blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/pdf' });
   }
   if (blob.size > MAX_PDF_BYTES || (await blob.slice(0, 5).text()) !== "%PDF-")
-    throw new Error("This file is not a supported PDF (maximum 32 MB).");
+    throw new Error(`This file is not a supported PDF (maximum ${MAX_PDF_MB} MB).`);
   await activeEdition(config);
   const uri = URL.createObjectURL(
     new Blob([blob], { type: "application/pdf" }),

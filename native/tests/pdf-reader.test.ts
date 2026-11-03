@@ -16,7 +16,7 @@ function filesFixture(){
   '../lib/firebase':{auth},'../localData/privateMediaCache':{accountMediaPrefix:(uid:string)=>`townloop-private-${uid}-`},
   './model':{editionKey:(c:any)=>c.id+'|'+c.uploadedAt},
   './download':{downloadPdfBytes:async()=>{throw Error('Unexpected fallback');}},
-  './edition':{MAX_PDF_BYTES:32*1024*1024,activeEdition:async()=>{checks++;if(stale)throw Error('Edition changed');},loadPdfData:async()=>{downloads++;return loader();}},
+  './edition':{MAX_PDF_MB:64,MAX_PDF_BYTES:64*1024*1024,activeEdition:async()=>{checks++;if(stale)throw Error('Edition changed');},loadPdfData:async()=>{downloads++;return loader();}},
  },{setTimeout:(fn:()=>void)=>{timers.push(fn);return timers.length-1;},clearTimeout:()=>{}});
  return {api,auth,files,timers,downloads:()=>downloads,checks:()=>checks,stale:()=>{stale=true;},setLoader:(next:()=>Promise<string>)=>{loader=next;}};
 }

@@ -2,7 +2,7 @@ import { downloadPdfBytes } from './download';
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
-import { activeEdition, loadPdfData, MAX_PDF_BYTES } from "./edition";
+import { activeEdition, loadPdfData, MAX_PDF_BYTES, MAX_PDF_MB } from "./edition";
 import type { NewsletterConfig } from "../models";
 import { auth } from "../lib/firebase";
 import { accountMediaPrefix } from "../localData/privateMediaCache";
@@ -19,7 +19,7 @@ export async function pickPdf(): Promise<PickedPdf | null> {
   const file = new File(asset.uri);
   try {
     if (file.size > MAX_PDF_BYTES)
-      throw new Error("Please use a PDF smaller than 32 MB.");
+      throw new Error(`Please use a PDF no larger than ${MAX_PDF_MB} MB.`);
     const dataUrl = `data:application/pdf;base64,${await file.base64()}`;
     if (!dataUrl.startsWith("data:application/pdf;base64,JVBERi0"))
       throw new Error("Please select a valid PDF.");
@@ -55,7 +55,7 @@ async function materialize(config: NewsletterConfig, uid: string): Promise<File>
       await activeEdition(config);
     }
     if (auth.currentUser?.uid !== uid) throw new Error("Please sign in again.");
-    if (!file.exists || file.size <= 0 || file.size > MAX_PDF_BYTES) throw new Error("This file is not a supported PDF (maximum 32 MB).");
+    if (!file.exists || file.size <= 0 || file.size > MAX_PDF_BYTES) throw new Error(`This file is not a supported PDF (maximum ${MAX_PDF_MB} MB).`);
     return file;
   } catch (error) { if (file.exists) file.delete(); throw error; }
 }

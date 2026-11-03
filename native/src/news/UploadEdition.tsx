@@ -15,7 +15,7 @@ import { Action, Copy, ErrorNotice, Field, NewsDialog } from "./ui";
 import { pickPdf, type PickedPdf } from "./files";
 import { editionKey, hasUploadedNewsletter } from "./model";
 import { approvedUser, newNewsId } from "./actions";
-import { stageEdition, finishEdition } from "./edition";
+import { stageEdition, finishEdition, MAX_PDF_MB } from "./edition";
 import { analyzeNewsletter } from "./ai";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 import { useReducedMotion } from "../home/hooks";
@@ -188,7 +188,7 @@ export function UploadEdition({
             <Copy>
               {file
                 ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-                : "PDF documents up to 32 MB"}
+                : `PDF documents up to ${MAX_PDF_MB} MB`}
             </Copy>
           </Pressable>
           <Field
