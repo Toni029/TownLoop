@@ -1,5 +1,26 @@
-# Google sign-in preparation — local only
+# Google sign-in — native configuration complete, release pending
 
+## Current checkpoint — 2026-11-03
+
+The browser button used Firebase's already configured web popup. Native deliberately hid it because Android/iOS OAuth registration flags were false. This was not an OTA-delivery failure.
+
+Completed for the owner's request to add real Google login/registration:
+
+- Reused the enabled Firebase Google provider and existing web client. Registered the previously verified Preview SHA-1/SHA-256 under the existing Android app `com.toni029.townloop`; Firebase generated the matching Android OAuth client. Refreshed configuration passes project/app/package/certificate/web-client validation.
+- Registered Firebase iOS app `com.toni029.townloop` in the same project. Its real iOS Google client and reversed callback validate against the downloaded plist. Both native readiness flags are now true; missing native modules still prevent exposing a broken action on older binaries.
+- Refreshed ignored Android JSON/iOS plist files and prepared the **Preview project only** EAS `GOOGLE_SERVICES_JSON` and `GOOGLE_SERVICES_PLIST` file variables with secret visibility. No OAuth client secret, service-account key or signing key was created/exposed/committed. No Firebase provider was disabled/replaced, no user was created, and no rules/functions/Hosting changed.
+- The existing Google action is available on both Sign In and Create Account. Registration shares the existing explicit Terms/Privacy checkbox; it cannot invoke Google registration before consent. Existing users retain approvals/roles. New Google profiles remain unapproved residents; provider conflicts never auto-link accounts in application code.
+- Fixed the iOS config plugin/verifier to handle the installed plist package's default export. iOS config introspection confirms the actual reversed Google callback is present. This does not establish compilation or successful Google login on an iPhone.
+
+Focused checks: 13 native Google/UI/layout fixtures, five Android/iOS configuration fixtures, both live-file validators and native TypeScript pass. No live user authentication or physical-device test was performed.
+
+The prepared Android fingerprint is `23ae2ced341f07e6e171ab654a4f998163747e7f`; installed Preview `729399fb-8149-4dd1-b69c-816fb25133db` uses `0b29e1676ea69d0ee2eeea48c17ed01bff1a4225`. The refreshed Firebase config and OAuth plugin/config inputs differ. **Do not force an old-runtime OTA.** After approval, push and build one Android Preview APK with the existing signing identity, immediately open its actual Expo build page, and let the owner monitor it. Verify the packaged Google native module/configuration and test cancel, existing account, new pending account/consent and conflict handling before release claims.
+
+A future signed iPhone build needs the owner's Apple Developer signing/provisioning; no Apple account, certificate or build was created. The configured Google integration can also be packaged in the separately approved unsigned simulator profile. No GitHub push, OTA publication or build was performed in this checkpoint.
+
+---
+
+## Historical preparation (superseded by the checkpoint above)
 Existing Firebase project cc-livingcommunity-app, existing Firebase JS Auth instance and (default) profile
 collection are preserved. The original hosted web app and named database are unchanged. No account or
 Firebase configuration was created/modified during implementation.

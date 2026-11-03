@@ -25,6 +25,8 @@ export function ResidentRegistration({
   wide,
   busy,
   setBusy,
+  termsAccepted,
+  setTermsAccepted,
   onError,
   onSignIn,
 }: {
@@ -32,6 +34,8 @@ export function ResidentRegistration({
   wide: boolean;
   busy: boolean;
   setBusy: (v: boolean) => void;
+  termsAccepted: boolean;
+  setTermsAccepted: (value: boolean) => void;
   onError: (v: string) => void;
   onSignIn: () => void;
 }) {
@@ -48,7 +52,6 @@ export function ResidentRegistration({
       password: "",
     }),
     [show, setShow] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
   async function register() {
     if (busy) return;
     onError("");

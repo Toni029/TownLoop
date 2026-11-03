@@ -7,11 +7,11 @@ function profileFixture(existing:boolean,accepted:boolean){
 }
 test('existing Google profiles retain approval and roles without requiring registration consent again',async()=>{const f=profileFixture(true,false);await f.finish();assert.equal(f.writes.length,0);assert.equal(f.signedOut.length,0);});
 test('new Google profiles require explicit consent and always begin as unapproved residents',async()=>{let f=profileFixture(false,false);await assert.rejects(f.finish(),/Terms required/);assert.equal(f.writes.length,0);assert.equal(f.signedOut.length,1);f=profileFixture(false,true);await f.finish();assert.equal(f.writes[0].role,'resident');assert.equal(f.writes[0].approved,false);assert.equal(f.writes[0].termsAcceptedAt,'server-time');});
-function nativeFixture(configured:boolean,present:boolean,canceled=false,signInError=''){
- let loads=0,authCalls=0,finished=0;const exports:any={};const config:any={webClientId:'fixture.apps.googleusercontent.com',androidOAuthRegistered:configured,iosOAuthRegistered:false,iosClientId:''};
- const sdk={GoogleSignin:{configure:(o:any)=>{assert.equal(o.offlineAccess,false);assert.equal(o.scopes,undefined);},hasPlayServices:async()=>true,signIn:async()=>canceled?{type:'cancelled'}:{type:'success',data:{idToken:'fixture-token'}}},isSuccessResponse:(r:any)=>r.type==='success',statusCodes:{SIGN_IN_CANCELLED:'cancelled'}};
+function nativeFixture(configured:boolean,present:boolean,canceled=false,signInError='',platform='android'){
+ let loads=0,authCalls=0,finished=0;const exports:any={};const config:any={webClientId:'fixture.apps.googleusercontent.com',androidOAuthRegistered:platform==='android'&&configured,iosOAuthRegistered:platform==='ios'&&configured,iosClientId:platform==='ios'?'fixture-ios.apps.googleusercontent.com':''};
+ const sdk={GoogleSignin:{configure:(o:any)=>{assert.equal(o.offlineAccess,false);assert.equal(o.scopes,undefined);assert.equal(o.iosClientId,platform==='ios'?'fixture-ios.apps.googleusercontent.com':undefined);},hasPlayServices:async()=>{assert.equal(platform,'android');return true;},signIn:async()=>canceled?{type:'cancelled'}:{type:'success',data:{idToken:'fixture-token'}}},isSuccessResponse:(r:any)=>r.type==='success',statusCodes:{SIGN_IN_CANCELLED:'cancelled'}};
  vm.runInNewContext(source('../src/lib/googleSignIn.ts'),{exports,require:(name:string)=>{
-  if(name==='react-native')return{Platform:{OS:'android'},TurboModuleRegistry:{get:()=>present?{}:null}};
+  if(name==='react-native')return{Platform:{OS:platform},TurboModuleRegistry:{get:()=>present?{}:null}};
   if(name==='../../google-auth.json')return config;
   if(name==='firebase/auth')return{GoogleAuthProvider:{credential:()=>({providerId:'google.com'})},signInWithCredential:async()=>{authCalls++;if(signInError)throw{code:signInError};return{user:{uid:'fixture'}};}};
   if(name==='./firebase')return{auth:{}};
@@ -39,3 +39,5 @@ test('provider conflicts require the existing sign-in method and never create or
   const f=nativeFixture(true,true,false,code);await assert.rejects(()=>f.api.googleSignIn(true),/never linked automatically/);assert.equal(f.counts().finished,0);
  }
 });
+
+test('configured iOS native Google uses its own client with Firebase and does not require Android Play Services',async()=>{const f=nativeFixture(true,true,false,'','ios');assert.equal(f.api.googleSignInAvailable,true);await f.api.googleSignIn(true);assert.deepEqual(f.counts(),{loads:1,authCalls:1,finished:1});const missing=nativeFixture(false,true,false,'','ios');assert.equal(missing.api.googleSignInAvailable,false);});

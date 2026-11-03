@@ -6,14 +6,14 @@ const fixture=()=>({PROJECT_ID:'cc-livingcommunity-app',GCM_SENDER_ID:'883715389
 test('validates Firebase iOS project, app, bundle, OAuth client and exact callback',()=>{
  assert.equal(validateIosConfig(fixture(),options),true);
 });
-function configure({enabled=true,exists=true,data=fixture(),platform='ios'}={}){
+function configure({enabled=true,exists=true,data=fixture(),platform='ios',defaultExport=true}={}){
  const module={exports:null};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../plugins/with-google-auth.cjs'),'utf8'),{
   module,__dirname:'/native/plugins',process:{env:{EAS_BUILD_PLATFORM:platform}},require:id=>{
    if(id==='../google-auth.json')return {...options,iosOAuthRegistered:enabled,androidOAuthRegistered:false};
    if(id==='node:fs')return {existsSync:()=>exists,readFileSync:()=>JSON.stringify(data)};
    if(id==='node:path')return path;
-   if(id==='@expo/plist')return {parse:JSON.parse};
+   if(id==='@expo/plist')return defaultExport?{default:{parse:JSON.parse}}:{parse:JSON.parse};
    if(id==='./google-oauth.cjs')return require('../plugins/google-oauth.cjs');
    if(id==='@react-native-google-signin/google-signin/app.plugin.js')return (config,settings)=>({...config,callback:settings.iosUrlScheme});
    throw Error('unexpected dependency');
@@ -23,6 +23,7 @@ function configure({enabled=true,exists=true,data=fixture(),platform='ios'}={}){
 }
 test('iOS native plugin gates callback registration on actual validated configuration',()=>{
  assert.equal(configure().callback,fixture().REVERSED_CLIENT_ID);
+ assert.equal(configure({defaultExport:false}).callback,fixture().REVERSED_CLIENT_ID);
  assert.throws(()=>configure({exists:false}),/Supply/);
  assert.throws(()=>configure({data:{...fixture(),BUNDLE_ID:'wrong'}}),/bundle/);
  assert.equal(configure({enabled:false,exists:false}).callback,undefined);
