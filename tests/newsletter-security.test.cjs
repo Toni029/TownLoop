@@ -120,3 +120,11 @@ test('native reader fallback rejects unknown hosts and resolves private Storage 
   assert.equal(requests,1);assert.deepEqual(global.__h10NativeRead,{path:'newsletters/edition/document.pdf',max:32*1024*1024});
  }finally{global.fetch=original;if(base===undefined)delete process.env.EXPO_PUBLIC_TOWNLOOP_API_URL;else process.env.EXPO_PUBLIC_TOWNLOOP_API_URL=base;}
 });
+
+test('newsletter server accepts a 42 MiB PDF with matching base64 JSON headroom and a 64 MiB ceiling', async () => {
+ const {validatePdf,MAX_NEWSLETTER_PDF_BYTES,NEWSLETTER_JSON_LIMIT}=await bundle('server/newsletterPdfSecurity.ts');
+ assert.equal(MAX_NEWSLETTER_PDF_BYTES,64*1024*1024);
+ const pdf=Buffer.alloc(42*1024*1024);pdf.write('%PDF-1.7\n');
+ assert.equal(validatePdf(pdf),pdf);
+ assert(NEWSLETTER_JSON_LIMIT>Math.ceil(pdf.length/3)*4+1024);
+});

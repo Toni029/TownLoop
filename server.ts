@@ -116,7 +116,7 @@ app.post('/api/newsletter/extract-content', limitAiRequests, requireNewsletterMa
       const sanitizedId = String(newsletterId).replace(/[^a-zA-Z0-9_-]/g, '_');
       const specificPath = path.join(UPLOADS_DIR, `newsletter_${sanitizedId}.pdf`);
       if (fs.existsSync(specificPath)) {
-        if (fs.statSync(specificPath).size > MAX_NEWSLETTER_PDF_BYTES) throw new NewsletterInputError('PDF exceeds 32 MB.', 413);
+        if (fs.statSync(specificPath).size > MAX_NEWSLETTER_PDF_BYTES) throw new NewsletterInputError('PDF exceeds 64 MB.', 413);
         const buf = validatePdf(fs.readFileSync(specificPath));
         cleanBase64 = buf.toString('base64');
       }
@@ -249,7 +249,7 @@ app.get('/api/newsletter/pdf/:filename', requireNewsletterReader, (req: Request,
     }
 
     const stat = fs.statSync(filePath);
-    if (stat.size > MAX_NEWSLETTER_PDF_BYTES) { res.status(413).send('PDF exceeds 32 MB.'); return; }
+    if (stat.size > MAX_NEWSLETTER_PDF_BYTES) { res.status(413).send('PDF exceeds 64 MB.'); return; }
     res.writeHead(200, {
       'Content-Type': 'application/pdf',
       'Content-Length': stat.size,

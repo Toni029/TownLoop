@@ -1,6 +1,6 @@
 import firebaseConfig from '../firebase-applet-config.json';
 
-export const MAX_NEWSLETTER_PDF_BYTES = 32 * 1024 * 1024;
+export const MAX_NEWSLETTER_PDF_BYTES = 64 * 1024 * 1024;
 export const NEWSLETTER_JSON_LIMIT = Math.ceil(MAX_NEWSLETTER_PDF_BYTES / 3) * 4 + 1024 * 1024;
 export class NewsletterInputError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -8,7 +8,7 @@ export class NewsletterInputError extends Error {
 
 export function validatePdf(buffer: Buffer): Buffer {
   if (!buffer.length || buffer.length > MAX_NEWSLETTER_PDF_BYTES)
-    throw new NewsletterInputError('Use a nonempty PDF no larger than 32 MB.', 413);
+    throw new NewsletterInputError('Use a nonempty PDF no larger than 64 MB.', 413);
   if (buffer.subarray(0, 5).toString('ascii') !== '%PDF-')
     throw new NewsletterInputError('The document must contain a valid PDF header.');
   return buffer;
@@ -20,7 +20,7 @@ export function decodePdf(value: unknown): Buffer {
   const prefix = 'data:application/pdf;base64,';
   const encoded = value.startsWith(prefix) ? value.slice(prefix.length) : value;
   if (encoded.length > Math.ceil(MAX_NEWSLETTER_PDF_BYTES / 3) * 4)
-    throw new NewsletterInputError('Use a PDF no larger than 32 MB.', 413);
+    throw new NewsletterInputError('Use a PDF no larger than 64 MB.', 413);
   if (!encoded.length || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))
     throw new NewsletterInputError('Invalid PDF base64 data.');
   const buffer = Buffer.from(encoded, 'base64');
@@ -59,7 +59,7 @@ export async function fetchNewsletterPdf(raw: string, authorization: string, fet
   const declared = response.headers.get('content-length');
   if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_NEWSLETTER_PDF_BYTES)) {
     await response.body?.cancel();
-    throw new NewsletterInputError('PDF download exceeds 32 MB.', 413);
+    throw new NewsletterInputError('PDF download exceeds 64 MB.', 413);
   }
   if (!response.body) throw new NewsletterInputError('Missing PDF download.');
   const reader = response.body.getReader();
@@ -70,7 +70,7 @@ export async function fetchNewsletterPdf(raw: string, authorization: string, fet
       const { value, done } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > MAX_NEWSLETTER_PDF_BYTES) throw new NewsletterInputError('PDF download exceeds 32 MB.', 413);
+      if (size > MAX_NEWSLETTER_PDF_BYTES) throw new NewsletterInputError('PDF download exceeds 64 MB.', 413);
       chunks.push(value);
     }
   } catch (error) { await reader.cancel().catch(() => {}); throw error; }
