@@ -1,0 +1,33 @@
+<!-- Monochrome trace of the owner's approved right-hand notification icon.
+     White artwork only; transparent negative space, no rounded-square backdrop.
+     Render to 96 x 96 RGBA for assets/notification-icon.png. Expo generates
+     Android's 24/36/48/72/96 px drawable densities from that one asset. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="840 25 600 600" fill="#fff">
+  <!-- Rounded sun rays. -->
+  <g fill="none" stroke="#fff" stroke-width="22" stroke-linecap="round">
+    <path d="M1110 117 V176 M1015 149 L1043 195 M948 220 L990 247 M925 318 H972 M1178 195 L1207 149 M1226 247 L1272 220"/>
+  </g>
+  <!-- Rising sun, with the roofs and chimney cut out rather than painted black. -->
+  <path d="M1012 365 C989 317 999 270 1028 239 C1069 195 1132 195 1175 226 C1195 241 1208 268 1211 296 L1194 309 V299 Q1194 292 1187 292 H1170 Q1163 292 1163 299 V307 L1133 278 Q1119 264 1104 277 L1027 339 Q1015 348 1021 357 Z"/>
+  <!-- Main house and smaller house; open interiors are fully transparent. -->
+  <g fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1044 355 L1119 295 L1197 355 M1054 350 V402 M1186 350 V425"/>
+    <path d="M1191 341 L1222 314 L1281 362 M1193 346 V421 M1271 357 V417"/>
+  </g>
+  <g>
+    <rect x="1096" y="347" width="21" height="21" rx="2"/>
+    <rect x="1125" y="347" width="21" height="21" rx="2"/>
+    <rect x="1096" y="375" width="21" height="21" rx="2"/>
+    <rect x="1125" y="375" width="21" height="21" rx="2"/>
+    <rect x="1213" y="369" width="12" height="12" rx="1"/>
+    <rect x="1231" y="369" width="12" height="12" rx="1"/>
+    <rect x="1213" y="387" width="12" height="12" rx="1"/>
+    <rect x="1231" y="387" width="12" height="12" rx="1"/>
+  </g>
+  <!-- Tree canopy and trunk. -->
+  <path d="M1274 303 C1272 280 1291 260 1312 260 C1335 260 1354 279 1352 303 C1366 309 1374 322 1374 337 C1374 358 1355 375 1334 372 L1323 376 V422 H1305 V374 Q1295 367 1290 357 Q1300 342 1292 331 L1258 318 Q1262 307 1274 303 Z"/>
+  <!-- Three rolling white hill bands, separated by transparent winding paths. -->
+  <path d="M902 405 C971 380 1038 390 1118 441 C1024 408 966 410 902 433 Q895 418 902 405 Z"/>
+  <path d="M918 464 C987 428 1056 431 1124 449 C1200 409 1286 404 1372 429 Q1383 434 1361 472 C1229 425 1085 444 988 520 Q959 532 918 464 Z"/>
+  <path d="M1059 525 C1120 460 1226 451 1346 491 C1324 512 1296 525 1263 525 Z"/>
+</svg>
