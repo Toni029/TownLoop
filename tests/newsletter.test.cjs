@@ -211,12 +211,12 @@ test('visual batches retain successful pages across model fallback and cache onl
  try {
  const result=await extractNewsletterContent(payload);
  assert.equal(result.highlights.length,3);
- assert.equal(global.__batchCalls.length,4);
+ assert.equal(global.__batchCalls.length,5);
  assert.equal(global.__batchCalls.filter(c=>c.batch==='PAGE 1').length,1);
  result.highlights.length=0;
  const again=await extractNewsletterContent(payload);
  assert.equal(again.highlights.length,3);
- assert.equal(global.__batchCalls.length,4);
+ assert.equal(global.__batchCalls.length,5);
  }finally{delete process.env.GEMINI_API_KEY;}
 });
 
@@ -232,4 +232,16 @@ test('all Home reminder activities and potluck variants are excluded even if AI 
  assert.deepEqual(out.events.map(e=>e.title),['Hallo-Wine & Cheese','Ice Cream Social','Fall Festival']);
  assert.equal(out.rsvp_events.length,3);
  } finally {delete process.env.GEMINI_API_KEY;}
+});
+
+test('transient Gemini 503 retries only the unfinished visual batch before changing models',async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw Object.assign(Error('not found'),{status:404})}};models={generateContent:async args=>{const page=args.contents[0].parts.filter(p=>p.text?.startsWith('PAGE')).at(-1).text;global.__retryCalls.push({page,model:args.model});if(page==='PAGE 2'&&global.__retryCalls.filter(c=>c.page===page).length===1)throw Object.assign(Error('503 UNAVAILABLE'),{status:503});return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw Error('scanned')}`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>Array.from({length:3},(_,i)=>[{text:'PAGE '+(i+1)},{inlineData:{mimeType:'image/jpeg',data:'image'}}]).flat();`});
+ process.env.GEMINI_API_KEY='fixture';global.__retryCalls=[];
+ try{await extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});
+ assert.equal(global.__retryCalls.filter(c=>c.page==='PAGE 1').length,1);
+ assert.equal(global.__retryCalls.filter(c=>c.page==='PAGE 3').length,1);
+ assert.equal(global.__retryCalls.filter(c=>c.page==='PAGE 2').length,2);
+ assert.ok(global.__retryCalls.every(c=>c.model==='gemini-3.1-flash-lite'));
+ }finally{delete process.env.GEMINI_API_KEY;delete global.__retryCalls;}
 });

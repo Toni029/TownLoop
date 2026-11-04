@@ -5,6 +5,8 @@ import { NewsletterPdfError } from './newsletterPdfText.ts';
 import { NewsletterInputError } from './newsletterPdfSecurity.ts';
 import { extractNewsletterContent } from './newsletterExtractor.ts';
 import express from 'express';
+import { randomUUID } from 'node:crypto';
+import { newsletterAnalysisFailure } from './newsletterAnalysisErrors.ts';
 const asText = (value: unknown, limit: number) => typeof value === 'string' ? value.slice(0, limit) : '';
 const windows = new Map<string, {
     count: number;
@@ -36,6 +38,8 @@ nativeNewsletterRouter.get('/health', (_req,res) => res.json({status:'ok',servic
 // Native API: small reference-only requests reuse the already confirmed Firestore PDF.
 nativeNewsletterRouter.get('/capabilities', requireNativeNewsletterManager, (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json(nativeNewsletterCapabilities()); });
 nativeNewsletterRouter.post('/extract-content', requireNativeNewsletterManager, limitAiRequests, express.json({ limit: '64kb' }), async (req, res) => {
+    const requestId = randomUUID();
+    res.setHeader('X-TownLoop-Analysis-Request', requestId);
     let stage: 'verification' | 'analysis' = 'verification';
     try {
         if (req.body?.base64Data || req.body?.fileDataUrl) throw new NewsletterInputError('Use the retained newsletter reference; PDF retransmission is not supported.');
@@ -61,6 +65,9 @@ nativeNewsletterRouter.post('/extract-content', requireNativeNewsletterManager, 
         }
         // Never return upstream credentials, document text or private logs.
         if (stage === 'verification') { res.status(503).json({ error: 'Firebase could not verify the retained PDF right now. Retry analysis without uploading again. The published newsletter is unchanged.', stage }); return; }
-        res.status(502).json({ stage, error: 'Newsletter analysis failed. The uploaded PDF is retained; retry analysis without uploading again. The published newsletter is unchanged. Gemini supports PDFs up to 50 MB and 1,000 pages.' });
+        const failure = newsletterAnalysisFailure(error);
+        // No upstream error text, prompts, keys, profile data or document contents.
+        console.warn('[Newsletter Pipeline] Analysis request failed.', {requestId, stage: failure.failureStage, code: failure.code, upstreamStatus: failure.upstreamStatus});
+        res.status(failure.httpStatus).json({stage, requestId, code: failure.code, failureStage: failure.failureStage, retryable: failure.retryable, error: failure.error});
     }
 });
