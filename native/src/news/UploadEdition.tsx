@@ -1,6 +1,6 @@
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Pressable, View } from "react-native";
+import { ActivityIndicator, Animated, AppState, Pressable, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   FileText,
@@ -21,6 +21,7 @@ import { auth } from "../lib/firebase";
 import { preflightAnalysis } from "./api";
 import { retainedEditions, type RetainedEdition } from "./drafts";
 import { analyzeNewsletter } from "./ai";
+import {discardNewsletterDraft, touchNewsletterDraft} from './discard';
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 import { useReducedMotion } from "../home/hooks";
 export function UploadEdition({
@@ -58,6 +59,22 @@ export function UploadEdition({
   const transfer = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   const [bytes, setBytes] = useState<TransferProgress | null>(null);
+  const activeDraftId = step === 3 ? null : staged?.id || (bytes?.confirmedBytes ? editionId : null);
+  useEffect(() => {
+    if (!activeDraftId) return;
+    let stopped = false, touching = false;
+    const touch = async () => {
+      if (stopped || touching || AppState.currentState !== 'active') return;
+      touching = true;
+      try { await touchNewsletterDraft(activeDraftId); }
+      catch (e) { if (!stopped) setError(e instanceof Error ? e.message : 'Unable to refresh upload activity.'); }
+      finally { touching = false; }
+    };
+    void touch();
+    const timer = setInterval(() => void touch(), 5 * 60 * 1000);
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') void touch(); });
+    return () => { stopped = true; clearInterval(timer); listener.remove(); };
+  }, [activeDraftId]);
   useEffect(() => () => file?.dispose(), [file]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; transfer.current?.abort(); }; }, []);
   const [bar] = useState(() => new Animated.Value(0));
@@ -112,6 +129,17 @@ export function UploadEdition({
     try { const values = await retainedEditions(); setRetained(values); if (!values.length) setError("No recoverable unpublished PDF was found."); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to check retained PDFs."); }
     finally { setFinding(false); setBusy(false); lock.current = false; }
+  }
+  async function discard(id: string) {
+    if (lock.current) return;
+    lock.current = true; setBusy(true); setError('');
+    try {
+      await discardNewsletterDraft(id);
+      if (!mounted.current) return;
+      setRetained(values => values.filter(value => value.id !== id));
+      if (id === editionId) { setFile(null); resetDraft(); }
+    } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : 'Unable to discard this upload. Retry.'); }
+    finally { lock.current = false; if (mounted.current) setBusy(false); }
   }
   async function resumeRetained(draft: RetainedEdition) {
     if (lock.current) return;
@@ -251,7 +279,7 @@ export function UploadEdition({
             </Copy>
           </Pressable>
           <Action label={finding ? "Checking retained PDFs…" : "Resume an uploaded PDF"} disabled={busy} onPress={() => void findRetained()} />
-          {retained.map(draft => <Action key={draft.id} disabled={busy} label={`${draft.fileName} · ${draft.fileSize} · ${draft.partial ? `Resume ${draft.confirmedChunks}/${draft.totalChunks} parts — select original PDF` : new Date(draft.retainedAt).toLocaleString()}`} onPress={() => void resumeRetained(draft)} />)}
+          {retained.map(draft => <View key={draft.id} style={{gap:8}}><Action disabled={busy} label={`${draft.fileName} · ${draft.fileSize} · ${draft.partial ? `Resume ${draft.confirmedChunks}/${draft.totalChunks} parts — select original PDF` : new Date(draft.retainedAt).toLocaleString()}`} onPress={() => void resumeRetained(draft)} /><Action icon={Trash2} disabled={busy} label="Discard uploaded PDF" onPress={() => void discard(draft.id)} /></View>)}
           {!!staged && <Copy>PDF upload is retained. Retry analysis or publish with AI turned off; no PDF re-upload is needed.</Copy>}
           <Field
             label="Edition Title *"
@@ -550,6 +578,8 @@ export function UploadEdition({
         </>
       )}
       {!!error && <ErrorNotice message={error} />}
+      {step !== 3 && <Copy>Unpublished uploads are removed after 24 hours without activity. Discard an upload to remove it immediately. Published newsletters are kept.</Copy>}
+      {step !== 3 && !!(staged || bytes?.confirmedBytes) && <Action icon={Trash2} label="Discard uploaded PDF" disabled={busy} onPress={() => void discard(editionId)} />}
       {step === 3 ? (
         <Action label="Done" icon={Check} onPress={onClose} />
       ) : (

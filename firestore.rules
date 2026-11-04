@@ -365,13 +365,23 @@ service cloud.firestore {
         (currentProfile().role == 'resident' && resource.data.userId == request.auth.uid && resource.data.get('status', '') != 'Done'));
     }
 
+    // Server-owned fences prevent an older client from resurrecting a purged
+    // draft or publishing its ID after cleanup has claimed it.
+    function newsletterDraftFenced(id) {
+      return exists(/databases/$(database)/documents/newsletter_draft_cleanup/$(id));
+    }
+    match /newsletter_draft_cleanup/{id} {
+      allow read, write: if false;
+    }
     match /newsletters/{newsletterId} {
       allow read: if isApproved();
-      allow write: if isManager();
+      allow write: if isManager() && !newsletterDraftFenced(newsletterId) &&
+        (newsletterId != 'current' || request.method == 'delete' ||
+          !newsletterDraftFenced(request.resource.data.id));
 
       match /chunks/{chunkId} {
         allow read: if isApproved();
-        allow write: if isManager();
+        allow write: if isManager() && !newsletterDraftFenced(newsletterId);
       }
     }
 

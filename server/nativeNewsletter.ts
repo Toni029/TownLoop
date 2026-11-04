@@ -32,7 +32,9 @@ export async function retainedNativePdf(id: unknown, authorization: string, newU
         throw new NewsletterInputError('The retained upload has invalid metadata.', 409);
     if (size > 'data:application/pdf;base64,'.length + Math.ceil(NATIVE_ANALYSIS_MAX_BYTES / 3) * 4)
         throw new NewsletterInputError('This PDF exceeds the Gemini analysis limit of 50 MB. It can be published unchanged with AI turned off.', 413);
-    const manifest = (await get(`/newsletters/${id}?mask.fieldPaths=id&mask.fieldPaths=isRemoved&mask.fieldPaths=totalChunks&mask.fieldPaths=totalSize&mask.fieldPaths=sourceBytes`, true))?.fields;
+    const manifestDocument = await get(`/newsletters/${id}?mask.fieldPaths=id&mask.fieldPaths=isRemoved&mask.fieldPaths=totalChunks&mask.fieldPaths=totalSize&mask.fieldPaths=sourceBytes&mask.fieldPaths=uploadState`, true);
+    const manifest = manifestDocument?.fields;
+    if (manifest?.uploadState?.stringValue === 'purging') throw new NewsletterInputError('This unpublished PDF is being discarded. Select a new upload.', 409);
     if (manifest?.isRemoved?.booleanValue || (manifest?.id?.stringValue && manifest.id.stringValue !== id))
         throw new NewsletterInputError('This retained edition is no longer available.', 409);
     if ((manifest?.totalChunks && Number(manifest.totalChunks.integerValue) !== count) || (manifest?.totalSize && Number(manifest.totalSize.integerValue) !== size))
@@ -40,6 +42,12 @@ export async function retainedNativePdf(id: unknown, authorization: string, newU
     const sourceBytes = manifest?.sourceBytes ? Number(manifest.sourceBytes.integerValue) : undefined;
     if (sourceBytes !== undefined && (!Number.isSafeInteger(sourceBytes) || sourceBytes <= 0 || sourceBytes > NATIVE_ANALYSIS_MAX_BYTES))
         throw new NewsletterInputError('The upload manifest has an unsupported PDF size.', 409);
+    if (newUpload && ['uploading','uploaded'].includes(manifest?.uploadState?.stringValue)) {
+        // Protect analysis from the abandonment sweep, including older clients.
+        // Forward the manager token; a fence/racing cleanup must reject this write.
+        const response = await fetcher(BASE + ':commit', {method:'POST', headers:{Authorization:authorization,'Content-Type':'application/json'},redirect:'error',signal:AbortSignal.timeout(30000),body:JSON.stringify({writes:[{transform:{document:`projects/${PROJECT}/databases/(default)/documents/newsletters/${id}`,fieldTransforms:[{fieldPath:'draftActivityAt',setToServerValue:'REQUEST_TIME'}]},currentDocument:{exists:true}}]})});
+        if (!response.ok) throw new NewsletterInputError('The upload changed or cleanup has started. Return to News and retry; the published newsletter is unchanged.',409);
+    }
     const rows: Array<{
         index: number;
         data: string;
