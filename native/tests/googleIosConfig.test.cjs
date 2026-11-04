@@ -27,10 +27,16 @@ test('iOS native plugin gates callback registration on actual validated configur
  assert.throws(()=>configure({exists:false}),/Supply/);
  assert.throws(()=>configure({data:{...fixture(),BUNDLE_ID:'wrong'}}),/bundle/);
  assert.equal(configure({enabled:false,exists:false}).callback,undefined);
- assert.equal(configure({platform:'android',exists:false}).callback,undefined);
+ assert.equal(configure({platform:'android',exists:false}).callback,fixture().REVERSED_CLIENT_ID);
 });
 test('fails closed on missing or mismatched iOS configuration',()=>{
  for(const key of Object.keys(fixture())){const data=fixture();delete data[key];assert.throws(()=>validateIosConfig(data,options));}
  for(const key of Object.keys(fixture())){const data=fixture();data[key]='wrong';assert.throws(()=>validateIosConfig(data,options));}
  assert.throws(()=>validateIosConfig(fixture(),{iosClientId:'999-ios.apps.googleusercontent.com'}));
+});
+test('local and EAS Android discovery register the same Google config plugin without requiring an iOS file on Android',()=>{
+ const local=configure({platform:''});
+ const android=configure({platform:'android',exists:false});
+ assert.equal(android.callback,local.callback,'Platform-dependent plugin discovery must not change the Android runtime fingerprint');
+ assert.equal(android.callback,fixture().REVERSED_CLIENT_ID);
 });
