@@ -1,4 +1,5 @@
 import { preflightAnalysis } from "./api";
+import {analyzeInBackground, type AnalysisProgress} from "./analysisJobs";
 import { doc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import type { NewsletterConfig } from "../models";
@@ -9,50 +10,20 @@ import { analysisItems, type AnalysisResult } from "./analysisModel";
 export async function analyzeNewsletter(
   config: NewsletterConfig,
   newUpload = false,
+  options: {signal?:AbortSignal;onProgress?:(progress:AnalysisProgress)=>void} = {},
 ): Promise<AnalysisResult> {
   await approvedUser(true);
   const owner = auth.currentUser?.uid;
-  const base = await preflightAnalysis();
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw Error("Please sign in again.");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 300000);
-  try {
-    const response = await fetch(
-      `${base.replace(/\/$/, "")}/api/newsletter/native/extract-content`,
-      {
-        method: "POST",
-        redirect: "error",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          newsletterId: config.id,
-          mimeType: "application/pdf",
-          fileName: config.fileName,
-          editionTitle: config.editionTitle,
-          monthEdition: config.monthEdition,
-          isReanalysis: !newUpload,
-          isNewUpload: newUpload,
-        }),
-        signal: controller.signal,
-      },
-    );
-    const result = await response.json().catch(() => null);
-    if (!response.ok)
-      throw Error(result?.error || "Newsletter analysis failed. Please retry.");
-    if (auth.currentUser?.uid !== owner) throw Error("Your account changed. Reopen News.");
-    analysisItems(result, config); // Validate before showing or persisting output.
-    if (!newUpload) await activeEdition(config);
-    return result;
-  } catch (error) {
-    if (controller.signal.aborted)
-      throw Error("Newsletter analysis timed out. Please retry.");
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+  const base = await preflightAnalysis(0, true);
+  if (!owner) throw Error("Please sign in again.");
+  const result = await analyzeInBackground(base, {
+    newsletterId: config.id, fileName: config.fileName, editionTitle: config.editionTitle,
+    monthEdition: config.monthEdition, isNewUpload: newUpload,
+  }, owner, options);
+  if (auth.currentUser?.uid !== owner) throw Error("Your account changed. Reopen News.");
+  analysisItems(result, config);
+  if (!newUpload) await activeEdition(config);
+  return result;
 }
 export async function applyAnalysis(
   result: AnalysisResult,

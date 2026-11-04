@@ -8,7 +8,7 @@ test('quota, outage, timeout, credentials, missing model and parsing failures ha
   [{name:'AbortError',message:'request aborted'},'gemini-timeout',504,true,'model-processing'],
   [{status:403,newsletterStage:'gemini-upload'},'gemini-configuration',503,false,'gemini-upload'],
   [{status:404},'gemini-model-unavailable',503,false,'model-processing'],
-  [new SyntaxError('private response text secret-key'),'gemini-response',502,true,'response-parsing'],
+  [new SyntaxError('private response text secret-key 503 403'),'gemini-response',502,true,'response-parsing'],
   [{newsletterStage:'response-parsing'},'gemini-response',502,true,'response-parsing'],
  ]){const value=newsletterAnalysisFailure(Object.assign(error,{message:error.message||'secret-key private document contents'}));
  assert.equal(value.code,code);assert.equal(value.httpStatus,status);assert.equal(value.retryable,retryable);assert.equal(value.failureStage,stage);

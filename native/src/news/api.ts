@@ -13,7 +13,7 @@ export function analysisServiceUrl() {
         throw Error('Newsletter analysis requires a trusted HTTPS service URL.');
     return base.replace(/\/$/, '');
 }
-export async function preflightAnalysis(bytes = 0) {
+export async function preflightAnalysis(bytes = 0, requireJobs = false) {
     const base = analysisServiceUrl();
     await approvedUser(true);
     const user = auth.currentUser, token = await user?.getIdToken();
@@ -29,6 +29,7 @@ export async function preflightAnalysis(bytes = 0) {
             throw Error('Your account could not be authorized for newsletter analysis. Sign in with an approved Admin/VIP account.');
         if (!response.ok || value?.service !== 'townloop-newsletter' || value.projectId !== 'cc-livingcommunity-app' || value.database !== '(default)' || value.version !== 1)
             throw Error('The newsletter analysis service is unavailable or needs its native-backend update. Your uploaded PDF can be retried without uploading again.');
+        if (requireJobs && value.analysisJobsVersion !== 1) throw Error('The background newsletter analysis backend update is pending. Your uploaded PDF can be resumed after deployment.');
         if (!value.configured)
             throw Error('Gemini is not configured on the secure server. The PDF can be retained for retry or published with AI turned off.');
         if (!Number.isSafeInteger(value.maxPdfBytes) || value.maxPdfBytes <= 0)

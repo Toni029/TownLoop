@@ -3,6 +3,7 @@ import express from 'express';
 import { NATIVE_PDF_LOADER_VERSION } from './nativeNewsletter.ts';
 import { nativeNewsletterRouter } from './nativeNewsletterRoutes.ts';
 export const app = express();
+export {runNewsletterJob} from './newsletterJobs.ts';
 app.disable('x-powered-by');
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'townloop-native-api', projectId: 'cc-livingcommunity-app', pdfLoaderVersion: NATIVE_PDF_LOADER_VERSION }));
 app.use('/api/newsletter/native', nativeNewsletterRouter);

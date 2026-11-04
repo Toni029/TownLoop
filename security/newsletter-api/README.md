@@ -1,5 +1,10 @@
 # Isolated newsletter analysis function — deployed 2026-11-03
 
+**Pending local upgrade:** durable background jobs and real November-PDF validation
+are documented in [BACKGROUND_ANALYSIS.md](BACKGROUND_ANALYSIS.md). The deployed
+service still uses the synchronous endpoint; no task worker has been deployed.
+The sections below record earlier deployment checkpoints.
+
 Project: `cc-livingcommunity-app` · region: `us-central1` · isolated codebase: `newsletter-api` · sole export: `newsletterApi`.
 
 Live service URL:

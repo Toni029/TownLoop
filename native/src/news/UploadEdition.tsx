@@ -21,6 +21,7 @@ import { auth } from "../lib/firebase";
 import { preflightAnalysis } from "./api";
 import { retainedEditions, type RetainedEdition } from "./drafts";
 import { analyzeNewsletter } from "./ai";
+import type {AnalysisProgress} from "./analysisJobs";
 import {discardNewsletterDraft, touchNewsletterDraft} from './discard';
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 import { useReducedMotion } from "../home/hooks";
@@ -47,6 +48,7 @@ export function UploadEdition({
   const [retained, setRetained] = useState<RetainedEdition[]>([]);
   const [finding, setFinding] = useState(false);
   const [checkingService, setCheckingService] = useState(false);
+  const [analysisProgress,setAnalysisProgress]=useState<AnalysisProgress|null>(null);
   const [timing, setTiming] = useState<{preparationMs:number;elapsedMs:number;readMs:number;commitMs:number}|null>(null);
   const [busy, setBusy] = useState(false),
     [progress, setProgress] = useState(0);
@@ -86,6 +88,7 @@ export function UploadEdition({
     }).start();
   }, [bar, progress, reduced]);
   function resetDraft() {
+    setAnalysisProgress(null);
     setTiming(null);
     resume.current = newUploadResume();
     setBytes(null);
@@ -175,7 +178,7 @@ export function UploadEdition({
       let metadata = staged;
       if (aiEnabled && !result) {
         setCheckingService(true);
-        try { await preflightAnalysis(file?.size || Number((staged as {sourceBytes?:number}|null)?.sourceBytes) || 0); }
+        try { await preflightAnalysis(file?.size || Number((staged as {sourceBytes?:number}|null)?.sourceBytes) || 0, true); }
         finally { setCheckingService(false); }
       }
       if (!metadata && file) {
@@ -207,10 +210,12 @@ export function UploadEdition({
       metadata = { ...metadata, editionTitle: title.trim(), monthEdition: month.trim() };
       if (aiEnabled && !result) {
         setStep(1);
+        setAnalysisProgress(null);
         setProgress(100);
         if (auth.currentUser?.uid !== owner) throw new Error("Please sign in again.");
         // Reference-only request: the server reuses confirmed Firebase bytes, never a second phone upload.
-        const extracted = await analyzeNewsletter(metadata, true);
+        const extracted = await analyzeNewsletter(metadata, true, {signal:controller.signal,onProgress:value=>{if(mounted.current)setAnalysisProgress(value);}});
+        if (!mounted.current) return;
         setResult(extracted);
         setProgress(100);
         // Keep the current newsletter live until the manager approves this inline review.
@@ -225,6 +230,7 @@ export function UploadEdition({
       setStep(3);
       onPublished();
     } catch (e) {
+      if (!mounted.current) return;
       setError(
         `${e instanceof Error ? e.message : "Unable to publish newsletter."} Your current newsletter has not been replaced.`,
       );
@@ -249,7 +255,7 @@ export function UploadEdition({
       tone="green"
       icon={FileText}
       subtitle={reviewing ? `${month || title} · Review and edit before publishing` : "Share your monthly edition"}
-      busy={busy}
+      busy={busy && step !== 1}
       onClose={onClose}
     >
       {!reviewing && step !== 3 && (
@@ -377,12 +383,13 @@ export function UploadEdition({
             {busy && <Action label="Cancel upload" onPress={() => transfer.current?.abort()} />}
           </>}
           {step === 1 && <Copy>PDF upload complete · 100%. AI analysis is a separate step.</Copy>}
+          {step === 1 && !!analysisProgress && <Copy>{analysisProgress.state === 'queued' ? 'Queued securely' : analysisProgress.state === 'retrying' ? 'Retrying the remaining pages' : 'Reading newsletter pages'} · {analysisProgress.completedBatches}/{analysisProgress.totalBatches || '…'} groups saved · attempt {analysisProgress.attempt || 1}</Copy>}
           {step === 1 && busy && (
             <View style={{ gap: 8 }}>
               <ActivityIndicator color="#059669" />
               <Copy>
                 Large PDFs can take a few minutes. Alternate models are tried
-                automatically; your current newsletter stays live.
+                automatically; saved page groups are kept. You can close this window and resume later. Your current newsletter stays live.
               </Copy>
             </View>
           )}

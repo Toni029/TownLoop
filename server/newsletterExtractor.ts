@@ -6,7 +6,7 @@
  */
 import { MONTHLY_ACTIVITIES_LIST } from '../src/data/monthlyActivities.ts';
 import { createHash } from 'node:crypto';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { newsletterPdfImages } from './newsletterPdfImages.ts';
 import { newsletterPdfText } from './newsletterPdfText.ts';
 import { newsletterAnalysisFailure, retryGeminiGeneration } from './newsletterAnalysisErrors.ts';
@@ -100,6 +100,11 @@ export interface NewsletterExtractionResponse {
     eventsCount: number;
     highlightsCount: number;
   };
+}
+
+export interface NewsletterAnalysisCheckpoints {
+  load(hash: string, total: number): Promise<Record<string, {value: any; model: string}>>;
+  save(hash: string, index: number, total: number, value: any, model: string): Promise<void>;
 }
 
 const MODEL_FALLBACK_CHAIN = [
@@ -313,7 +318,8 @@ export function isRecurringCalendarActivity(title: string): boolean {
  * STRICT: If extraction fails, throws an error. NEVER falls back to mock or demo data.
  */
 async function runNewsletterExtraction(
-  payload: NewsletterExtractionPayload
+  payload: NewsletterExtractionPayload,
+  checkpoints?: NewsletterAnalysisCheckpoints,
 ): Promise<NewsletterExtractionResponse> {
   const ai = getGenAI();
   // Leave room for retained-PDF verification and a safe response before the
@@ -475,7 +481,11 @@ STRICT ZERO-HALLUCINATION RULES:
       'You are an expert community newsletter analyst. Carefully scan every page, article, calendar block, and announcement box from top to bottom. Extract ONLY information that is literally printed in this document. Never invent or assume dates, times, or events. Extract only dated events with explicit printed attendee RSVP, registration, booking, or sign-up instructions, excluding recurring daily, weekly and monthly activities even if they require RSVP. Exclude routine calendar entries without RSVP and events before the edition month. Output only valid JSON matching the schema with no conversational text.',
     responseMimeType: 'application/json',
     temperature: 0.0,
-    maxOutputTokens: 8192,
+    // Thinking and returned JSON share this budget. The previous 8,192 cap
+    // allowed preview-model reasoning to consume almost all tokens, truncating
+    // even a ~300-token JSON response. LOW is supported by every fallback.
+    maxOutputTokens: 16384,
+    thinkingConfig: {thinkingLevel: ThinkingLevel.LOW},
     responseSchema: {
       type: Type.OBJECT,
       properties: {
@@ -551,7 +561,7 @@ STRICT ZERO-HALLUCINATION RULES:
   };
 
   // Keep successful page batches when a different model must retry a failed batch.
-  const batchSize = imageParts ? Math.ceil(imageParts.length / 2 / 3) * 2 : 0;
+  const batchSize = imageParts ? Math.min(8, Math.ceil(imageParts.length / 2 / 3) * 2) : 0;
   const batches: any[][] = [];
   if (imageParts) {
     for (let offset = 0; offset < imageParts.length; offset += batchSize) {
@@ -563,6 +573,19 @@ STRICT ZERO-HALLUCINATION RULES:
     }
   }
   const completedBatches = new Map<number, any>();
+  const inputHash = createHash('sha256').update(JSON.stringify([rawBase64, mime, prompt, generationConfig, batches.length])).digest('hex');
+  const saved = await checkpoints?.load(inputHash, batches.length || 1);
+  for (const [index, item] of Object.entries(saved || {})) {
+    if (!Number.isInteger(Number(index)) || Number(index) < 0 || Number(index) >= (batches.length || 1) || !Array.isArray(item.value?.events) || !Array.isArray(item.value?.highlights))
+      throw Object.assign(Error('Saved analysis progress is inconsistent.'), {checkpointFailure: true});
+    completedBatches.set(Number(index), item.value);
+  }
+  let checkpointStopped = false;
+  const saveBatch = async (index: number, value: any, model: string) => {
+    try { await checkpoints?.save(inputHash, index, batches.length || 1, value, model); }
+    catch { checkpointStopped = true; throw Object.assign(Error('Analysis progress could not be saved. Retry to resume.'), {checkpointFailure: true}); }
+    completedBatches.set(index, value);
+  };
   let lastError: any = null;
 
 
@@ -571,7 +594,7 @@ STRICT ZERO-HALLUCINATION RULES:
     : MODEL_FALLBACK_CHAIN;
   const modelTimeout = largePdf ? 60_000 : 40_000;
   for (const model of models) {
-    if (isModelInCooldown(model)) {
+    if (isModelInCooldown(model) && completedBatches.size < (batches.length || 1)) {
       continue;
     }
 
@@ -591,20 +614,35 @@ STRICT ZERO-HALLUCINATION RULES:
               abortSignal: AbortSignal.timeout(timeout),
             },
           }), {deadline: analysisDeadline, timeout: modelTimeout, attempts: largePdf ? 2 : 1});
+          const finishReason = response?.candidates?.[0]?.finishReason;
+          try {
           if (!response?.text) throw Object.assign(new Error('Gemini returned an empty analysis.'), {newsletterStage: 'response-parsing'});
-          const parsed = JSON.parse(response.text);
+          // Accept a single JSON code fence; never repair or accept truncated JSON.
+          const text = response.text.trim().replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i, '$1');
+          if (response.candidates?.some(candidate => candidate.finishReason === 'MAX_TOKENS')) throw Object.assign(Error('Gemini response reached its output limit.'), {newsletterStage: 'response-parsing'});
+          const parsed = JSON.parse(text);
           if (!parsed || !Array.isArray(parsed.events) || !Array.isArray(parsed.highlights)) {
             throw Object.assign(new Error('Gemini returned incomplete analysis; trying another model.'), {newsletterStage: 'response-parsing'});
           }
           return parsed;
+          } catch (error) {
+            console.warn('[Newsletter Pipeline] Response validation failed.', {model, stage:'response-parsing', characters:response?.text?.length || 0, finishReason:['STOP','MAX_TOKENS','SAFETY','RECITATION','OTHER'].includes(String(finishReason))?finishReason:'unknown'});
+            throw error;
+          }
         };
         let parsed: any;
         if (batches.length) {
-          const attempts = await Promise.allSettled(batches.map(async (batch, index) => {
-            if (completedBatches.has(index)) return;
-            const value = await generate([{ role: 'user', parts: batch }]);
-            completedBatches.set(index, value);
-            console.info(`[Newsletter Pipeline] Visual batch ${index + 1}/${batches.length} complete.`);
+          // Limit bursts against Gemini; persist each successful group before continuing.
+          let nextBatch = 0;
+          const attempts = await Promise.allSettled(Array.from({length: Math.min(2, batches.length)}, async () => {
+            while (nextBatch < batches.length) {
+              if (checkpointStopped) throw Object.assign(Error('Analysis progress save stopped.'), {checkpointFailure:true});
+              const index = nextBatch++;
+              if (completedBatches.has(index)) continue;
+              const value = await generate([{ role: 'user', parts: batches[index] }]);
+              await saveBatch(index, value, model);
+              console.info(`[Newsletter Pipeline] Visual batch ${index + 1}/${batches.length} complete.`);
+            }
           }));
           const failure = attempts.find((attempt) => attempt.status === 'rejected');
           if (failure?.status === 'rejected') throw failure.reason;
@@ -612,8 +650,11 @@ STRICT ZERO-HALLUCINATION RULES:
           const unique = (items: any[], event: boolean) => {
             const seen = new Set<string>();
             return items.filter(item => {
-              const key = String(item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '') +
-                (event ? String(item.date || '').toLowerCase() : '');
+              const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              const date = event ? parseRobustMonthAndDay(item.date, item.day, item.month, undefined, payload.monthEdition) : null;
+              const when = date?.month && date?.day ? `${date.month}-${Number(date.day)}` : normalize(item.date);
+              const year = String(item.date || '').match(/\b20\d{2}\b/)?.[0] || String(results[0]?.monthEdition || '').match(/\b20\d{2}\b/)?.[0] || '';
+              const key = normalize(item.title) + (event ? `${year}-${when}-${normalize(String(item.time || '').replace(/:00\b/g,''))}` : '');
               if (seen.has(key)) return false;
               seen.add(key); return true;
             });
@@ -625,7 +666,8 @@ STRICT ZERO-HALLUCINATION RULES:
             highlights: unique(Array.from({ length: 7 }, (_, i) => results.flatMap(result => result.highlights[i] ? [result.highlights[i]] : [])).flat(), false).slice(0, 7),
           };
         } else {
-          parsed = await generate(contents);
+          parsed = completedBatches.get(0) || await generate(contents);
+          if (!completedBatches.has(0)) await saveBatch(0, parsed, model);
         }
 
         const rawEvents: ExtractedEventItem[] = Array.isArray(parsed.events) ? parsed.events : [];
@@ -699,13 +741,12 @@ STRICT ZERO-HALLUCINATION RULES:
           },
         };
       } catch (err: any) {
+        if (err?.checkpointFailure) throw err;
         lastError = err;
-        const rawMsg = err?.message || String(err);
-        if (/API_KEY_INVALID|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED|401|403/i.test(rawMsg)) throw err;
-        if (/429|RESOURCE_EXHAUSTED/.test(rawMsg)) setModelCooldown(model, 60_000);
-        else if (/503|504|timeout|timed out|DEADLINE_EXCEEDED|abort/i.test(rawMsg)) setModelCooldown(model, 60_000);
-        else if (/404|NOT_FOUND/.test(rawMsg)) setModelCooldown(model, 5 * 60_000);
         const failure = newsletterAnalysisFailure(err);
+        if (failure.code === 'gemini-configuration') throw err;
+        if (['gemini-quota','gemini-unavailable','gemini-timeout'].includes(failure.code)) setModelCooldown(model, 60_000);
+        else if (failure.code === 'gemini-model-unavailable') setModelCooldown(model, 5 * 60_000);
         console.warn('[Newsletter Pipeline] Model extraction failed.', {model, stage: failure.failureStage, code: failure.code, upstreamStatus: failure.upstreamStatus});
         break;
       }
@@ -727,18 +768,18 @@ STRICT ZERO-HALLUCINATION RULES:
 
 // Cache only successful, identical-document analyses; never publish cached content automatically.
 const analysisCache = new Map<string, { expires: number; result: NewsletterExtractionResponse }>();
-export async function extractNewsletterContent(payload: NewsletterExtractionPayload): Promise<NewsletterExtractionResponse> {
+export async function extractNewsletterContent(payload: NewsletterExtractionPayload, checkpoints?: NewsletterAnalysisCheckpoints): Promise<NewsletterExtractionResponse> {
   const key = createHash('sha256').update(JSON.stringify([
     payload.base64Data || payload.fileDataUrl, payload.mimeType || payload.fileType,
     payload.monthEdition, payload.editionTitle, payload.textContent, payload.extraInstructions,
   ])).digest('hex');
   if (!process.env.GEMINI_API_KEY?.trim()) throw new Error('Gemini API key is not configured.');
   const cached = analysisCache.get(key);
-  if (!payload.isReanalysis && cached && cached.expires > Date.now()) {
+  if (!checkpoints && !payload.isReanalysis && cached && cached.expires > Date.now()) {
     console.info('[Newsletter Pipeline] Reusing successful analysis of identical document.');
     return structuredClone(cached.result);
   }
-  const result = await runNewsletterExtraction(payload);
+  const result = await runNewsletterExtraction(payload, checkpoints);
   for (const [id, entry] of analysisCache) if (entry.expires <= Date.now()) analysisCache.delete(id);
   if (analysisCache.size >= 10) analysisCache.delete(analysisCache.keys().next().value!);
   analysisCache.set(key, { expires: Date.now() + 10 * 60_000, result: structuredClone(result) });

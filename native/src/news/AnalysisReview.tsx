@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import type { NewsletterConfig } from "../models";
 import { Action, Copy, NewsDialog } from "./ui";
 import { analyzeNewsletter, applyAnalysis } from "./ai";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
+import type {AnalysisProgress} from './analysisJobs';
 export function AnalysisReview({
   config,
   onClose,
@@ -17,6 +18,9 @@ export function AnalysisReview({
     [error, setError] = useState(""),
     [saved, setSaved] = useState(false);
   const lock = useRef(false);
+  const controller = useRef<AbortController|null>(null), mounted = useRef(true);
+  const [progress,setProgress]=useState<AnalysisProgress|null>(null);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;controller.current?.abort();};},[]);
   async function run(save: boolean) {
     if (lock.current) return;
     lock.current = true;
@@ -27,24 +31,27 @@ export function AnalysisReview({
         await applyAnalysis(result, config, selected);
         setSaved(true);
       } else {
-        const next = await analyzeNewsletter(config);
+        controller.current=new AbortController();
+        const next = await analyzeNewsletter(config,false,{signal:controller.current.signal,onProgress:value=>{if(mounted.current)setProgress(value);}});
+        if(!mounted.current)return;
         setResult(next);
         setSelected(analysisItems(next, config).map((item) => item.id));
       }
     } catch (e) {
+      if(!mounted.current)return;
       setError(
         e instanceof Error ? e.message : "Analysis failed. Please retry.",
       );
     } finally {
       lock.current = false;
-      setBusy(false);
+      if(mounted.current)setBusy(false);
     }
   }
   return (
     <NewsDialog
       title="Newsletter AI analysis"
       subtitle={config.editionTitle}
-      busy={busy}
+      busy={busy && !!result}
       onClose={onClose}
     >
       <Copy>
@@ -60,6 +67,7 @@ export function AnalysisReview({
               ? "Saving selected items…"
               : "Gemini is reading the newsletter…"}
           </Copy>
+          {!result && !!progress && <Copy>{progress.completedBatches}/{progress.totalBatches || '…'} page groups saved · {progress.state}. You can close this window and resume later.</Copy>}
         </View>
       )}
       {saved ? (

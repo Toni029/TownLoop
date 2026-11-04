@@ -41,11 +41,11 @@ async function purgeDraft(db,id,{reason='abandoned',actor,now=Date.now(),enabled
  // into arbitrary subcollections or touch Storage paths inferred from URLs.
  for(let batch=0;batch<3;batch++){
   const done=await db.runTransaction(async tx=>{
-   const [job,roots,chunks]=await Promise.all([tx.get(fence),tx.get(db.collection('newsletters').select('id','pdfUrl','fileUrl','uploadState').limit(501)),tx.get(ref.collection('chunks').select().limit(100))]);
+   const [job,roots,chunks,analyses]=await Promise.all([tx.get(fence),tx.get(db.collection('newsletters').select('id','pdfUrl','fileUrl','uploadState').limit(501)),tx.get(ref.collection('chunks').select().limit(100)),tx.get(db.collection('newsletter_analysis_jobs').where('newsletterId','==',id).select('newsletterId').limit(101))]);
    if(job.data()?.state==='purged')return true;
-   if(job.data()?.state!=='purging'||roots.size>500||roots.docs.some(row=>references(id,row)))throw failure('Cleanup eligibility changed. Nothing further was removed.');
+   if(job.data()?.state!=='purging'||roots.size>500||analyses.size>100||roots.docs.some(row=>references(id,row)))throw failure('Cleanup eligibility changed. Nothing further was removed.');
    for(const chunk of chunks.docs)tx.delete(chunk.ref);
-   if(chunks.size<100){tx.delete(ref);tx.update(fence,{state:'purged',completedAt:new Date(now)});return true;}
+   if(chunks.size<100){for(const analysis of analyses.docs)tx.delete(analysis.ref);tx.delete(ref);tx.update(fence,{state:'purged',completedAt:new Date(now)});return true;}
    return false;
   });
   if(done)return {purged:true};

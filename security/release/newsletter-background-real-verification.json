@@ -1,0 +1,28 @@
+{
+  "verificationScope": "Real Gemini calls with retained production PDF; job persistence and controlled interruption in disposable local Firestore emulator only",
+  "pdfBytes": 39435477,
+  "pages": 12,
+  "verifiedChunks": 81,
+  "edition": "November 2026",
+  "sourceModel": "gemini-3-flash-preview",
+  "thinkingLevel": "LOW",
+  "maxOutputTokens": 16384,
+  "rsvpEvents": 3,
+  "highlights": 7,
+  "successfulPageGroups": 3,
+  "initialSavedGroups": 2,
+  "workerModuleRecreatedBeforeResume": true,
+  "successfulProviderRequests": 3,
+  "repeatedSuccessfulRequests": 0,
+  "allFinalFinishReasons": "STOP",
+  "sourcePagesVisuallyVerified": [
+    1,
+    9,
+    11
+  ],
+  "liveCloudTasksVerified": false,
+  "physicalPhoneVerified": false,
+  "productionDataModified": false,
+  "newsletterPublished": false,
+  "deployed": false
+}

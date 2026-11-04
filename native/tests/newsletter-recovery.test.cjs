@@ -16,9 +16,10 @@ test('direct PDF commit uses Firebase identity/rules, exact paths, transforms an
  await assert.rejects(rest.commitPdfChunks('../unsafe',[],0,0));
 });
 test('analysis retry sends only the retained ID and never re-reads or retransmits the PDF',async()=>{
- const requests=[];const api=load('ai.ts',{'./api':{preflightAnalysis:async()=> 'https://api.example.test'},'firebase/firestore':{},'../lib/firebase':{auth},'./actions':{approvedUser:async()=>({id:'manager'})},'./edition':{activeEdition:async()=>{}},'./model':{},'./analysisModel':{analysisItems:()=>[]}},{fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({rsvp_events:[],pinned_highlights:[]})};}});
+ const requests=[];const helper=load('analysisJobs.ts',{'../lib/firebase':{auth}},{fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({jobId:'a'.repeat(64),state:'succeeded',result:{rsvp_events:[],pinned_highlights:[]}})};}});
+ const api=load('ai.ts',{'./analysisJobs':helper,'./api':{preflightAnalysis:async()=> 'https://api.example.test'},'firebase/firestore':{},'../lib/firebase':{auth},'./actions':{approvedUser:async()=>({id:'manager'})},'./edition':{activeEdition:async()=>{}},'./model':{},'./analysisModel':{analysisItems:()=>[]}});
  await api.analyzeNewsletter({id:'retained',fileName:'newsletter.pdf'},true);await api.analyzeNewsletter({id:'retained'},true);
- assert.equal(requests.length,2);for(const r of requests){assert.match(r.url,/native\/extract-content$/);const body=JSON.parse(r.options.body);assert.equal(body.newsletterId,'retained');assert.equal(body.isNewUpload,true);assert.equal('base64Data' in body,false);assert.ok(r.options.body.length<500);}
+ assert.equal(requests.length,2);for(const r of requests){assert.match(r.url,/native\/analysis-jobs$/);const body=JSON.parse(r.options.body);assert.equal(body.newsletterId,'retained');assert.equal(body.isNewUpload,true);assert.equal('base64Data' in body,false);assert.ok(r.options.body.length<500);}
 });
 test('recovery lists a complete legacy orphan but excludes active and partial PDFs without reading document bytes',async()=>{
  const fields=n=>({integerValue:String(n)}),paths=[];

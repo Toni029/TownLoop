@@ -24,7 +24,8 @@ test('newsletter cleanup eligibility, fences, idempotency, crash recovery and au
  assert.equal((await purgeDraft(db,'fresh',{enabled:true,now:written+AGE_MS+1})).purged,true);
  assert.equal(await exists('newsletters/fresh'),false);assert.equal(await exists('newsletters/fresh/chunks/0'),false);
  assert.equal((await purgeDraft(db,'fresh',{reason:'discarded',actor:'vip',enabled:true})).purged,true);
- await seed('discard');assert.equal((await purgeDraft(db,'discard',{reason:'discarded',actor:'manager',enabled:true})).purged,true);
+ await db.doc('newsletter_analysis_jobs/discard-derived').set({newsletterId:'discard',result:{fixture:true}});await db.doc('newsletter_analysis_jobs/keep-derived').set({newsletterId:'published',result:{fixture:true}});await seed('discard');assert.equal((await purgeDraft(db,'discard',{reason:'discarded',actor:'manager',enabled:true})).purged,true);
+ assert.equal(await exists('newsletter_analysis_jobs/discard-derived'),false);assert.equal(await exists('newsletter_analysis_jobs/keep-derived'),true);
  const extra=await seed('extra-scope');await extra.collection('evidence').doc('keep').set({hold:true});await assert.rejects(purgeDraft(db,'extra-scope',{reason:'discarded',actor:'manager',enabled:true}),/additional records/);assert.equal(await exists('newsletters/extra-scope/chunks/0'),true);
  await db.doc('newsletters/orphan/chunks/0').set({index:0,totalChunks:1,totalSize:43,data:'fixture'});
  await assert.rejects(purgeDraft(db,'orphan',{reason:'discarded',actor:'manager',enabled:true}),/historical upload/);assert.equal(await exists('newsletters/orphan/chunks/0'),true);

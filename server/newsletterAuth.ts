@@ -34,6 +34,10 @@ async function requireRole(req: Request, res: Response, next: NextFunction, role
       res.status(403).json({ error: role === 'translator' ? 'Translation requires an approved Admin, VIP, or Crew account.' : role === 'reader' ? 'An approved account is required to read newsletters.' : 'Newsletter analysis requires an approved newsletter manager account.' });
       return;
     }
+    if (native && role === 'manager') {
+      res.locals ||= {};
+      res.locals.newsletterManagerUid = account.localId;
+    }
     next();
   } catch {
     res.status(503).json({ error: 'Could not verify your account. Please try again shortly.' });

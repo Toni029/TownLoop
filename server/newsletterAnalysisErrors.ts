@@ -1,12 +1,18 @@
 /** Only fixed, privacy-safe classifications may leave the analysis boundary. */
 export function newsletterAnalysisFailure(error: any) {
-    const message = String(error?.message || '');
+    // JSON parser messages may quote document output. Never interpret numbers
+    // or words inside that output as HTTP status or credential failures.
+    const parsing = error instanceof SyntaxError || error?.newsletterStage === 'response-parsing';
+    const message = parsing ? '' : String(error?.message || '');
     const status = Number(error?.status) || Number(message.match(/\b(400|401|403|404|408|429|500|502|503|504)\b/)?.[1]) || undefined;
     let code = 'gemini-failed', httpStatus = 502, retryable = false;
     let explanation = 'Gemini could not finish newsletter analysis.';
-    const failureStage = error instanceof SyntaxError ? 'response-parsing' :
+    const failureStage = error?.checkpointFailure ? 'checkpoint-save' : error instanceof SyntaxError ? 'response-parsing' :
         ['gemini-upload', 'pdf-rendering', 'response-parsing'].includes(error?.newsletterStage) ? error.newsletterStage : 'model-processing';
-    if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED/i.test(message)) {
+    if (error?.checkpointFailure) {
+        code = 'analysis-progress-unavailable'; httpStatus = 503; retryable = true;
+        explanation = 'Analysis progress could not be saved. Retry to resume the saved page groups.';
+    } else if (status === 401 || status === 403 || /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED/i.test(message)) {
         code = 'gemini-configuration'; httpStatus = 503;
         explanation = 'The secure Gemini service needs an administrator configuration check.';
     } else if (status === 429 || /RESOURCE_EXHAUSTED/.test(message)) {

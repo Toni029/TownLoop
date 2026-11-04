@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, '..');
 async function bundle(entry, mocks = {}) {
  const result = await build({entryPoints:[path.join(root,entry)],bundle:true,platform:'node',format:'cjs',write:false,plugins:[{name:'mocks',setup(b){
   b.onResolve({filter:/.*/}, args => args.path in mocks ? {path:args.path,namespace:'mock'} : null);
-  b.onLoad({filter:/.*/,namespace:'mock'}, args => ({contents:mocks[args.path]}));
+  b.onLoad({filter:/.*/,namespace:'mock'}, args => ({contents:mocks[args.path]+(args.path==='@google/genai'?";export const ThinkingLevel={LOW:'LOW'};":'')}));
  }}]});
  const module={exports:{}};new Function('module','exports','require',result.outputFiles[0].text)(module,module.exports,require);return module.exports;
 }
@@ -244,4 +244,17 @@ test('transient Gemini 503 retries only the unfinished visual batch before chang
  assert.equal(global.__retryCalls.filter(c=>c.page==='PAGE 2').length,2);
  assert.ok(global.__retryCalls.every(c=>c.model==='gemini-3.1-flash-lite'));
  }finally{delete process.env.GEMINI_API_KEY;delete global.__retryCalls;}
+});
+
+test('durable checkpoints reuse successful groups across a new extractor invocation and normalize duplicate event dates',async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw {status:404}}};models={generateContent:async args=>{global.__durableCalls++;const label=args.contents[0].parts.filter(p=>p.text?.startsWith('PAGE')).at(-1).text;return{text:'\x60\x60\x60json\\n'+JSON.stringify({monthEdition:'November 2026',events:[{title:'Verified special event',date:label==='PAGE 1'?'Saturday, November 14':'November 14',time:label==='PAGE 1'?'5:00 PM':'5 PM',requiresRsvp:true,isRecurring:false,rsvpDetails:'RSVP by November 10',sourcePage:1,description:'Verified',location:'Office'}],highlights:[{title:label,summary:'Source story',category:'News'}]})+'\\n\x60\x60\x60'};}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw Error('scanned')}`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>Array.from({length:3},(_,i)=>[{text:'PAGE '+(i+1)},{inlineData:{mimeType:'image/jpeg',data:'fixture'}}]).flat();`});
+ process.env.GEMINI_API_KEY='fixture';global.__durableCalls=0;let hash;const saved={};const checkpoints={load:async(h,total)=>{if(hash)assert.equal(hash,h);hash=h;assert.equal(total,3);return saved;},save:async(h,i,total,value,model)=>{assert.equal(h,hash);saved[i]={value,model};}};
+ try{const payload={base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf',isReanalysis:true};const first=await extractNewsletterContent(payload,checkpoints);assert.equal(first.events.length,1);assert.equal(first.highlights.length,3);assert.equal(global.__durableCalls,3);const second=await extractNewsletterContent(payload,checkpoints);assert.deepEqual(second.rsvp_events,first.rsvp_events);assert.equal(global.__durableCalls,3);}finally{delete process.env.GEMINI_API_KEY;delete global.__durableCalls;}
+});
+
+test('thinking cannot consume the old output budget and truncate newsletter JSON',async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{models={generateContent:async args=>{global.__budgetCalls++;const thought=args.config.thinkingConfig?.thinkingLevel==='LOW'?1000:7861;return args.config.maxOutputTokens<thought+2000?{text:'{"events":[',candidates:[{finishReason:'MAX_TOKENS'}]}:{text:JSON.stringify({monthEdition:'November 2026',events:[],highlights:[]}),candidates:[{finishReason:'STOP'}]};}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock});process.env.GEMINI_API_KEY='fixture';global.__budgetCalls=0;
+ try{const result=await extractNewsletterContent({base64Data:'A'.repeat(60),mimeType:'application/pdf',isReanalysis:true});assert.equal(result.monthEdition,'November 2026');assert.equal(global.__budgetCalls,1);}finally{delete process.env.GEMINI_API_KEY;delete global.__budgetCalls;}
 });

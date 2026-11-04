@@ -7,6 +7,7 @@ import { extractNewsletterContent } from './newsletterExtractor.ts';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { newsletterAnalysisFailure } from './newsletterAnalysisErrors.ts';
+import {newsletterJobsEnabled, startNewsletterJob, getNewsletterJob} from './newsletterJobs.ts';
 const asText = (value: unknown, limit: number) => typeof value === 'string' ? value.slice(0, limit) : '';
 const windows = new Map<string, {
     count: number;
@@ -36,7 +37,17 @@ nativeNewsletterRouter.use((req,res,next) => {
 nativeNewsletterRouter.use((_req,res,next) => { res.setHeader('Cache-Control','no-store'); next(); });
 nativeNewsletterRouter.get('/health', (_req,res) => res.json({status:'ok',service:'townloop-native-api',projectId:'cc-livingcommunity-app',pdfLoaderVersion:NATIVE_PDF_LOADER_VERSION}));
 // Native API: small reference-only requests reuse the already confirmed Firestore PDF.
-nativeNewsletterRouter.get('/capabilities', requireNativeNewsletterManager, (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json(nativeNewsletterCapabilities()); });
+nativeNewsletterRouter.get('/capabilities', requireNativeNewsletterManager, (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({...nativeNewsletterCapabilities(),analysisJobsVersion:newsletterJobsEnabled()?1:0}); });
+nativeNewsletterRouter.post('/analysis-jobs',requireNativeNewsletterManager,limitAiRequests,express.json({limit:'64kb'}),async(req,res)=>{
+    if(!newsletterJobsEnabled()){res.status(503).json({error:'Background analysis service update is pending. The PDF is retained.'});return;}
+    try{res.status(202).json(await startNewsletterJob(res.locals.newsletterManagerUid,req.body));}
+    catch(error){res.status(error instanceof NewsletterInputError?error.status:503).json({error:error instanceof NewsletterInputError?error.message:'Analysis could not be queued. Retry using the retained PDF.'});}
+});
+nativeNewsletterRouter.get('/analysis-jobs/:jobId',requireNativeNewsletterManager,async(req,res)=>{
+    if(!newsletterJobsEnabled()){res.status(503).json({error:'Background analysis service update is pending. The PDF is retained.'});return;}
+    try{res.json(await getNewsletterJob(res.locals.newsletterManagerUid,String(req.params.jobId)));}
+    catch(error){res.status(error instanceof NewsletterInputError?error.status:503).json({error:error instanceof NewsletterInputError?error.message:'Analysis progress could not be checked. Retry to reconnect to saved progress.'});}
+});
 nativeNewsletterRouter.post('/extract-content', requireNativeNewsletterManager, limitAiRequests, express.json({ limit: '64kb' }), async (req, res) => {
     const requestId = randomUUID();
     res.setHeader('X-TownLoop-Analysis-Request', requestId);
