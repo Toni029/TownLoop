@@ -634,9 +634,11 @@ export function NewsFeed({
                     <Badge tone="amber" uppercase>
                       {h.category}
                     </Badge>
-                    <Copy style={{ fontSize: 10, color: "#78716c" }}>
-                      {h.authorLabel}
-                    </Copy>
+                    {!!h.authorLabel && (
+                      <Copy style={{ fontSize: 10, color: "#78716c" }}>
+                        {h.authorLabel}
+                      </Copy>
+                    )}
                   </View>
                   <Copy
                     weight="bold"

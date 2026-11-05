@@ -243,7 +243,7 @@ export function readNewsHighlight(
     id,
     title: text(data.title),
     category: text(data.category, "Community Notice"),
-    authorLabel: text(data.authorLabel, "Community Update"),
+    authorLabel: text(data.authorLabel, "Community Update").replace(/^extracted with gemini ai[.!]?$/i, ""),
     description: text(data.description),
     date: text(data.date),
     tag: text(data.tag),
