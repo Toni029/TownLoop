@@ -1,0 +1,20 @@
+{
+  "status": "PREPARED_NOT_APPROVED_NOT_APPLIED",
+  "project": "cc-livingcommunity-app",
+  "databases": [
+    "(default)",
+    "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb"
+  ],
+  "pitr": { "enabled": true, "providerWindowDays": 7 },
+  "daily": { "retentionDays": 7 },
+  "weekly": { "retentionDays": 28, "day": "SUNDAY" },
+  "optionalDatabaseDeleteProtection": { "proposed": true, "enabledByThisPlan": false },
+  "restore": {
+    "isolationRequired": true,
+    "reconcileDeletionReceiptsAcrossBothDatabases": true,
+    "preserveOriginalDeletionDeadlines": true,
+    "noAutomaticAuthOrMediaResurrection": true,
+    "verifyRulesIndexesAndTtlBeforeAccess": true
+  },
+  "priorOwnerDecision": "2026-10-26: backup changes deferred; this proposal does not override that decision"
+}

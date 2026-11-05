@@ -1,0 +1,27 @@
+{
+  "status": "INACTIVE_REVIEW_FRAGMENT_NOT_IMPORTED",
+  "candidateDependency": { "@sentry/react-native": "8.34.0" },
+  "candidatePlugin": "@sentry/react-native/expo",
+  "requiresOwnerProviderPrivacyDecision": true,
+  "requiresNewNativeBinary": true,
+  "requiresSymbolAndPayloadVerification": true,
+  "initOptionsForReview": {
+    "enabled": false,
+    "sendDefaultPii": false,
+    "enableAutoSessionTracking": false,
+    "enableCaptureFailedRequests": false,
+    "enableLogs": false,
+    "enableAutoConsoleLogs": false,
+    "maxBreadcrumbs": 0,
+    "attachScreenshot": false,
+    "attachViewHierarchy": false,
+    "reportAccessibilityIdentifier": false,
+    "tracesSampleRate": 0,
+    "profilesSampleRate": 0,
+    "replaysSessionSampleRate": 0,
+    "replaysOnErrorSampleRate": 0
+  },
+  "requiredOwnerDecisions": ["provider region and retention", "authorized viewers", "payload allowlist and scrubbing", "privacy notice and consent behavior", "collection budget", "test-device approval"],
+  "buildSecretOnly": "SENTRY_AUTH_TOKEN",
+  "publicRoutingConfigOnly": "Sentry DSN; no value is supplied here"
+}

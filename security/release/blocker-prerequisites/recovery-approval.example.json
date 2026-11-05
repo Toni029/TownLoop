@@ -1,0 +1,9 @@
+{
+  "action": "ENABLE_RECOVERY_ONLY",
+  "project": "cc-livingcommunity-app",
+  "planSha256": "COPY_SHA256_FROM_DRY_RUN_AFTER_REVIEW",
+  "ownerApprovalReference": "OWNER_DECISION_REQUIRED",
+  "costsAccepted": false,
+  "retentionApproved": false,
+  "restoreReconciliationApproved": false
+}
