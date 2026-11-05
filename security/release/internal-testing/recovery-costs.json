@@ -1,0 +1,68 @@
+{
+  "status": "LOCAL_PREPARATION_NOT_ACTIVATED",
+  "sourceCheckpoint": "1261793",
+  "sizeEvidence": {
+    "checkedAt": "2026-11-05T21:09:47.664Z",
+    "readOnly": true,
+    "metric": "firestore.googleapis.com/storage/data_and_index_storage_bytes",
+    "sizes": [
+      {
+        "database": "(default)",
+        "location": "nam5",
+        "latestDailyMaximumBytes": 200619394,
+        "latestInterval": {
+          "startTime": "2026-11-05T21:09:47.004Z",
+          "endTime": "2026-11-05T21:09:47.004Z"
+        },
+        "maximumBytesAcrossAvailableDays": 200619394
+      },
+      {
+        "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+        "location": "us-east1",
+        "latestDailyMaximumBytes": 3519,
+        "latestInterval": {
+          "startTime": "2026-11-05T21:09:47.004Z",
+          "endTime": "2026-11-05T21:09:47.004Z"
+        },
+        "maximumBytesAcrossAvailableDays": 3519
+      }
+    ],
+    "complete": true,
+    "limit": "Monitoring aggregates are not an invoice; no resident records were read or settings activated."
+  },
+  "pricing": {
+    "source": "https://cloud.google.com/firestore/pricing",
+    "checkedDate": "2026-11-05",
+    "currency": "USD",
+    "sourceHtmlSHA256": "a680b4cd4094ff447610cbfebafafa64f744d1f063195a299e3cc5bfa244474a",
+    "monthlyDefaultRatesByLocation": {
+      "us-east1": {
+        "Stored Data": 0.18,
+        "PITR data": 0.15,
+        "Backup data": 0.03,
+        "Restore operation": 0.4
+      },
+      "nam5": {
+        "Stored Data": 0.18,
+        "PITR data": 0.18,
+        "Backup data": 0.03,
+        "Restore operation": 0.4
+      }
+    },
+    "sourceSelection": "Official page embedded location tables, monthly variants [2], no discounts applied"
+  },
+  "proposal": "Existing seven-day PITR, seven daily and approximately four weekly retained snapshots across both databases",
+  "assumesConstantGiBAndElevenSnapshots": true,
+  "estimatedAdditionalMonthlyUSD": 0.0953,
+  "excludes": [
+    "existing database costs",
+    "growth",
+    "restores",
+    "network",
+    "taxes",
+    "Auth or independent Storage backup",
+    "monitoring/crash-reporting fees"
+  ],
+  "billableFeaturesActivated": false,
+  "deletionReceiptAcknowledged": false
+}

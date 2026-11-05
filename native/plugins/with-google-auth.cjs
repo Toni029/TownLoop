@@ -2,6 +2,7 @@
 module.exports=config=>{
  const oauth=require('../google-auth.json');
  if(oauth.androidOAuthRegistered&&process.env.EAS_BUILD_PLATFORM!=='ios'){
+  if(process.env.EAS_BUILD_PROFILE==='production'&&!process.env.GOOGLE_SERVICES_JSON?.trim())throw Error('Production requires an explicit GOOGLE_SERVICES_JSON file; the Preview fallback is not a release configuration.');
   const fs=require('node:fs'),path=require('node:path');
   const file=process.env.GOOGLE_SERVICES_JSON||path.resolve(__dirname,'../credentials/google-services.preview.json');
   if(!fs.existsSync(file))throw Error('Supply the verified Google Android configuration before enabling sign-in.');

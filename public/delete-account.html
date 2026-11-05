@@ -1,52 +1,65 @@
 <!doctype html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Request account deletion · TownLoop</title>
-<style>body{font:17px/1.6 system-ui,sans-serif;background:#f8f6f1;color:#252d28;margin:0}main{max-width:650px;margin:48px auto;padding:28px;background:white;border-radius:18px}h1{line-height:1.2}label{display:block;margin-top:18px}input,button{font:inherit;box-sizing:border-box;width:100%;padding:12px;border:1px solid #9aa79b;border-radius:8px}button{margin-top:18px;cursor:pointer;background:#24563b;color:white}button.danger{background:#922f2f}button:disabled{opacity:.5}#status{white-space:pre-wrap}a{color:#24563b}</style></head>
-<body><main><h1>Request TownLoop account deletion</h1>
-<p>Operator: <strong>Seeds4Clix</strong>. Support email supplied by the owner: <a href="mailto:support@seeds4Clix.com">support@seeds4Clix.com</a>. <strong>Owner supplied this corrected address. Confirm monitored privacy/deletion handling before publication.</strong> No business address or additional legal entity details have been supplied.</p>
-<p>Verify your identity and submit a deletion request for your signed-in account. Submitting the request does not immediately delete your account or disable access. Admin/VIP reviews each verified request. Approval records a held decision; processing requires a separately authorized, verified workflow under the approved retention policy; this page never deletes your account immediately. Ordinary personal-data deletion/redaction must follow the approved deadlines; only documented, justified retention exceptions may remain. The office must not leave a verified request pending indefinitely.</p>
-<p>Admin/VIP reviews requests within 3 business days (Monday–Friday, community local time); unresolved requests escalate after 7 calendar days to authorized Admin accounts only. VIP retains review access but receives no automatic escalation alerts. Monitoring remains disabled until separately approved. Approved requests target processing within 7 calendar days. Ordinary deletion/redaction is limited to 60 days from submission. A rejection or delay requires a documented legitimate reason. These are the approved targets for the prepared implementation; the processing workers remain inactive pending deployment verification. Review the <a href="/privacy.html">privacy policy</a>.</p>
-<form id="request"><label>Email (for password verification)<input id="email" type="email" autocomplete="username"></label><label>Password<input id="password" type="password" autocomplete="current-password"></label>
-<button id="passwordLogin" type="button">Verify with email and password</button><button id="googleLogin" type="button">Verify with Google</button>
-<p id="identity">No account verified.</p><label>Type DELETE to confirm<input id="confirmation" autocomplete="off" pattern="DELETE" required></label>
-<button id="submit" class="danger" type="submit" disabled>Request permanent account deletion</button></form>
-<button id="checkStatus" type="button" disabled>Check deletion request status</button><p id="status" role="status" aria-live="polite"></p><noscript>JavaScript is required to securely verify your Firebase sign-in and submit this request.</noscript>
-<script type="module">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Request Account Deletion · TownLoop</title><meta name="description" content="TownLoop native app account and community information."><style>*{box-sizing:border-box}html{color-scheme:light}body{margin:0;background:#f7f3ea;color:#243328;font:1.0625rem/1.65 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:min(100% - 32px,800px);margin:32px auto 56px;padding:clamp(20px,5vw,44px);background:#fffdf7;border:1px solid #e4dfd1;border-radius:24px}nav{display:flex;flex-wrap:wrap;gap:10px 22px;margin-bottom:24px;font-size:.95rem}a{color:#047857;text-underline-offset:3px;overflow-wrap:anywhere}h1{font-size:clamp(1.8rem,7vw,2.6rem);line-height:1.18;margin:12px 0 20px}h2{font-size:1.25rem;line-height:1.35;margin:32px 0 12px}p,li{overflow-wrap:anywhere}li+li{margin-top:8px}.review{padding:16px 18px;border-left:4px solid #d48d12;background:#fff3d6;border-radius:12px;margin:20px 0 26px}.info{padding:16px 18px;border-radius:14px;background:#eaf2e8}.small,footer{font-size:.925rem;color:#526158}footer{border-top:1px solid #e4dfd1;margin-top:32px;padding-top:18px}label{display:block;font-weight:650;margin:18px 0 6px}input{width:100%;font:inherit;padding:12px;border:1px solid #899a8d;border-radius:12px;background:white;min-height:48px}button{display:block;width:100%;font:inherit;font-weight:700;min-height:48px;margin:14px 0;padding:12px 18px;border:0;border-radius:14px;color:white;background:#047857;cursor:pointer;white-space:normal}button.secondary{color:#047857;background:#eaf2e8;border:1px solid #b2c9bb}button.danger{background:#b91c1c}button:disabled{opacity:.48;cursor:default}:focus-visible{outline:3px solid #d48d12;outline-offset:3px}#status{white-space:pre-wrap}fieldset{min-width:0;border:0;padding:0;margin:0}noscript{display:block;padding:16px;background:#fff3d6} @media(max-width:360px){main{width:calc(100% - 20px);padding:18px;margin-top:16px}}</style></head>
+<body><main><nav aria-label="TownLoop information"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/delete-account.html">Account deletion</a></nav><h1>Request Account Deletion</h1><aside class="review" aria-label="Publication review"><strong>Prepared for owner approval — not yet effective.</strong><p>This local draft is not approved for publication. Confirm Seeds4Clix’s legal/operator details, the monitored support contact, effective date, provider data terms and the current deletion-processing status before publishing.</p></aside><p>TownLoop is operated under the supplied name <strong>Seeds4Clix</strong>. Contact: <a href="mailto:support@seeds4Clix.com">support@seeds4Clix.com</a>. Confirmation that this mailbox handles privacy, deletion and moderation requests is required before publication. No additional legal entity, business address or jurisdiction is asserted in this draft.</p><p>Use this page without installing or opening TownLoop. It requests deletion of <strong>your verified account and associated personal data</strong>; it does not run a deletion job or approve a request.</p>
+<section aria-labelledby="email-help"><h2 id="email-help">If you cannot sign in</h2><p>Email <a href="mailto:support@seeds4Clix.com?subject=TownLoop%20account%20deletion%20request">support@seeds4Clix.com</a> from your TownLoop sign-in address with the subject “TownLoop account deletion request.” Ask to delete your TownLoop account and associated data. Staff must verify account control before submitting or processing a request. Do not send your password, login codes, identity documents or private conversation contents by email unless a separate safe verification process is agreed.</p><p class="small">Owner approval that this mailbox is monitored for deletion requests is required before publication. Sending email alone does not authorize deletion or confirm that a request has been accepted.</p></section>
+<h2>Submit a verified request online</h2><p>Sign in to your existing TownLoop account below. Verification uses Firebase Authentication with an in-memory browser session. It does not require access to the retired website or the legacy database. If the verification controls cannot load, use the email instructions above.</p>
+<form id="request"><fieldset><legend>Verify your account</legend><label for="email">Email for password sign-in</label><input id="email" type="email" autocomplete="username" inputmode="email"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"><button id="passwordLogin" type="button" disabled>Verify with email and password</button><button id="googleLogin" class="secondary" type="button" disabled>Verify with Google</button><p id="identity">No account verified.</p><label for="confirmation">Type DELETE to confirm your request</label><input id="confirmation" type="text" placeholder="Type DELETE here" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="confirmation-help"><p id="confirmation-help" class="small">Capitalization does not matter. Enter only the word DELETE.</p><button id="submit" class="danger" type="submit" disabled>Submit Deletion Request</button></fieldset></form>
+<button id="checkStatus" class="secondary" type="button" disabled>Check request status</button><button id="clearSession" class="secondary" type="button" disabled>Clear verified browser session</button><p id="status" role="status" aria-live="polite">Loading secure verification. If it stays unavailable, use the email instructions above.</p><noscript>Online verification requires JavaScript. You can still use the email instructions above; identity verification remains necessary.</noscript>
+<h2>What happens next</h2><p>Submitting the request does not immediately delete your account or sign you out of the native app. Admin/VIP reviews the verified request independently. Existing targets are review within 3 business days, escalation after 7 calendar days and personal-data processing within 7 calendar days after approval; ordinary retained records and receipts follow the original 60-calendar-day limit. The deployed worker currently remains paused behind its policy-receipt safeguard. This status and staffed handling must be confirmed before publication.</p><p>Eligible personal account data is removed or redacted under the existing workflow. Other participants’ content, documented evidence/retention obligations and shared attachments are preserved as applicable. Recovery copies and offline devices are not immediately erased. See the <a href="/privacy.html#deletion">Privacy Policy</a> for details. A repeated accepted request reuses the existing request rather than authorizing a second deletion.</p><footer>TownLoop for Android and iPhone. These standalone information pages do not restore the retired community website. Effective date: pending owner approval.</footer></main><script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import {getAuth,setPersistence,inMemoryPersistence,signOut,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {getFunctions,httpsCallable} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
-// Public Firebase client identifiers, identical to the release client. No server credentials.
-const app=initializeApp({projectId:'cc-livingcommunity-app',appId:'1:883715389126:web:08d103c4cfa8e96627c9c7',apiKey:'AIzaSyBgDavlmIKxMpPcZfxwKLpXI_0kWXvreYg',authDomain:'cc-livingcommunity-app.firebaseapp.com'});
-const auth=getAuth(app), element=id=>document.getElementById(id), status=element('status');
-let verifiedAt=0,busy=false;
-const statusLabels={approved_held:'Approved; deletion processing remains on hold.',delayed:'Documented legal/security delay; original deadlines remain in effect.',needs_review:'Office action is required for unresolved processing.',failed:'Processing failed; retry is pending.',retention_pending:'Personal-data processing finished; minimal receipts await expiry.',none:'No deletion request submitted.',requested:'Awaiting Admin/VIP review.',queued:'Approved; awaiting authorized processing.',processing:'Deletion processing is in progress.',pending_owner_approval:'Awaiting an approved retention policy.',identity_complete_media_pending:'Account removed; media cleanup is pending.',complete:'Deletion processing completed under the approved policy.',rejected:'Request closed after documented withdrawal. Contact the office if this is incorrect.'};
-element('checkStatus').onclick=async()=>{
- if(busy||!auth.currentUser)return;busy=true;element('checkStatus').disabled=true;
- try{const {data}=await httpsCallable(getFunctions(app,'us-central1'),'getAccountDeletionStatus')({});status.textContent=(statusLabels[data.status]||'Contact the office for request status.')+(data.reason?' '+data.reason:'')+(data.reviewDueAt?' Review due: '+new Date(data.reviewDueAt).toLocaleString():'')+(data.escalated?' Escalated for Admin review.':'');}
- catch{status.textContent='Unable to retrieve status. Verify your identity again or contact the office.';}
- finally{busy=false;element('checkStatus').disabled=!auth.currentUser;}
-};
+// Public client configuration only; no server or Gemini credentials.
+const app=initializeApp({projectId:'cc-livingcommunity-app',appId:'1:883715389126:web:08d103c4cfa8e96627c9c7',apiKey:'AIzaSyBgDavlmIKxMpPcZfxwKLpXI_0kWXvreYg',authDomain:'cc-livingcommunity-app.firebaseapp.com'},'townloop-account-request');
+const auth=getAuth(app),element=id=>document.getElementById(id),status=element('status');
+let ready=false,busy=false,verifiedUid='',verifiedAt=0,submitted=false;
+const validConfirmation=()=>element('confirmation').value.trim().toLowerCase()==='delete';
+const verified=()=>!!auth.currentUser&&auth.currentUser.uid===verifiedUid&&verifiedAt>0&&Date.now()-verifiedAt<=5*60000;
+function controls(){
+ element('passwordLogin').disabled=element('googleLogin').disabled=!ready||busy;
+ element('submit').disabled=!ready||busy||submitted||!verified()||!validConfirmation();
+ element('checkStatus').disabled=!ready||busy||!auth.currentUser;
+ element('clearSession').disabled=!ready||busy||!auth.currentUser;
+}
+const labels={none:'No request is recorded.',requested:'Request submitted; awaiting Admin/VIP review.',approved_held:'Approved; processing is on hold for its safety checks.',queued:'Approved; awaiting authorized processing. Approval alone does not confirm that deletion has finished.',processing:'Processing is in progress.',pending_owner_approval:'Processing is on hold pending its authorized policy.',delayed:'A documented review delay applies; original deadlines remain in effect.',needs_review:'The office needs to resolve a processing issue.',failed:'Processing could not complete; contact the office for follow-up.',waiting_for_media:'Processing is waiting for eligible attachment cleanup.',identity_complete_media_pending:'Account access has been removed; attachment cleanup remains pending.',retention_pending:'Account access has been removed; retention finalization is still pending.',complete:'The service reports completion under the approved policy.',rejected:'The request was closed. Contact the office if this is unexpected.'};
+element('confirmation').oninput=controls;
 async function verify(provider){
- if(busy)return;busy=true;status.textContent='Verifying your identity…';element('submit').disabled=true;
- try{await setPersistence(auth,inMemoryPersistence);if(auth.currentUser)await signOut(auth);
+ if(!ready||busy)return;busy=true;verifiedUid='';verifiedAt=0;submitted=false;controls();status.textContent='Verifying your account…';element('identity').textContent='No account verified.';
+ try{
+  if(auth.currentUser)await signOut(auth);
   if(provider==='google')await signInWithPopup(auth,new GoogleAuthProvider());
   else await signInWithEmailAndPassword(auth,element('email').value.trim(),element('password').value);
-  element('password').value='';verifiedAt=Date.now();element('identity').textContent=`Verified account: ${auth.currentUser.email || auth.currentUser.uid}`;
-  status.textContent='Review the verified account and type DELETE to submit.';element('submit').disabled=false;element('checkStatus').disabled=false;
- }catch{status.textContent='Identity verification failed. Check your sign-in details or retry the provider flow.';verifiedAt=0;}
- finally{busy=false;}
+  if(!auth.currentUser)throw Error('no_session');
+  verifiedUid=auth.currentUser.uid;verifiedAt=Date.now();element('request').hidden=false;
+  element('identity').textContent='Verified account: '+(auth.currentUser.email||'your TownLoop account');
+  status.textContent='Enter DELETE to submit a request. Your account is not deleted by this page.';
+ }catch{status.textContent='Verification was not completed. Check your details or retry. If you cannot sign in, use the email instructions above.';}
+ finally{element('password').value='';busy=false;controls();}
 }
 element('passwordLogin').onclick=()=>verify('password');element('googleLogin').onclick=()=>verify('google');
 element('request').onsubmit=async event=>{
- event.preventDefault();if(busy)return;
- if(!auth.currentUser||Date.now()-verifiedAt>5*60000){status.textContent='Verify your identity again before requesting deletion.';return;}
- if(element('confirmation').value!=='DELETE'){status.textContent='Type DELETE exactly to confirm.';return;}
- busy=true;element('submit').disabled=true;status.textContent='Submitting deletion request…';
- try{await auth.currentUser.getIdToken(true);const response=await httpsCallable(getFunctions(app,'us-central1'),'submitAccountDeletionRequest')({confirmation:'DELETE',requestOnly:true});
-  status.textContent=`${statusLabels[response.data.status]||'Contact the office for status.'} Reference: ${response.data.jobId}. Submitting a request does not delete your account.`;
-  element('request').hidden=true;
-
- }catch{status.textContent='The server could not confirm your request. Verify your identity and retry. A repeated accepted request uses the same durable job.';element('submit').disabled=false;}
- finally{busy=false;}
+ event.preventDefault();if(!ready||busy||submitted)return;
+ if(!verified()){status.textContent='Verify your account again before submitting the request.';controls();return;}
+ if(!validConfirmation()){status.textContent='Enter only DELETE to confirm; capitalization does not matter.';controls();return;}
+ busy=true;controls();status.textContent='Submitting your verified request…';
+ try{await auth.currentUser.getIdToken(true);if(!verified())throw Error('session_changed');
+  const {data}=await httpsCallable(getFunctions(app,'us-central1'),'submitAccountDeletionRequest')({confirmation:element('confirmation').value.trim().toLowerCase(),requestOnly:true});
+  if(!data||typeof data.status!=='string')throw Error('unconfirmed_response');
+  submitted=true;element('request').hidden=true;status.textContent=(labels[data.status]||'The service returned a request status. Contact the office for clarification.')+' Submitting a request does not immediately delete your account.';
+ }catch{status.textContent='The server did not confirm submission. Verify your connection and retry, or use the email instructions. Repeating an accepted request reuses the same request.';}
+ finally{busy=false;controls();}
 };
-</script></main></body></html>
+element('checkStatus').onclick=async()=>{
+ if(!ready||busy||!auth.currentUser)return;busy=true;controls();
+ try{const {data}=await httpsCallable(getFunctions(app,'us-central1'),'getAccountDeletionStatus')({});status.textContent=labels[data?.status]||'Contact the office for clarification of your request status.';}
+ catch{status.textContent='Status could not be verified. Your account may require sign-in again, or access may already have been removed. Contact the office; this error alone does not confirm deletion.';}
+ finally{busy=false;controls();}
+};
+element('clearSession').onclick=async()=>{
+ if(!ready||busy)return;busy=true;controls();
+ try{await signOut(auth);verifiedUid='';verifiedAt=0;submitted=false;element('request').hidden=false;element('confirmation').value='';element('identity').textContent='No account verified.';status.textContent='This browser session was cleared. No deletion processing was started.';}
+ catch{status.textContent='The browser session could not be cleared. Close this tab and browser window.';}
+ finally{busy=false;controls();}
+};
+setPersistence(auth,inMemoryPersistence).then(()=>{ready=true;status.textContent='Verify your existing TownLoop account to continue.';controls();}).catch(()=>{status.textContent='Secure verification is unavailable. Use the email instructions above; do not send a password or login code.';controls();});
+</script></body></html>
