@@ -1,5 +1,5 @@
 {
-  "status": "STEP1_DEPLOYED_REMAINING_STEPS_REQUIRE_SEPARATE_APPROVAL",
+  "status": "STEP2_DEPLOYED_POLICY_RECEIPT_UNCHANGED_PROCESSING_HELD",
   "project": "cc-livingcommunity-app",
   "nativeDatabase": "(default)",
   "retainedNamedDatabase": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
@@ -52,5 +52,9 @@
     "binary build"
   ],
   "containmentDeploymentReceipt": "security/native-only-firestore/containment-deployment-receipt.json",
-  "nextStageExpectedCurrentNamedRulesSHA256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d"
+  "nextStageExpectedCurrentNamedRulesSHA256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+  "workerCompatibilityDeploymentReceipt": "security/native-only-firestore/worker-compatibility-deployment-receipt.json",
+  "currentWorkerRevision": "fulfillapprovedaccountdeletions-00005-kux",
+  "currentWorkerNamedRulesSHA256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+  "remainingApproval": "Policy receipt named-hash acknowledgment only; can resume automatic approved processing. No acknowledgment performed."
 }

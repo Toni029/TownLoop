@@ -1,11 +1,16 @@
 # Native-only Firebase containment and dependency map — 2026-11-05
 
-**Current state: Step 1 deployed and verified on 2026-11-05.** The named database
-now publishes the approved deny-all client rules, SHA-256 `8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d`.
-See `containment-deployment-receipt.json` and `CONTAINMENT_DEPLOYED.md`.
-Default/Storage rules, worker, scheduler and policy receipt are unchanged; new
-deletion processing is blocked by the existing exact-hash guard. Remaining worker
-and policy steps require separate approval. Never restore the permissive rules.
+**Current state: Steps 1 and 2 deployed and verified on 2026-11-05.** The named
+client-denial rules and matching worker both pin SHA-256
+`8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d`.
+Worker revision is `fulfillapprovedaccountdeletions-00005-kux`. The policy receipt
+still pins `224a64...`; deletion processing remains blocked before the job query.
+See `CONTAINMENT_DEPLOYED.md`, `WORKER_COMPATIBILITY_DEPLOYED.md` and their sanitized
+receipts. Default/Storage rules, policy documents, worker settings/service identity,
+schedule, Storage synchronization and Admin/VIP review functions are unchanged.
+Only the policy receipt step remains separately approval-gated. Acknowledgment can
+resume existing approved work and future valid approvals automatically. Never
+restore the permissive rules.
 
 The original local preparation and compatibility findings follow. This plan
 supersedes the website-compatibility/backport prerequisites in `../legacy-launch/`

@@ -1,0 +1,81 @@
+{
+  "status": "STEP2_DEPLOYED_POLICY_RECEIPT_UNCHANGED_PROCESSING_HELD",
+  "verifiedAt": "2026-11-05T19:48:50.031981835Z",
+  "project": "cc-livingcommunity-app",
+  "region": "us-central1",
+  "function": "fulfillApprovedAccountDeletions",
+  "codebase": "work-order-retention",
+  "config": "firebase.deletion-processing-native-only.json",
+  "previousWorkerRevision": "fulfillapprovedaccountdeletions-00004-cos",
+  "workerRevision": "fulfillapprovedaccountdeletions-00005-kux",
+  "sourceGeneration": "1793908084666775",
+  "sourceArchiveSHA256": "e5ea6964c105854addce25bb2a1aa4472304b6594fa41a61bb364f81f8997b5c",
+  "sourceVerification": {
+    "verified": true,
+    "reviewedFilesMatched": 19,
+    "soleExport": "fulfillApprovedAccountDeletions",
+    "entryMatchesPreparedSource": true,
+    "guardPrecedesJobQuery": true,
+    "deployedNamedHash": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+    "environmentFilesInSourceArchive": false
+  },
+  "rulesHashes": {
+    "default": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0",
+    "named": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+    "storage": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9"
+  },
+  "policyNamedHash": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+  "policyDocumentsUnchanged": true,
+  "workerConfigurationUnchanged": true,
+  "runtimeServiceAccount": "883715389126-compute@developer.gserviceaccount.com",
+  "schedulerState": "ENABLED",
+  "schedulerConfigurationUnchanged": true,
+  "storageSyncAndAdminReviewFunctionMetadataUnchanged": true,
+  "accountDeletionProcessingBlockedBeforeJobQuery": true,
+  "verificationEvidence": [
+    "Cloud Functions update completed successfully; fresh ACTIVE function resource",
+    "Exact deployed source archive matches 19 prepared source/manifest/package files",
+    "Exact before/after configuration and policy comparisons",
+    "Rules guard regression: 1 passed, 0 failed"
+  ],
+  "aggregateJobs": {
+    "readOnly": true,
+    "readTime": "2026-11-05T19:48:23.230462Z",
+    "totalJobs": 2,
+    "complete": true,
+    "byStatus": {
+      "retention_pending": 2
+    },
+    "byPhase": {
+      "scoped_retention": 2
+    },
+    "pendingReviewCount": 0,
+    "approvedTotal": 2,
+    "approvedSchedulerCandidates": 2,
+    "approvedOutsideSchedulerStatuses": 0,
+    "approvedNeedsHumanReview": 0,
+    "retentionFinalizationCandidates": 2,
+    "otherApprovedSchedulerCandidates": 0,
+    "alreadyProcessingAuthorized": 2,
+    "couldBeAutomaticallyAuthorizedFromExistingApproval": 0,
+    "activeLeasesAmongCandidates": 0,
+    "retentionCandidatesBeforeTheirDeadline": 2,
+    "retentionCandidatesPastTheirDeadline": 0,
+    "retentionCandidatesMissingValidDeadline": 0,
+    "individualIdsOrNamesPersisted": false,
+    "jobMutations": 0,
+    "workerInvocations": 0,
+    "limitation": "Candidate counts are not authorization to delete. The real worker still validates independent approval receipts, role/ownership, token waits, media/evidence and retention. No such operation was invoked."
+  },
+  "operatorTriggeredWorkerInvocations": 0,
+  "operatorJobWrites": 0,
+  "policyReceiptWrites": 0,
+  "rulesDeployments": 0,
+  "limitations": [
+    "No resident deletion or live handler invocation was performed to test processing",
+    "Worker source plus live policy mismatch establishes the hold; schedule remains enabled",
+    "Metadata compatibility is not a physical-device review or destructive end-to-end test",
+    "Acknowledgment is an activation step: existing eligible work and future approved requests can resume automatically; all existing safeguards remain required"
+  ],
+  "nextApprovalRequired": "Update only the named-database policy hash after renewed drift check and explicit approval accepting automatic processing; do not change flags, retention, reviews or Storage."
+}
