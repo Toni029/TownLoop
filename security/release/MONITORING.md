@@ -1,5 +1,11 @@
 # Preferred monitoring: Crashlytics + Google Cloud Monitoring
 
+**Historical proposal, superseded for current preparation.** Use
+`blocker-prerequisites/sentry.proposed.json` and `play-launch/README.md` for the
+single-provider native proposal and the existing deployed newsletter backend.
+Neither monitoring proposal is active; do not install both SDKs or provision the
+obsolete server described below. The original dated record follows unchanged.
+
 Prepared 2026-10-21. No Firebase app registration, credentials, SDK installation, telemetry, alert creation or native build occurred. This is a configuration handoff, not a claim monitoring is operational.
 
 ## Native crash reporting

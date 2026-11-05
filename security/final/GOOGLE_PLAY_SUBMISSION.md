@@ -1,5 +1,10 @@
 # TownLoop submission worksheet — owner review, not submitted
 
+**Historical worksheet.** Current November 5 release gates and read-only evidence
+are in `../release/play-launch/README.md`. Statements below about disabled push,
+undeployed newsletter services and legacy security exposure are historical; do
+not use them as current Console answers. No store submission has been performed.
+
 Checked against official guidance October 25, 2026. Scope: actual app source, approved retained
 work and read-only artifact/config checks; no new broad audit, Play Console access or submission.
 

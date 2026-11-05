@@ -1,0 +1,253 @@
+{
+  "status": "PREPARATION_ONLY_NO_ACTIVATION_OR_RELEASE",
+  "sourceCheckpoint": "0bdc475",
+  "deletionAndRecoveryReadOnly": {
+    "checkedAt": "2026-11-05T20:17:47.307Z",
+    "project": "cc-livingcommunity-app",
+    "readOnly": true,
+    "jobSummary": {
+      "total": 2,
+      "pendingReviews": 0,
+      "approved": 2,
+      "allRequiredChecksPass": true,
+      "checksByAggregate": {
+        "approved": {
+          "passed": 2,
+          "total": 2
+        },
+        "independent": {
+          "passed": 2,
+          "total": 2
+        },
+        "requestIdentityBound": {
+          "passed": 2,
+          "total": 2
+        },
+        "canonicalReviewerApproved": {
+          "passed": 2,
+          "total": 2
+        },
+        "reviewerAuthEnabled": {
+          "passed": 2,
+          "total": 2
+        },
+        "approvalAuditMatches": {
+          "passed": 2,
+          "total": 2
+        },
+        "automaticAuthorizationReceiptMatches": {
+          "passed": 2,
+          "total": 2
+        },
+        "policyReferenceMatches": {
+          "passed": 2,
+          "total": 2
+        },
+        "requestAndReviewTimesValid": {
+          "passed": 2,
+          "total": 2
+        },
+        "storedDeadlineMatches": {
+          "passed": 2,
+          "total": 2
+        },
+        "retentionNotExpired": {
+          "passed": 2,
+          "total": 2
+        },
+        "retentionPending": {
+          "passed": 2,
+          "total": 2
+        },
+        "identityDeletionReceiptPresent": {
+          "passed": 2,
+          "total": 2
+        },
+        "crossDatabaseCompletionValid": {
+          "passed": 2,
+          "total": 2
+        },
+        "preflightBoundAndNoRecordedHolds": {
+          "passed": 2,
+          "total": 2
+        },
+        "processingAuthorized": {
+          "passed": 2,
+          "total": 2
+        },
+        "protocol3": {
+          "passed": 2,
+          "total": 2
+        },
+        "scopeReceiptsValid": {
+          "passed": 2,
+          "total": 2
+        }
+      },
+      "minimumRemainingWholeRetentionDays": 51,
+      "knownMediaJobs": 1,
+      "unresolvedMediaJobs": 0,
+      "recordedInventoryHolds": 0,
+      "retentionFinalizationsDueNow": 0,
+      "limits": [
+        "Recorded workflow evidence only; not a fresh resident-content/Storage-wide inventory or a legal opinion",
+        "Late-media reconciliation runs before the deadline guard; acknowledgment authorizes that mutation-capable work, even within retention",
+        "Already-authorized jobs skip the automatic authorization recheck in the deployed worker; current canonical reviewer and audit records were independently checked read-only"
+      ]
+    },
+    "recovery": [
+      {
+        "database": "(default)",
+        "location": "nam5",
+        "pitr": "POINT_IN_TIME_RECOVERY_DISABLED",
+        "versionRetentionPeriod": "3600s",
+        "deleteProtection": "DELETE_PROTECTION_DISABLED",
+        "schedules": []
+      },
+      {
+        "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+        "location": "us-east1",
+        "pitr": "POINT_IN_TIME_RECOVERY_DISABLED",
+        "versionRetentionPeriod": "3600s",
+        "deleteProtection": "DELETE_PROTECTION_DISABLED",
+        "schedules": []
+      }
+    ],
+    "storageRecovery": {
+      "name": "cc-livingcommunity-app.firebasestorage.app",
+      "softDeletePolicy": {
+        "retentionDurationSeconds": "604800",
+        "effectiveTime": "2026-09-18T12:45:21.756Z"
+      }
+    },
+    "policyWrites": 0,
+    "jobWrites": 0,
+    "workerInvocations": 0
+  },
+  "workerCompatibilityReadOnly": {
+    "project": "cc-livingcommunity-app",
+    "rulesHashes": {
+      "default": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0",
+      "named": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+      "storage": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9"
+    },
+    "workerRevision": "fulfillapprovedaccountdeletions-00005-kux",
+    "workerIdentity": "883715389126-compute@developer.gserviceaccount.com",
+    "policyUnchanged": true,
+    "oldNamedPolicyHash": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+    "processingBlockedByReceiptMismatch": true,
+    "schedulerState": "ENABLED",
+    "schedulerConfigurationPreserved": true,
+    "storageSyncAndReviewFunctionsUnchanged": true
+  },
+  "easReadOnlyBeforeLocalPreparation": {
+    "checkedAt": "2026-11-05T20:10:23.119Z",
+    "readOnly": true,
+    "expoProjectId": "9f970d26-beed-44d6-a590-9dcdc00e85de",
+    "androidPackage": "com.toni029.townloop",
+    "remoteVersion": {
+      "storeVersion": "0.1.0",
+      "buildVersion": "2"
+    },
+    "remoteAppCredentialRecords": 1,
+    "remoteBuildCredentialSets": 0,
+    "remoteDefaultKeystorePresent": false,
+    "remoteAnyKeystorePresent": false,
+    "remoteKeystoreMatchesVerifiedPreviewCertificate": false,
+    "fcmV1CredentialReferencePresent": true,
+    "playSubmissionCredentialReferencePresent": false,
+    "productionVariables": [],
+    "productionApiVariablePresent": false,
+    "productionApiMatchesVerifiedEndpoint": false,
+    "productionFirebaseFileVariablePresent": false,
+    "privateKeyOrSecretDownloaded": false,
+    "liveMutations": 0
+  },
+  "localSigningReadOnly": {
+    "localCredentialFilePresent": true,
+    "keystorePresent": true,
+    "storeIntegrityAndPasswordVerified": true,
+    "privateKeyEntryPresent": true,
+    "certificateMatchesVerifiedPreview": true,
+    "certificateCurrentlyValid": true,
+    "privateKeyDecryptionOrSigningNotPerformed": true,
+    "secretValuesPrinted": false,
+    "mutations": 0
+  },
+  "preparedAndroidProductionConfig": {
+    "verifiedAt": "2026-11-05T20:13:50.183Z",
+    "schemaValidated": true,
+    "profile": "production",
+    "androidPackage": "com.toni029.townloop",
+    "versionName": "0.1.0",
+    "distribution": "store",
+    "buildType": "app-bundle",
+    "credentialsSource": "local",
+    "environment": "production",
+    "channel": "production",
+    "autoIncrement": true,
+    "runtimePolicy": "fingerprint",
+    "localFirebaseClientConfigValid": true,
+    "googleServicesFileIsLocalFallback": true,
+    "apiOriginMatchesVerifiedBackend": true,
+    "previewAndIosProfilesChanged": false,
+    "binaryBuilt": false,
+    "scope": "Offline configuration validation; cloud Production file variable, final signed artifact and Play App Signing certificate still require approval/verification",
+    "platformScopedEnvironment": true
+  },
+  "publicPolicyReadOnly": {
+    "checkedAt": "2026-11-05T20:12:56.331Z",
+    "pages": [
+      {
+        "path": "privacy.html",
+        "status": 200,
+        "html": true,
+        "title": "Privacy Policy - Seeds4Clix",
+        "sha256": "0b5ab0b7c07544bdfae61f835fd90bf78d0c987eef28e0d240ddc3f9e0e0e5c0",
+        "bytes": 3158,
+        "spaRoot": false,
+        "hasMainPolicyHeading": true
+      },
+      {
+        "path": "terms.html",
+        "status": 200,
+        "html": true,
+        "title": "TownLoop",
+        "sha256": "8ed0821082e72830933089369a4a79e3b938c39e3ef300b1dfb92049e8d68bf2",
+        "bytes": 3310,
+        "spaRoot": true,
+        "hasMainPolicyHeading": false
+      },
+      {
+        "path": "delete-account.html",
+        "status": 200,
+        "html": true,
+        "title": "TownLoop",
+        "sha256": "8ed0821082e72830933089369a4a79e3b938c39e3ef300b1dfb92049e8d68bf2",
+        "bytes": 3310,
+        "spaRoot": true,
+        "hasMainPolicyHeading": false
+      }
+    ]
+  },
+  "verification": {
+    "recoveryHelperTests": {
+      "passed": 5,
+      "failed": 0
+    },
+    "productionProfileSchemaValid": true,
+    "allResolvedIosProfilesAndAndroidPreviewDevelopmentUnchanged": true,
+    "newsletterHttpsHealthAndUnauthenticated401Verified": true,
+    "fullAuditRepeated": false,
+    "physicalDeviceTestsPerformed": false,
+    "binaryBuilt": false,
+    "cloudMutations": 0,
+    "policyAcknowledged": false
+  },
+  "limits": [
+    "No runtime deletion handler or destructive adapter invoked",
+    "No new Storage-wide inventory or legal opinion; recorded holds and completion receipts only",
+    "No new signed AAB, Play Console access or synthetic crash delivery verified",
+    "EAS environment inventory is project scope; account-shared variables were not enumerated; required project Production file configuration is still a release gate"
+  ]
+}

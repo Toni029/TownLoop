@@ -1,0 +1,109 @@
+{
+  "status": "INACTIVE_SPECIFICATION_NOT_A_GCLOUD_IMPORT",
+  "project": "cc-livingcommunity-app",
+  "enabled": false,
+  "native": {
+    "existingSeam": "native/src/monitoring/diagnostics.ts",
+    "selectedProposal": "security/release/blocker-prerequisites/sentry.proposed.json",
+    "provider": "Sentry (owner configuration and installation still required)",
+    "requiresNewNativeBinary": true,
+    "installSdkInThisChange": false,
+    "collectResidentIdentityOrContent": false,
+    "enableReplaysScreenshotsOrTracing": false
+  },
+  "backend": {
+    "provider": "Existing Google Cloud Logging + Cloud Monitoring",
+    "region": "us-central1",
+    "healthUrl": "https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi/api/newsletter/native/health",
+    "healthExpected": {
+      "httpStatus": 200,
+      "service": "townloop-native-api",
+      "projectId": "cc-livingcommunity-app"
+    },
+    "unauthenticatedBoundary": {
+      "path": "/api/newsletter/native/capabilities",
+      "expectedStatus": 401,
+      "runAsPublicUptimeProbe": false
+    },
+    "proposedSignals": [
+      {
+        "kind": "health_failure",
+        "durationSeconds": 300,
+        "severity": "P1"
+      },
+      {
+        "kind": "function_5xx_ratio",
+        "ratio": 0.05,
+        "minimumRequests": 20,
+        "windowSeconds": 300,
+        "excludeExpected4xx": true
+      },
+      {
+        "kind": "newsletter_background_job_failure_or_stall",
+        "requiresApprovedAnalysisSla": true
+      },
+      {
+        "kind": "notification_delivery_failures",
+        "excludePermanentInvalidTokensHandledByExistingRevocation": true,
+        "neverIncludeRecipientOrPayload": true
+      },
+      {
+        "kind": "scheduler_failure",
+        "deletionWorkerRulesHoldIsExpectedUntilReceiptApproved": true
+      },
+      {
+        "kind": "firestore_storage_quota_or_permission_error",
+        "minimumOccurrences": 3,
+        "windowSeconds": 300
+      }
+    ],
+    "criticalOperations": [
+      "newsletterApi",
+      "runNewsletterAnalysis",
+      "manageInboxConversation",
+      "registerInboxDevice",
+      "getNotificationState",
+      "notifyInboxPrivate",
+      "notifyInboxMarketplace",
+      "notifyDiscussion",
+      "notifyWorkOrderDone",
+      "listAccountDeletionRequests",
+      "reviewAccountDeletionRequest",
+      "fulfillApprovedAccountDeletions",
+      "syncHostedStorageMembership",
+      "notifyInboxGroupMessage",
+      "checkInboxPushReceipts"
+    ],
+    "doNotCreatePublicOrAuthenticatedResidentDataProbes": true
+  },
+  "activationGates": [
+    "Owner approves provider/region/retention/budget and monitored operations contacts",
+    "Read-only verify exact deployed service names and existing alerts to avoid duplicate policies",
+    "Approve payload allowlist and scrub native plus JS payloads, not only JS beforeSend",
+    "Privately configure build-only symbol upload token; never EXPO_PUBLIC",
+    "One approved test crash/error and harmless alert delivery with symbolication verified",
+    "Separate approval for each cloud configuration or native build"
+  ],
+  "alertRecipients": [],
+  "metricLabelAllowlist": [
+    "service",
+    "platform",
+    "release",
+    "runtime",
+    "static_error_category"
+  ],
+  "forbiddenTelemetry": [
+    "email",
+    "Firebase UID",
+    "Auth tokens",
+    "private URLs",
+    "request bodies",
+    "chat or post contents",
+    "PDF text",
+    "medications",
+    "profile or form state",
+    "attachment identifiers"
+  ],
+  "policyReceiptIsNotUpdatedByMonitoring": true,
+  "automaticRemediationOrDeletionActivation": false
+}
