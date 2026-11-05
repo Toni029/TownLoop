@@ -102,13 +102,21 @@ test('reader refuses stale cached metadata and revokes an open PDF when the admi
  }finally{URL.revokeObjectURL=original;}
 });
 
-test('special and recurring activities with printed RSVP instructions are both retained',async()=>{
+test('Home routines stay separate while separately advertised RSVP occurrences survive matching names',async()=>{
  const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
  process.env.GEMINI_API_KEY='test-only';
- global.__newsletter={monthEdition:'October 2026',events:[event({title:'Autumn Garden Tour',date:'October 20',rsvpDetails:'RSVP by Friday, October 9th'}),event({title:'Bingo',isRecurring:true,requiresRsvp:true,rsvpDetails:'RSVP to the office'})],highlights:[]};
+ const special=event({title:'Bingo Charity Tournament',isRecurring:true,occurrenceKind:'special',occurrenceEvidence:'One-off charity tournament October 20',sourcePassage:'One-off charity tournament October 20. RSVP by October 9.'});
+ global.__newsletter={monthEdition:'October 2026',events:[
+  event({title:'Wii Bowling',isRecurring:true,occurrenceKind:'routine',sourcePassage:'Wii Bowling every Wednesday. RSVP to office'}),
+  event({title:'Bingo',isRecurring:true,occurrenceKind:'uncertain'}),special,
+  event({title:'Autumn Garden Tour',date:'October 20'})],highlights:[]};
+ global.__auditReferences=[{sourcePage:1,eventTitle:'Wii Bowling',eventDate:'October 31',passage:'RSVP to office'}];
  const out=await extractNewsletterContent({base64Data:'x'.repeat(60)});
- assert.deepEqual(out.events.map(e=>e.title),['Autumn Garden Tour','Bingo']);
- assert.equal(out.rsvp_events[0].day,'20');
+ delete global.__auditReferences;
+ assert.equal(out.coverage.unmatchedReferences.length,1);
+ assert.deepEqual(out.events.map(e=>e.title),['Bingo Charity Tournament','Autumn Garden Tour']);
+ assert(out.coverage.issues.some(i=>i.kind==='routine-calendar-exclusion'&&i.eventTitle==='Wii Bowling'));
+ assert(out.coverage.issues.some(i=>i.kind==='routine-calendar-exclusion'&&i.eventTitle==='Bingo'));
  delete process.env.GEMINI_API_KEY;
 });
 

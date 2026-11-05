@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildNewsletterCoverage,containsRsvp,isMeaningfulNewsletterHighlight,preserveNewsletterEventDetails} from '../src/utils/newsletterCoverage.ts';
+import {buildNewsletterCoverage,containsRsvp,isMeaningfulNewsletterHighlight,preserveNewsletterEventDetails,isEligibleNewsletterRsvp} from '../src/utils/newsletterCoverage.ts';
 test('independent RSVP inventory flags unmatched passages, skipped pages and a genuine highlight shortfall',()=>{
  const r={sourcePage:2,eventTitle:'Monthly Potluck',eventDate:'November 9',passage:'Please rSvP to the office by November 6.'};
  const report=buildNewsletterCoverage([1,2,3],[{auditedPages:[1,2],rsvpReferences:[r]}],[],[{title:'Office update'}]);
@@ -23,4 +23,14 @@ test('source eligibility and RSVP instructions survive a model summary that omit
  const e={description:'Coffee with good company.',sourcePassage:'Coffee with Comrades. Veterans & Spouses Only.',rsvpDetails:'RSVP'};
  const description=preserveNewsletterEventDetails(e);assert.match(description,/Veterans & Spouses Only/);assert.match(description,/RSVP/);
  assert.equal(preserveNewsletterEventDetails({...e,description}),description);
+});
+
+test('routine classification cannot promote Home reminders; special occurrences need quoted evidence',()=>{
+ const e={isRecurring:true,requiresRsvp:true,date:'November 6',occurrenceKind:'special',occurrenceEvidence:'November outing to a different venue',sourcePassage:'November outing to a different venue. RSVP by November 4.'};
+ assert.equal(isEligibleNewsletterRsvp(e,true),true);
+ assert.equal(isEligibleNewsletterRsvp({...e,occurrenceKind:'routine'},true),false);
+ assert.equal(isEligibleNewsletterRsvp({...e,occurrenceKind:'uncertain'},true),false);
+ assert.equal(isEligibleNewsletterRsvp({...e,occurrenceEvidence:'Invented charity fundraiser at a different venue'},true),false);
+ assert.equal(isEligibleNewsletterRsvp({...e,requiresRsvp:false},true),false);
+ assert.equal(isEligibleNewsletterRsvp({...e,isRecurring:false,occurrenceKind:undefined},true),false);
 });

@@ -1,5 +1,5 @@
 /** Additive review metadata; never permission, publishing, or fabricated content. */
-export const NEWSLETTER_EXTRACTION_VERSION = 'rsvp-coverage-v2';
+export const NEWSLETTER_EXTRACTION_VERSION = 'rsvp-coverage-v3';
 export const HIGHLIGHT_TARGET = 10;
 export type RsvpReference = {sourcePage:number;passage:string;eventTitle:string;eventDate:string};
 export type CoverageIssue = {kind:string;message:string;sourcePage?:number;passage?:string;eventTitle?:string};
@@ -26,7 +26,7 @@ export function buildNewsletterCoverage(expected:number[],audits:any[],events:an
   // same page or the generic word RSVP cannot satisfy this reference.
   return !!title&&title===et&&(Math.min(quote.length,eq.length)>=12||(quote==='rsvp'&&eq==='rsvp'&&!!r.eventDate&&!!e.date))&&(quote.includes(eq)||eq.includes(quote));
  }));
- for(const r of unmatchedReferences)issues.push({kind:'unmatched-rsvp',message:'This independently found RSVP passage has no verified matching event. Review or add it before publishing.',...r});
+ for(const r of unmatchedReferences)issues.push({kind:'unmatched-rsvp',message:'This independently found RSVP passage has no verified matching event. Review its eligibility before publishing: routine Home calendar reminders must remain excluded; only a separately advertised qualifying occurrence belongs in News.',...r});
  for(const page of expected)if(!pagesAudited.includes(page))issues.push({kind:'page-not-audited',sourcePage:page,message:'Independent RSVP coverage was not confirmed for this page.'});
  if(!expected.length)issues.push({kind:'page-coverage-unknown',message:'The source page count could not be established. Review RSVP coverage manually.'});
  for(const e of events){
@@ -58,4 +58,13 @@ export function preserveNewsletterEventDetails(event:{description?:unknown;sourc
   if(typeof value==='string'&&value.trim()&&!norm(description).includes(norm(value)))description+=(description?'\n\n':'')+value.trim();
  }
  return description;
+}
+
+/** Names only identify possible overlap with Home; quoted source evidence must
+ * establish the special occurrence. Routine/uncertain overlap is reviewable. */
+export function isEligibleNewsletterRsvp(event:{isRecurring?:boolean;occurrenceKind?:string;occurrenceEvidence?:string;sourcePassage?:string;date?:string;requiresRsvp?:boolean},matchesHome=false):boolean {
+ if(event.occurrenceKind==='routine')return false;
+ if(!matchesHome&&event.isRecurring!==true)return true;
+ const quote=norm(event.occurrenceEvidence);
+ return event.occurrenceKind==='special'&&event.requiresRsvp===true&&!!event.date?.trim()&&quote.length>=16&&norm(event.sourcePassage).includes(quote);
 }

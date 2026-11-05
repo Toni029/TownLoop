@@ -15,8 +15,10 @@ checks fail safely; unmatched/ambiguous references and incomplete details are
 reported for Admin/VIP review. A model audit is not a mathematical guarantee of
 OCR completeness; source review remains required.
 
-All printed RSVP announcements are candidates, including recurring and optional
-ones. Non-RSVP explicit attendee registrations remain supported. Negative or
+All RSVP references remain in the independent inventory. Routine Home reminders
+are excluded from News; a related activity qualifies only as a separately
+advertised occurrence with its own explicit attendee instruction and quoted source
+evidence. Names alone never disqualify a genuine special occurrence. Non-RSVP explicit attendee registrations remain supported. Negative or
 uncertain requirements are flagged, not invented. Genuine repeats are merged by
 event identity/date/time/location, preserving different sessions. Output
 truncation still fails explicitly rather than accepting partial JSON. Existing
@@ -32,7 +34,7 @@ items with a review explanation. Review warnings recalculate after draft edits
 or removal. Distinct same-title sessions/stories no longer collide in native IDs;
 ordinary single-item IDs remain compatible with previously published items.
 
-`rsvp-coverage-v2` versions both job identity and checkpoint inputs, so reanalysis
+`rsvp-coverage-v3` versions both job identity and checkpoint inputs, so reanalysis
 cannot silently return an older successful extraction. It reuses the retained
 Firebase PDF, with the existing ownership/integrity/auth checks unchanged.
 
@@ -61,3 +63,33 @@ current security/credentials. Then release compatible Android Preview JS for
 coverage/provenance and review handling. No new indexes, rules, uploader/reader
 changes, native dependencies or APK are required. Reanalyze the retained PDF;
 publishing remains an explicit Admin/VIP action. Existing edition is unchanged.
+
+## Clarified Home / News separation (follow-up correction)
+
+The v2 real-analysis numbers above are a historical baseline, not a claim that
+v3 has been rerun through Gemini. V2 was too broad about recurring activities.
+V3 passes the existing read-only Home routine names/schedules as model context,
+requires source-grounded occurrence classification, and rejects routine or
+unsupported recurring candidates before mapping News events. The independent
+inventory still scans every RSVP reference; exclusions/uncertainty remain
+visible for review rather than being counted as extracted matches. No Home
+calendar code, recurrence rules, or live event data is changed.
+
+Manual November review: none of the five candidates is an ordinary weekly
+calendar reminder. Lunch Bunch (page 5) advertises November 6 at a named restaurant
+with an occurrence-specific RSVP; Home's standing reminder is second Friday.
+Thanksgiving Potluck (page 10) is November 26 at 1 PM with a November 20 deadline;
+page 5 explicitly cancels the ordinary monthly potluck in favor of that holiday
+flyer. Coffee with Comrades (page 9) and Holiday Dinner (page 11) have their own
+printed RSVP announcements. The Antique Car Show (page 1) has ticket sales and
+volunteer signup, but no explicit attendee RSVP requirement; its eligibility
+needs Admin review, not a claim that all five are confirmed RSVP-required events.
+The revised generic prompt distinguishes ticket/volunteer instructions from
+required attendee registration. Four literal RSVP references remain supported.
+
+Focused recurrence tests cover ordinary Wii Bowling exclusion, uncertain Bingo
+exclusion, a same-name special tournament exception, fabricated evidence rejection,
+and retaining an excluded routine's RSVP reference for review. All 23 focused
+pipeline/coverage/native-model checks passed. The ten-highlight
+target and all-page audit are unchanged. No new provider analysis, deployment,
+publication, PDF upload or Home schedule mutation was performed in this follow-up.

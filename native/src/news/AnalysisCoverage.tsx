@@ -8,7 +8,7 @@ export function AnalysisCoverage({result}:{result:AnalysisResult}) {
  // Recalculate after review edits/removal: never show stale matched counts.
  const coverage=original?buildNewsletterCoverage(original.pagesExpected,[{auditedPages:original.pagesAudited,rsvpReferences:original.references}],
   result.rsvp_events.map(e=>({...e,rsvpDetails:e.deadline,requiresRsvp:e.requiresRsvp!==false})),result.pinned_highlights,original.highlightShortfallReason?[original.highlightShortfallReason]:[]):undefined;
- if(coverage&&original)coverage.issues.unshift(...original.issues.filter(issue=>issue.kind==='invalid-reference'));
+ if(coverage&&original)coverage.issues.unshift(...original.issues.filter(issue=>issue.kind==='invalid-reference'||issue.kind==='routine-calendar-exclusion'));
  return <View style={{padding:14,borderRadius:14,borderWidth:1,borderColor:'#d97706',gap:8}} accessibilityLiveRegion="polite">
   <Copy weight="bold">RSVP coverage review</Copy>
   {!coverage ? <Copy>Independent page coverage is unavailable for this older result. Reanalyze after the extraction backend update, or review the PDF manually.</Copy> : <>
