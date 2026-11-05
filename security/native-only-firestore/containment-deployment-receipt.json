@@ -1,0 +1,71 @@
+{
+  "project": "cc-livingcommunity-app",
+  "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+  "authorization": "Owner approved Step 1 ONLY: named client-access containment; worker and policy update explicitly excluded",
+  "sourceCommit": "9973881",
+  "deployedAt": "2026-11-05T19:34:43.430751Z",
+  "verifiedAt": "2026-11-05T19:37:00.927265+00:00",
+  "status": "STEP1_DEPLOYED_VERIFIED_WORKER_AND_RECEIPT_NOT_UPDATED",
+  "command": "firebase deploy --project cc-livingcommunity-app --config security/native-only-firestore/firebase.deploy.json --only firestore:rules --non-interactive",
+  "rules": {
+    "previousNamedSHA256": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+    "deployedNamedSHA256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+    "publishedRuleset": "projects/cc-livingcommunity-app/rulesets/b9930259-e74c-4438-8c50-facadabfd8a5",
+    "defaultSHA256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0",
+    "storageSHA256": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9",
+    "defaultAndStorageReleaseObjectsUnchanged": true
+  },
+  "verification": {
+    "predeploySyntheticCasesPassed": 30,
+    "postdeployExactProductionSourceSyntheticCasesPassed": 30,
+    "syntheticPrincipals": [
+      "anonymous",
+      "pending",
+      "resident",
+      "crew",
+      "vip",
+      "admin"
+    ],
+    "syntheticMethods": [
+      "get",
+      "list",
+      "create",
+      "update",
+      "delete"
+    ],
+    "evaluationErrorsAccepted": false,
+    "liveAnonymousReadHttpStatus": 403,
+    "residentIdTokensUsed": false,
+    "authAccountsCreated": 0,
+    "residentRecordsReadOrWritten": 0,
+    "realWritesAttempted": 0,
+    "physicalDeviceTested": false
+  },
+  "backend": {
+    "workerRevision": "fulfillapprovedaccountdeletions-00004-cos",
+    "workerResourceUnchanged": true,
+    "policyDocumentsUnchanged": true,
+    "schedulerConfigurationUnchanged": true,
+    "schedulerState": "ENABLED",
+    "storageSyncResourceUnchanged": true,
+    "storageSyncState": "ACTIVE",
+    "newDeletionRunsBlockedByRulesHashMismatch": true,
+    "deletionOrRecoveryInvocations": 0,
+    "workerDeployments": 0,
+    "policyAcknowledgements": 0,
+    "inFlightPredeploymentWorkNotCancelled": true
+  },
+  "otherChanges": {
+    "defaultRules": false,
+    "storageRules": false,
+    "hosting": false,
+    "gemini": false,
+    "notifications": false,
+    "residentData": false,
+    "ota": false,
+    "apkOrIosBuild": false,
+    "githubPush": false
+  },
+  "propagation": "Firebase documents up to one minute for new requests/listeners and up to ten minutes for existing active listeners. Previously cached data cannot be retracted by this rules change.",
+  "remainingApproval": "Matching scoped worker and named policy receipt transition require separate approval. Do not restore permissive rules."
+}

@@ -1,6 +1,13 @@
 # Native-only Firebase containment and dependency map — 2026-11-05
 
-**Local preparation only. The named-database exposure is still live.** This plan
+**Current state: Step 1 deployed and verified on 2026-11-05.** The named database
+now publishes the approved deny-all client rules, SHA-256 `8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d`.
+See `containment-deployment-receipt.json` and `CONTAINMENT_DEPLOYED.md`.
+Default/Storage rules, worker, scheduler and policy receipt are unchanged; new
+deletion processing is blocked by the existing exact-hash guard. Remaining worker
+and policy steps require separate approval. Never restore the permissive rules.
+
+The original local preparation and compatibility findings follow. This plan
 supersedes the website-compatibility/backport prerequisites in `../legacy-launch/`
 and the earlier prelaunch reports. It does not supersede native authorization,
 historical ownership, existing retention or account-deletion safeguards.

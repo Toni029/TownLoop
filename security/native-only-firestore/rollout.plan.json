@@ -1,5 +1,5 @@
 {
-  "status": "LOCAL_PREPARATION_REQUIRES_SEPARATE_OWNER_APPROVAL",
+  "status": "STEP1_DEPLOYED_REMAINING_STEPS_REQUIRE_SEPARATE_APPROVAL",
   "project": "cc-livingcommunity-app",
   "nativeDatabase": "(default)",
   "retainedNamedDatabase": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
@@ -36,6 +36,21 @@
     "requiresApproval": true,
     "deletionWorkerWillFailClosedUntilRulesPinAndReceiptMatch": true
   },
-  "forbiddenRollback": ["permissive legacy rules", "website backport", "default database switch", "granting inferred historical membership"],
-  "notAuthorized": ["deployment", "data deletion or migration", "Hosting shutdown", "token revocation", "new cleanup activation", "OTA", "binary build"]
+  "forbiddenRollback": [
+    "permissive legacy rules",
+    "website backport",
+    "default database switch",
+    "granting inferred historical membership"
+  ],
+  "notAuthorized": [
+    "deployment",
+    "data deletion or migration",
+    "Hosting shutdown",
+    "token revocation",
+    "new cleanup activation",
+    "OTA",
+    "binary build"
+  ],
+  "containmentDeploymentReceipt": "security/native-only-firestore/containment-deployment-receipt.json",
+  "nextStageExpectedCurrentNamedRulesSHA256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d"
 }
