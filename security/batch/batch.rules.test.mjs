@@ -73,8 +73,12 @@ test('private profiles: owner and approved office managers only; public director
 });
 
 test('approval and canonical roles cannot be spoofed through signup, flags, or own-profile updates', async () => {
-  const signup = { id: 'New', name: 'New Resident', email: 'New@example.invalid', role: 'resident', approved: false };
-  await allowed(write('users/New', 'New', signup));
+  const signup = { id: 'New', name: 'New Resident', email: 'New@example.invalid', role: 'resident', approved: false, termsVersion: '2026-10-draft1' };
+  // Mirror the current signup contract: immutable version plus server receipt.
+  const response = await fetch(`${documents}:commit`, { method: 'POST', headers: { Authorization: `Bearer ${token('New')}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ writes: [{ update: { name: `projects/${project}/databases/(default)/documents/users/New`, fields: fields(signup) },
+      updateTransforms: [{ fieldPath: 'termsAcceptedAt', setToServerValue: 'REQUEST_TIME' }] }] }) });
+  assert.equal(response.status, 200, await response.text());
   await denied(write('users/Evil', 'Evil', { ...signup, id: 'Evil', email: 'Evil@example.invalid', isAdmin: true }));
   await denied(write('users/Elevated', 'Elevated', { ...signup, id: 'Elevated', email: 'Elevated@example.invalid', role: 'admin', approved: true }));
   await denied(write('users/Alice', 'Alice', { ...profiles.Alice, approved: true, role: 'admin' }));
