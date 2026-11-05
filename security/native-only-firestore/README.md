@@ -19,7 +19,7 @@ C = retired website-only client behavior, candidate for eventual retirement.
 | --- | --- | --- |
 | Firebase project `cc-livingcommunity-app`, Auth and existing Google OAuth registrations | A/B | Native `lib/firebase.ts`, session/registration/Google login and all authenticated APIs share the project. Keep Auth identities, providers and native registrations. Do not delete users, revoke keys or disable domains just because a web client used them. |
 | Firestore `(default)` | A | Native profiles/approval/directory, Work Orders/counters, Social/Marketplace, private/service Inbox, group conversations/membership/message visibility, newsletter PDF chunks and publishing, RSVP/highlights, notification device/state and deletion controls. Keep exact current rules/indexes. |
-| Named Firestore `ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb` | B for data and server operations; C for direct website client access | No mobile client data connection. Native Admin/VIP deletion tools pass this exact ID to guarded callables; server account deletion inventories/redacts both databases, checks completion and reconciles media. Keep the database and records; close client access. |
+| Named Firestore `ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb` | B for data and server operations; C for direct website client access | No mobile client data connection. Server account deletion inventories/redacts both databases, checks completion and reconciles media. Prepared exception helpers mention named scope but are not imported by the current native UI. Keep the database and records; close client access. |
 | Storage `cc-livingcommunity-app.firebasestorage.app` | A/B | `getStorage(app)` plus native media authorization/PrivateImage and newsletter compatibility reader paths. Existing legacy-linked attachments may still be referenced; six quarantined objects remain. Keep bytes, rules, metadata, links and existing tokens. Never infer disuse from an old filename, folder or uploader. |
 | `syncHostedStorageMembership`, default `storage_web_authorization/policy` | B, retirement candidate only after separate reference/authorization review | Server reads named profile role/approval and projects bounded authorization metadata; deployed Storage rules consult that projection. Account deletion invokes the same reconciliation. Closing named client access does not stop Admin SDK reads. Do not remove the function/projection or its Storage branches in this rollout. |
 | Push registration/state, four category triggers, receipts and group push | A | `functions/inbox.cjs` binds events to `(default)`; group entry also binds `(default)`. Native uses `registerInboxDevice`, `getNotificationState`; Android delivery/FCM credentials remain. iOS uses the same backend with its existing separately gated APNs preparation. No sending/platform setting changes. |
@@ -47,11 +47,17 @@ selects default (`server/newsletterAuth.ts`), reconstruction fixes default
 (`server/nativeNewsletter.ts`), background jobs use default Admin SDK
 (`server/newsletterJobs.ts`). No uploader/extractor code was modified or rerun.
 
-The native named-ID reference is `native/src/lib/accountDeletionOperations.ts:4`:
-the existing "Website records" review scope calls `listAccountDeletionExceptions`
-and `recheckAccountDeletionException`, rather than connecting a Firestore client.
-`functions/accountDeletionOperations.cjs` checks canonical default manager status,
-revoked tokens and job ownership/review before server reads. Processing uses
+**Corrected by the focused follow-up:** the named-ID reference in
+`native/src/lib/accountDeletionOperations.ts:4` is an **unreferenced prepared helper**,
+not a current native UI dependency. Neither Android nor iOS route import graphs
+reach that module. The current `AccountDeletionRequests` screen imports
+`lib/accountDeletion.ts` and calls the deployed `listAccountDeletionRequests` and
+`reviewAccountDeletionRequest` APIs in `us-central1`. It does not call the missing
+`listAccountDeletionExceptions` or `recheckAccountDeletionException` APIs. Their
+absence must not block this containment rollout or cause unnecessary deployment.
+If separately deployed later, `functions/accountDeletionOperations.cjs` requires
+canonical approved **Admin** status, revoked-token checks and independent request
+review; VIP request review remains in the separate current review API. Processing uses
 `accountDeletionScope.cjs`, `accountDeletionRunner.cjs`, `accountDeletionScoped.cjs`,
 inventory/media adapters and `getFirestore(databaseId)` Admin SDK. Both scopes
 must still be completed before shared Auth deletion. Do not drop the named scope.
@@ -102,6 +108,10 @@ or invalidate bearer Storage download URLs. Those remain separate, specifically
 approved reference/token work; no claim of retroactive privacy is made.
 
 ## Coordinated production rollout — requires separate approval
+
+See `PREFLIGHT_2026_11_05.md` and `preflight-receipt.json` for the completed focused
+read-only checks and the corrected missing-callable finding. The function inventory
+is source-contract evidence, not permission to invoke any resident operation.
 
 `rollout.plan.json` is a proposal, not an executable deployment or approval record.
 `firebase.deploy.json` contains only the exact named rules target. No default,

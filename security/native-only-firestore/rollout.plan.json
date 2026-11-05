@@ -6,6 +6,19 @@
   "rulesConfig": "security/native-only-firestore/firebase.deploy.json",
   "workerConfig": "firebase.deletion-processing-native-only.json",
   "workerOnlyFilter": "functions:work-order-retention:fulfillApprovedAccountDeletions",
+  "requiredExistingDeletionAndSyncFunctions": [
+    "listAccountDeletionRequests",
+    "reviewAccountDeletionRequest",
+    "fulfillApprovedAccountDeletions",
+    "syncHostedStorageMembership"
+  ],
+  "unconnectedRecoveryHelpersNotRequiredForContainment": [
+    "listAccountDeletionExceptions",
+    "recheckAccountDeletionException",
+    "recheckAccountDeletionScope",
+    "authorizeAccountDeletionProcessing"
+  ],
+  "nativeUiContract": "AccountDeletionRequests imports lib/accountDeletion.ts; accountDeletionOperations.ts is unreachable from both mobile route graphs.",
   "policyReceiptTransition": {
     "document": "deletion_policies/account",
     "field": "scopeRuleHashes",

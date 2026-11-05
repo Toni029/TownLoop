@@ -1,0 +1,87 @@
+{
+  "project": "cc-livingcommunity-app",
+  "observedAt": "2026-11-05T19:21:55.452057+00:00",
+  "status": "PREPARED_AWAITING_NEXT_APPROVAL_NOT_DEPLOYED",
+  "baselineCommit": "ca70975",
+  "inventory": {
+    "v2Functions": 27,
+    "v1Functions": 0,
+    "allRegionsChecked": true
+  },
+  "correction": {
+    "missingRecoveryCallablesAreNotImportedByCurrentNativeUI": true,
+    "activeUiApiNames": [
+      "listAccountDeletionRequests",
+      "reviewAccountDeletionRequest"
+    ],
+    "undeployedOptionalApiNames": [
+      "listAccountDeletionExceptions",
+      "recheckAccountDeletionException",
+      "authorizeAccountDeletionProcessing",
+      "recheckAccountDeletionScope"
+    ],
+    "namesRegionAndProjectAreCorrect": true
+  },
+  "currentPolicyReady": true,
+  "currentWriteFreezeContractReady": true,
+  "currentPolicyRuleHashes": {
+    "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+    "(default)": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+  },
+  "targetNamedRulesSHA256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+  "currentMediaPolicyMatchesStorageRelease": true,
+  "worker": {
+    "state": "ACTIVE",
+    "revision": "fulfillapprovedaccountdeletions-00004-cos",
+    "entryMatchesLocal": true,
+    "matchingPipelineFiles": 15,
+    "businessLogicDifferences": 0,
+    "packageDifference": "Previously reviewed body-parser override/lock from 6c792e1",
+    "currentPinsMatchCurrentPolicy": true,
+    "targetReceiptUpdateStillRequiredAfterDeployment": true
+  },
+  "scheduler": {
+    "state": "ENABLED",
+    "schedule": "every 5 minutes",
+    "timeZone": "Etc/UTC",
+    "httpTargetUri": "https://fulfillapprovedaccountdeletions-ljidv335aa-uc.a.run.app/",
+    "serviceAccount": "883715389126-compute@developer.gserviceaccount.com",
+    "lastAttemptTime": "2026-11-05T19:11:05.474794Z",
+    "lastStatusCode": 0,
+    "retryConfig": {
+      "maxRetryDuration": "0s",
+      "minBackoffDuration": "5s",
+      "maxBackoffDuration": "3600s",
+      "maxDoublings": 5
+    }
+  },
+  "permissions": {
+    "existingFirestoreAndRulesGrantsVerified": true,
+    "existingSchedulerOidcAndInvokerVerified": true,
+    "existingStorageBucketListDeleteGrantVerified": true,
+    "defaultObjectAclProjectEditorsOwner": true,
+    "historicalObjectAclAuditPerformed": false,
+    "iamChanged": false
+  },
+  "storageSynchronization": {
+    "state": "ACTIVE",
+    "eventDatabase": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+    "defaultProjectionPreserved": true
+  },
+  "focusedTests": {
+    "passed": 5,
+    "failed": 0,
+    "syntheticOnly": true
+  },
+  "requiredDeployment": {
+    "newOptionalCallables": [],
+    "namedRulesConfig": "security/native-only-firestore/firebase.deploy.json",
+    "workerConfig": "firebase.deletion-processing-native-only.json",
+    "onlyFunction": "fulfillApprovedAccountDeletions",
+    "acknowledgeOnlyNamedPolicyHash": true
+  },
+  "productionMutations": 0,
+  "residentDocumentsRead": 0,
+  "deletionOrRecoveryOperationInvoked": false,
+  "physicalDeviceVerification": false
+}
