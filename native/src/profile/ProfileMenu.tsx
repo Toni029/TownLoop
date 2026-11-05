@@ -101,7 +101,6 @@ import {
   messageIsMine,
   messageAvatar,
   profileInterests,
-  residentSince,
   matchesNeighbor,
   accountDetails,
   type ProfileDetails,
@@ -1695,26 +1694,29 @@ export function ProfileMenu({
                             resident={person}
                             size={width >= 640 ? 112 : 96}
                           />
-                          <Text
-                            style={[
-                              s.name,
-                              { color: ink, textAlign: "center" },
-                            ]}
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              width: "100%",
+                              gap: 12,
+                            }}
                           >
-                            {person.name}
-                          </Text>
-                          <SafetyActions target={{kind:"user",id:String(person.id)}} allowBlock/>
-                          <Text style={[s.role, { textAlign: "center" }]}>
-                            {person.address ||
-                              person.unit ||
-                              "TownLoop Resident"}
-                            {person.wing ? ` • ${person.wing}` : ""}
-                          </Text>
-                          {!!residentSince(person) && (
-                            <Text style={[s.small, { color: muted }]}>
-                              TownLoop Resident since {residentSince(person)}
+                            <Text
+                              style={[
+                                s.name,
+                                { color: ink, flex: 1, minWidth: 0 },
+                              ]}
+                            >
+                              {person.name}
                             </Text>
-                          )}
+                            <SafetyActions
+                              target={{ kind: "user", id: String(person.id) }}
+                              allowBlock
+                              blockInReport
+                              blockBeforeOther
+                            />
+                          </View>
                         </View>
                         <ContactCard
                           title="Phone Number"
@@ -1733,7 +1735,7 @@ export function ProfileMenu({
                           }
                         />
                         <ContactCard
-                          title="Address / Villa"
+                          title="Community Address"
                           value={person.address || person.unit || ""}
                           icon={Home}
                           onCopy={() =>
