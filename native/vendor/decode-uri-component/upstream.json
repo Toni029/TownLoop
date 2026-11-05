@@ -1,0 +1,9 @@
+{
+  "package": "decode-uri-component",
+  "version": "0.5.1",
+  "tarball": "https://registry.npmjs.org/decode-uri-component/-/decode-uri-component-0.5.1.tgz",
+  "integrity": "sha512-vWHQkXgg2cE3BB4rR0c+PYw9BCQzLoNIRMI7AunIkZst74tw/vpPp7VLoYtsR/cy1f55g3XDWUslfeCZjiZJyA==",
+  "upstreamSourceSha256": "6a86ac891edf15c5efa0841ebb31935e3669d58b98318b57d7b08a4530317cb0",
+  "commonJsSourceSha256": "abffac493e5ead966576653d2ff046eee095996ba43904ff10afc6dae574a199",
+  "changes": "Only replace default function export with CommonJS module.exports and terminate assignment; algorithm unchanged."
+}
