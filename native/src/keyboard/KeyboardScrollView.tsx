@@ -2,7 +2,8 @@ import { revealOffset } from './geometry';
 import { createContext, forwardRef, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Keyboard, Platform, StyleSheet, ScrollView as NativeScrollView, TextInput as NativeTextInput, type ScrollViewProps, type TextInputProps } from 'react-native';
 
-const Focus = createContext<(input: NativeTextInput) => void>(() => {});
+export type KeyboardTextInputProps = TextInputProps & { keyboardActionSpace?: number };
+const Focus = createContext<(input: NativeTextInput, actionSpace?: number) => void>(() => {});
 export type ScrollView = NativeScrollView;
 export type TextInput = NativeTextInput;
 
@@ -12,6 +13,7 @@ export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps & { extra
   const scroll = useRef<NativeScrollView | null>(null);
   const focused = useRef<NativeTextInput | null>(null);
   const offset = useRef(0);
+  const actionSpace = useRef(0);
   const [keyboardSpace, setKeyboardSpace] = useState(0);
   const keyboardTop = useRef(Infinity);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -19,12 +21,19 @@ export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps & { extra
     const input = focused.current;
     if (Platform.OS === 'web' || props.horizontal || !input?.isFocused() || !scroll.current) return;
     scroll.current.getNativeScrollRef()?.measureInWindow((_x, top, _width, height) => {
+      // Android edge-to-edge windows can remain taller than the keyboard-visible
+      // viewport. Reserve only the actual obstruction, not a second keyboard height.
+      if (extraKeyboardSpace) {
+        const visible = Number.isFinite(keyboardTop.current);
+        const obstruction = Platform.OS === 'android' && visible ? Math.max(0, top + height - keyboardTop.current) : 0;
+        setKeyboardSpace(visible ? obstruction + 24 : 0);
+      }
       input.measureInWindow((_ix, y, _iw, h) => {
-        const next = revealOffset(offset.current, top, height, keyboardTop.current, y, h);
+        const next = revealOffset(offset.current, top, height, keyboardTop.current, y, h, actionSpace.current);
         if (next !== offset.current) scroll.current?.scrollTo({ y: next, animated: true });
       });
     });
-  }, [props.horizontal]);
+  }, [props.horizontal, extraKeyboardSpace]);
   const schedule = useCallback(() => {
     clearTimeout(timer.current);
     if (Platform.OS === 'web' || !focused.current?.isFocused()) return;
@@ -32,12 +41,12 @@ export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps & { extra
   }, [reveal]);
   useEffect(() => {
     if (props.horizontal) return;
-    const show = Keyboard.addListener('keyboardDidShow', e => { keyboardTop.current = e.endCoordinates.screenY; setKeyboardSpace(24); schedule(); });
-    const change = Keyboard.addListener('keyboardDidChangeFrame', e => { keyboardTop.current = e.endCoordinates.screenY; setKeyboardSpace(24); schedule(); });
+    const show = Keyboard.addListener('keyboardDidShow', e => { keyboardTop.current = e.endCoordinates.screenY; schedule(); });
+    const change = Keyboard.addListener('keyboardDidChangeFrame', e => { keyboardTop.current = e.endCoordinates.screenY; schedule(); });
     const hide = Keyboard.addListener('keyboardDidHide', () => { keyboardTop.current = Infinity; setKeyboardSpace(0); });
     return () => { show.remove(); change.remove(); hide.remove(); clearTimeout(timer.current); };
   }, [schedule, props.horizontal]);
-  const register = useCallback((input: NativeTextInput) => { focused.current = input; schedule(); }, [schedule]);
+  const register = useCallback((input: NativeTextInput, bottom = 0) => { focused.current = input; actionSpace.current = bottom; schedule(); }, [schedule]);
   const parent = useContext(Focus);
   return <Focus.Provider value={props.horizontal ? parent : register}>
     <NativeScrollView {...scrollProps} contentContainerStyle={[props.contentContainerStyle, extraKeyboardSpace && keyboardSpace > 0 && { paddingBottom: Number(StyleSheet.flatten(props.contentContainerStyle)?.paddingBottom || 0) + keyboardSpace + 24 }]} onContentSizeChange={(w, h) => { props.onContentSizeChange?.(w, h); schedule(); }} ref={node => {
@@ -51,13 +60,14 @@ export const ScrollView = forwardRef<NativeScrollView, ScrollViewProps & { extra
   </Focus.Provider>;
 });
 
-export const TextInput = forwardRef<NativeTextInput, TextInputProps>(function KeyboardTextInput(props, forwardedRef) {
+export const TextInput = forwardRef<NativeTextInput, KeyboardTextInputProps>(function KeyboardTextInput({ keyboardActionSpace = 0, ...props }, forwardedRef) {
   const input = useRef<NativeTextInput | null>(null);
   const focus = useContext(Focus);
+  useEffect(() => { if (input.current?.isFocused()) focus(input.current, keyboardActionSpace); }, [focus, keyboardActionSpace]);
   return <NativeTextInput {...props} ref={node => {
     input.current = node;
     if (typeof forwardedRef === 'function') forwardedRef(node);
     else if (forwardedRef) forwardedRef.current = node;
-  }} onFocus={event => { props.onFocus?.(event); if (input.current) focus(input.current); }}
-    onContentSizeChange={event => { props.onContentSizeChange?.(event); if (input.current?.isFocused()) focus(input.current); }} />;
+  }} onFocus={event => { props.onFocus?.(event); if (input.current) focus(input.current, keyboardActionSpace); }}
+    onContentSizeChange={event => { props.onContentSizeChange?.(event); if (input.current?.isFocused()) focus(input.current, keyboardActionSpace); }} />;
 });

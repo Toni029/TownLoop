@@ -1,3 +1,4 @@
+import { ScrollView } from '../keyboard/KeyboardScrollView';
 import {commentTime,commentSubmissionId} from '../time/commentTime';
 import {useInboxPush} from '../notifications/InboxPushProvider';
 import {relativePostedTime} from '../time/relativePostedTime';
@@ -232,6 +233,7 @@ export function Comments({
   const [text, setText] = useState(draft?.text || "");
   const [id, setId] = useState(() => draft?.id || newSocialId());
   const [submitting, setSubmitting] = useState(false);
+  const [sendHeight, setSendHeight] = useState(44);
   const submittingRef=useRef(false);
   async function send() {
     if (submittingRef.current || submitting || busy || !text.trim()) return;
@@ -280,7 +282,7 @@ export function Comments({
               <SafetyActions target={{kind:'comment',id:safetyTarget.id,collection:'discussion_feed',commentId:String(c.id),authorId:c.authorId?String(c.authorId):undefined}}/>
             </View> : <Copy weight="bold">{c.author}{" "}<Copy style={{color:"#a8a29e",fontSize:10}}>{`${c.unit?c.unit+' • ':''}${c.timeAgo}`}</Copy></Copy>}
             <Copy style={{ lineHeight: 20 }}>{c.text}</Copy>
-            {push.repliesAvailable&&safetyTarget?.kind==='post'&&c.authorId&&<Pressable accessibilityLabel={`Reply to ${c.author}`} onPress={()=>setReplyTo(String(c.id))} style={{minHeight:44,justifyContent:'center',alignSelf:'flex-start'}}><Copy style={{color:'#059669',fontSize:12}}>Reply</Copy></Pressable>}
+            {push.repliesAvailable&&safetyTarget?.kind==='post'&&!!c.authorId&&<Pressable accessibilityLabel={`Reply to ${c.author}`} onPress={()=>setReplyTo(String(c.id))} style={{minHeight:44,justifyContent:'center',alignSelf:'flex-start'}}><Copy style={{color:'#059669',fontSize:12}}>Reply</Copy></Pressable>}
             {safetyTarget?.kind==='listing' && <SafetyActions target={{kind:'comment',id:safetyTarget.id,collection:'marketplace_posts',commentId:String(c.id),authorId:c.authorId?String(c.authorId):undefined}}/>}
           </View>
         </View>
@@ -290,21 +292,26 @@ export function Comments({
           No comments yet. Start the conversation!
         </Copy>
       )}
-      {replyTo&&<Pressable accessibilityLabel="Cancel reply" onPress={()=>setReplyTo(undefined)}><Copy style={{color:'#059669'}}>Cancel reply</Copy></Pressable>}
+      {!!replyTo&&<Pressable accessibilityLabel="Cancel reply" onPress={()=>setReplyTo(undefined)}><Copy style={{color:'#059669'}}>Cancel reply</Copy></Pressable>}
       <Field
         label={replyTo?`Reply to ${comments.find(c=>String(c.id)===replyTo)?.author||'comment'}`:"Add a comment"}
         value={text}
         onChangeText={value => { setText(value); onDraftChange?.({ text: value, id }); }}
         editable={!busy && !submitting}
         multiline
+        keyboardActionSpace={sendHeight + 12}
+        scrollEnabled
+        style={{ maxHeight: 140 }}
         placeholder="Write a friendly reply…"
       />
-      <Action
-        label="Send Comment"
-        icon={Send}
-        disabled={busy || submitting || !text.trim()}
-        onPress={() => void send()}
-      />
+      <View onLayout={event => setSendHeight(event.nativeEvent.layout.height)}>
+        <Action
+          label="Send Comment"
+          icon={Send}
+          disabled={busy || submitting || !text.trim()}
+          onPress={() => void send()}
+        />
+      </View>
     </View>
   );
 }
@@ -795,6 +802,7 @@ export function SocialFeed({
       <FlatList<Post | Listing>
         data={view === "post" ? posts : listings}
         keyExtractor={item => `${view}:${item.id}`}
+        renderScrollComponent={props => <ScrollView {...props} extraKeyboardSpace />}
         renderItem={({ item }) => view === "post" ? renderPost(item as Post) : renderListing(item as Listing)}
         initialNumToRender={5}
         maxToRenderPerBatch={5}

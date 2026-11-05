@@ -11,6 +11,8 @@ function screenFixture() {
   react,'react/jsx-runtime':{jsx:(type:any,props:any)=>({type,props}),jsxs:(type:any,props:any)=>({type,props})},
   '@react-native-async-storage/async-storage':{default:{}},'react-native':{View:'View'},
   '../lib/community':{useCommunity:()=>({community:'cecil_pines'})},'../lib/resident':{useResident:()=>({id:'owner'})},
+  '../notifications/usePushDocument':{usePushDocument:()=>null},
+  '../notifications/InboxPushProvider':{useInboxPush:()=>({target:null,read(){},consume(){}})},
   '../lib/liveCollection':{useLiveCollection:(name:string)=>({items:['discussion_feed','marketplace_posts'].includes(name)?[item]:[],loading:false,error:'',retry(){}})},
   '../news/ui':{Action:'Action',Copy:'Copy',NewsDialog:'Dialog'},'../components/ProductToast':{ProductToast:'Toast'},
   '../components/MarketplaceGallery':{MarketplaceGallery:'Gallery'},'../components/MediaViewer':{MediaViewer:'VideoViewer'},

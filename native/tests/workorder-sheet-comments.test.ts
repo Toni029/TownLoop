@@ -13,7 +13,7 @@ test('viewport snap points stay finite and ordered across sizes and keyboard res
   }
 });
 test('manager deletion preserves status, other comments and audit; missing resolution can complete again',()=>{
-  const crew={id:'crew',name:'Crew',role:'crew',email:'crew@example.invalid'} as const;
+  const crew={id:'crew',name:'Crew',role:'crew',email:'crew@example.invalid',approved:true} as const;
   const note={id:'other',author:'Crew',role:'Maintenance Crew',text:'Inspection note',timestamp:'Yesterday'};
   const done=resolutionPatch(readWorkOrder('one',{status:'Queued',comments:[note]}),crew,{id:'fix',author:'Crew',role:'Maintenance Crew',text:'Fixed',timestamp:'Today'},'now')!;
   const order=readWorkOrder('one',{...done});

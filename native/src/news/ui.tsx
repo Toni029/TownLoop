@@ -1,4 +1,4 @@
-import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
+import { ScrollView, TextInput, type KeyboardTextInputProps } from '../keyboard/KeyboardScrollView';
 import { SystemBars } from "../components/SystemBars";
 import { MotionPressable as Pressable } from "../motion/Pressable";
 import { useEffect, useState, type PropsWithChildren } from "react";
@@ -14,7 +14,6 @@ import {
 
   View,
   type TextProps,
-  type TextInputProps,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -300,7 +299,7 @@ export function Field({
   style,
   labelCase = "upper",
   ...props
-}: TextInputProps & { label: string; labelCase?: "upper" | "natural" }) {
+}: KeyboardTextInputProps & { label: string; labelCase?: "upper" | "natural" }) {
   const styles = useNewsStyles();
   return (
     <View style={{ gap: 6 }}>

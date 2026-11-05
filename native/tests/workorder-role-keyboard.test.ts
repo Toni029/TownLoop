@@ -26,3 +26,9 @@ test('keyboard scrolling reveals bottom fields without moving already-visible fi
   assert.equal(revealOffset(0,100,400,500,450,300),266);
   assert.equal(revealOffset(0,100,400,80,450,50),0);
 });
+
+test('comment focus keeps its Send action visible on small and resized keyboard viewports',()=>{
+  assert.equal(revealOffset(0,100,600,500,450,50,56),72);
+  assert.equal(revealOffset(100,100,400,500,200,90,56),100);
+  assert.equal(revealOffset(0,100,600,500,450,120,56),142);
+});

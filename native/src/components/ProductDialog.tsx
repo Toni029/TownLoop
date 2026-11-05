@@ -233,7 +233,7 @@ export function ProductDialog({
                     },
                   ]}
                 >
-                  {headerLeading && <View style={{ flexShrink: 0, marginRight: 6 }}>{headerLeading}</View>}
+                  {!!headerLeading && <View style={{ flexShrink: 0, marginRight: 6 }}>{headerLeading}</View>}
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Copy
                       accessibilityRole="header"
