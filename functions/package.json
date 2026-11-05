@@ -12,5 +12,8 @@
   },
   "scripts": {
     "test": "node --test retention.test.cjs"
+  },
+  "overrides": {
+    "body-parser": "2.4.0"
   }
 }
