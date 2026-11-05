@@ -2,5 +2,6 @@
   "projectId": "cc-livingcommunity-app",
   "functionName": "newsletterApi",
   "url": "https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi",
-  "deploymentStatus": "deployed"
+  "deploymentStatus": "deployed",
+  "fallbackUrl": "https://newsletterapi-ljidv335aa-uc.a.run.app"
 }

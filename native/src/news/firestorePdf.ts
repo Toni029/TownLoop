@@ -6,7 +6,7 @@ const database = `projects/${config.projectId}/databases/${config.firestoreDatab
 export const documentBase = `https://firestore.googleapis.com/v1/${database}/documents`;
 export function pdfId(id: string) { if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id) || id === 'current')
     throw Error('Invalid newsletter draft.'); return id; }
-type RetryOptions = { timeoutMs?: number; attempts?: number; wait?: (ms: number, signal?: AbortSignal | null) => Promise<void>; reconcile?: () => Promise<any> };
+type RetryOptions = { ownerUid?: string; timeoutMs?: number; attempts?: number; wait?: (ms: number, signal?: AbortSignal | null) => Promise<void>; reconcile?: () => Promise<any> };
 function paused() { return Error('Upload paused. Confirmed PDF data is retained; retry to resume.'); }
 function wait(ms: number, signal?: AbortSignal | null) {
     return new Promise<void>((resolve, reject) => {
@@ -20,7 +20,7 @@ function wait(ms: number, signal?: AbortSignal | null) {
 export async function pdfRequest(path: string, init: RequestInit = {}, options: RetryOptions = {}) {
     const user = auth.currentUser;
     if (!user) throw Error('Please sign in again.');
-    const check = () => { if (auth.currentUser?.uid !== user.uid) throw Error('Your account changed. Reopen News.'); if (init.signal?.aborted) throw paused(); };
+    const check = () => { if (auth.currentUser?.uid !== user.uid || (options.ownerUid && options.ownerUid !== user.uid)) throw Error('Your account changed. Reopen News.'); if (init.signal?.aborted) throw paused(); };
     const attempts = options.attempts || 5;
     let refreshed = false;
     for (let attempt = 0; attempt < attempts; attempt++) {

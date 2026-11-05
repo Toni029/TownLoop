@@ -10,19 +10,18 @@ export type RetainedEdition = NewsletterConfig & {
     partial?: boolean;
     confirmedChunks?: number;
 };
-/** Metadata only. Legacy orphan discovery is included only when Firebase permits it. */
+/** Ordinary authorized metadata listing. Parentless legacy discovery is server-only. */
 export async function retainedEditions(): Promise<RetainedEdition[]> {
-    const user = await approvedUser(true);
+    const user = await approvedUser(true, true);
     const fields = ['id', 'isRemoved', 'uploadState', 'editionTitle', 'monthEdition', 'fileName', 'fileSize', 'sourceBytes', 'uploadedAt', 'uploadedBy', 'totalChunks', 'totalSize'];
-    async function list(includeMissing: boolean) {
+    async function list() {
         const rows: any[] = [];
         let token: string | undefined;
         for (let page = 0; page < 3; page++) {
             const q = new URLSearchParams({ pageSize: '100' });
-            if (includeMissing) q.set('showMissing', 'true');
             for (const key of fields) q.append('mask.fieldPaths', key);
             if (token) q.set('pageToken', token);
-            const r = await pdfRequest('/newsletters?' + q);
+            const r = await pdfRequest('/newsletters?' + q, {}, {ownerUid: String(user.id)});
             rows.push(...r?.documents || []);
             token = r?.nextPageToken;
             if (!token) break;
@@ -30,15 +29,9 @@ export async function retainedEditions(): Promise<RetainedEdition[]> {
         if (token) throw Error('There are too many retained editions to list safely. Ask the community office for the exact draft.');
         return rows;
     }
-    let rows: any[];
-    try { rows = await list(true); }
-    catch (error) {
-        // Firebase user tokens cannot enumerate nonexistent parent documents.
-        // New uploads have persisted manifests; list those under unchanged rules.
-        // Never catch ordinary permission errors or invent legacy parent records.
-        if ((error as {code?: string})?.code !== 'firestore-metadata-auth-required') throw error;
-        rows = await list(false);
-    }
+    // showMissing requires IAM metadata access, not an Admin/VIP Firebase ID token.
+    // Current uploads persist a real parent manifest; discover those directly.
+    const rows = await list();
     const active = rows.find(r => r.name.endsWith('/current'))?.fields?.id?.stringValue;
     const candidates = rows.filter(r => !r.name.endsWith('/current') && !r.name.endsWith('/' + active) && !r.fields?.isRemoved?.booleanValue && (!r.fields?.id || ['uploaded', 'uploading'].includes(r.fields?.uploadState?.stringValue)));
     if (candidates.length > 50)
@@ -51,7 +44,7 @@ export async function retainedEditions(): Promise<RetainedEdition[]> {
             const q = new URLSearchParams({ pageSize: '200' });
             for (const key of ['index', 'sha256', 'totalChunks', 'totalSize', 'updatedAt'])
                 q.append('mask.fieldPaths', key);
-            const r = await pdfRequest(`/newsletters/${id}/chunks?${q}`), chunks = r?.documents || [], head = chunks[0]?.fields;
+            const r = await pdfRequest(`/newsletters/${id}/chunks?${q}`, {}, {ownerUid: String(user.id)}), chunks = r?.documents || [], head = chunks[0]?.fields;
             const count = Number(head?.totalChunks?.integerValue || f.totalChunks?.integerValue), size = Number(head?.totalSize?.integerValue || f.totalSize?.integerValue);
             if (r?.nextPageToken || !Number.isInteger(count) || count < 1 || count > 200 || chunks.length > count || !Number.isInteger(size) || size < 34 || size > PDF_PREFIX.length + Math.ceil(64 * 1048576 / 3) * 4)
                 continue;

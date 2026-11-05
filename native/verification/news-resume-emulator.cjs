@@ -18,7 +18,7 @@ function token(uid) {
  return enc({alg:'none',typ:'JWT'})+'.'+enc({iss:`https://securetoken.google.com/${project}`,aud:project,sub:uid,user_id:uid,iat:now,exp:now+3600,auth_time:now,firebase:{sign_in_provider:'password'}})+'.';
 }
 (async () => {
- const rules = await fetch(`http://${host}/emulator/v1/projects/${project}:securityRules`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:{files:[{name:'firestore.rules',content:fs.readFileSync('firestore.rules','utf8')}]}})});
+ const rules = await fetch(`http://${host}/emulator/v1/projects/${project}:securityRules`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:{files:[{name:'firestore.rules',content:fs.readFileSync(process.env.NEWSLETTER_RULES_FILE || 'firestore.rules','utf8')}]}})});
  assert.equal(rules.ok, true, await rules.text());
  const n = value => ({integerValue:String(value)}), s = value => ({stringValue:value});
  async function seed(path, fields) {
@@ -44,11 +44,8 @@ function token(uid) {
    assert.equal(requests.filter(r=>r.status===200).length,0);
   } else {
    assert.deepEqual((await drafts.retainedEditions()).map(r=>r.id),['retained']);
-   assert.equal(requests[0].status,403);
-   assert.match(requests[0].query,/showMissing=true/);
-   assert.equal(requests[1].status,200);
-   assert.doesNotMatch(requests[1].query,/showMissing/);
-   assert.equal(requests[2].status,200);
+   assert.equal(requests.length,2);
+   assert(requests.every(r=>r.status===200&&!r.query.includes('showMissing')));
   }
   console.log(`${role}: real resume authorization checks passed`);
  }

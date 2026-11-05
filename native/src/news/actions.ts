@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocFromServer,
   runTransaction,
   serverTimestamp,
   setDoc,
@@ -17,10 +18,13 @@ import { auth, db } from "../lib/firebase";
 import { rsvpPatch, singleFlight } from "./model";
 import type { EventDraft } from "./Editors";
 export const runNewsAction = singleFlight();
-export async function approvedUser(manager = false): Promise<UserProfile> {
+export async function approvedUser(manager = false, fresh = false): Promise<UserProfile> {
   const user = auth.currentUser;
   if (!user) throw new Error("Please sign in again.");
-  const snapshot = await getDoc(doc(db, "users", user.uid));
+  if (fresh) await user.getIdToken(true);
+  if (auth.currentUser?.uid !== user.uid) throw new Error('Your account changed. Reopen News.');
+  const snapshot = await (fresh ? getDocFromServer : getDoc)(doc(db, "users", user.uid));
+  if (auth.currentUser?.uid !== user.uid) throw new Error('Your account changed. Reopen News.');
   const profile = {
     ...snapshot.data(),
     id: user.uid,

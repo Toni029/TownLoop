@@ -15,3 +15,7 @@ test('server-only metadata rejection is classified separately from account autho
  const denied=load(async()=>({ok:false,status:403,json:async()=>({error:{message:'Missing or insufficient permissions.'}})}));
  await assert.rejects(denied.api.pdfRequest('/newsletters'),error=>error.code!=='firestore-metadata-auth-required'&&/not authorized/.test(error.message));
 });
+test('resume metadata requests remain bound to the manager that authorized discovery',async()=>{
+ let requests=0;const {api}=load(async()=>{requests++;return ok({documents:[]});});
+ await assert.rejects(api.pdfRequest('/newsletters',{}, {ownerUid:'previous-account'}),/account changed/);assert.equal(requests,0);
+});

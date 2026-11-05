@@ -1,4 +1,5 @@
 import {auth} from '../lib/firebase';
+import {newsletterFetch} from './api';
 export type AnalysisProgress={state:string;completedBatches:number;totalBatches:number;attempt:number;error?:string};
 export async function analyzeInBackground(base:string,body:Record<string,unknown>,owner:string,options:{signal?:AbortSignal;onProgress?:(progress:AnalysisProgress)=>void;fetcher?:typeof fetch;wait?:(ms:number)=>Promise<void>;polls?:number}={}) {
  const check=()=>{if(auth.currentUser?.uid!==owner)throw Error('Your account changed. Reopen News.');if(options.signal?.aborted)throw Error('Analysis continues securely on the server. Reopen News to resume its progress.');};
@@ -8,7 +9,7 @@ export async function analyzeInBackground(base:string,body:Record<string,unknown
    check();const token=await auth.currentUser?.getIdToken(attempt>0);check();if(!token)throw Error('Please sign in again.');
    const controller=new AbortController(),stop=()=>controller.abort(),timer=setTimeout(stop,20000);options.signal?.addEventListener('abort',stop,{once:true});
    try{
-    const response=await(options.fetcher||fetch)(`${base}/api/newsletter/native${path}`,{method:input?'POST':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},redirect:'error',signal:controller.signal,...(input?{body:JSON.stringify(input)}:{})});check();
+    const response=await newsletterFetch(`${base}/api/newsletter/native${path}`,{method:input?'POST':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},redirect:'error',signal:controller.signal,...(input?{body:JSON.stringify(input)}:{})},options.fetcher||fetch);check();
     const value=await response.json().catch(()=>null);
     if(!response.ok){if(response.status>=500||response.status===429)throw Error(value?.error||'Analysis service is temporarily unavailable.');throw Object.assign(Error(value?.error||'Analysis access could not be verified.'),{permanent:true});}
     if(!value)throw Error('Analysis progress could not be read.');return value;
