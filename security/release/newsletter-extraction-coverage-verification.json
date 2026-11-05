@@ -1,0 +1,23 @@
+{
+  "scope": "Local real Gemini analysis of unchanged retained November PDF; no deployed app or phone claim",
+  "pdfSha256": "f58199440ea0b80d33229f729bd55f4035dcaa136dddfdf4695e604f287be3a6",
+  "pdfBytes": 39435477,
+  "pdfPages": 12,
+  "pagesIndependentlyAudited": 12,
+  "extractedRsvpEvents": 5,
+  "literalRsvpReferences": 4,
+  "unmatchedRsvpReferences": 0,
+  "pinnedHighlights": 22,
+  "savedOperations": 6,
+  "models": [
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite"
+  ],
+  "providerCallsDuringFinalCheckpointResume": 0,
+  "productionDataModified": false,
+  "pdfReuploaded": false,
+  "newsletterPublished": false,
+  "sourceExamplesValidated": true,
+  "nativeReviewItems": 27,
+  "focusedTestsPassed": 22
+}

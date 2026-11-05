@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from "react-native";
 import type { NewsletterConfig } from "../models";
 import { Action, Copy, NewsDialog } from "./ui";
 import { analyzeNewsletter, applyAnalysis } from "./ai";
+import { AnalysisCoverage } from "./AnalysisCoverage";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 import type {AnalysisProgress} from './analysisJobs';
 export function AnalysisReview({
@@ -35,7 +36,7 @@ export function AnalysisReview({
         const next = await analyzeNewsletter(config,false,{signal:controller.current.signal,onProgress:value=>{if(mounted.current)setProgress(value);}});
         if(!mounted.current)return;
         setResult(next);
-        setSelected(analysisItems(next, config).map((item) => item.id));
+        setSelected(analysisItems(next, config, {review:true}).map((item) => item.id));
       }
     } catch (e) {
       if(!mounted.current)return;
@@ -55,7 +56,7 @@ export function AnalysisReview({
       onClose={onClose}
     >
       <Copy>
-        Find special, non-recurring RSVP events and important community stories.
+        Find all printed RSVP announcements and meaningful community stories.
         Review the extracted details before adding them to News.
       </Copy>
       {!!error && <Copy accessibilityRole="alert">{error}</Copy>}
@@ -67,7 +68,7 @@ export function AnalysisReview({
               ? "Saving selected items…"
               : "Gemini is reading the newsletter…"}
           </Copy>
-          {!result && !!progress && <Copy>{progress.completedBatches}/{progress.totalBatches || '…'} page groups saved · {progress.state}. You can close this window and resume later.</Copy>}
+          {!result && !!progress && <Copy>{progress.completedBatches}/{progress.totalBatches || '…'} extraction/coverage checks saved · {progress.state}. You can close this window and resume later.</Copy>}
         </View>
       )}
       {saved ? (
@@ -84,7 +85,8 @@ export function AnalysisReview({
             Analyzed with {result.sourceModel}. Uncheck any item you do not want
             to publish.
           </Copy>
-          {analysisItems(result, config).map((item) => (
+          <AnalysisCoverage result={result} />
+          {analysisItems(result, config, {review:true}).map((item) => (
             <View
               key={item.id}
               style={{
@@ -107,6 +109,7 @@ export function AnalysisReview({
                 }
               />
               <Copy>{item.data.description}</Copy>
+              {!!item.data.sourcePage && <Copy>PDF page {item.data.sourcePage}</Copy>}
               {"day" in item.data && (
                 <Copy>
                   {item.data.month} {item.data.day} • {item.data.time} •{" "}
@@ -116,7 +119,7 @@ export function AnalysisReview({
               )}
             </View>
           ))}
-          {!analysisItems(result, config).length && (
+          {!analysisItems(result, config, {review:true}).length && (
             <Copy>No qualifying RSVP events or highlights were found.</Copy>
           )}
           <Action

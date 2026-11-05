@@ -1,3 +1,4 @@
+import {NEWSLETTER_EXTRACTION_VERSION} from '../src/utils/newsletterCoverage.ts';
 import {createHash, randomUUID} from 'node:crypto';
 import {retainedNativePdf} from './nativeNewsletter.ts';
 import {extractNewsletterContent, type NewsletterAnalysisCheckpoints} from './newsletterExtractor.ts';
@@ -28,7 +29,7 @@ export function publicNewsletterJob(id:string,d:any){
 }
 export async function startNewsletterJob(uid:string,input:any,db?:any,enqueue?: (id:string,generation:number)=>Promise<void>,revisionProvider?: (id:string)=>Promise<string>){
  db ||= await database();
- const request=requestData(input),revision=await (revisionProvider||((id:string)=>pdfRevision(db,id)))(request.newsletterId),id=createHash('sha256').update(JSON.stringify([uid,request,revision,'newsletter-job-v1'])).digest('hex'),ref=db.collection(COLLECTION).doc(id);
+ const request=requestData(input),revision=await (revisionProvider||((id:string)=>pdfRevision(db,id)))(request.newsletterId),id=createHash('sha256').update(JSON.stringify([uid,request,revision,NEWSLETTER_EXTRACTION_VERSION])).digest('hex'),ref=db.collection(COLLECTION).doc(id);
  const result=await db.runTransaction(async(tx:any)=>{
   const [snap,fence]=await Promise.all([tx.get(ref),tx.get(db.collection('newsletter_draft_cleanup').doc(request.newsletterId))]),old=snap.data(),now=Date.now();
   if(fence.exists)throw new NewsletterInputError('This unpublished PDF was discarded. Select another upload.',409);

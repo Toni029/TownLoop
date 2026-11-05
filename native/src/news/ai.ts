@@ -21,7 +21,7 @@ export async function analyzeNewsletter(
     monthEdition: config.monthEdition, isNewUpload: newUpload,
   }, owner, options);
   if (auth.currentUser?.uid !== owner) throw Error("Your account changed. Reopen News.");
-  analysisItems(result, config);
+  analysisItems(result, config, {review:true});
   if (!newUpload) await activeEdition(config);
   return result;
 }
@@ -31,9 +31,7 @@ export async function applyAnalysis(
   selected: string[],
 ) {
   await approvedUser(true);
-  const items = analysisItems(result, config).filter((item) =>
-    selected.includes(item.id),
-  );
+  const items = analysisItems(result, config, {selectedIds:selected});
   await runTransaction(db, async (tx) => {
     const pointer = doc(db, "newsletters", "current");
     const current = await tx.get(pointer);

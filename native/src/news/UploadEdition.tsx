@@ -23,6 +23,7 @@ import { retainedEditions, type RetainedEdition } from "./drafts";
 import { analyzeNewsletter } from "./ai";
 import type {AnalysisProgress} from "./analysisJobs";
 import {discardNewsletterDraft, touchNewsletterDraft} from './discard';
+import { AnalysisCoverage } from "./AnalysisCoverage";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
 import { useReducedMotion } from "../home/hooks";
 export function UploadEdition({
@@ -383,7 +384,7 @@ export function UploadEdition({
             {busy && <Action label="Cancel upload" onPress={() => transfer.current?.abort()} />}
           </>}
           {step === 1 && <Copy>PDF upload complete · 100%. AI analysis is a separate step.</Copy>}
-          {step === 1 && !!analysisProgress && <Copy>{analysisProgress.state === 'queued' ? 'Queued securely' : analysisProgress.state === 'retrying' ? 'Retrying the remaining pages' : 'Reading newsletter pages'} · {analysisProgress.completedBatches}/{analysisProgress.totalBatches || '…'} groups saved · attempt {analysisProgress.attempt || 1}</Copy>}
+          {step === 1 && !!analysisProgress && <Copy>{analysisProgress.state === 'queued' ? 'Queued securely' : analysisProgress.state === 'retrying' ? 'Retrying the remaining pages' : 'Reading newsletter pages'} · {analysisProgress.completedBatches}/{analysisProgress.totalBatches || '…'} checks saved · attempt {analysisProgress.attempt || 1}</Copy>}
           {step === 1 && busy && (
             <View style={{ gap: 8 }}>
               <ActivityIndicator color="#059669" />
@@ -456,6 +457,7 @@ export function UploadEdition({
             {result.pinned_highlights.length} stories. Review the details before
             publishing.
           </Copy>
+          <AnalysisCoverage result={result} />
           <View accessibilityRole="tablist" style={{ flexDirection: "row", padding: 4, gap: 4, borderRadius: 16, backgroundColor: dark ? "#1e293b" : "#f1f5f2", borderWidth: 1, borderColor: dark ? "#475569" : "#d6e2dc" }}>
             {(["rsvp_events", "pinned_highlights"] as const).map((tab) => (
               <Pressable key={tab} accessibilityRole="tab" accessibilityState={{ selected: reviewTab === tab }} onPress={() => { setReviewTab(tab); setEditing(""); }} style={{ flex: 1, minWidth: 0, paddingVertical: 12, paddingHorizontal: 6, borderRadius: 12, backgroundColor: reviewTab === tab ? "#047857" : "transparent" }}>
@@ -519,6 +521,7 @@ export function UploadEdition({
                   <View style={{ padding: 12, borderRadius: 16, borderWidth: 1, borderColor: kind === "rsvp_events" ? "#05966960" : "#d9770660", backgroundColor: dark ? "#1e293b" : "#ffffff" }}>
                   <Copy weight="bold" style={{ fontSize: 16, lineHeight: 23, textAlign: "center", flexShrink: 1, width: "100%" }}>{String(item.title)}</Copy>
                   </View>
+                  {!!item.sourcePage && <Copy>PDF page {String(item.sourcePage)}{item.sourcePassage ? ` · ${String(item.sourcePassage)}` : ""}</Copy>}
                   {edit ? (
                     (kind === "rsvp_events"
                       ? [

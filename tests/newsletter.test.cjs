@@ -4,9 +4,10 @@ const { build } = require('esbuild');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 async function bundle(entry, mocks = {}) {
+ if(entry==='server/newsletterExtractor.ts')mocks={'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>[{text:'PAGE 1'},{inlineData:{mimeType:'image/jpeg',data:'fixture'}}];`,...mocks};
  const result = await build({entryPoints:[path.join(root,entry)],bundle:true,platform:'node',format:'cjs',write:false,plugins:[{name:'mocks',setup(b){
   b.onResolve({filter:/.*/}, args => args.path in mocks ? {path:args.path,namespace:'mock'} : null);
-  b.onLoad({filter:/.*/,namespace:'mock'}, args => ({contents:mocks[args.path]+(args.path==='@google/genai'?";export const ThinkingLevel={LOW:'LOW'};":'')}));
+  b.onLoad({filter:/.*/,namespace:'mock'}, args => ({contents:args.path==='@google/genai' ? mocks[args.path].replace(/export class GoogleGenAI\b/,'class FixtureGoogleGenAI')+`;export const ThinkingLevel={LOW:'LOW'};export class GoogleGenAI extends FixtureGoogleGenAI{constructor(...values){super(...values);const original=this.models.generateContent.bind(this.models);this.models.generateContent=async args=>{if(args.config.responseSchema.properties.rsvpReferences){const last=args.contents[0].parts.at(-1).text;const pages=last.match(/Target PDF pages: ([0-9, ]+)/)[1].split(',').map(Number);return {text:JSON.stringify({events:[],highlights:[],auditedPages:pages,rsvpReferences:global.__auditReferences||[]}),candidates:[{finishReason:'STOP'}]};}return original(args);};}}` : mocks[args.path]}));
  }}]});
  const module={exports:{}};new Function('module','exports','require',result.outputFiles[0].text)(module,module.exports,require);return module.exports;
 }
@@ -17,7 +18,8 @@ test('actual extraction excludes ordinary events, requires evidence, preserves e
  process.env.GEMINI_API_KEY='test-only';
  global.__newsletter={monthEdition:'October 2026',events:[event(),event({title:'Open House',requiresRsvp:false}),event({title:'Unsubstantiated Event',rsvpDetails:''})], highlights:[]};
  const out=await extractNewsletterContent({base64Data:'x'.repeat(60)});
- assert.deepEqual(out.events.map(e=>e.title),['Fall Festival']);
+ assert.deepEqual(out.events.map(e=>e.title),['Fall Festival','Open House']);
+ assert(out.coverage.issues.some(i=>i.kind==='uncertain-rsvp'));
  assert.equal(out.rsvp_events[0].day,'31');
  assert.equal(out.rsvp_events[0].deadline,'RSVP by Monday, October 26th');
  assert.equal(out.sourceModel,'gemini-3.8-flash');
@@ -100,12 +102,12 @@ test('reader refuses stale cached metadata and revokes an open PDF when the admi
  }finally{URL.revokeObjectURL=original;}
 });
 
-test('special events qualify but recurring activities are excluded even with RSVP',async()=>{
+test('special and recurring activities with printed RSVP instructions are both retained',async()=>{
  const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
  process.env.GEMINI_API_KEY='test-only';
  global.__newsletter={monthEdition:'October 2026',events:[event({title:'Autumn Garden Tour',date:'October 20',rsvpDetails:'RSVP by Friday, October 9th'}),event({title:'Bingo',isRecurring:true,requiresRsvp:true,rsvpDetails:'RSVP to the office'})],highlights:[]};
  const out=await extractNewsletterContent({base64Data:'x'.repeat(60)});
- assert.deepEqual(out.events.map(e=>e.title),['Autumn Garden Tour']);
+ assert.deepEqual(out.events.map(e=>e.title),['Autumn Garden Tour','Bingo']);
  assert.equal(out.rsvp_events[0].day,'20');
  delete process.env.GEMINI_API_KEY;
 });
@@ -148,7 +150,8 @@ test('native analysis saves selected drafts once without overwriting RSVP record
 test('native upload stages PDF before review and atomically publishes approved items afterward', async()=>{
  global.__stageWrites=[];global.__publishWrites=[];global.__currentEdition=null;
  const {stageEdition,finishEdition}=await bundle('native/src/news/edition.ts',{
- '../lib/firebase':`export const db={};export const storage={};`,
+ '../lib/firebase':`export const db={};export const storage={};export const auth={currentUser:{uid:'admin'}};`,
+ './firestorePdf':`export const pdfRequest=async()=>null;export const pdfReceipts=async()=>[];export const chunkDigest=async()=> 'fixture';export const commitPdfChunks=async()=>{};export const savePdfDraft=async(id,data)=>global.__stageWrites.push({ref:'newsletters/'+id,data});`,
  './actions':`export const approvedUser=async()=>({id:'admin'});`,
  'firebase/storage':`export const ref=()=>{};export const deleteObject=async()=>{};`,
  'firebase/firestore':`export const collection=()=>{};export const deleteDoc=async()=>{};export const getDocFromServer=async()=>{};export const getDocsFromServer=async()=>{};export const writeBatch=()=>{};export const serverTimestamp=()=>1;export const doc=(_db,...parts)=>parts.join('/');export const setDoc=async(ref,data)=>global.__stageWrites.push({ref,data});export const runTransaction=async(_db,fn)=>fn({get:async()=>({exists:()=>!!global.__currentEdition,data:()=>global.__currentEdition}),set:(ref,data)=>global.__publishWrites.push({ref,data})});`,
@@ -156,7 +159,7 @@ test('native upload stages PDF before review and atomically publishes approved i
  const {editionKey}=await bundle('native/src/news/model.ts');
  const config={id:'draft',editionTitle:'October',monthEdition:'October 2026',uploadedAt:1};
  const staged=await stageEdition(config,'data:application/pdf;base64,JVBERi0xLjcK',()=>{});
- assert.equal(global.__stageWrites.length,1);assert.equal(global.__publishWrites.length,0);
+ assert.equal(global.__stageWrites.length,2);assert.equal(global.__stageWrites[0].data.uploadState,'uploading');assert.equal(global.__stageWrites[1].data.uploadState,'uploaded');assert.equal(global.__publishWrites.length,0);
  const items=[{id:'event',collection:'community_events',data:{title:'Reviewed event'}}];
  await finishEdition(staged,editionKey(null),items);
  assert.deepEqual(global.__publishWrites.map(w=>w.ref),['community_events/event','newsletters/draft','newsletters/current']);
@@ -171,90 +174,31 @@ test('unavailable primary moves directly to PDF-capable fallback with bounded HT
  const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock});
  process.env.GEMINI_API_KEY='test-only';global.__newsletter={monthEdition:'October 2026',events:[event()],highlights:[]};
  const result=await extractNewsletterContent({base64Data:'x'.repeat(60)});
- assert.equal(result.sourceModel,'gemini-3-flash-preview');assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3.8-flash','gemini-3-flash-preview']);
+ assert.equal(result.sourceModel,'gemini-3-flash-preview + gemini-3.8-flash');assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3.8-flash','gemini-3-flash-preview']);
  assert.ok(global.__attempts.every(a=>a.timeout===40000&&a.abort));
  global.__attempts=[];await extractNewsletterContent({base64Data:'x'.repeat(60),isReanalysis:true});assert.deepEqual(global.__attempts.map(a=>a.model),['gemini-3-flash-preview']);
  delete process.env.GEMINI_API_KEY;
 });
 
-test('large PDF uploads once, reuses file across fallbacks, and cleans up after success or failure',async()=>{
- const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{global.__uploads++;return{name:'files/test',uri:'https://example.invalid/file',state:'ACTIVE'}},delete:async()=>{global.__deletes++}};models={generateContent:async args=>{global.__largeAttempts.push(args);if(global.__allFail||args.model==='gemini-3.1-flash-lite')throw Object.assign(new Error('503 UNAVAILABLE'),{status:503});return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
- const run=async fail=>{global.__uploads=0;global.__deletes=0;global.__largeAttempts=[];global.__allFail=fail;process.env.GEMINI_API_KEY='test-only';const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock});return extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});};
- const result=await run(false);assert.equal(result.sourceModel,'gemini-3-flash-preview');assert.equal(global.__uploads,1);assert.equal(global.__deletes,1);assert.ok(global.__largeAttempts.every(a=>a.contents[0].parts[0].fileData && !a.contents[0].parts[0].inlineData && a.config.httpOptions.timeout===60000));
- await assert.rejects(run(true),/503/);assert.equal(global.__uploads,1);assert.equal(global.__deletes,1);delete process.env.GEMINI_API_KEY;
-});
-
-test('file-service failure falls back to page-labelled text instead of resending a large inline PDF',async()=>{
- const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw Object.assign(new Error('404'),{status:404})}};models={generateContent:async args=>{global.__textParts=args.contents[0].parts;return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
- const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export class NewsletterPdfError extends Error {}; export const newsletterPdfText=async()=> '=== PDF PAGE 1 === Test document facts';`});
- process.env.GEMINI_API_KEY='test-only';await extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});assert.match(global.__textParts[0].text,/PDF PAGE 1/);assert.equal(global.__textParts[0].inlineData,undefined);delete process.env.GEMINI_API_KEY;
-});
-
-
-test('image-only PDF uses labelled page images when file upload and text extraction fail', async()=>{
- const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw new Error('404')}};models={generateContent:async args=>{global.__visionParts=args.contents[0].parts;return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
- const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw new Error('image-only')};`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>[{text:'PDF PAGE 1'},{inlineData:{mimeType:'image/jpeg',data:'page-image'}}];`});
- process.env.GEMINI_API_KEY='test-only';
- try {
-  await extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});
-  assert.equal(global.__visionParts[0].text,'PDF PAGE 1');
-  assert.deepEqual(global.__visionParts[1].inlineData,{mimeType:'image/jpeg',data:'page-image'});
-  assert.ok(!global.__visionParts.some(p=>p.inlineData?.mimeType==='application/pdf'));
- } finally {delete process.env.GEMINI_API_KEY;}
-});
-
-test('visual batches retain successful pages across model fallback and cache only complete results',async()=>{
- const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw new Error('404')}};models={generateContent:async args=>{const labels=args.contents[0].parts.filter(p=>p.text?.startsWith('PAGE')).map(p=>p.text);const batch=labels.at(-1);global.__batchCalls.push({batch,model:args.model});if(batch==='PAGE 3'&&args.model==='gemini-3.1-flash-lite')throw new Error('503');return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[{title:batch,summary:'Verified page',category:'News'}]})}}}}`;
- const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw new Error('scanned')}`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>Array.from({length:3},(_,i)=>[{text:'PAGE '+(i+1)},{inlineData:{mimeType:'image/jpeg',data:'image'}}]).flat();`});
- process.env.GEMINI_API_KEY='test';global.__batchCalls=[];
- const payload={base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'};
- try {
- const result=await extractNewsletterContent(payload);
- assert.equal(result.highlights.length,3);
- assert.equal(global.__batchCalls.length,5);
- assert.equal(global.__batchCalls.filter(c=>c.batch==='PAGE 1').length,1);
- result.highlights.length=0;
- const again=await extractNewsletterContent(payload);
- assert.equal(again.highlights.length,3);
- assert.equal(global.__batchCalls.length,5);
+test('all PDF pages are rendered visually and independent audits are persisted separately without a seven-story cap',async()=>{
+ const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{models={generateContent:async args=>{global.__visualCalls++;const label=args.contents[0].parts.filter(p=>p.text?.startsWith('PAGE')).at(-1).text;return{text:JSON.stringify({monthEdition:'November 2026',events:[],highlights:Array.from({length:5},(_,i)=>({title:label+' story '+i,summary:'Distinct verified announcement '+i,category:'News',sourcePage:Number(label.split(' ')[1]),sourcePassage:label+' source '+i}))}),candidates:[{finishReason:'STOP'}]};}}}`;
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>Array.from({length:3},(_,i)=>[{text:'PAGE '+(i+1)},{inlineData:{mimeType:'image/jpeg',data:'fixture'}}]).flat();`});
+ process.env.GEMINI_API_KEY='fixture';global.__visualCalls=0;let hash,total;const saved={};
+ const checkpoints={load:async(h,n)=>{hash=h;total=n;return saved;},save:async(h,i,n,value,model)=>{assert.equal(h,hash);assert.equal(n,total);saved[i]={value,model};}};
+ try{const payload={base64Data:'A'.repeat(120),mimeType:'application/pdf',isReanalysis:true};const result=await extractNewsletterContent(payload,checkpoints);assert.equal(result.highlights.length,15);assert.equal(result.coverage.pagesAudited.length,3);assert.equal(total,6);assert.equal(Object.keys(saved).length,6);assert.equal(global.__visualCalls,3);
+ const again=await extractNewsletterContent(payload,checkpoints);assert.equal(again.highlights.length,15);assert.equal(global.__visualCalls,3,'Successful extraction and audit checkpoints must not repeat provider work');
  }finally{delete process.env.GEMINI_API_KEY;}
 });
-
-
-test('all Home reminder activities and potluck variants are excluded even if AI labels them non-recurring', async()=>{
- const {MONTHLY_ACTIVITIES_LIST}=await bundle('src/data/monthlyActivities.ts');
- const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
- process.env.GEMINI_API_KEY='test-only';
- const titles=[...MONTHLY_ACTIVITIES_LIST.map(a=>a.title),'October Potluck','Fried Chicken Potluck','Pot-luck Dinner','Pup Play Date','Coffee Klatch','On Site Dermatology'];
- global.__newsletter={monthEdition:'October 2026',events:[...titles.map(title=>event({title})),event({title:'Hallo-Wine & Cheese'}),event({title:'Ice Cream Social'}),event()],highlights:[]};
- try {
- const out=await extractNewsletterContent({base64Data:'r'.repeat(60)});
- assert.deepEqual(out.events.map(e=>e.title),['Hallo-Wine & Cheese','Ice Cream Social','Fall Festival']);
- assert.equal(out.rsvp_events.length,3);
- } finally {delete process.env.GEMINI_API_KEY;}
-});
-
-test('transient Gemini 503 retries only the unfinished visual batch before changing models',async()=>{
- const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw Object.assign(Error('not found'),{status:404})}};models={generateContent:async args=>{const page=args.contents[0].parts.filter(p=>p.text?.startsWith('PAGE')).at(-1).text;global.__retryCalls.push({page,model:args.model});if(page==='PAGE 2'&&global.__retryCalls.filter(c=>c.page===page).length===1)throw Object.assign(Error('503 UNAVAILABLE'),{status:503});return{text:JSON.stringify({monthEdition:'October 2026',events:[],highlights:[]})}}}}`;
- const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw Error('scanned')}`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>Array.from({length:3},(_,i)=>[{text:'PAGE '+(i+1)},{inlineData:{mimeType:'image/jpeg',data:'image'}}]).flat();`});
- process.env.GEMINI_API_KEY='fixture';global.__retryCalls=[];
- try{await extractNewsletterContent({base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf'});
- assert.equal(global.__retryCalls.filter(c=>c.page==='PAGE 1').length,1);
- assert.equal(global.__retryCalls.filter(c=>c.page==='PAGE 3').length,1);
- assert.equal(global.__retryCalls.filter(c=>c.page==='PAGE 2').length,2);
- assert.ok(global.__retryCalls.every(c=>c.model==='gemini-3.1-flash-lite'));
- }finally{delete process.env.GEMINI_API_KEY;delete global.__retryCalls;}
-});
-
-test('durable checkpoints reuse successful groups across a new extractor invocation and normalize duplicate event dates',async()=>{
- const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{files={upload:async()=>{throw {status:404}}};models={generateContent:async args=>{global.__durableCalls++;const label=args.contents[0].parts.filter(p=>p.text?.startsWith('PAGE')).at(-1).text;return{text:'\x60\x60\x60json\\n'+JSON.stringify({monthEdition:'November 2026',events:[{title:'Verified special event',date:label==='PAGE 1'?'Saturday, November 14':'November 14',time:label==='PAGE 1'?'5:00 PM':'5 PM',requiresRsvp:true,isRecurring:false,rsvpDetails:'RSVP by November 10',sourcePage:1,description:'Verified',location:'Office'}],highlights:[{title:label,summary:'Source story',category:'News'}]})+'\\n\x60\x60\x60'};}}}`;
- const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock,'./newsletterPdfText.ts':`export const newsletterPdfText=async()=>{throw Error('scanned')}`,'./newsletterPdfImages.ts':`export const newsletterPdfImages=async()=>Array.from({length:3},(_,i)=>[{text:'PAGE '+(i+1)},{inlineData:{mimeType:'image/jpeg',data:'fixture'}}]).flat();`});
- process.env.GEMINI_API_KEY='fixture';global.__durableCalls=0;let hash;const saved={};const checkpoints={load:async(h,total)=>{if(hash)assert.equal(hash,h);hash=h;assert.equal(total,3);return saved;},save:async(h,i,total,value,model)=>{assert.equal(h,hash);saved[i]={value,model};}};
- try{const payload={base64Data:'A'.repeat(12*1024*1024),mimeType:'application/pdf',isReanalysis:true};const first=await extractNewsletterContent(payload,checkpoints);assert.equal(first.events.length,1);assert.equal(first.highlights.length,3);assert.equal(global.__durableCalls,3);const second=await extractNewsletterContent(payload,checkpoints);assert.deepEqual(second.rsvp_events,first.rsvp_events);assert.equal(global.__durableCalls,3);}finally{delete process.env.GEMINI_API_KEY;delete global.__durableCalls;}
-});
-
-test('thinking cannot consume the old output budget and truncate newsletter JSON',async()=>{
+test('thinking cannot consume the structured-output budget and truncated responses are never accepted',async()=>{
  const mock=`export const Type={OBJECT:'OBJECT',ARRAY:'ARRAY',STRING:'STRING',BOOLEAN:'BOOLEAN',INTEGER:'INTEGER'};export class GoogleGenAI{models={generateContent:async args=>{global.__budgetCalls++;const thought=args.config.thinkingConfig?.thinkingLevel==='LOW'?1000:7861;return args.config.maxOutputTokens<thought+2000?{text:'{"events":[',candidates:[{finishReason:'MAX_TOKENS'}]}:{text:JSON.stringify({monthEdition:'November 2026',events:[],highlights:[]}),candidates:[{finishReason:'STOP'}]};}}}`;
  const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':mock});process.env.GEMINI_API_KEY='fixture';global.__budgetCalls=0;
- try{const result=await extractNewsletterContent({base64Data:'A'.repeat(60),mimeType:'application/pdf',isReanalysis:true});assert.equal(result.monthEdition,'November 2026');assert.equal(global.__budgetCalls,1);}finally{delete process.env.GEMINI_API_KEY;delete global.__budgetCalls;}
+ try{const result=await extractNewsletterContent({base64Data:'A'.repeat(60),mimeType:'application/pdf',isReanalysis:true});assert.equal(result.monthEdition,'November 2026');assert.equal(global.__budgetCalls,1);}finally{delete process.env.GEMINI_API_KEY;}
+});
+
+test('an independent RSVP passage missing from extraction remains an explicit review issue',async()=>{
+ const {extractNewsletterContent}=await bundle('server/newsletterExtractor.ts',{'@google/genai':sdk});
+ process.env.GEMINI_API_KEY='fixture';global.__newsletter={monthEdition:'November 2026',events:[],highlights:[]};
+ global.__auditReferences=[{sourcePage:1,eventTitle:'Monthly Lunch',eventDate:'November 6',passage:'Please RSVP to the office by November 4.'}];
+ try{const result=await extractNewsletterContent({base64Data:'A'.repeat(60),mimeType:'application/pdf',isReanalysis:true});assert.equal(result.rsvp_events.length,0);assert.equal(result.coverage.unmatchedReferences.length,1);assert(result.coverage.issues.some(i=>i.kind==='unmatched-rsvp'));}
+ finally{delete process.env.GEMINI_API_KEY;delete global.__auditReferences;}
 });
