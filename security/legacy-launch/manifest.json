@@ -1,0 +1,23 @@
+{
+  "project": "cc-livingcommunity-app",
+  "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+  "mode": "LOCAL_ONLY_NOT_PROVISIONABLE_OR_DEPLOY_READY",
+  "baselineRulesSHA256": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+  "candidateRulesSHA256": "7da4e26144d3196e4e7dbaa97adc66085889af61242597eeede75cf59541fd81",
+  "readonlyRulesSHA256": "f8843a1cfbef7d497ee98d9fe0895e574a09d016d2e44216648933363db308ae",
+  "unchangedDefaultCandidateSHA256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0",
+  "hostedPublicBundleSHA256": "1dfd19fb7b3b4966a1595a18f0059c7263c4fa67dc69dd6886912b66ad5a55c5",
+  "sourceCommitVerified": false,
+  "productionWrites": 0,
+  "clientIntegrated": false,
+  "attestationsCreated": 0,
+  "blockers": [
+    "Original hosted source/build provenance or explicitly approved replacement",
+    "Independently verified historical membership/current identity and historical-ID attestation",
+    "Named-only server provisioning and content-free mailbox/directory projections",
+    "Every privileged rewrite must freeze/deattest before mutation and require a freshly reviewed epoch; current workers unverified",
+    "Named deletion inventory/retention integration for authorization/mailbox projections",
+    "Coordinated original-client backport and browser acceptance",
+    "Separately authorized production rules/Hosting rollout"
+  ]
+}
