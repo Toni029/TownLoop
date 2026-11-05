@@ -1,5 +1,11 @@
 # Named website privacy repair — LOCAL, NOT DEPLOY READY
 
+**Superseded rollout direction:** the owner has retired the original website.
+Use `../native-only-firestore/README.md` for the named client-denial plan and
+coordinated deletion-worker rules pin. Do not implement this folder's website
+backport/grant provisioning just to retire the site. This candidate and its tests
+remain historical local preparation, not deployed authorization.
+
 Prepared against `9c0d5da`, exclusively for existing database
 `ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb` in
 `cc-livingcommunity-app`. No default/native, Storage, Hosting, worker, notification,

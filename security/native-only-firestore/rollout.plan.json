@@ -1,0 +1,28 @@
+{
+  "status": "LOCAL_PREPARATION_REQUIRES_SEPARATE_OWNER_APPROVAL",
+  "project": "cc-livingcommunity-app",
+  "nativeDatabase": "(default)",
+  "retainedNamedDatabase": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+  "rulesConfig": "security/native-only-firestore/firebase.deploy.json",
+  "workerConfig": "firebase.deletion-processing-native-only.json",
+  "workerOnlyFilter": "functions:work-order-retention:fulfillApprovedAccountDeletions",
+  "policyReceiptTransition": {
+    "document": "deletion_policies/account",
+    "field": "scopeRuleHashes",
+    "replaceOnlyNamedDatabaseKey": true,
+    "expectedPreviousHash": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+    "newHashSource": "security/native-only-firestore/deletion-rules-manifest.json#/scopes/1/candidateSHA256",
+    "requireDeployedHashAndDeniedClientVerificationBeforeAcknowledgement": true,
+    "requireUnchangedDefaultAndStorageReleaseHashes": true,
+    "doNotChangeFlagsDeadlinesReviewsOrTokenDrain": true,
+    "warning": "Updating the receipt after matching the scoped worker can resume the existing approved deletion workflow, including queued approved requests; explicit coordinated approval is required."
+  },
+  "immediateContainmentOption": {
+    "namedRulesOnly": true,
+    "preservesAllData": true,
+    "requiresApproval": true,
+    "deletionWorkerWillFailClosedUntilRulesPinAndReceiptMatch": true
+  },
+  "forbiddenRollback": ["permissive legacy rules", "website backport", "default database switch", "granting inferred historical membership"],
+  "notAuthorized": ["deployment", "data deletion or migration", "Hosting shutdown", "token revocation", "new cleanup activation", "OTA", "binary build"]
+}

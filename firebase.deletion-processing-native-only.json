@@ -1,0 +1,9 @@
+{
+  "functions": [{
+    "source": ".release/deletion-processing",
+    "codebase": "work-order-retention",
+    "runtime": "nodejs22",
+    "predeploy": ["node functions/tools/prepare-deletion-processing.cjs --native-only-rules"],
+    "ignore": ["node_modules", ".git", "*.test.cjs", "*.log", ".env*", "pnpm-lock.yaml", "pnpm-workspace.yaml"]
+  }]
+}

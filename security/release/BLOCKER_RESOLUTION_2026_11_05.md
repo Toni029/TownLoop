@@ -1,5 +1,10 @@
 # Confirmed launch blocker resolution — 2026-11-05
 
+**Native-only follow-up:** the owner has retired the website. The named database's
+client-access rollout now follows `../native-only-firestore/README.md`; original
+website source/backport/provisioning are no longer prerequisites for containment.
+The live exposure and other launch gates below remain until approved changes.
+
 **NOT READY for public launch.** Follow-up to `PRELAUNCH_2026_11_05.md`, reusing
 `973424a`, `6c792e1` and `9c0d5da`. This is targeted remediation, not a repeat audit.
 No production records, rules, settings, Hosting, workers, credentials or telemetry

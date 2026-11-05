@@ -1,0 +1,18 @@
+{
+  "project": "cc-livingcommunity-app",
+  "scope": "Native-only named containment rules pin; unchanged database coverage, no activation or policy writes",
+  "scopes": [
+    {
+      "database": "(default)",
+      "file": "../account-deletion/firestore.default.candidate.rules",
+      "baselineSHA256": "1a3ee06055fe330fd7a69f399e84125be892e623de6b02dccf4b6527b6aa1859",
+      "candidateSHA256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+    },
+    {
+      "database": "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "file": "firestore.named.rules",
+      "baselineSHA256": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+      "candidateSHA256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d"
+    }
+  ]
+}

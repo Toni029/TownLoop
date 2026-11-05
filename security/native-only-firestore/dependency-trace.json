@@ -1,0 +1,76 @@
+[
+  {
+    "platform": "android",
+    "sourceFiles": 157,
+    "sharedSourceFiles": [
+      "src/data/allocateWorkOrder.ts",
+      "src/data/legal.ts",
+      "src/data/monthlyActivities.ts",
+      "src/data/workOrderCategories.ts",
+      "src/data/workOrderNumber.ts",
+      "src/data/workOrderResolution.ts",
+      "src/services/marketplaceChatIdentity.ts",
+      "src/services/marketplaceChatProtocol.ts",
+      "src/services/marketplaceChatTypes.ts",
+      "src/services/mediaAuthorization.ts",
+      "src/services/privateChatLifecycle.ts",
+      "src/services/registrationRecovery.ts",
+      "src/services/safety.ts",
+      "src/services/socialIntegrity.ts",
+      "src/services/storageReferences.ts",
+      "src/types.ts",
+      "src/utils/eventSort.ts",
+      "src/utils/newsletterCoverage.ts",
+      "src/utils/permissions.ts"
+    ],
+    "databaseConstructors": [
+      "native/src/lib/firebase.ts"
+    ],
+    "sharedWebFirebaseReachable": false,
+    "unresolved": [],
+    "firebasePackages": [
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/functions",
+      "firebase/storage"
+    ]
+  },
+  {
+    "platform": "ios",
+    "sourceFiles": 157,
+    "sharedSourceFiles": [
+      "src/data/allocateWorkOrder.ts",
+      "src/data/legal.ts",
+      "src/data/monthlyActivities.ts",
+      "src/data/workOrderCategories.ts",
+      "src/data/workOrderNumber.ts",
+      "src/data/workOrderResolution.ts",
+      "src/services/marketplaceChatIdentity.ts",
+      "src/services/marketplaceChatProtocol.ts",
+      "src/services/marketplaceChatTypes.ts",
+      "src/services/mediaAuthorization.ts",
+      "src/services/privateChatLifecycle.ts",
+      "src/services/registrationRecovery.ts",
+      "src/services/safety.ts",
+      "src/services/socialIntegrity.ts",
+      "src/services/storageReferences.ts",
+      "src/types.ts",
+      "src/utils/eventSort.ts",
+      "src/utils/newsletterCoverage.ts",
+      "src/utils/permissions.ts"
+    ],
+    "databaseConstructors": [
+      "native/src/lib/firebase.ts"
+    ],
+    "sharedWebFirebaseReachable": false,
+    "unresolved": [],
+    "firebasePackages": [
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/functions",
+      "firebase/storage"
+    ]
+  }
+]
