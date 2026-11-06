@@ -1,3 +1,4 @@
+const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 const { memberPath, hash, memberAllowed } = require('./inbox-groups.cjs');
 const { approved } = require('./inbox-policy.cjs');
 const {grace}=require('./inbox-retention.cjs');
@@ -10,6 +11,7 @@ async function revokeChangedMemberships(db, uid, before, after, changedAt) {
   const list=await db.collection('inbox_memberships').where('uid','==',uid).where('status','==','active').get();
   if(list.docs.length>500)throw Error('membership_revocation_page_required');
   for(const source of list.docs)await db.runTransaction(async tx=>{
+  await assertReferenceWritesAllowed(tx, db);
     const m=(await tx.get(source.ref)).data();
     if(!m||m.status!=='active'||m.joinedAt>changedAt||!accountRevoked&&(!affected.includes(m.type)||m.residentId===uid))return;
     const root=db.doc(`inbox_conversations/${m.conversationId}`),c=(await tx.get(root)).data();if(!c||c.status==='cleanup_in_progress')return;

@@ -1,3 +1,4 @@
+const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 // Default-database Inbox only. No SDK initialization, exports or automatic activation.
 const DAY_MS=86400000, GRACE_MS=30*DAY_MS;
 function addCalendarMonths(time,months){
@@ -25,6 +26,7 @@ function validGrace(r,now){
 async function assessConversation(db,cid,{now=Date.now()}={}){
  const {writeProjection}=require('./inbox-groups.cjs');
  return db.runTransaction(async tx=>{
+  await assertReferenceWritesAllowed(tx, db);
   const root=db.doc(`inbox_conversations/${cid}`),c=(await tx.get(root)).data();
   if(!c)return{state:'not-found'};
   if(c.status==='cleanup_in_progress')return{state:'processing'};

@@ -28,17 +28,17 @@ function mediaReferences(data){
   if(++visited>10000||depth>20)throw Error('media_inventory_bound');
   if(typeof value==='string'&&value.trim()&&!/^firestore:[A-Za-z0-9_-]+$/.test(value)&&!/^data:/.test(value)&&/url|path|photo|image|media|attachment/i.test(key))found.add(hash(value));
   else if(Array.isArray(value))for(const child of value)walk(child,key,depth+1);
-  else if(value&&typeof value==='object'&&!value.toMillis)for(const [name,child]of Object.entries(value))walk(child,name,depth+1);
+  else if(value&&typeof value==='object'&&typeof value.toMillis!=='function')for(const [name,child]of Object.entries(value))walk(child,name,depth+1);
  }
  walk(data);return [...found];
 }
 /** Bounded REST pagination includes missing parents with live descendants. Never list all IDs in memory. */
-function createDocumentPager({project,emulatorHost,getAccessToken}){
+function createDocumentPager({project,emulatorHost,getAccessToken,databaseId='(default)'}){
  if(emulatorHost&&!/^127\.0\.0\.1:\d+$/.test(emulatorHost))throw Error('Loopback emulator required');
  return async function listPage(collection,pageToken='',pageSize=1){
   if(collection.split('/').some(part=>!part||part==='.'||part==='..'))throw Error('Invalid inventory path');
   const origin=emulatorHost?`http://${emulatorHost}`:'https://firestore.googleapis.com';
-  const url=new URL(`${origin}/v1/projects/${project}/databases/(default)/documents/${collection.split('/').map(encodeURIComponent).join('/')}`);
+  const url=new URL(`${origin}/v1/projects/${project}/databases/${encodeURIComponent(databaseId)}/documents/${collection.split('/').map(encodeURIComponent).join('/')}`);
   url.searchParams.set('showMissing','true');url.searchParams.set('pageSize',String(pageSize));
   url.searchParams.set('mask.fieldPaths','_cleanupNamesOnly');if(pageToken)url.searchParams.set('pageToken',pageToken);
   const headers=emulatorHost?{Authorization:"Bearer owner"}:{Authorization:`Bearer ${await getAccessToken()}`};
@@ -47,12 +47,15 @@ function createDocumentPager({project,emulatorHost,getAccessToken}){
   const result=await response.json();return {paths:(result.documents||[]).map(doc=>doc.name.split('/documents/')[1]),next:result.nextPageToken||''};
  };
 }
-function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verifyIdentity,now=Date.now,beforeDelete=async()=>{},onError=()=>{}}){
+function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verifyIdentity,now=Date.now,beforeDelete=async()=>{},onError=()=>{},media,acquireBarriers=async()=>{},releaseBarriers=async()=>{}}){
  if(db.databaseId!=='(default)')throw Error('Database Cleanup requires the default database.');
  const control=db.doc('database_cleanup_control/active');
  const jobRef=id=>db.doc(`database_cleanup_jobs/${id}`);
  const audit=id=>db.doc(`database_cleanup_audit/${id}`);
- function publicJob(job){return {id:job.id,state:job.state,categories:job.categories,counts:job.counts,...(job.planHash?{planHash:job.planHash}:{}),confirmationPhrase:PHRASE,enabled:enabled(),completeInventory:job.completeInventory,...(job.message?{message:job.message}:{})};}
+ async function publicJob(job){
+  const scope=media?await media.summary(job):undefined;const counts=structuredClone(job.counts);
+  if(scope)for(const category of job.categories){counts[category].storageDeleted=scope[category].files-scope[category].remaining;counts[category].storageHeld=scope[category].held+scope[category].missing;}
+  return {id:job.id,state:job.state,categories:job.categories,counts,...(scope?{storageScope:scope}:{}),...(job.planHash?{planHash:job.planHash}:{}),confirmationPhrase:PHRASE,enabled:enabled(),completeInventory:job.completeInventory,...(job.message?{message:job.message}:{})};}
  async function authorized(uid){
   if(!uid)fail('unauthenticated','Sign in with an approved Admin account.');
   const [profile,revoked,identity]=await Promise.all([db.doc(`users/${uid}`).get(),db.doc(`account_access_revocations/${uid}`).get(),verifyIdentity(uid)]);
@@ -81,6 +84,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    });return publicJob(job);
   }
   validateId(input.jobId);const ref=jobRef(input.jobId);
+  if(input.action==='scope'){const job=(await ref.get()).data();if(!job)fail('not-found','This cleanup job is not available.');return media?media.scope(job,input.cursor):{items:[]};}
   if(input.action==='status'){
    const job=(await ref.get()).data();if(!job)fail('not-found','This cleanup job is not available.');return publicJob(job);
   }
@@ -97,7 +101,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
     if(['queued','running','paused'].includes(job.state))return job;
     if(job.state!=='review')fail('failed-precondition','Wait for the complete inventory preview.');
     job.operatorUid=uid;job.state='queued';job.confirmedAt=now();job.message='Confirmed selected categories only. Preparing bounded deletion.';
-    tx.set(control,{jobId:job.id,operatorUid:uid,collections:job.scan.map(item=>item.collection),phase:'running'});
+    tx.set(control,{jobId:job.id,operatorUid:uid,collections:job.scan.map(item=>item.collection),referenceWritesBlocked:true,phase:'running'});
     tx.set(audit(job.id),{operatorUid:uid,confirmedAt:job.confirmedAt,categories:job.categories,outcome:'queued',counts:job.counts});
    }else if(input.action==='resume'){
     if(!['paused','failed'].includes(job.state))return job;
@@ -158,8 +162,9 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
  }
  async function plan(job){
   if(job.scanIndex>=job.scan.length){
+   if(media&&!job.storageOrphansChecked){await media.inventoryOrphans(job);return checkpoint(job,{storageOrphansChecked:true});}
    if(!job.dependenciesChecked)return propagateNewsletterHolds(job);
-   return checkpoint(job,{state:'review',planHash:hash(JSON.stringify([job.id,job.categories,job.counts,job.digest])),message:'Inventory ready. Protected records and unverified/shared files will remain.'});
+   return checkpoint(job,{state:'review',planHash:hash(JSON.stringify([job.id,job.categories,job.counts,job.digest,media?await media.digest(job):null])),message:'Inventory ready. Protected records and unverified/shared files will remain.'});
   }
   const scope=job.scan[job.scanIndex],page=await listPage(scope.collection,job.pageToken),path=page.paths[0];
   if(!path)return checkpoint(job,{scanIndex:job.scanIndex+1,pageToken:''});
@@ -167,14 +172,15 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const kind=await classification(path,scope.category);
   const advance={scanIndex:page.next?job.scanIndex:job.scanIndex+1,pageToken:page.next||''};
   if(kind.skip)return checkpoint(job,advance);
-  const inventory=await tree(path),reason=kind.reason||(inventory.hold?'retention_or_evidence_hold':inventory.media.length?'storage_exclusivity_unverified':null);
+  const inventory=await tree(path),reason=kind.reason||(inventory.hold?'retention_or_evidence_hold':inventory.media.length&&!media?'storage_exclusivity_unverified':null);
   const [root]=await db.getAll(db.doc(path),{fieldMask:['newsletterId','id']});
   const newsletterId=scope.category==='newsletters'?(scope.collection==='newsletters'?(root.id==='current'?root.data()?.id:root.id):root.data()?.newsletterId):null;
   const item={path,category:scope.category,newsletterId:typeof newsletterId==='string'?newsletterId:null,documents:inventory.documents,storageHeld:inventory.media.length,reason,state:reason?'held':'pending',cursor:0};
+  if(media){const result=await media.planRoot(job,item);if(result.reason&&!item.reason){item.reason=result.reason;item.state='held';}item.storageHeld=result.files.filter(file=>file.status!=='exclusive').length;}
   if(Buffer.byteLength(JSON.stringify(item))>650000)throw Error('nested_inventory_bound');
   const counts=structuredClone(job.counts),count=counts[scope.category];count.records++;count.documents+=inventory.documents.length;count.remaining+=inventory.documents.length;
-  if(reason){count.held++;count.storageHeld+=inventory.media.length;}
-  return checkpoint(job,{...advance,counts,digest:hash(job.digest+JSON.stringify(item))},tx=>{tx.create(itemRef,item);if(reason&&item.newsletterId)tx.set(jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)),{reason});});
+  if(item.reason){count.held++;count.storageHeld+=item.storageHeld;}
+  return checkpoint(job,{...advance,counts,digest:hash(job.digest+JSON.stringify(item))},tx=>{tx.create(itemRef,item);if(item.reason&&item.newsletterId)tx.set(jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)),{reason:item.reason});});
  }
  async function propagateNewsletterHolds(job){
   let query=jobRef(job.id).collection('items').orderBy(FieldPath.documentId()).limit(1);
@@ -182,10 +188,11 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const rows=await query.get();if(rows.empty)return checkpoint(job,{dependenciesChecked:true});
   const row=rows.docs[0],item=row.data();
   const blocked=item.newsletterId&&(await jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)).get()).exists;
-  if(item.state==='pending'&&blocked){const counts=structuredClone(job.counts);counts[item.category].held++;return checkpoint(job,{dependencyCursor:row.id,counts},tx=>tx.update(row.ref,{state:'held',reason:'protected_newsletter_dependency'}));}
+  if(item.state==='pending'&&blocked){if(media)await media.holdRoot(job,item,'protected_newsletter_dependency');const counts=structuredClone(job.counts);counts[item.category].held++;return checkpoint(job,{dependencyCursor:row.id,counts},tx=>tx.update(row.ref,{state:'held',reason:'protected_newsletter_dependency'}));}
   return checkpoint(job,{dependencyCursor:row.id});
  }
  async function protectChanged(job,itemRef,item,reason){
+  if(media)await media.holdRoot(job,item,reason);
   const counts=structuredClone(job.counts);counts[item.category].held++;counts[item.category].storageHeld+=item.storageHeld||0;
   return checkpoint(job,{counts,message:'Some selected records were protected or changed after preview and have been retained.'},tx=>tx.update(itemRef,{state:'held',reason}));
  }
@@ -201,7 +208,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    const [currentRoot]=await db.getAll(db.doc(item.path),{fieldMask:['newsletterId','isAiExtracted']});
    const knownLink=item.newsletterId&&currentRoot.data()?.newsletterId===item.newsletterId&&currentRoot.data()?.isAiExtracted===true;
    const reason=kind.reason==='newsletter_attribution_unverified'&&knownLink&&['community_events','community_highlights'].includes(collection)?null:kind.reason;
-   if(reason||current.hold||current.media.length||JSON.stringify(current.documents)!==JSON.stringify(item.documents))return protectChanged(job,row.ref,item,reason||'record_changed_after_preview');
+   if(reason||current.hold||(!media&&current.media.length)||JSON.stringify(current.documents)!==JSON.stringify(item.documents))return protectChanged(job,row.ref,item,reason||'record_changed_after_preview');
    await db.runTransaction(async tx=>{
     const [snap,lock,profile,revoked,analyses]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(db.doc(`users/${job.operatorUid}`)),tx.get(db.doc(`account_access_revocations/${job.operatorUid}`)),item.category==='newsletters'?tx.get(db.collection('newsletter_analysis_jobs').where('state','in',['queued','running','retrying']).limit(1)):Promise.resolve(null)]);
     if(snap.data()?.lease!==job.lease||lock.data()?.jobId!==job.id||profile.data()?.role!=='admin'||!profile.data()?.approved||revoked.exists)throw Error('cleanup_authorization_changed');
@@ -216,6 +223,15 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    item.state='deleting';
   }
   await beforeDelete(item.path);
+  if(media){const complete=await media.removeRoot(job,item,async()=>{
+   await authorized(job.operatorUid);await safety();
+   await db.runTransaction(async tx=>{
+    const [active,lock,reports,docs]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1)),item.documents.slice(item.cursor).length?tx.getAll(...item.documents.slice(item.cursor).map(record=>db.doc(record.path)),{fieldMask:FIELDS}):Promise.resolve([])]);
+    if(active.data()?.lease!==job.lease||active.data()?.cancelRequested||lock.data()?.jobId!==job.id||lock.data()?.referenceWritesBlocked!==true)throw Error('cleanup_checkpoint_changed');
+    if(!reports.empty)throw Error('cleanup_reported_evidence');
+    for(let i=0;i<docs.length;i++){if(protectedRecord(docs[i].data()||{},now()))throw Error('cleanup_retention_changed');if(version(docs[i])!==item.documents[item.cursor+i].version)throw Error('cleanup_record_changed');}
+   });
+  });if(!complete)return checkpoint(job,{state:'running'});}
   const batch=item.documents.slice(item.cursor,item.cursor+100);
   const expected=new Map(item.documents.map(record=>[record.path,record.version]));
   const readPaths=new Set(batch.map(record=>record.path));
@@ -251,6 +267,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   });
  }
  async function finalize(job){
+  if(media&&!await media.settle(job,async file=>assertIntent(job,file)))return checkpoint(job,{state:'running',message:'Resolving an already-started file operation.'});
   // Final inventory is also checkpointed: no unbounded end-of-job collection scan.
   const counts=structuredClone(job.counts);
   if(job.verifyIndex===undefined){for(const category of job.categories)counts[category].remaining=0;return checkpoint(job,{verifyIndex:0,verifyPageToken:'',counts});}
@@ -259,9 +276,35 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    for(const path of page.paths){const kind=await classification(path,scope.category);if(kind.skip)continue;const current=await tree(path);counts[scope.category].remaining+=current.documents.length;}
    return checkpoint(job,{counts,verifyIndex:page.next?job.verifyIndex:job.verifyIndex+1,verifyPageToken:page.next||''});
   }
-  const held=Object.values(counts).some(count=>count.remaining||count.held||count.storageHeld),state=held?'completed_with_holds':'completed';
+  if(media)await media.verifyRemaining(job);
+  const mediaScope=media?await media.summary(job):null;
+  if(mediaScope)for(const category of job.categories){counts[category].storageDeleted=mediaScope[category].files-mediaScope[category].remaining;counts[category].storageHeld=mediaScope[category].held+mediaScope[category].missing;}
+  if(media&&!await media.noInFlight(job))throw Error('cleanup_in_flight_deletion');
+  await beginRelease(job);
+  await releaseBarriers(job);
+  const held=(mediaScope&&Object.values(mediaScope).some(scope=>scope.remaining))||Object.values(counts).some(count=>count.remaining||count.held||count.storageHeld),state=held?'completed_with_holds':'completed';
   return checkpoint(job,{state,counts,completedAt:now(),message:held?'Cleanup finished with retained records or files. No claim of a complete purge is made. Inspect the server-only manifest for hold categories.':'All confirmed category records were removed; unrelated data was preserved.'},(tx,latest)=>{
    tx.set(control,{jobId:null,collections:[],phase:state});tx.set(audit(job.id),{operatorUid:latest.operatorUid,initiatedBy:latest.initiatedBy,categories:latest.categories,confirmedAt:latest.confirmedAt,completedAt:latest.completedAt,outcome:state,counts:latest.counts});
+  });
+ }
+ async function assertIntent(job,file){
+  await authorized(job.operatorUid);await safety();
+  const [collection,id]=file.root.split('/');
+  if(!CATEGORIES[file.category]?.includes(collection)||!job.categories.includes(file.category))throw Error('cleanup_intent_scope');
+  const rows=await jobRef(job.id).collection('items').where('path','==',file.root).limit(1).get();
+  if(rows.empty)throw Error('cleanup_intent_scope');
+  const item=rows.docs[0].data(),remaining=item.documents.slice(item.cursor);
+  const [reports,docs]=await Promise.all([db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1).get(),remaining.length?db.getAll(...remaining.map(record=>db.doc(record.path)),{fieldMask:FIELDS}):Promise.resolve([])]);
+  if(!reports.empty||docs.some((doc,i)=>protectedRecord(doc.data()||{},now())||version(doc)!==remaining[i].version))throw Error('cleanup_in_flight_deletion');
+ }
+ // Seal the job before releasing either database's barrier. A lease takeover
+ // can finish release, but cannot start another external Storage request.
+ async function beginRelease(job){
+  await db.runTransaction(async tx=>{
+   const [current,lock,intents,roots]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(jobRef(job.id).collection('files').where('status','==','deleting').limit(1)),tx.get(jobRef(job.id).collection('items').where('state','in',['pending','deleting']).limit(1))]);
+   if(current.data()?.lease!==job.lease||lock.data()?.jobId!==job.id)throw Error('cleanup_checkpoint_changed');
+   if(!intents.empty||(!current.data()?.cancelRequested&&!roots.empty))throw Error('cleanup_in_flight_deletion');
+   tx.update(jobRef(job.id),{finalizing:true});
   });
  }
  async function tick(){
@@ -269,26 +312,30 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   try{
    await authorized(job.operatorUid);
    if(job.cancelRequested){
+    if(media&&!await media.settle(job,async file=>{await assertIntent(job,file);}))return checkpoint(job,{state:'queued',message:'Finishing an already-started file operation before cancelling.'});
+    await beginRelease(job);
+    if(media){const scope=await media.summary(job);for(const category of job.categories){job.counts[category].storageDeleted=scope[category].files-scope[category].remaining;job.counts[category].storageHeld=scope[category].held+scope[category].missing;}}
     // Retain partial-root fences and release the broader collection lock without further destruction.
-    await checkpoint(job,{state:'cancelled',message:'Cleanup cancelled. Partial records remain fenced for review; already deleted data cannot be restored.'},(tx,latest)=>{
+    await releaseBarriers(job);
+    await checkpoint(job,{state:'cancelled',counts:job.counts,message:'Cleanup cancelled. Partial records remain fenced for review; already deleted data cannot be restored.'},(tx,latest)=>{
      tx.set(control,{jobId:null,collections:[],phase:'cancelled'});
      if(job.categories.includes('newsletters')&&job.confirmedAt)tx.set(db.doc('database_cleanup_fences/newsletters/records/current'),{jobId:job.id,descendantsOnly:true,createdAt:now()},{merge:true});
      if(job.confirmedAt)tx.set(audit(job.id),{operatorUid:latest.operatorUid,initiatedBy:latest.initiatedBy,categories:latest.categories,outcome:'cancelled',counts:latest.counts,completedAt:now()});
     });return true;
    }
-   if(job.confirmedAt)await safety();
-   if(job.state==='planning')await plan(job);else await remove(job);
+   if(job.confirmedAt){await safety();await acquireBarriers(job);}
+   if(job.finalizing)await finalize(job);else if(job.state==='planning')await plan(job);else await remove(job);
   }catch(error){
    onError(error);
-   if(['cleanup_record_changed','cleanup_reported_evidence','cleanup_retention_changed','cleanup_active_analysis'].includes(error.message)){
+   if(job.currentPath&&((error.cleanupHold&&job.confirmedAt)||['cleanup_record_changed','cleanup_reported_evidence','cleanup_retention_changed','cleanup_active_analysis'].includes(error.message))){
     const active=await jobRef(job.id).collection('items').where('path','==',job.currentPath).limit(1).get();
-    if(!active.empty){await protectChanged(job,active.docs[0].ref,active.docs[0].data(),error.message);return true;}
+    if(!active.empty){await protectChanged(job,active.docs[0].ref,active.docs[0].data(),error.cleanupHold||error.message);return true;}
    }
    const counts=structuredClone(job.counts);if(job.confirmedAt)counts[job.currentCategory||job.categories[0]].failed++;
-   const code=error instanceof CleanupError?error.code:String(error.message||'').startsWith('nested_inventory')?'inventory_bound':'operation_failed';
+   const code=error instanceof CleanupError?error.code:(String(error.message||'').startsWith('nested_inventory')||error.cleanupHold==='inventory_incomplete')?'inventory_bound':'operation_failed';
    // Safe fixed-category errors only: never return resident content or raw transport responses.
    const cancelling=(await jobRef(job.id).get()).data()?.cancelRequested===true;
-   await checkpoint(job,{state:cancelling?'queued':'paused',counts,completeInventory:code==='inventory_bound'?false:job.completeInventory,message:`Cleanup paused (${code}). Some data may remain. Refresh status before resuming.`}).catch(()=>{});
+   await checkpoint(job,{state:cancelling&&error.message==='cleanup_cancel_requested'?'queued':'paused',counts,completeInventory:code==='inventory_bound'?false:job.completeInventory,message:`Cleanup paused (${code}). Some data may remain. Refresh status before resuming.`}).catch(()=>{});
   }
   return true;
  }

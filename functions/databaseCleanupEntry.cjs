@@ -2,14 +2,18 @@
 const {initializeApp,getApps,applicationDefault}=require('firebase-admin/app');
 const {getFirestore}=require('firebase-admin/firestore');
 const {getAuth}=require('firebase-admin/auth');
+const {getStorage}=require('firebase-admin/storage');
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
 const {onSchedule}=require('firebase-functions/v2/scheduler');
 const {createHash}=require('node:crypto');
 const {createCleanupService,createDocumentPager}=require('./databaseCleanup.cjs');
-const {validatePolicy,mediaDeletionDisabled,PINS}=require('./databaseCleanupSafety.cjs');
+const {validatePolicy,mediaDeletionDisabled,referenceWritersVerified,PINS}=require('./databaseCleanupSafety.cjs');
 const PROJECT='cc-livingcommunity-app';
 const app=getApps()[0]||initializeApp({projectId:PROJECT,credential:applicationDefault()});
 const db=getFirestore(app,'(default)'),auth=getAuth(app);
+const databases=['(default)',PINS.namedDatabase].map(id=>getFirestore(app,id));
+const {createCleanupBarriers}=require('./databaseCleanupBarriers.cjs');
+const barriers=createCleanupBarriers({db,databases});
 const token=async()=>{const result=await app.options.credential.getAccessToken();return result.access_token;};
 const enabled=()=>process.env.TOWNLOOP_DATABASE_CLEANUP_ENABLED==='true'&&process.env.GCLOUD_PROJECT===PROJECT;
 async function get(url){const response=await fetch(url,{headers:{Authorization:`Bearer ${await token()}`},signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error('cleanup_safety_unavailable');return response.json();}
@@ -20,13 +24,20 @@ async function rulesHash(release){
  if(files?.length!==1||typeof files[0].content!=='string')throw Error('cleanup_ruleset_unrecognized');
  return createHash('sha256').update(files[0].content).digest('hex');
 }
+async function functionInventory(){
+ const responses=await Promise.all(['v1','v2'].map(version=>get(`https://cloudfunctions.googleapis.com/${version}/projects/${PROJECT}/locations/-/functions?pageSize=1000`)));
+ const functions=new Map();for(const response of responses)for(const fn of response.functions||[])functions.set(fn.name,fn);
+ return {functions:[...functions.values()],nextPageToken:responses.some(response=>response.nextPageToken)?'incomplete':'',unreachable:responses.flatMap(response=>response.unreachable||[])};
+}
 async function verifySafety(){
  if(!enabled())return false;
  const policy=(await db.doc('database_cleanup_policies/current').get()).data();if(!validatePolicy(policy))return false;
- const [rules,storage,inventory]=await Promise.all([rulesHash('cloud.firestore'),rulesHash(`firebase.storage/${PINS.bucket}`),get(`https://cloudfunctions.googleapis.com/v2/projects/${PROJECT}/locations/-/functions?pageSize=1000`)]);
- return rules===PINS.defaultRulesSha256&&storage===PINS.storageRulesSha256&&mediaDeletionDisabled(inventory);
+ const [rules,storage,inventory,named,processing]=await Promise.all([rulesHash('cloud.firestore'),rulesHash(`firebase.storage/${PINS.bucket}`),functionInventory(),rulesHash('cloud.firestore/'+databases[1].databaseId),db.collection('account_deletion_jobs').where('status','==','processing').limit(1).get()]);
+ return rules===PINS.defaultRulesSha256&&storage===PINS.storageRulesSha256&&named===PINS.namedRulesSha256&&mediaDeletionDisabled(inventory)&&referenceWritersVerified(inventory,policy)&&processing.empty;
 }
-const service=createCleanupService({db,enabled,verifySafety,verifyIdentity:uid=>auth.getUser(uid),listPage:createDocumentPager({project:PROJECT,getAccessToken:token})});
+const {createStorageCleanup}=require('./databaseCleanupStorage.cjs');
+const media=createStorageCleanup({db,databases,bucket:getStorage(app).bucket(PINS.bucket),listPage:source=>createDocumentPager({project:PROJECT,databaseId:source.databaseId,getAccessToken:token}),deploymentReady:verifySafety,verifyBarrier:barriers.verify,trustedAfter:async()=>{const policy=(await db.doc('deletion_policies/media').get()).data();return policy?.ownerApproved&&policy.storageRulesSha256===require('./deletionMediaProvenance.json').storageRulesSha256?policy.trustedUploadsAfter?.toMillis?.():NaN;}});
+const service=createCleanupService({db,enabled,verifySafety,verifyIdentity:uid=>auth.getUser(uid),listPage:createDocumentPager({project:PROJECT,getAccessToken:token}),media,acquireBarriers:barriers.acquire,releaseBarriers:barriers.release});
 // Dedicated identity must be provisioned and approved separately; no existing worker identity is reused.
 const options={region:'us-central1',serviceAccount:'townloop-database-cleanup@cc-livingcommunity-app.iam.gserviceaccount.com',maxInstances:1};
 exports.manageDatabaseCleanup=onCall({...options,timeoutSeconds:60},async request=>{

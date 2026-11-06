@@ -13,7 +13,7 @@ test('trusted sync reads current source transactionally and replaces rather than
   let current = sensitive;
   const writes = [];
   const db = { doc: path => path, runTransaction: async action => action({
-    get: async path => { assert.equal(path, 'users/u1'); return { exists: !!current, data: () => current }; },
+    get: async path => { if (path === 'database_cleanup_control/active') return { data: () => undefined }; assert.equal(path, 'users/u1'); return { exists: !!current, data: () => current }; },
     set: (...args) => writes.push(['set', ...args]), delete: (...args) => writes.push(['delete', ...args]),
   }) };
   await syncDirectoryProfile(db, 'u1');

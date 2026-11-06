@@ -4,7 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Local, undeployed cleanup candidate. These records are written only by server code.
-    // Only the confirmed executing job's selected root collections are temporarily frozen.
+    // Confirmed Storage cleanup temporarily blocks every client reference write globally.
     // A per-root fence survives completion so stale clients cannot recreate erased records.
     // Derived newsletter records share an edition fence, preserving atomic publish batches.
     function databaseCleanupEditionWriteAllowed(data) {
@@ -20,14 +20,16 @@ service cloud.firestore {
     function databaseCleanupWriteAllowed() {
       let rootCollection = request.path[3];
       let rootId = request.path[4];
-      return !(rootCollection in ['work_orders', 'discussion_feed', 'posts', 'marketplace_posts',
+      return (!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
+        get(/databases/$(database)/documents/database_cleanup_control/active).data.get('referenceWritesBlocked', false) != true) &&
+        (!(rootCollection in ['work_orders', 'discussion_feed', 'posts', 'marketplace_posts',
           'marketItems', 'newsletters', 'community_events', 'community_highlights', 'newsletter_analysis_jobs']) ||
         ((!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
           !(rootCollection in get(/databases/$(database)/documents/database_cleanup_control/active).data.get('collections', []))) &&
          (rootCollection in ['community_events', 'community_highlights'] ? databaseCleanupDerivedWriteAllowed() :
           (!exists(/databases/$(database)/documents/database_cleanup_fences/$(rootCollection)/records/$(rootId)) ||
           (request.path == /databases/$(database)/documents/newsletters/current &&
-           get(/databases/$(database)/documents/database_cleanup_fences/$(rootCollection)/records/$(rootId)).data.get('descendantsOnly', false) == true))));
+           get(/databases/$(database)/documents/database_cleanup_fences/$(rootCollection)/records/$(rootId)).data.get('descendantsOnly', false) == true)))));
     }
 
     match /database_cleanup_control/{document=**} { allow read: if false; allow write: if databaseCleanupWriteAllowed() && (false); }

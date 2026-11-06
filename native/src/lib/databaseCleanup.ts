@@ -1,16 +1,24 @@
 import {getFunctions,httpsCallable} from 'firebase/functions';
 import {app,auth} from './firebase';
-import {readCleanupJob,type CleanupCategory,type CleanupJob} from '../profile/databaseCleanupModel';
+import {readCleanupJob,readCleanupScopePage,type CleanupCategory,type CleanupJob,type CleanupScopePage} from '../profile/databaseCleanupModel';
 export type CleanupRequest =
   | {action:'preview';categories:CleanupCategory[];requestId:string}
   | {action:'status'|'resume'|'cancel';jobId:string}
   | {action:'confirm';jobId:string;planHash:string;confirmation:string};
+type CleanupScopeRequest = {action:'scope';jobId:string;cursor?:string};
 /** This callable owns inventory, authorization and deletion; the client never deletes records. */
 export async function manageDatabaseCleanup(input:CleanupRequest):Promise<CleanupJob> {
+  return readCleanupJob(await callCleanup(input));
+}
+export async function reviewDatabaseCleanupFiles(job:CleanupJob,cursor?:string):Promise<CleanupScopePage> {
+  const input:CleanupScopeRequest={action:'scope',jobId:job.id,...(cursor?{cursor}:{})};
+  return readCleanupScopePage(await callCleanup(input),job.categories);
+}
+async function callCleanup(input:CleanupRequest|CleanupScopeRequest):Promise<unknown> {
   if(!auth.currentUser) throw Error('Sign in with an approved Admin account to use Database Cleanup.');
   try {
-    const call=httpsCallable<CleanupRequest,unknown>(getFunctions(app,'us-central1'),'manageDatabaseCleanup',{timeout:30000});
-    return readCleanupJob((await call(input)).data);
+    const call=httpsCallable<CleanupRequest|CleanupScopeRequest,unknown>(getFunctions(app,'us-central1'),'manageDatabaseCleanup',{timeout:30000});
+    return (await call(input)).data;
   } catch(error) {
     const code=String((error as {code?:string})?.code || '');
     if(['functions/not-found','functions/unimplemented','functions/unavailable'].includes(code)) {

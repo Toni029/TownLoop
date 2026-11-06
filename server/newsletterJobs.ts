@@ -1,3 +1,4 @@
+import {assertReferenceWritesAllowed} from '../functions/referenceWriteBarrier.cjs';
 import {NEWSLETTER_EXTRACTION_VERSION} from '../src/utils/newsletterCoverage.ts';
 import {createHash, randomUUID} from 'node:crypto';
 import {retainedNativePdf} from './nativeNewsletter.ts';
@@ -5,6 +6,7 @@ import {extractNewsletterContent, type NewsletterAnalysisCheckpoints} from './ne
 import {newsletterAnalysisFailure} from './newsletterAnalysisErrors.ts';
 import {NewsletterInputError} from './newsletterPdfSecurity.ts';
 import {NewsletterPdfError} from './newsletterPdfText.ts';
+const referenceWriteGuard=(tx:any,db:any)=>assertReferenceWritesAllowed(tx,db,message=>Object.assign(new NewsletterInputError(message,503),{analysisCode:'database-cleanup-maintenance'}));
 const COLLECTION='newsletter_analysis_jobs', DAY=86400000, LEASE=400000;
 export const newsletterJobsEnabled=()=>process.env.TOWNLOOP_NEWSLETTER_ANALYSIS_JOBS_ENABLED==='true';
 async function adminApp(){const name='firebase-admin/app';return import(name);}
@@ -31,6 +33,7 @@ export async function startNewsletterJob(uid:string,input:any,db?:any,enqueue?: 
  db ||= await database();
  const request=requestData(input),revision=await (revisionProvider||((id:string)=>pdfRevision(db,id)))(request.newsletterId),id=createHash('sha256').update(JSON.stringify([uid,request,revision,NEWSLETTER_EXTRACTION_VERSION])).digest('hex'),ref=db.collection(COLLECTION).doc(id);
  const result=await db.runTransaction(async(tx:any)=>{
+  await referenceWriteGuard(tx,db);
   const [snap,fence]=await Promise.all([tx.get(ref),tx.get(db.collection('newsletter_draft_cleanup').doc(request.newsletterId))]),old=snap.data(),now=Date.now();
   if(fence.exists)throw new NewsletterInputError('This unpublished PDF was discarded. Select another upload.',409);
   if(old&&old.ownerUid!==uid)throw new NewsletterInputError('Analysis is not available to this account.',403);
@@ -68,6 +71,7 @@ export async function runNewsletterJob(task:{jobId:string;generation:number},dep
  if(!/^[a-f0-9]{64}$/.test(task?.jobId)||!Number.isSafeInteger(task.generation))throw Error('Invalid analysis task.');
  const db=deps.db||await database(),ref=db.collection(COLLECTION).doc(task.jobId),lease=randomUUID();
  const job=await db.runTransaction(async(tx:any)=>{
+  await referenceWriteGuard(tx,db);
   const snap=await tx.get(ref),d=snap.data(),now=Date.now();
   if(!d||d.generation!==task.generation||expired(d)||['succeeded','failed'].includes(d.state))return null;
   if(d.state==='running'&&d.leaseUntil?.toMillis?.()>now)throw Error('Analysis is already running.');
@@ -76,6 +80,7 @@ export async function runNewsletterJob(task:{jobId:string;generation:number},dep
  });
  if(!job)return;
  const guard=async(tx:any)=>{
+  await referenceWriteGuard(tx,db);
   const [snap,fence,profile,revoked]=await Promise.all([tx.get(ref),tx.get(db.collection('newsletter_draft_cleanup').doc(job.newsletterId)),tx.get(db.collection('users').doc(job.ownerUid)),tx.get(db.collection('account_access_revocations').doc(job.ownerUid))]);
   const d=snap.data(),p=profile.data();
   if(!d||d.lease!==lease||d.generation!==task.generation||expired(d))throw new NewsletterInputError('Analysis session changed or expired.',409);

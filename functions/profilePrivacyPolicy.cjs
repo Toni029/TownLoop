@@ -1,3 +1,4 @@
+const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 // Shared by the trusted projection trigger and the offline migration planner.
 const ROLES = new Set(['resident', 'crew', 'vip', 'admin']);
 function directoryProjection(uid, profile) {
@@ -16,6 +17,7 @@ async function syncDirectoryProfile(db, uid) {
   // Re-read current source inside the transaction: Firestore events may arrive out of order.
   // This also prevents an old approval event from restoring a removed/revoked resident.
   return db.runTransaction(async transaction => {
+    await assertReferenceWritesAllowed(transaction, db);
     const source = await transaction.get(db.doc(`users/${uid}`));
     const target = db.doc(`resident_directory/${uid}`);
     const projection = directoryProjection(uid, source.exists ? source.data() : null);

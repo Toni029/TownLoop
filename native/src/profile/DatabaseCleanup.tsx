@@ -1,7 +1,7 @@
 import {ActivityIndicator,Pressable,Text,View} from 'react-native';
 import {AlertTriangle,Check,ChevronRight,ShieldCheck,Trash2} from 'lucide-react-native';
 import {TextInput} from '../keyboard/KeyboardScrollView';
-import {CLEANUP_CATEGORIES,CLEANUP_PHRASE,canConfirmCleanup,cleanupCanCancel,cleanupIsActive,cleanupOutcome} from './databaseCleanupModel';
+import {CLEANUP_CATEGORIES,CLEANUP_PHRASE,canConfirmCleanup,cleanupCanCancel,cleanupIsActive,cleanupOutcome,cleanupStorageReason} from './databaseCleanupModel';
 import type {DatabaseCleanupController} from './useDatabaseCleanup';
 
 export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupController;dark:boolean}) {
@@ -22,7 +22,7 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
     </View>
     <View style={[panel,{borderColor:dark?'#854d0e':'#fcd34d',backgroundColor:dark?'#302718':'#fffbeb'}]}>
       <View style={{flexDirection:'row',gap:8,alignItems:'center'}}><AlertTriangle size={19} color={dark?'#fcd34d':'#92400e'}/><Text style={{...font(14,true),flex:1}}>Review carefully. This cannot be undone.</Text></View>
-      <Text style={{...font(),color:muted}}>Selected categories include real community data. Preview builds an inventory first; nothing is deleted until you review it and type the confirmation phrase.</Text>
+      <Text style={{...font(),color:muted}}>Selected categories include real community data. Preview is read-only. Confirmed cleanup temporarily makes the app read-only to prevent files being shared while they are removed.</Text>
     </View>
     {!!c.error&&<View accessibilityRole="alert" style={[panel,{borderColor:'#fb7185'}]}><Text style={{...font(),color:dark?'#fda4af':'#9f1239'}}>{c.error}</Text>{c.needsStatus&&<Text style={{...font(12),color:muted}}>The last response could not be verified. Refresh status before confirming or resuming; do not assume the request failed.</Text>}</View>}
     {!job&&<View style={panel}>
@@ -47,7 +47,7 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
           {(!job.enabled||(!job.completeInventory&&job.state==='review'))&&<Text style={{...font(12,true),color:dark?'#fcd34d':'#92400e'}}>{!job.enabled?'The cleanup service is not enabled. Confirmation is unavailable until the service is ready.':'The inventory is incomplete. Deletion is unavailable; refresh status or cancel this preview.'}</Text>}
           <Text selectable style={{...font(10),color:muted}}>Job {job.id}</Text>
           {CLEANUP_CATEGORIES.filter(category=>job.categories.includes(category.key)).map(category=>{
-            const count=job.counts[category.key]!;
+            const count=job.counts[category.key]!, storage=job.storageScope?.[category.key];
             return <View key={category.key} style={{gap:6,borderTopWidth:1,borderColor:border,paddingTop:12,marginTop:4}}>
               <Text style={font(14,true)}>{category.label}</Text>
               <Text style={{...font(12),color:muted}}>{`${count.records.toLocaleString()} records · ${count.documents.toLocaleString()} documents in inventory`}</Text>
@@ -59,10 +59,28 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
                 <Text style={font(12)}>{count.storageDeleted.toLocaleString()} files deleted</Text>
                 <Text style={font(12)}>{count.storageHeld.toLocaleString()} media references held</Text>
               </View>
+              {storage?<View style={{gap:4}}>
+                <Text style={font(12,true)}>Storage scope: {storage.files.toLocaleString()} files · {storage.bytes.toLocaleString()} bytes</Text>
+                <Text style={{...font(12),color:muted}}>{storage.exclusive.toLocaleString()} exclusive · {storage.held.toLocaleString()} held · {storage.missing.toLocaleString()} missing · {storage.remaining.toLocaleString()} remaining</Text>
+                {storage.reasons.map(reason=><Text key={reason.code} style={{...font(12),color:muted}}>{cleanupStorageReason(reason.code)}: {reason.count.toLocaleString()}</Text>)}
+              </View>:<Text style={{...font(12),color:muted}}>Exact file scope is unavailable for this job. Refresh status to check for an updated inventory.</Text>}
             </View>;
           })}
         </View>
         {(cleanupIsActive(job)||c.busy)&&<View style={{flexDirection:'row',alignItems:'center',gap:8}}><ActivityIndicator color={dark?'#fbbf24':'#b45309'}/><Text style={{...font(12),color:muted}}>{c.busy?'Contacting cleanup service…':'Status refreshes while this screen is active.'}</Text></View>}
+        {action(c.filesExpanded?'Hide files':'Review files',c.toggleFiles,c.busy)}
+        {c.filesExpanded&&<View style={{gap:8,borderTopWidth:1,borderColor:border,paddingTop:12}}>
+          <Text style={font(13,true)}>Read-only file review</Text>
+          <Text style={{...font(12),color:muted}}>These are the server-inventoried files for the selected categories. Exclusive files still require all server safety checks before deletion.</Text>
+          {!!c.fileError&&<Text accessibilityRole="alert" style={{...font(12),color:dark?'#fda4af':'#9f1239'}}>{c.fileError}</Text>}
+          {c.filePage?.items.map((item,index)=><View key={`${item.category}:${item.path}:${index}`} style={{gap:2,paddingVertical:6}}>
+            <Text selectable style={font(11)}>{item.path}{item.generation?` · generation ${item.generation}`:''}</Text>
+            <Text style={{...font(11),color:muted}}>{CLEANUP_CATEGORIES.find(category=>category.key===item.category)?.label} · {item.status==='exclusive'?'Exclusive':item.status==='held'?'Held':item.status==='missing'?'Missing':'Deleted'} · {item.bytes.toLocaleString()} bytes</Text>
+            {!!item.reason&&<Text style={{...font(11),color:muted}}>{cleanupStorageReason(item.reason)}</Text>}
+          </View>)}
+          {c.filePage?.items.length===0&&<Text style={{...font(12),color:muted}}>No files in this inventory.</Text>}
+          {c.fileError?action('Retry file review',c.retryFiles,c.busy):c.filePage?.nextCursor?action('Load more files',c.moreFiles,c.busy):!c.filePage?action('Load file review',c.retryFiles,c.busy):null}
+        </View>}
         {confirming?<>
           <Text style={font(13,true)}>Permanently delete the selected inventory above?</Text>
           <Text style={{...font(12),color:muted}}>Protected records and held files stay in place. Type the phrase exactly to authorize the selected cleanup.</Text>

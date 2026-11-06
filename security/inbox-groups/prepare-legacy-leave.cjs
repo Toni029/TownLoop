@@ -5,7 +5,7 @@ function prepareLegacyLeave(file, output){
  if(!file)throw Error('Supply the verified CURRENT default Stage A rules.');
  const baseline=fs.readFileSync(file,'utf8'),rules=patchLegacyLeaveRules(baseline);
  const root=path.resolve(__dirname,'../..'),out=output||path.join(root,'.release/inbox-legacy-leave'),folder=path.join(out,'functions');fs.mkdirSync(folder,{recursive:true});
- for(const name of ['inbox-retention.cjs','inbox-groups-entry.cjs','inbox-groups.cjs','inbox-groups-push.cjs','inbox-group-legacy.cjs','inbox-legacy-leave.cjs','inbox-group-roles.cjs','inbox.cjs','inbox-push.cjs','inbox-policy.cjs','notification-events.cjs','package-lock.json'])fs.copyFileSync(path.join(root,'functions',name),path.join(folder,name));
+ for(const name of ['referenceWriteBarrier.cjs','inbox-retention.cjs','inbox-groups-entry.cjs','inbox-groups.cjs','inbox-groups-push.cjs','inbox-group-legacy.cjs','inbox-legacy-leave.cjs','inbox-group-roles.cjs','inbox.cjs','inbox-push.cjs','inbox-policy.cjs','notification-events.cjs','package-lock.json'])fs.copyFileSync(path.join(root,'functions',name),path.join(folder,name));
  const names=['manageInboxConversation','getNotificationState','notifyInboxFriend','notifyInboxOffice','notifyInboxMaintenance'];
  fs.writeFileSync(path.join(folder,'index.cjs'),"require('firebase-admin/app').initializeApp();\nexports.manageInboxConversation=require('./inbox-groups-entry.cjs').manageInboxConversation;\nconst inbox=require('./inbox.cjs');\n"+names.slice(1).map(n=>`exports.${n}=inbox.${n};`).join('\n')+'\n');
  fs.writeFileSync(path.join(folder,'package.json'),JSON.stringify(require(path.join(root,'functions/package.json')),null,2));

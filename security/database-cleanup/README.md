@@ -35,34 +35,60 @@ Related push metadata and ID reservations are intentionally retained rather
 than guessed to be exclusively owned. Existing navigation checks must tolerate
 content that was removed; no notification delivery implementation changes here.
 
-## Honest Storage limitation / activation blocker
+## Storage scope and exclusive ownership
 
-Known candidate Storage namespaces are:
+| Category | Candidate Storage paths | Ownership handling |
+|---|---|---|
+| Work Orders | `work_orders/{filename}` | Enforced native `securityVersion:1`, collection/record/uploader metadata and approved upload cutover required. |
+| Discussion | `feed/{filename}` | Same provenance checks; historical `posts` ownership must match that root exactly. |
+| Marketplace | `marketplace/{filename}` | Same checks; any reference from Marketplace chats or other records protects the file and parent listing. |
+| Newsletters | `newsletters/{editionId}/document.pdf` and referenced page images | Historical Storage metadata does not prove exclusive ownership: hold explicitly. Current native PDF chunks are Firestore documents and can be purged with the edition. |
 
-- Work Orders: `work_orders/{filename}`.
-- Discussion: `feed/{filename}`.
-- Marketplace: `marketplace/{filename}`.
-- Historical newsletter files: `newsletters/{editionId}/document.pdf` and any
-  explicitly referenced page images. Current native PDFs are Firestore chunks.
+A read-only preview inventories current, versioned and soft-deleted objects,
+exact bytes, generations, category, ownership status and hold reasons. Native
+Admins can expand paginated token-free object paths before final confirmation.
+The manifest digest is part of the confirmed plan. No PDF contents are modified.
+Missing metadata/files, orphans, unknown external references and unproven
+historical files remain held. One blocked file protects its whole Firestore root.
+An otherwise unprotected category with only proven exclusive current native
+files can be fully removed; a historical newsletter Storage file cannot be
+promised a complete purge without separate trustworthy ownership evidence.
 
-**This implementation deliberately does not delete Storage objects.** A stored
-URL or root ownership field is not proof of exclusive use. Marketplace private
-conversations can retain listing image references, and existing file-reference
-writers lack a common atomic deletion fence. A reference scan alone has a race
-with a new reference being written. Therefore any root with external media
-references is held with its subtree, and the UI reports held media references
-(not a fabricated count of physically verified files). Referenced/protected
-newsletter editions also retain their linked roots. No shared file is purged.
+The reference scanner checks all root collections and descendants in both
+Firestore databases, including private messages, profiles, reports and free-text
+URLs. It excludes only the owning default-database subtree and server-only
+cleanup manifests. PDF chunks are projected without loading their binary data.
+Scans fail closed at 2,500 documents/20 seconds, 1,000 files per category or
+1,000 manifest files total. These safety limits can block large inventories;
+they never silently authorize unscanned files. Ambiguous nested references,
+excessively ambiguous punctuation and deep/oversized maps also fail closed.
+No named resident documents are changed or deleted.
 
-The existing `cleanupDeleted_*` triggers could otherwise delete linked objects
-indirectly after this manager deletes a root with no current media URL. The
-activation guard checks the full Functions inventory and requires every generic
-media reaper/trigger to be explicitly disabled. It refuses incomplete inventory,
-enabled or unknown reaper state. **No existing reaper configuration is changed
-here.** A reviewed exclusive-reference protocol and compatible suppression of
-generic reapers are prerequisites for a complete media purge. This manager is
-real selective Firestore deletion with explicit holds, **not a complete Storage
-purge implementation or an activation-ready unrestricted reset**.
+Confirmation temporarily blocks **all client writes**, including uploads,
+through prepared default Firestore and Storage rules. Reads and existing role
+checks remain intact. Guarded server writers transact against the matching
+control in their own database. The cleanup service places/removes a server-only
+control in the legacy database too; its deny-all rules remain unchanged.
+This temporary app-wide read-only period is necessary to prevent sharing a file
+between exclusivity verification and object deletion. It is disclosed in the UI.
+Generic media reapers and account-deletion execution workers must be explicitly
+disabled and quiescent before activation. No live flags are changed here.
+
+Each file delete has a durable transactionally claimed intent bound to the job
+lease and exact generation/metageneration. GCS deletion uses both preconditions.
+Lost responses are reconciled without deleting a replacement or counting twice.
+Cancellation drains outstanding intents before unlocking writes. A sealed
+finalization phase prevents lease takeovers from creating new intents during
+barrier release. Unresolvable requests keep the job paused and writes blocked
+for explicit Admin/operator recovery; never manually clear controls to bypass
+an unresolved intent. Holds/version changes in remaining descendants are
+rechecked before retrying a claimed operation. Already deleted data cannot be
+restored by cancellation. A final inventory reports residual files and records.
+
+Bucket versioning, soft deletion, retention, object holds and retained historic
+generations prevent a complete physical-purge claim. This code does not disable
+retention policies or erase retained versions. Shared/evidence attachments and
+private Inbox/profile files are never selected for object deletion.
 
 ## Confirmation, jobs and safeguards
 
@@ -78,8 +104,7 @@ purge implementation or an activation-ready unrestricted reset**.
   server plan hash. Repeated confirmation/request IDs are idempotent. One global
   job lock prevents overlapping cleanup scopes; other approved Admins can recover
   an abandoned active job by previewing the same category selection.
-- Confirmation temporarily freezes client writes only to the selected root
-  collections. Permanent per-root fences precede child-first batches of at most
+- Confirmation temporarily freezes all client/reference writes as described above. Permanent per-root fences precede child-first batches of at most
   100 deletions. Versions, canonical authorization, new report evidence, retention
   flags and active newsletter analysis are checked again in transactions.
 - `newsletters/current` is a reusable pointer: its permanent fence becomes
@@ -110,47 +135,66 @@ purge implementation or an activation-ready unrestricted reset**.
   attachment URLs or tokens. Do not mistake these receipts/fences for leftover
   resident content; they are deliberately outside the purge.
 
-## Prepared deployment — requires separate approval and remaining safeguards
+## Controlled deployment prerequisites — NOT activated
 
-1. Resolve the Storage/reference and generic-reaper blocker above. Do not disable
-   unrelated live functionality or claim full Storage cleanup is implemented.
-2. Coordinate the existing account-deletion worker default-rules pin and matching
-   policy/receipt rollout. This candidate changes default rules SHA to
-   `f8b5557e491b852a2ee2f755ac8020b3cbcb76817a4f8598c7f28c58c361d5d0`;
-   deploying it alone could pause the existing account-deletion worker. **No
-   worker pins or account-deletion receipts have been edited.** See `RULES.md`.
-3. Provision a dedicated `townloop-database-cleanup` service identity with only
-   required default Firestore read/write, Firebase Auth read/revocation checks,
-   deployed-rules read and Functions-inventory read permissions. It requires
-   no Auth deletion, Storage object deletion or named-database access. Review IAM
-   scope explicitly; this document does not grant permissions.
-4. Run `node security/database-cleanup/prepare.cjs`. It writes only ignored
-   `.release/database-cleanup/`, with two exported functions:
-   `manageDatabaseCleanup` and `runDatabaseCleanup` (one-minute scheduler).
-   Destructive environment flag defaults to **false**. Main `functions/index.cjs`,
-   root Firebase configuration and unrelated function codebases remain unchanged.
-5. After separate approval, deploy only these functions and the coordinated
-   **default-database** rules candidate. There are no new composite indexes:
-   inventory uses paginated names and existing single-field queries. Do not select
-   Hosting, Storage, the named DB, Gemini, notifications or unrelated functions.
-6. An independently approved server-only `database_cleanup_policies/current`
-   receipt must match exact project/database/rules/Storage pins and explicitly
-   acknowledge the conservative media mode. The generated example is UNAPPROVED.
-   Execution additionally requires the environment flag, current rules hashes and
-   disabled generic media reapers. Preview/status/cancel do not authorize deletion.
-7. Release the native UI through an approved compatible OTA; no new native
-   dependency or binary is introduced. Confirm on physical Android and iPhone;
-   automated checks are not physical-device verification.
+The implementation is prepared locally, but is **not ready for an uncoordinated
+functions-only deployment**. Separate approval and production preflight are needed:
 
-No backups are activated or required by this package. A confirmed purge is
-permanent, so an approved recovery arrangement is prudent before any future run.
+1. Inventory/review every deployed server writer and alias, scheduler and external
+   service using Admin credentials. The receipt pins the full function inventory
+   plus exact guarded writer revisions; unexpected drift blocks execution.
+   Required guarded deployments: `manageInboxConversation`,
+   `revokeInboxGroupMemberships`, `syncResidentDirectory`, `submitSafetyReport`,
+   `reviewSafetyReport`, `newsletterApi`, `runNewsletterAnalysis`, plus
+   `monitorInboxRetention` if deployed. Named-database variants need the guard too.
+   No Gemini extraction algorithm or notification-delivery logic is changed.
+2. Separately approve a maintenance window and suppression of existing generic
+   media reapers and account-deletion execution workers. Verify no in-flight
+   invocation or processing job remains. Keep account-deletion policy receipts
+   unchanged until their own coordinated rollout is approved. Do not rely solely
+   on an empty job query to prevent a new worker starting later.
+3. Coordinate default/Storage rules with existing deletion-worker hash safeguards.
+   Prepared default SHA:
+   `3f4a221d543783499b0b0cd53369f2177f6137fb5d3f8446137309f6ac941360`.
+   Prepared Storage SHA:
+   `06d24519f84deb79f2cd6d24248f1ac45242e841cdd69d2ac56a5b3ee4fcbdae`.
+   Named deny-all stays
+   `8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d`.
+   No account-deletion pins/receipts or live rules were edited. `RULES.md` records
+   candidate provenance and emulator commands.
+4. Provision the dedicated `townloop-database-cleanup` identity with reviewed
+   least privileges: default Firestore cleanup writes, both databases read,
+   named cleanup-control writes only where IAM permits, Auth identity read,
+   rules/Functions inventory read, bucket metadata/list/get/delete. No Auth
+   deletion permission. Evaluate any coarse Firestore IAM grant explicitly;
+   application allowlists constrain mutations but are not IAM resource scoping.
+5. Prepare with `node security/database-cleanup/prepare.cjs`. Output is ignored
+   `.release/database-cleanup`, isolated exports `manageDatabaseCleanup` and
+   `runDatabaseCleanup` (one-minute scheduler), environment **false**, unapproved
+   version-2 receipt. No new composite indexes are required.
+6. After approval, deploy guarded writers first, coordinated default/Storage
+   candidates next, disabled isolated cleanup functions next. Verify backend
+   health, native auth/reader/uploads and denials with the barrier absent. Do not
+   deploy named rules, Hosting or unrelated codebases.
+7. Review bucket policies, approved media provenance cutover receipt and complete
+   function inventory. A separately approved `database_cleanup_policies/current`
+   must match pins, revision map, inventory hash, mode
+   `exclusive-generation-fenced-v2`, and disabled-reaper acknowledgment. Only
+   then may the cleanup environment flag be enabled. No purge is implied by
+   deployment: an approved Admin must preview, select and type-confirm a job.
+8. Release the native manager additions via separately approved compatible OTA;
+   no new native dependency or APK is needed. Test on physical Android/iPhone.
+   Emulator success is not physical-device or production verification.
+
+No backup, IAM permission, live policy, worker configuration, production data,
+rule, function or deployment has been activated or changed by this task.
 
 ## Local verification
 
 Use only disposable `demo-*` projects and a loopback Firestore emulator:
 
 ```sh
-FIRESTORE_EMULATOR_HOST=127.0.0.1:8189 node --test security/database-cleanup/engine.emulator.test.cjs security/database-cleanup/safety.test.cjs
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8189 node --test security/database-cleanup/engine.emulator.test.cjs security/database-cleanup/storage.emulator.test.cjs security/database-cleanup/safety.test.cjs
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8189 node --test security/database-cleanup/rules.emulator.test.mjs
 node --import tsx --test native/tests/database-cleanup.test.ts native/tests/admin-menu.test.ts native/tests/admin-animation.test.ts
 node security/database-cleanup/prepare.cjs
@@ -164,3 +208,13 @@ the deletion boundary, existing retention, active Gemini, protected newsletter
 dependencies, manual/Home exclusions, changed/new records, and deployment gates.
 Rules tests compare against the pinned prior default rules and verify selected
 locks, permanent fences, metadata denial and unchanged read/role boundaries.
+
+Storage tests use actual synthetic Firestore emulator records with an in-memory
+conditional-generation object adapter, including named-database references,
+shared Inbox/profile/evidence files, missing metadata, generation changes,
+object/bucket retention, stale leases, lost responses, cancellation and sealed
+release. They do not exercise real GCS deletes. The separate paired Storage
+runtime emulator test verifies actual candidate-rule compilation and upload,
+metadata/update/delete denial, including a pre-barrier resumable session.
+Server writer barrier and newsletter-job emulator tests verify transaction
+conflicts and safe resumable job behavior. No real resident data is used.

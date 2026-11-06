@@ -1,3 +1,4 @@
+const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 // Leaving is a per-UID revocation, not a grant of historical membership to anyone.
 const {member}=require('./inbox-policy.cjs');
 const {hash}=require('./inbox-groups.cjs');
@@ -6,6 +7,7 @@ const sources=new Set(['resident_chats','office_chats','maintenance_chats']);
 async function leaveLegacy(db,uid,data,now){
  if(!sources.has(data.source)||typeof data.legacyId!=='string'||!data.legacyId||data.legacyId.includes('/')||Buffer.byteLength(data.legacyId)>1500||['.','..'].includes(data.legacyId))throw Error('invalid-argument');
  return db.runTransaction(async tx=>{
+  await assertReferenceWritesAllowed(tx, db);
   const ref=db.doc(`${data.source}/${data.legacyId}`),snapshot=await tx.get(ref),old=snapshot.data();
   const actor={...(await tx.get(db.doc(`users/${uid}`))).data(),id:uid};
   if(!old||!member(data.source,old,actor,{allowLeft:true}))throw Error('permission-denied');

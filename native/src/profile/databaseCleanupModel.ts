@@ -7,8 +7,12 @@ export const CLEANUP_CATEGORIES = [
 export type CleanupCategory = typeof CLEANUP_CATEGORIES[number]['key'];
 export type CleanupState = 'planning'|'review'|'queued'|'running'|'paused'|'completed'|'completed_with_holds'|'failed'|'cancelled';
 export type CleanupCount = {records:number;documents:number;deleted:number;held:number;failed:number;remaining:number;storageDeleted:number;storageHeld:number};
+export type CleanupStorageScope = {files:number;bytes:number;exclusive:number;held:number;missing:number;remaining:number;reasons:{code:string;count:number}[]};
+export type CleanupScopeItem = {path:string;category:CleanupCategory;status:'exclusive'|'held'|'missing'|'deleted';bytes:number;reason?:string;generation?:string};
+export type CleanupScopePage = {items:CleanupScopeItem[];nextCursor?:string};
 export type CleanupJob = {
   id:string;state:CleanupState;categories:CleanupCategory[];counts:Partial<Record<CleanupCategory,CleanupCount>>;
+  storageScope?:Partial<Record<CleanupCategory,CleanupStorageScope>>;
   planHash?:string;confirmationPhrase:'DELETE SELECTED DATA';enabled:boolean;completeInventory:boolean;message?:string;
 };
 export const CLEANUP_PHRASE = 'DELETE SELECTED DATA';
@@ -58,5 +62,38 @@ export function readCleanupJob(value:unknown):CleanupJob {
     const count=job.counts[key];
     if(!count || !['records','documents','deleted','held','failed','remaining','storageDeleted','storageHeld'].every(field=>Number.isSafeInteger(count[field as keyof CleanupCount]) && count[field as keyof CleanupCount]>=0)) return invalid();
   }
+  if(job.storageScope!==undefined) {
+    if(!job.storageScope || typeof job.storageScope!=='object' || Array.isArray(job.storageScope))return invalid();
+    for(const [key,scope] of Object.entries(job.storageScope)) {
+      if(!job.categories.includes(key as CleanupCategory) || !scope || typeof scope!=='object'
+        || !['files','bytes','exclusive','held','missing','remaining'].every(field=>Number.isSafeInteger(scope[field as keyof Omit<CleanupStorageScope,'reasons'>]) && (scope[field as keyof Omit<CleanupStorageScope,'reasons'>] as number)>=0)
+        || !Array.isArray(scope.reasons) || !scope.reasons.every(reason=>reason && typeof reason.code==='string' && /^[a-z_]+$/.test(reason.code) && Number.isSafeInteger(reason.count) && reason.count>=0))return invalid();
+    }
+  }
   return job;
+}
+export function cleanupStorageReason(code:string):string {
+  const reasons:Record<string,string>={
+    shared_reference:'Shared with another record',metadata_missing:'Object metadata is missing',ownership_unverified:'Ownership could not be verified',
+    protected_record:'Referenced by protected data',reference_writers_unfenced:'Reference writers are not yet fenced; file deletion is blocked',
+    object_changed:'Object changed after inventory',inventory_incomplete:'Inventory is incomplete',active_analysis:'Analysis is still active',
+    newsletter_storage_unverified:'Newsletter file ownership is unverified',file_missing:'File is missing',
+  };
+  return Object.hasOwn(reasons,code)?reasons[code]:'File retained for an unrecognized safety reason';
+}
+/** Scope pages are read-only and must never be interpreted as cleanup jobs or authorization. */
+export function readCleanupScopePage(value:unknown,categories:CleanupCategory[]):CleanupScopePage {
+  const page=value as CleanupScopePage;
+  const invalid=()=>{throw Error('Unable to verify the file review. Refresh the job status before continuing.');};
+  if(!page || typeof page!=='object' || !Array.isArray(page.items) || page.items.length>100
+    || (page.nextCursor!==undefined && (typeof page.nextCursor!=='string' || !page.nextCursor || page.nextCursor.length>2048)))return invalid();
+  for(const item of page.items) {
+    if(!item || !categories.includes(item.category) || !['exclusive','held','missing','deleted'].includes(item.status)
+      || typeof item.path!=='string' || !item.path || item.path.length>1024 || /[?#\\\x00-\x1f\x7f]/.test(item.path)
+      || item.path.includes('://') || item.path.startsWith('/') || item.path.split('/').some(part=>!part || part==='.' || part==='..')
+      || /%(?:25|3f|23|00|0a|0d)/i.test(item.path)
+      || !Number.isSafeInteger(item.bytes) || item.bytes<0
+      || (item.generation!==undefined&&(typeof item.generation!=='string'||!/^\d+$/.test(item.generation))) || (item.reason!==undefined && (typeof item.reason!=='string' || !/^[a-z_]+$/.test(item.reason))))return invalid();
+  }
+  return page;
 }

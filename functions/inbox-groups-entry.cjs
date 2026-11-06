@@ -14,7 +14,7 @@ exports.manageInboxConversation = onCall(options, async request => {
     return await operate(getFirestore(), request.auth.uid, request.data || {}, { enabled: process.env.INBOX_GROUPS_ENABLED === 'true' });
   } catch (e) {
     const code = ['unauthenticated', 'permission-denied', 'invalid-argument', 'not-found', 'failed-precondition', 'already-exists', 'resource-exhausted'].includes(e.message) ? e.message : 'internal';
-    throw new HttpsError(code, e.safeReason === 'legacy-review' ? 'This older conversation needs community office review before its participants can be updated. Its messages have not been removed.' : code === 'failed-precondition' ? 'This conversation is read-only or the group service is not active.' : 'Unable to complete the Inbox action.');
+    throw new HttpsError(code, e.safeReason === 'database-cleanup-maintenance' ? e.safeMessage : e.safeReason === 'legacy-review' ? 'This older conversation needs community office review before its participants can be updated. Its messages have not been removed.' : code === 'failed-precondition' ? 'This conversation is read-only or the group service is not active.' : 'Unable to complete the Inbox action.');
   }
 });
 exports.notifyInboxGroupMessage = onDocumentCreated({ ...options, database: '(default)', document: 'inbox_conversations/{conversationId}/messages/{messageId}', retry: true }, async event => {

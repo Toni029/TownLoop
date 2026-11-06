@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import {
-  canUseDatabaseCleanup, canConfirmCleanup, readCleanupJob, cleanupOutcome, toggleCleanupCategory,
+  canUseDatabaseCleanup, canConfirmCleanup, readCleanupJob, readCleanupScopePage, cleanupStorageReason, cleanupOutcome, toggleCleanupCategory,
 } from '../src/profile/databaseCleanupModel.ts';
 
 const counts = {records:2,documents:5,deleted:0,held:0,failed:0,remaining:5,storageDeleted:0,storageHeld:0};
@@ -58,7 +58,7 @@ function loadClient(response: unknown, failure?: unknown) {
   vm.runInNewContext(source,{module,exports:module.exports,Error,require:(name:string) => {
     if(name==='firebase/functions') return {getFunctions:(_app:any,region:string)=>{assert.equal(region,'us-central1');return {};},httpsCallable:(_functions:any,name:string)=>async(input:any)=>{calls.push({name,input});if(failure)throw failure;return {data:response};}};
     if(name==='./firebase')return {app:{},auth:{currentUser:{uid:'admin'}}};
-    if(name==='../profile/databaseCleanupModel')return {readCleanupJob};
+    if(name==='../profile/databaseCleanupModel')return {readCleanupJob,readCleanupScopePage};
     throw Error(`Unexpected module ${name}`);
   }});
   return {api:module.exports,calls};
@@ -88,6 +88,7 @@ function nativeScreen(controllerPatch:Record<string,unknown>={}, dark=false) {
   const calls:string[]=[];
   const controller={allowed:true,selected:[],job:null,busy:false,error:'',phrase:'',step:'inventory',needsStatus:false,
     toggle:(key:string)=>calls.push(key),preview:()=>calls.push('preview'),setPhrase:()=>{},showConfirmation:()=>calls.push('review'),backToInventory:()=>{},
+    filesExpanded:false,filePage:null,fileError:'',toggleFiles:()=>calls.push('files'),moreFiles:()=>calls.push('more-files'),retryFiles:()=>calls.push('retry-files'),
     confirm:()=>calls.push('confirm'),refresh:()=>{},resume:()=>{},cancel:()=>{},newSelection:()=>{},...controllerPatch};
   const jsx=(type:any,props:any)=>({type,props});
   const {DatabaseCleanup}=loadNative('../src/profile/DatabaseCleanup.tsx',{
@@ -144,7 +145,7 @@ function controllerFixture(handler:(input:any)=>Promise<any>) {
     },
     'react-native':{AppState:{currentState:'active',addEventListener:(_name:string,listener:any)=>{appListener=listener;return {remove:()=>{appListener=()=>{};}};}}},
     'expo-crypto':{randomUUID:()=>`request-${++uuid}`},
-    '../lib/databaseCleanup':{manageDatabaseCleanup:async(input:any)=>{calls.push(input);return handler(input);}},
+    '../lib/databaseCleanup':{manageDatabaseCleanup:async(input:any)=>{calls.push(input);return handler(input);},reviewDatabaseCleanupFiles:async(job:any,cursor?:string)=>{const input={action:'scope',jobId:job.id,...(cursor?{cursor}:{})};calls.push(input);return handler(input);}},
     './databaseCleanupModel':model,
   },{setTimeout:(callback:()=>unknown,delay:number)=>{assert.equal(delay,4000);const id=++timerId;timers.set(id,callback);return id;},clearTimeout:(id:number)=>timers.delete(id)});
   const render=()=>{cursor=0;const result=useDatabaseCleanup(profile,active);effects.splice(0).forEach(effect=>effect());return result;};
@@ -269,4 +270,80 @@ test('client accepts an actual callable-encoded planning response with absent op
   assert.equal(result.state,'planning');
   assert.equal(result.planHash,undefined);
   assert.equal(canConfirmCleanup(result,'DELETE SELECTED DATA',false),false);
+});
+
+const storageScope={files:3,bytes:2400,exclusive:1,held:1,missing:1,remaining:2,reasons:[{code:'reference_writers_unfenced',count:1}]};
+const scopeItem={path:'workOrders/order-1/photo.jpg',category:'workOrders',status:'held',bytes:1200,reason:'reference_writers_unfenced'};
+
+test('optional exact Storage scope remains backward compatible and rejects malformed counts',()=>{
+  assert.equal(readCleanupJob(job()).storageScope,undefined);
+  assert.deepEqual(readCleanupJob(job({storageScope:{workOrders:storageScope}})).storageScope?.workOrders,storageScope);
+  for(const scope of [null,[],{workOrders:{...storageScope,bytes:-1}},{workOrders:{...storageScope,reasons:[{code:'x',count:NaN}]}},{newsletters:storageScope}]) {
+    assert.throws(()=>readCleanupJob(job({storageScope:scope})),/verify/);
+  }
+});
+
+test('scope pages accept only raw token-free paths and selected categories with valid metadata',()=>{
+  assert.equal(readCleanupScopePage({items:[scopeItem],nextCursor:'page-2'},['workOrders']).items.length,1);
+  for(const item of [{...scopeItem,category:'newsletters'},{...scopeItem,bytes:-1},{...scopeItem,status:'ready'},
+    ...['https://example.invalid/a?token=secret','workOrders/a?token=secret','workOrders/a#secret','/workOrders/a','workOrders/../a','workOrders/a%3Ftoken=secret'].map(path=>({...scopeItem,path}))]) {
+    assert.throws(()=>readCleanupScopePage({items:[item]},['workOrders']),/verify/);
+  }
+  assert.throws(()=>readCleanupScopePage(job(),['workOrders']),/verify/);
+  assert.throws(()=>readCleanupJob({items:[scopeItem]}),/verify/);
+  assert.match(cleanupStorageReason('reference_writers_unfenced'),/deletion is blocked/);
+});
+
+test('client scope helper uses the same callable with separate validation',async()=>{
+  const {api,calls}=loadClient({items:[scopeItem],nextCursor:'page-2'});
+  assert.equal((await api.reviewDatabaseCleanupFiles(readCleanupJob(job()),'page-1')).items.length,1);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)),[{name:'manageDatabaseCleanup',input:{action:'scope',jobId:'job-1',cursor:'page-1'}}]);
+  await assert.rejects(loadClient(job()).api.reviewDatabaseCleanupFiles(readCleanupJob(job())),/verify/);
+});
+
+test('native inventory shows exact scope and plain block reason with read-only paginated files',()=>{
+  const screen=nativeScreen({job:readCleanupJob(job({storageScope:{workOrders:storageScope}})),filesExpanded:true,filePage:{items:[scopeItem],nextCursor:'page-2'}});
+  assert.match(screen.text,/Storage scope/);assert.match(screen.text,/2,400/);
+  assert.match(screen.text,/Reference writers are not yet fenced; file deletion is blocked/);
+  assert.match(screen.text,/workOrders\/order-1\/photo.jpg/);
+  assert.ok(screen.all.some(node=>node.props.accessibilityLabel==='Load more files'));
+  assert.equal(screen.all.some(node=>node.props.accessibilityLabel==='Delete selected data'),false);
+});
+
+test('file review loads only on demand, appends pages, and retries without destructive requests',async()=>{
+  let fail=true;
+  const f=controllerFixture(async input=>{
+    if(input.action!=='scope')return readCleanupJob(job());
+    if(input.cursor&&fail)throw Error('offline');
+    return input.cursor?{items:[{...scopeItem,path:'workOrders/order-1/second.jpg'}]}:{items:[scopeItem],nextCursor:'page-2'};
+  });
+  f.render().toggle('workOrders');await f.render().preview();
+  assert.deepEqual(f.calls.map(input=>input.action),['preview']);
+  await f.render().toggleFiles();assert.equal(f.render().filePage.items.length,1);
+  await f.render().moreFiles();assert.equal(f.render().fileError,'offline');assert.equal(f.render().needsStatus,false);
+  fail=false;await f.render().retryFiles();assert.equal(f.render().filePage.items.length,2);
+  assert.equal(f.render().filePage.nextCursor,undefined);
+  assert.deepEqual(f.calls.map(input=>input.action),['preview','scope','scope','scope']);
+  f.setProfile({id:'other',role:'admin',approved:true});f.render();
+  assert.equal(f.render().filePage,null);assert.equal(f.render().filesExpanded,false);
+});
+
+
+test('file review ignores responses after access revocation and prevents overlapping destructive actions',async()=>{
+  let release:((page:any)=>void)|undefined;
+  const f=controllerFixture(async input=>input.action==='scope'?new Promise(resolve=>{release=resolve;}):readCleanupJob(job()));
+  f.render().toggle('workOrders');await f.render().preview();
+  const pending=f.render().toggleFiles();
+  await f.render().cancel();assert.deepEqual(f.calls.map(input=>input.action),['preview','scope']);
+  f.setProfile({id:'admin',role:'resident',approved:true});f.render();
+  release!({items:[scopeItem]});await pending;
+  assert.equal(f.render().filePage,null);assert.equal(f.render().filesExpanded,false);
+  assert.equal(f.render().job,null);
+});
+
+test('a changed plan discards any file review from the earlier inventory',async()=>{
+  const f=controllerFixture(async input=>input.action==='scope'?{items:[scopeItem]}:readCleanupJob(job(input.action==='status'?{planHash:'new-plan'}:{})));
+  f.render().toggle('workOrders');await f.render().preview();await f.render().toggleFiles();
+  assert.equal(f.render().filePage.items.length,1);
+  await f.render().refresh();assert.equal(f.render().filePage,null);
 });

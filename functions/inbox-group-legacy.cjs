@@ -1,3 +1,4 @@
+const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 // Explicit, non-destructive cutover. The legacy document remains byte-for-byte except
 // for a server-owned routing marker; no source message/media is removed.
 const { approved, member } = require('./inbox-policy.cjs');
@@ -25,6 +26,7 @@ async function legacyList(db, uid, {includeLeft=false}={}) {
 async function upgradeLegacy(db, uid, data, now, {leave=false}={}) {
   if (!sources[data.source] || !exact(data.legacyId)) fail('invalid-argument');
   return db.runTransaction(async tx => {
+  await assertReferenceWritesAllowed(tx, db);
     const sourceRef = db.doc(`${data.source}/${data.legacyId}`), snapshot = await tx.get(sourceRef), old = snapshot.data();
     const actor = { ...(await tx.get(db.doc(`users/${uid}`))).data(), id: uid };
     if (!old || !member(data.source, old, actor, {allowLeft:leave})) fail('permission-denied');

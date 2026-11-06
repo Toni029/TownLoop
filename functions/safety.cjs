@@ -1,3 +1,4 @@
+const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -20,6 +21,7 @@ exports.submitSafetyReport = onCall(options, async request => {
   const target = validated(() => reportInput(request.data));
   const key = reportKey(uid, target), reference = db.doc(`moderation_reports/${key}`);
   return db.runTransaction(async tx => {
+    await assertReferenceWritesAllowed(tx, db, message => new HttpsError('failed-precondition', message));
     const [existing, content, quota, author] = await Promise.all([tx.get(reference), tx.get(db.doc(`${target.collection}/${target.id}`)), tx.get(db.doc(`safety_limits/${uid}`)), tx.get(db.doc(`users/${uid}`))]);
     if (!approved(author.data())) throw new HttpsError('permission-denied', 'Account approval changed.');
     if (existing.exists) return { reportId: key, status: existing.data().status }; // retries never duplicate or send automatically
@@ -55,6 +57,7 @@ exports.reviewSafetyReport = onCall(options, async request => {
   if (!id(reportId) || !['dismiss', 'resolve', 'remove_content'].includes(action) || typeof note !== 'string' || note.length > 1000)
     throw new HttpsError('invalid-argument', 'Choose a valid moderation action.');
   await db.runTransaction(async tx => {
+    await assertReferenceWritesAllowed(tx, db, message => new HttpsError('failed-precondition', message));
     const ref = db.doc(`moderation_reports/${reportId}`);
     const [snapshot, reviewer] = await Promise.all([tx.get(ref), tx.get(db.doc(`users/${uid}`))]);
     if (!manager(reviewer.data())) throw new HttpsError('permission-denied', 'Office approval changed.');

@@ -2,7 +2,7 @@ import {before, test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
-const {BASELINE_SHA256, ROOTS, sha256, prepare} = createRequire(import.meta.url)('./prepare-rules.cjs');
+const {BASELINE_SHA256, STORAGE_BASELINE_SHA256, ROOTS, sha256, prepare, prepareStorage} = createRequire(import.meta.url)('./prepare-rules.cjs');
 
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (!/^127\.0\.0\.1:\d+$/.test(host || '')) throw Error('Explicit loopback Firestore emulator required; no cloud calls are supported.');
@@ -74,6 +74,26 @@ before(async () => {
     assert.match(m[2], /^databaseCleanupWriteAllowed\(\) && \(/);
     assert.ok(!m[1].split(',').some(op => ['get', 'list', 'read'].includes(op.trim())));
   }
+  const storageBaseline = await readFile(new URL('../c2/storage.compatible.rules', import.meta.url), 'utf8');
+  const storageCandidate = await readFile(new URL('./storage.rules', import.meta.url), 'utf8');
+  assert.equal(sha256(storageBaseline), STORAGE_BASELINE_SHA256);
+  assert.equal(storageCandidate, prepareStorage(storageBaseline));
+  assert.throws(() => prepareStorage(storageBaseline + '\n'), /baseline drift/);
+  const originalStorageReads = declarations(storageBaseline).flatMap(m => {
+    const reads = m[1].split(',').map(s => s.trim()).filter(op => ['get', 'list', 'read'].includes(op));
+    return reads.length ? [[reads.join(','), m[2]]] : [];
+  });
+  assert.deepEqual(readPredicates(storageCandidate), originalStorageReads, 'Every Storage read predicate is unchanged');
+  const originalStorageWrites = declarations(storageBaseline).flatMap(m => {
+    const writes = m[1].split(',').map(s => s.trim()).filter(op => ['write', 'create', 'update', 'delete'].includes(op));
+    return writes.length ? [[writes.join(','), m[2]]] : [];
+  });
+  const guardedStorageWrites = declarations(storageCandidate).filter(m => m[1].split(',').some(op => ['write', 'create', 'update', 'delete'].includes(op.trim())));
+  assert.deepEqual(guardedStorageWrites.map(m => [m[1].replace(/\s/g, ''), m[2]]),
+    originalStorageWrites.map(([ops, predicate]) => [ops, `databaseCleanupReferenceWriteAllowed() && (${predicate})`]),
+    'Every Storage create/update/delete/write retains its exact metadata/auth predicate behind the barrier');
+  assert.match(storageCandidate, /firestore\.exists\(\/databases\/\(default\)\/documents\/database_cleanup_control\/active\)/);
+  assert.match(storageCandidate, /data\.get\('referenceWritesBlocked', false\) != true/);
   for (const [project, content] of [[baselineProject, baseline], [candidateProject, candidate]]) {
     await status(fetch(`${endpoint}/emulator/v1/projects/${project}:securityRules`, {method: 'PUT', headers: privileged,
       body: JSON.stringify({rules: {files: [{name: 'firestore.rules', content}]}})}), 200, 'compile rules');
@@ -138,6 +158,46 @@ test('empty, missing collections, and absent control do not lock; nested chunks 
     if (state === 'missing') await seed(candidateProject, 'database_cleanup_control/active', {}); else await control(state);
     await status(create(candidateProject, 'newsletters', 'unlocked-' + String(state)), 200, 'empty or missing selected scope');
     await status(request(candidateProject, 'newsletters/read-fixture/chunks/0', {method: 'PATCH', data: {data: 'still readable'}}), 200, 'unlocked nested chunk');
+  }
+});
+
+test('global reference barrier blocks every role outside selected roots, preserving reads and restoring writes', async () => {
+  const approvedActors = ['resident', 'other', 'crew', 'admin', 'vip'];
+  for (const uid of actors) for (const p of projects) {
+    await seed(p, `resident_chats/barrier-${uid}`, {identityVersion: 2, participantIds: [uid, 'other'], messages: []});
+    await seed(p, `marketplace_chats/barrier-${uid}`, {sellerId: uid, buyerId: 'other', messages: [], unreadForSeller: true});
+  }
+  const changes = uid => [
+    {path: `users/${uid}`, data: {id: uid, name: uid, email: uid + '@example.invalid', role: ['crew', 'admin', 'vip'].includes(uid) ? uid : 'resident', approved: uid !== 'pending', avatarUrl: 'https://example.invalid/synthetic-avatar'}},
+    {path: `resident_chats/barrier-${uid}`, data: {identityVersion: 2, participantIds: [uid, 'other'], messages: [], hiddenBy: {[uid]: 0}}},
+    {path: `marketplace_chats/barrier-${uid}`, data: {sellerId: uid, buyerId: 'other', messages: [], unreadForSeller: false}}
+  ];
+  // Missing/false flag leaves even non-selected client references at the baseline authorization.
+  for (const flag of [undefined, false]) {
+    await seed(candidateProject, 'database_cleanup_control/active', {collections: [], ...(flag === undefined ? {} : {referenceWritesBlocked: flag})});
+    for (const uid of approvedActors) for (const {path, data} of changes(uid)) {
+      await status(request(candidateProject, path, {uid, method: 'PATCH', data}), 200, 'unblocked reference ' + path);
+    }
+  }
+  // Empty selection must still freeze all roots, not just the cleanup category whitelist.
+  await seed(candidateProject, 'database_cleanup_control/active', {collections: [], referenceWritesBlocked: true});
+  for (const uid of [null, ...actors]) {
+    if (uid) for (const {path, data} of changes(uid)) {
+      await status(request(candidateProject, path, {uid, method: 'PATCH', data}), 403, 'global barrier reference ' + path);
+      if (approvedActors.includes(uid)) await status(request(baselineProject, path, {uid, method: 'PATCH', data}), 200, 'baseline reference ' + path);
+    }
+    for (const path of ['newsletters/read-fixture', 'work_orders/read-fixture', ...(uid ? [`users/${uid}`, `resident_chats/barrier-${uid}`, `marketplace_chats/barrier-${uid}`] : [])]) {
+      const original = await request(baselineProject, path, {uid});
+      await status(request(candidateProject, path, {uid}), original.status, 'global barrier preserves read ' + path + ' ' + uid);
+    }
+    await status(request(candidateProject, 'newsletters/barrier-role-' + (uid || 'anonymous'), {uid, method: 'PATCH', data: {fixture: true}}), 403, 'global barrier applies to manager roles too');
+  }
+  for (const operation of ['create', 'update', 'delete']) for (const c of [...social, ...managerOnly]) {
+    await status(mutation(candidateProject, c, operation, 'global'), 403, 'global barrier ' + c + ' ' + operation);
+  }
+  await control(null);
+  for (const uid of approvedActors) for (const {path, data} of changes(uid)) {
+    await status(request(candidateProject, path, {uid, method: 'PATCH', data}), 200, 'released reference ' + path);
   }
 });
 

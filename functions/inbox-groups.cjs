@@ -1,3 +1,4 @@
+const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 // Native Inbox v3, default database only. All mutations are trusted-server operations.
 const { createHash } = require('node:crypto');
 const { approved } = require('./inbox-policy.cjs');
@@ -73,6 +74,7 @@ async function createConversation(db, uid, data, now) {
   if (!validId(residentId) || (type === 'private' && (recipientIds.length !== 1 || recipientIds[0] === uid))) fail('invalid-argument');
   const cid = `v3_${hash(type === 'private' ? `private/${[uid, ...recipientIds].sort().join('/')}` : `${type}/${residentId}`)}`;
   await db.runTransaction(async tx => {
+    await assertReferenceWritesAllowed(tx, db);
     const actor = { ...(await tx.get(db.doc(`users/${uid}`))).data(), id: uid };
     if (!approved(actor)) fail('permission-denied');
     if (type !== 'private' && residentId !== uid && !(type === 'office' ? ['admin', 'vip'].includes(actor.role) : actor.role === 'crew')) fail('permission-denied');
@@ -102,6 +104,7 @@ async function createConversation(db, uid, data, now) {
 }
 async function updateMembership(db, uid, cid, data, now) {
   return db.runTransaction(async tx => {
+    await assertReferenceWritesAllowed(tx, db);
     const state = await load(tx, db, cid), { conversation: c, members, profiles } = state;
     authorize(state, uid);
     if (c.status !== 'open') fail('failed-precondition');
@@ -145,6 +148,7 @@ async function updateMembership(db, uid, cid, data, now) {
 async function sendMessage(db, uid, cid, data, now) {
   if (!validId(data.messageId) || /^(join|leave|revoke)_/.test(data.messageId) || typeof data.body !== 'string' || !data.body.trim() || data.body.length > 10000 || data.attachments) fail('invalid-argument');
   return db.runTransaction(async tx => {
+    await assertReferenceWritesAllowed(tx, db);
     const state = await load(tx, db, cid), { conversation: c, members, profiles } = state;
     const sender = authorize(state, uid), actor = profiles.find(p => p.id === uid);
     const previous = await tx.get(db.doc(`inbox_conversations/${cid}/messages/${data.messageId}`));
@@ -195,6 +199,7 @@ function stageLeave(tx,db,uid,cid,state,now) {
 }
 async function leave(db,uid,cid,_data,now) {
   return db.runTransaction(async tx=>{
+    await assertReferenceWritesAllowed(tx, db);
     const state=await load(tx,db,cid),result=stageLeave(tx,db,uid,cid,state,now);
     if(!result.unchanged){
       tx.set(ref(db,cid),state.conversation);

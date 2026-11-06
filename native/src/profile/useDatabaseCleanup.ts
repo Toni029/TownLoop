@@ -2,8 +2,8 @@ import {useEffect,useRef,useState} from 'react';
 import {AppState} from 'react-native';
 import {randomUUID} from 'expo-crypto';
 import type {UserProfile} from '../../../src/types';
-import {manageDatabaseCleanup,type CleanupRequest} from '../lib/databaseCleanup';
-import {canConfirmCleanup,canUseDatabaseCleanup,cleanupCanCancel,cleanupIsActive,toggleCleanupCategory,type CleanupCategory,type CleanupJob} from './databaseCleanupModel';
+import {manageDatabaseCleanup,reviewDatabaseCleanupFiles,type CleanupRequest} from '../lib/databaseCleanup';
+import {canConfirmCleanup,canUseDatabaseCleanup,cleanupCanCancel,cleanupIsActive,toggleCleanupCategory,type CleanupCategory,type CleanupJob,type CleanupScopePage} from './databaseCleanupModel';
 
 /** Retained by AdminMenu across tab changes; only an explicit action starts or resumes work. */
 export function useDatabaseCleanup(user:UserProfile,active:boolean) {
@@ -11,6 +11,7 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
   const [selected,setSelected]=useState<CleanupCategory[]>([]),[job,setJob]=useState<CleanupJob|null>(null);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[phrase,setPhrase]=useState('');
   const [step,setStep]=useState<'inventory'|'confirmation'>('inventory'),[needsStatus,setNeedsStatus]=useState(false);
+  const [filesExpanded,setFilesExpanded]=useState(false),[filePage,setFilePage]=useState<CleanupScopePage|null>(null),[fileError,setFileError]=useState('');
   const [foreground,setForeground]=useState(AppState.currentState==='active');
   const mounted=useRef(false),operation=useRef(false),epoch=useRef(0);
   const previewRequest=useRef<{signature:string;id:string}|null>(null);
@@ -29,7 +30,7 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
     epoch.current++;operation.current=false;previewRequest.current=null;
     // Discard another account's inventory and typed authorization when the session changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelected([]);setJob(null);setBusy(false);setError('');setPhrase('');setStep('inventory');setNeedsStatus(false);
+    setSelected([]);setJob(null);setBusy(false);setError('');setPhrase('');setStep('inventory');setNeedsStatus(false);setFilesExpanded(false);setFilePage(null);setFileError('');
   },[accountKey]);
 
   async function run(input:CleanupRequest) {
@@ -42,6 +43,7 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
       if(input.action!=='preview'&&next.id!==input.jobId)throw Error('The cleanup job could not be verified. Refresh status before continuing.');
       const expected=input.action==='preview'?input.categories:job?.categories;
       if(!expected||expected.length!==next.categories.length||!expected.every(category=>next.categories.includes(category)))throw Error('The selected cleanup inventory changed unexpectedly. Refresh status before continuing.');
+      if(!job||next.id!==job.id||next.planHash!==job.planHash||next.state!==job.state){setFilePage(null);setFileError('');}
       setJob(next);setNeedsStatus(false);
       if(next.state!=='review'||(job&&next.planHash!==job.planHash)){setStep('inventory');setPhrase('');}
     } catch(failure) {
@@ -53,6 +55,28 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
       if(mounted.current&&current===epoch.current){operation.current=false;setBusy(false);}
     }
   }
+  async function loadFiles(cursor?:string) {
+    const current=epoch.current;
+    if(!job||!allowed||!active||!foreground||operation.current||!mounted.current||scope.current.accountKey!==accountKey||!scope.current.active||!scope.current.foreground)return;
+    operation.current=true;setBusy(true);setFileError('');
+    try {
+      const page=await reviewDatabaseCleanupFiles(job,cursor);
+      if(!mounted.current||current!==epoch.current)return;
+      if(cursor && page.nextCursor===cursor)throw Error('File review did not advance. Refresh job status and try again.');
+      setFilePage(previous=>({items:cursor?[...(previous?.items||[]),...page.items]:page.items,...(page.nextCursor?{nextCursor:page.nextCursor}:{})}));
+    } catch(failure) {
+      if(mounted.current&&current===epoch.current)setFileError(failure instanceof Error?failure.message:'Unable to load the file review. Try again.');
+    } finally {
+      if(mounted.current&&current===epoch.current){operation.current=false;setBusy(false);}
+    }
+  }
+  async function toggleFiles() {
+    if(busy)return;
+    setFilesExpanded(!filesExpanded);
+    if(!filesExpanded&&!filePage)await loadFiles();
+  }
+  async function moreFiles() {if(filePage?.nextCursor)await loadFiles(filePage.nextCursor);}
+  async function retryFiles() {await loadFiles(filePage?.nextCursor);}
   function toggle(category:CleanupCategory) {
     if(!allowed||busy||operation.current||job)return;
     setSelected(previous=>toggleCleanupCategory(previous,category));setError('');previewRequest.current=null;
@@ -78,7 +102,7 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
   function backToInventory() {if(!busy){setPhrase('');setStep('inventory');}}
   function newSelection() {
     if(!job||!['completed','completed_with_holds','cancelled'].includes(job.state)||busy)return;
-    previewRequest.current=null;setJob(null);setSelected([]);setPhrase('');setStep('inventory');setError('');setNeedsStatus(false);
+    previewRequest.current=null;setFilesExpanded(false);setFilePage(null);setFileError('');setJob(null);setSelected([]);setPhrase('');setStep('inventory');setError('');setNeedsStatus(false);
   }
   useEffect(()=>{
     if(!allowed||!active||!foreground||!cleanupIsActive(job)||busy||error)return;
@@ -87,6 +111,6 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
     // A new timeout follows each completed status request, preventing overlapping polls.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[accountKey,allowed,active,foreground,job,busy,error]);
-  return {allowed,selected,job,busy,error,phrase,setPhrase,step,needsStatus,toggle,preview,refresh,confirm,resume,cancel,showConfirmation,backToInventory,newSelection};
+  return {filesExpanded,filePage,fileError,toggleFiles,moreFiles,retryFiles,allowed,selected,job,busy,error,phrase,setPhrase,step,needsStatus,toggle,preview,refresh,confirm,resume,cancel,showConfirmation,backToInventory,newSelection};
 }
 export type DatabaseCleanupController=ReturnType<typeof useDatabaseCleanup>;
