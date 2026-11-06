@@ -46,7 +46,7 @@
       "distribution": "store",
       "android": {
         "buildType": "app-bundle",
-        "credentialsSource": "local",
+        "credentialsSource": "remote",
         "env": {
           "EXPO_PUBLIC_TOWNLOOP_API_URL": "https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi"
         }

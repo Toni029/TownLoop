@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const root=path.resolve(__dirname,'..'),app=require('../app.json').expo,eas=require('../eas.json');
 test('Android identity changes while iOS, EAS project, channels and native features remain intact',()=>{
  assert.equal(app.android.package,'com.townloop.app');assert.equal(app.ios.bundleIdentifier,'com.toni029.townloop');assert.equal(app.scheme,'townloop');assert.equal(app.extra.eas.projectId,'9f970d26-beed-44d6-a590-9dcdc00e85de');assert.equal(app.runtimeVersion.policy,'fingerprint');
- assert.equal(eas.build.production.android.buildType,'app-bundle');assert.equal(eas.build.preview.android.buildType,'apk');assert.equal(eas.build.preview.android.credentialsSource,'local');assert.equal(eas.build.preview.channel,'preview');assert.equal(eas.build.production.channel,'production');
+ assert.equal(eas.build.production.android.buildType,'app-bundle');assert.equal(eas.build.production.android.credentialsSource,'remote');assert.equal(eas.build.development.android.credentialsSource,'local');assert.equal(eas.build.preview.android.buildType,'apk');assert.equal(eas.build.preview.android.credentialsSource,'local');assert.equal(eas.build.preview.channel,'preview');assert.equal(eas.build.production.channel,'production');
  assert.ok(app.plugins.some(p=>p==='./plugins/with-inbox-push.cjs'));assert.ok(app.plugins.some(p=>p==='expo-video'));assert.ok(app.plugins.some(p=>Array.isArray(p)&&p[0]==='expo-notifications'));
 });
 test('old-package APK is rejected even when a proposed fingerprint matches',()=>{

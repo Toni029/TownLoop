@@ -1,3 +1,5 @@
+> Production signing update: an EAS-managed upload key and Production-only Firebase configuration are now configured. See [current signing status](./PRODUCTION_ANDROID_SIGNING.md) and the public receipt. The remaining pending steps below describe the earlier package-registration checkpoint. Google Play app-signing fingerprints and Play-installed device testing remain outstanding.
+
 # Android permanent identity preparation — 2026-11-06
 
 Target Android application ID: **com.townloop.app**.
