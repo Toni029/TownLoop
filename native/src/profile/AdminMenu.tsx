@@ -1,4 +1,6 @@
 import { AccountDeletionRequests } from "./AccountDeletionRequests";
+import { DatabaseCleanup } from "./DatabaseCleanup";
+import { useDatabaseCleanup } from "./useDatabaseCleanup";
 import { ModerationPanel } from "./ModerationPanel";
 import { ScrollView } from '../keyboard/KeyboardScrollView';
 import { adminDirectory, removeAttendeePatch } from "./adminModel";
@@ -29,7 +31,6 @@ import type { UserProfile, CommunityRsvpEvent } from "../../../src/types";
 import {
   getRoleBadgeInfo,
   getUserRole,
-  isMasterAdminEmail,
 } from "../../../src/utils/permissions";
 import { sortEventsEarlyFirst } from "../../../src/utils/eventSort";
 import { db } from "../lib/firebase";
@@ -64,6 +65,7 @@ export function AdminMenu({
       run: () => Promise<unknown>;
     } | null>(null),
     [roles, setRoles] = useState("");
+  const cleanup = useDatabaseCleanup(user, tab === "database");
   const tabLock = useRef(false);
   const activeTab = useRef("residents");
   const [tabDirection, setTabDirection] = useState(1);
@@ -101,9 +103,6 @@ export function AdminMenu({
       count + (event.attendees?.length || event.attendeesCount || 0),
     0,
   );
-  const privileged =
-    ["admin", "vip"].includes(getUserRole(user)) ||
-    isMasterAdminEmail(user.email);
   async function act(fn: () => Promise<unknown>, success: string) {
     if (busy) return;
     setBusy(true);
@@ -210,7 +209,7 @@ export function AdminMenu({
           ["residents", "Directory", Users],
           ["rsvp", "RSVP Upcoming", CalendarCheck],
           ["moderation", "Reports", AlertTriangle],
-          ...(privileged ? [["database", "Database Clean", Trash2]] : []),
+          ...(cleanup.allowed ? [["database", "Database Clean", Trash2]] : []),
         ].map(([id, label, Icon]) => {
           const Glyph = Icon as typeof Users;
           return (
@@ -583,41 +582,8 @@ export function AdminMenu({
               ))}
             </>
           )}
-          {tab === "database" && privileged && (
-            <>
-              <View style={[panel, { borderColor: "#fcd34d" }]}>
-                <AlertTriangle size={20} color="#d97706" />
-                <Text style={font(14, true)}>
-                  Production Initial State & Purge Utility
-                </Text>
-                <Text style={{ ...font(12), color: muted }}>
-                  Use this tool to purge any leftover mock discussion feeds,
-                  marketplace listings, or demo work orders from Firestore,
-                  leaving a clean, empty initial state ready for real production
-                  usage.
-                </Text>
-              </View>
-              <View style={panel}>
-                <Text style={font(14, true)}>Purge All Seed & Mock Data</Text>
-                <Text style={{ ...font(12), color: muted }}>
-                  Wipes discussion_feed, marketplace_posts, and work_orders
-                  collections.
-                </Text>
-                {button(
-                  "Reset & Clean Collections",
-                  () =>
-                    setConfirm({
-                      label: "Confirm Purge",
-                      run: async () => {
-                        throw Error(
-                          "Mock cleanup requires an explicit allowlist of verified mock document IDs.",
-                        );
-                      },
-                    }),
-                  true,
-                )}
-              </View>
-            </>
+          {tab === "database" && cleanup.allowed && (
+            <DatabaseCleanup controller={cleanup} dark={dark} />
           )}
         </ScrollView>
       </Animated.View>
