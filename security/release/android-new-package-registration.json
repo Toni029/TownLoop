@@ -1,0 +1,37 @@
+{
+  "verifiedAt": "2026-11-06T17:23:08.128Z",
+  "project": "cc-livingcommunity-app",
+  "packageName": "com.townloop.app",
+  "appId": "1:883715389126:android:869aa93ffdc82d5127c9c7",
+  "registrationName": "projects/cc-livingcommunity-app/androidApps/1:883715389126:android:869aa93ffdc82d5127c9c7",
+  "created": true,
+  "legacyAppId": "1:883715389126:android:9be9bbe73fece14e27c9c7",
+  "legacyUnchanged": true,
+  "certificates": [
+    {
+      "type": "SHA_1",
+      "fingerprint": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625",
+      "purpose": "Preview/development only — Android Debug, not production"
+    },
+    {
+      "type": "SHA_256",
+      "fingerprint": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+      "purpose": "Preview/development only — Android Debug, not production"
+    }
+  ],
+  "androidOAuthConfigValidated": true,
+  "androidOAuthClientIds": [
+    "883715389126-teb05n29icht0sofs394mb3cl1hslc2c.apps.googleusercontent.com"
+  ],
+  "existingWebClientRetained": true,
+  "productionReleaseCertificateRegistered": false,
+  "googlePlaySigningCertificateRegistered": false,
+  "productionSigningConfigured": false,
+  "configurationSavedLocally": true,
+  "easEnvironmentChanged": false,
+  "residentDataMutations": 0,
+  "signingKeysGenerated": 0,
+  "builds": 0,
+  "pushes": 0,
+  "deployments": 0
+}

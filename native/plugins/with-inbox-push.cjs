@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path');
 const {withEntitlementsPlist}=require('expo/config-plugins');
 module.exports=config=>{
- const local=path.resolve(__dirname,'../credentials/google-services.preview.json');
+ const local=path.resolve(__dirname,'../credentials/google-services.townloop-app.preview.json');
  const file=process.env.GOOGLE_SERVICES_JSON||(fs.existsSync(local)?local:undefined);
  if(file&&process.env.EAS_BUILD_PLATFORM!=='ios'){
   const data=JSON.parse(fs.readFileSync(file,'utf8'));

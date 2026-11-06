@@ -18,7 +18,7 @@ test('Android requires matching Firebase configuration; local ignored file and E
  assert.throws(()=>configure({EAS_BUILD_PLATFORM:'android'}),/Supply/);
  assert.throws(()=>configure({GOOGLE_SERVICES_JSON:'/secret/file'},false,'wrong-project'),/does not match/);
  assert.throws(()=>configure({GOOGLE_SERVICES_JSON:'/secret/file'},false,'cc-livingcommunity-app','other.app'),/does not match/);
- assert.equal(configure({EAS_BUILD_PLATFORM:'android'},true).android.googleServicesFile,'/native/credentials/google-services.preview.json');
+ assert.equal(configure({EAS_BUILD_PLATFORM:'android'},true).android.googleServicesFile,'/native/credentials/google-services.townloop-app.preview.json');
  assert.equal(configure({GOOGLE_SERVICES_JSON:'/eas/file',EAS_BUILD_PLATFORM:'android'}).android.googleServicesFile,'/eas/file');
 });
 test('physical iPhone Preview uses production APNs; development provisioning uses sandbox',()=>{

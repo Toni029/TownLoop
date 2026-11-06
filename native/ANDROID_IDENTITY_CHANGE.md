@@ -6,22 +6,35 @@ Existing EAS project `9f970d26-beed-44d6-a590-9dcdc00e85de`, channels,
 Firebase project `cc-livingcommunity-app` / sender `883715389126`, databases,
 Auth users, Storage and backend services remain unchanged.
 
-## Verified state / required owner approval
+## Registration completed — 2026-11-06
 
-Read-only Firebase inventory found one ACTIVE Android app:
-`com.toni029.townloop`, Firebase app ID
-`1:883715389126:android:9be9bbe73fece14e27c9c7`.
-There is no `com.townloop.app` registration. No registration, OAuth client,
-certificate registration, EAS environment or cloud data was changed.
+With owner approval, Firebase Android app **com.townloop.app** was created in
+`cc-livingcommunity-app`: `1:883715389126:android:869aa93ffdc82d5127c9c7`.
+The old app `1:883715389126:android:9be9bbe73fece14e27c9c7` and its certificate
+registrations were verified unchanged. No databases, Auth users, resident data,
+Storage objects, functions or rules were changed.
 
-Approval requested: add a separate Android app for **com.townloop.app** in the
-existing Firebase project, retain the old app, and register the public existing
-Preview certificate SHA-1/SHA-256. Download its actual `google-services.json`;
-never change the package string inside the old file or reuse its Firebase app ID.
-Set the returned verified ID in `native/google-auth.json.androidFirebaseAppId`.
-Re-enable `androidOAuthRegistered` only after validation and OAuth setup pass.
-This temporary false flag represents pending setup, not removal of Google sign-in.
-The Android build plugin fails closed until it is verified. iOS is unaffected.
+The existing keystore was re-inspected: its fingerprints below belong to
+**CN=Android Debug**. Both were registered **only for Preview/development**.
+They are not production signing identities. No release/upload or Play signing
+certificate has been registered. No signing key was generated or replaced.
+
+Downloaded actual Firebase configurations are ignored, mode 0600:
+- `native/credentials/google-services.townloop-app.preview.json`
+- `native/credentials/google-services.townloop-app.production.json`
+
+Both identify the new package/project. The Production file is prepared client
+configuration, **not proof of release-signing readiness**. Refresh it after
+release and Play certificate registrations. No EAS environment variable was
+modified. The old ignored Preview configuration was preserved separately.
+`androidFirebaseAppId` now holds the actual new Firebase ID and
+`androidOAuthRegistered` is true following Preview certificate/package/web-client
+validation. The new Android OAuth client is
+`883715389126-teb05n29icht0sofs394mb3cl1hslc2c.apps.googleusercontent.com`;
+the existing web OAuth client and all iOS identifiers remain unchanged.
+Production certificate readiness remains null and blocks production validation;
+using the verified Debug fingerprint as production is explicitly rejected.
+No binary or physical-device Google Sign-In verification is claimed.
 
 Existing Preview certificate (public; verified against the local keystore):
 - SHA-1: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
@@ -54,9 +67,8 @@ re-sign the app, so registering only the upload certificate is insufficient.
 ## FCM / EAS configuration
 
 Use the new Android registration's JSON via `GOOGLE_SERVICES_JSON` in each
-approved EAS environment (Preview, Production and Development if used). Existing
-Preview file/secret still belongs to the old package and is deliberately not
-changed without registration approval. Production must provide an explicit file.
+approved EAS environment (Preview, Production and Development if used). Existing EAS Preview file secret still belongs to the old package and was not
+changed. Local new-package Preview fallback uses the separate new file. Production must provide an explicit file.
 Verify the existing Expo FCM v1 service credential is associated with the new
 Android identifier in the same EAS/Firebase project; reuse the existing sending
 credential where supported, do not generate another service-account key blindly.
@@ -94,7 +106,10 @@ Production remains AAB and uses the same EAS project. No dependencies/assets/
 startup behavior changed. Production is **not ready to build** until the new
 Firebase config, OAuth/certificates, FCM association and release signing are ready.
 Old release snapshots/registration receipts remain historical evidence, not
-configuration for the new identity. No binary, push, OTA or deployment was run.
+configuration for the new identity. Only the approved Firebase Android registration and Preview certificate registrations
+were created. No binary, push, OTA, functions/rules deployment or EAS environment
+update was run. Public registration evidence is in
+`security/release/android-new-package-registration.json`.
 
 References: [Firebase Android registration](https://firebase.google.com/docs/android/setup),
 [Google sign-in setup](https://firebase.google.com/docs/auth/android/google-signin),
