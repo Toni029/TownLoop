@@ -11,6 +11,7 @@ export type CleanupStorageScope = {files:number;bytes:number;exclusive:number;he
 export type CleanupScopeItem = {path:string;category:CleanupCategory;status:'exclusive'|'held'|'missing'|'deleted';bytes:number;reason?:string;generation?:string};
 export type CleanupScopePage = {items:CleanupScopeItem[];nextCursor?:string};
 export type CleanupJob = {
+  readOnly?:boolean;filePage?:CleanupScopePage;
   id:string;state:CleanupState;categories:CleanupCategory[];counts:Partial<Record<CleanupCategory,CleanupCount>>;
   storageScope?:Partial<Record<CleanupCategory,CleanupStorageScope>>;
   planHash?:string;confirmationPhrase:'DELETE SELECTED DATA';enabled:boolean;completeInventory:boolean;message?:string;
@@ -31,9 +32,10 @@ export function cleanupIsActive(job:CleanupJob|null) {
   return !!job && ['planning','queued','running'].includes(job.state);
 }
 export function cleanupCanCancel(job:CleanupJob|null) {
-  return !!job && !['completed','completed_with_holds','cancelled'].includes(job.state);
+  return !!job && !job.readOnly && !['completed','completed_with_holds','cancelled'].includes(job.state);
 }
 export function cleanupOutcome(job:CleanupJob) {
+  if(job.readOnly)return 'Read-only inventory · deletion disabled';
   switch(job.state) {
     case 'planning': return 'Preparing the inventory. No data is deleted during preview.';
     case 'review': return 'Inventory ready. Review the selected categories before confirming.';
@@ -70,11 +72,14 @@ export function readCleanupJob(value:unknown):CleanupJob {
         || !Array.isArray(scope.reasons) || !scope.reasons.every(reason=>reason && typeof reason.code==='string' && /^[a-z_]+$/.test(reason.code) && Number.isSafeInteger(reason.count) && reason.count>=0))return invalid();
     }
   }
+  if(job.readOnly!==undefined&&job.readOnly!==true)return invalid();
+  if(job.readOnly&&(job.enabled||job.state!=='review'||job.planHash))return invalid();
+  if(job.filePage!==undefined)readCleanupScopePage(job.filePage,job.categories);
   return job;
 }
 export function cleanupStorageReason(code:string):string {
   const reasons:Record<string,string>={
-    shared_reference:'Shared with another record',metadata_missing:'Object metadata is missing',ownership_unverified:'Ownership could not be verified',
+    read_only_execution_disabled:'Ownership metadata matches; exclusivity is not certified in read-only mode',shared_reference:'Shared with another record',metadata_missing:'Object metadata is missing',ownership_unverified:'Ownership could not be verified',
     protected_record:'Referenced by protected data',reference_writers_unfenced:'Reference writers are not yet fenced; file deletion is blocked',
     object_changed:'Object changed after inventory',inventory_incomplete:'Inventory is incomplete',active_analysis:'Analysis is still active',
     newsletter_storage_unverified:'Newsletter file ownership is unverified',file_missing:'File is missing',

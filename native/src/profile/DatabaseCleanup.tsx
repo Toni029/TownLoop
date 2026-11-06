@@ -2,6 +2,7 @@ import {ActivityIndicator,Pressable,Text,View} from 'react-native';
 import {AlertTriangle,Check,ChevronRight,ShieldCheck,Trash2} from 'lucide-react-native';
 import {TextInput} from '../keyboard/KeyboardScrollView';
 import {CLEANUP_CATEGORIES,CLEANUP_PHRASE,canConfirmCleanup,cleanupCanCancel,cleanupIsActive,cleanupOutcome,cleanupStorageReason} from './databaseCleanupModel';
+import {CLEANUP_READ_ONLY_RELEASE} from '../lib/databaseCleanup';
 import type {DatabaseCleanupController} from './useDatabaseCleanup';
 
 export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupController;dark:boolean}) {
@@ -18,15 +19,15 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
   return <View style={{gap:16,width:'100%',maxWidth:760,alignSelf:'center'}}>
     <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
       <View style={{padding:12,borderRadius:14,backgroundColor:dark?'#4c1825':'#fff1f2'}}><Trash2 size={24} color={dark?'#fda4af':'#be123c'}/></View>
-      <View style={{flex:1}}><Text accessibilityRole="header" style={font(22,true)}>Database Cleanup</Text><Text style={{...font(12),color:muted}}>Admin only · Permanent community data removal</Text></View>
+      <View style={{flex:1}}><Text accessibilityRole="header" style={font(22,true)}>Database Cleanup</Text><Text style={{...font(12),color:muted}}>{CLEANUP_READ_ONLY_RELEASE?'Admin only · Read-only inventory':'Admin only · Permanent community data removal'}</Text></View>
     </View>
     <View style={[panel,{borderColor:dark?'#854d0e':'#fcd34d',backgroundColor:dark?'#302718':'#fffbeb'}]}>
-      <View style={{flexDirection:'row',gap:8,alignItems:'center'}}><AlertTriangle size={19} color={dark?'#fcd34d':'#92400e'}/><Text style={{...font(14,true),flex:1}}>Review carefully. This cannot be undone.</Text></View>
-      <Text style={{...font(),color:muted}}>Selected categories include real community data. Preview is read-only. Confirmed cleanup temporarily makes the app read-only to prevent files being shared while they are removed.</Text>
+      <View style={{flexDirection:'row',gap:8,alignItems:'center'}}><AlertTriangle size={19} color={dark?'#fcd34d':'#92400e'}/><Text style={{...font(14,true),flex:1}}>{CLEANUP_READ_ONLY_RELEASE?'Read-only preview. Nothing will be deleted.':'Review carefully. This cannot be undone.'}</Text></View>
+      <Text style={{...font(),color:muted}}>{CLEANUP_READ_ONLY_RELEASE?'Review live record counts, file metadata and protection warnings. This service cannot create cleanup jobs or delete data.':'Selected categories include real community data. Preview is read-only. Confirmed cleanup temporarily makes the app read-only to prevent files being shared while they are removed.'}</Text>
     </View>
     {!!c.error&&<View accessibilityRole="alert" style={[panel,{borderColor:'#fb7185'}]}><Text style={{...font(),color:dark?'#fda4af':'#9f1239'}}>{c.error}</Text>{c.needsStatus&&<Text style={{...font(12),color:muted}}>The last response could not be verified. Refresh status before confirming or resuming; do not assume the request failed.</Text>}</View>}
     {!job&&<View style={panel}>
-      <Text accessibilityRole="header" style={font(16,true)}>1. Choose what to remove</Text>
+      <Text accessibilityRole="header" style={font(16,true)}>{CLEANUP_READ_ONLY_RELEASE?'Choose categories to review':'1. Choose what to remove'}</Text>
       <Text style={{...font(12),color:muted}}>Each category is independent. All options start unchecked.</Text>
       {CLEANUP_CATEGORIES.map(category=>{
         const checked=c.selected.includes(category.key);
@@ -44,8 +45,8 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
         <View accessibilityLiveRegion="polite" style={{gap:8}}>
           <Text style={{...font(13,true),color:job.state==='completed_with_holds'?(dark?'#fcd34d':'#92400e'):ink}}>{cleanupOutcome(job)}</Text>
           {!!job.message&&<Text style={{...font(12),color:muted}}>{job.message}</Text>}
-          {(!job.enabled||(!job.completeInventory&&job.state==='review'))&&<Text style={{...font(12,true),color:dark?'#fcd34d':'#92400e'}}>{!job.enabled?'The cleanup service is not enabled. Confirmation is unavailable until the service is ready.':'The inventory is incomplete. Deletion is unavailable; refresh status or cancel this preview.'}</Text>}
-          <Text selectable style={{...font(10),color:muted}}>Job {job.id}</Text>
+          {(!job.enabled||(!job.completeInventory&&job.state==='review'))&&<Text style={{...font(12,true),color:dark?'#fcd34d':'#92400e'}}>{!job.enabled?(job.readOnly?'Deletion is disabled on the server. This inventory does not authorize a purge.':'The cleanup service is not enabled. Confirmation is unavailable until the service is ready.'):'The inventory is incomplete. Deletion is unavailable; refresh status or cancel this preview.'}</Text>}
+          <Text selectable style={{...font(10),color:muted}}>{job.readOnly?'Preview':'Job'} {job.id}</Text>
           {CLEANUP_CATEGORIES.filter(category=>job.categories.includes(category.key)).map(category=>{
             const count=job.counts[category.key]!, storage=job.storageScope?.[category.key];
             return <View key={category.key} style={{gap:6,borderTopWidth:1,borderColor:border,paddingTop:12,marginTop:4}}>
@@ -89,14 +90,14 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
             style={{...font(14),borderWidth:1,borderColor:border,borderRadius:12,padding:14,minHeight:52,backgroundColor:dark?'#0f172a':'#fafaf9'}}/>
           {action('Delete selected data',c.confirm,!canConfirmCleanup(job,c.phrase,c.busy||c.needsStatus),true)}
           {action('Back to inventory',c.backToInventory,c.busy)}
-        </>:job.state==='review'?<>
+        </>:job.state==='review'&&!job.readOnly?<>
           <View style={{flexDirection:'row',alignItems:'center',gap:6}}><ChevronRight size={16} color={muted}/><Text style={{...font(12),color:muted}}>One more confirmation step is required.</Text></View>
           {action('Continue to confirmation',c.showConfirmation,!ready)}
         </>:null}
-        {action('Refresh job status',c.refresh,c.busy)}
+        {action(job.readOnly?'Refresh inventory':'Refresh job status',c.refresh,c.busy)}
         {['paused','failed'].includes(job.state)&&action('Resume cleanup',c.resume,c.busy||c.needsStatus||!job.enabled)}
         {cleanupCanCancel(job)&&action(job.state==='planning'||job.state==='review'?'Cancel preview':'Cancel cleanup',c.cancel,c.busy)}
-        {['completed','completed_with_holds','cancelled'].includes(job.state)&&action('Start a new selection',c.newSelection,c.busy)}
+        {(job.readOnly||['completed','completed_with_holds','cancelled'].includes(job.state))&&action('Start a new selection',c.newSelection,c.busy)}
         {cleanupCanCancel(job)&&<Text style={{...font(11),color:muted}}>Cancellation stops further work when safe. Data already deleted cannot be restored.</Text>}
       </View>
     </>}

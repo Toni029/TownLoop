@@ -73,7 +73,7 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
   async function toggleFiles() {
     if(busy)return;
     setFilesExpanded(!filesExpanded);
-    if(!filesExpanded&&!filePage)await loadFiles();
+    if(!filesExpanded&&!filePage){if(job?.readOnly&&job.filePage)setFilePage(job.filePage);else await loadFiles();}
   }
   async function moreFiles() {if(filePage?.nextCursor)await loadFiles(filePage.nextCursor);}
   async function retryFiles() {await loadFiles(filePage?.nextCursor);}
@@ -87,7 +87,7 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
     if(previewRequest.current?.signature!==signature)previewRequest.current={signature,id:randomUUID()};
     await run({action:'preview',categories:selected,requestId:previewRequest.current.id});
   }
-  async function refresh() {if(job)await run({action:'status',jobId:job.id});}
+  async function refresh() {if(job)await run(job.readOnly?{action:'preview',categories:job.categories,requestId:'readonly-refresh'}:{action:'status',jobId:job.id});}
   async function confirm() {
     if(step!=='confirmation'||needsStatus||!canConfirmCleanup(job,phrase,busy)||!job?.planHash)return;
     await run({action:'confirm',jobId:job.id,planHash:job.planHash,confirmation:phrase});
@@ -101,7 +101,7 @@ export function useDatabaseCleanup(user:UserProfile,active:boolean) {
   }
   function backToInventory() {if(!busy){setPhrase('');setStep('inventory');}}
   function newSelection() {
-    if(!job||!['completed','completed_with_holds','cancelled'].includes(job.state)||busy)return;
+    if(!job||(!job.readOnly&&!['completed','completed_with_holds','cancelled'].includes(job.state))||busy)return;
     previewRequest.current=null;setFilesExpanded(false);setFilePage(null);setFileError('');setJob(null);setSelected([]);setPhrase('');setStep('inventory');setError('');setNeedsStatus(false);
   }
   useEffect(()=>{

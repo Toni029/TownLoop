@@ -51,10 +51,10 @@ test('completion with holds explains retained data and never promises a full del
 });
 
 const require = createRequire(import.meta.url), ts = require('typescript');
-function loadClient(response: unknown, failure?: unknown) {
+function loadClient(response: unknown, failure?: unknown,readOnly=false) {
   const calls: any[] = [];
   const module = {exports:{} as any};
-  const source = ts.transpileModule(readFileSync(new URL('../src/lib/databaseCleanup.ts',import.meta.url),'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const source = ts.transpileModule(readFileSync(new URL('../src/lib/databaseCleanup.ts',import.meta.url),'utf8').replace('CLEANUP_READ_ONLY_RELEASE=true',`CLEANUP_READ_ONLY_RELEASE=${readOnly}`), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   vm.runInNewContext(source,{module,exports:module.exports,Error,require:(name:string) => {
     if(name==='firebase/functions') return {getFunctions:(_app:any,region:string)=>{assert.equal(region,'us-central1');return {};},httpsCallable:(_functions:any,name:string)=>async(input:any)=>{calls.push({name,input});if(failure)throw failure;return {data:response};}};
     if(name==='./firebase')return {app:{},auth:{currentUser:{uid:'admin'}}};
@@ -84,7 +84,7 @@ function loadNative(file:string, modules:Record<string,unknown>, extra:Record<st
   return module.exports;
 }
 
-function nativeScreen(controllerPatch:Record<string,unknown>={}, dark=false) {
+function nativeScreen(controllerPatch:Record<string,unknown>={}, dark=false,readOnly=false) {
   const calls:string[]=[];
   const controller={allowed:true,selected:[],job:null,busy:false,error:'',phrase:'',step:'inventory',needsStatus:false,
     toggle:(key:string)=>calls.push(key),preview:()=>calls.push('preview'),setPhrase:()=>{},showConfirmation:()=>calls.push('review'),backToInventory:()=>{},
@@ -94,6 +94,7 @@ function nativeScreen(controllerPatch:Record<string,unknown>={}, dark=false) {
   const {DatabaseCleanup}=loadNative('../src/profile/DatabaseCleanup.tsx',{
     'react/jsx-runtime':{jsx,jsxs:jsx},'react-native':{View:'View',Text:'Text',Pressable:'Pressable',ActivityIndicator:'ActivityIndicator'},
     'lucide-react-native':{ShieldCheck:'ShieldCheck',Trash2:'Trash2',Check:'Check',AlertTriangle:'AlertTriangle',ChevronRight:'ChevronRight'},
+    '../lib/databaseCleanup':{CLEANUP_READ_ONLY_RELEASE:readOnly},
     '../keyboard/KeyboardScrollView':{TextInput:'TextInput'},
     './databaseCleanupModel':require('../src/profile/databaseCleanupModel.ts'),
   });
@@ -346,4 +347,14 @@ test('a changed plan discards any file review from the earlier inventory',async(
   f.render().toggle('workOrders');await f.render().preview();await f.render().toggleFiles();
   assert.equal(f.render().filePage.items.length,1);
   await f.render().refresh();assert.equal(f.render().filePage,null);
+});
+
+test('read-only release uses only the preview endpoint and rejects job mutation actions',async()=>{
+ const value=job({readOnly:true,enabled:false,planHash:undefined,filePage:{items:[scopeItem]}}),{api,calls}=loadClient(value,undefined,true);
+ await api.manageDatabaseCleanup({action:'preview',categories:['workOrders'],requestId:'readonly-test'});
+ assert.equal(calls[0].name,'previewDatabaseCleanup');
+ for(const action of ['confirm','resume','cancel'])await assert.rejects(api.manageDatabaseCleanup({action,jobId:'job-1'}),/read-only/);
+ assert.equal(calls.length,1);assert.equal(canConfirmCleanup(readCleanupJob(value),'DELETE SELECTED DATA',false),false);
+ const screen=nativeScreen({job:readCleanupJob(value)},false,true);
+ assert.match(screen.text,/Deletion is disabled on the server/);assert.doesNotMatch(screen.text,/Continue to confirmation|Delete selected data|Resume cleanup|Cancel cleanup/);
 });
