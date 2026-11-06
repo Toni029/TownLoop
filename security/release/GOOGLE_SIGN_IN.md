@@ -1,3 +1,5 @@
+> Android identity update: the next builds target `com.townloop.app`. The old Android package and registrations mentioned below describe historical Preview builds. iOS remains `com.toni029.townloop`. See [Android identity preparation](../../native/ANDROID_IDENTITY_CHANGE.md).
+
 # Google sign-in — native configuration complete, release pending
 
 ## Current checkpoint — 2026-11-03

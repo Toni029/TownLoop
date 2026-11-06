@@ -21,7 +21,7 @@ const backend = json('firebase.release-backend.json');
 assert(!rulesConfig.hosting && !backend.hosting, 'Hosting must remain excluded');
 assert(backend.functions.length === 1 && backend.functions[0].source === 'functions' && backend.functions[0].codebase === 'work-order-retention', 'Unexpected backend scope');
 const app = json('native/app.json').expo, eas = json('native/eas.json');
-assert(app.android.package === 'com.toni029.townloop', 'Android identity changed');
+assert(app.android.package === 'com.townloop.app', 'Android identity changed');
 assert(app.extra.eas.projectId === '9f970d26-beed-44d6-a590-9dcdc00e85de', 'EAS project changed');
 assert(app.runtimeVersion.policy === 'fingerprint', 'Preserve fingerprint compatibility');
 assert(app.updates.url === `https://u.expo.dev/${app.extra.eas.projectId}` && app.updates.checkAutomatically === 'ON_LOAD', 'Update configuration changed');

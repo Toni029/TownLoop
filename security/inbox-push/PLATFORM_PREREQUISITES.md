@@ -1,3 +1,5 @@
+> Android identity update: the next builds target `com.townloop.app`. The old Android package and registrations mentioned below describe historical Preview builds. iOS remains `com.toni029.townloop`. See [Android identity preparation](../../native/ANDROID_IDENTITY_CHANGE.md).
+
 # iPhone-first + Android Preview release gates — 2026-10-27
 
 Supersedes the Android-first sequencing in earlier notes. One shared default-database backend;

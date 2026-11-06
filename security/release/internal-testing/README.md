@@ -1,3 +1,5 @@
+> Android identity update: the next builds target `com.townloop.app`. The old Android package and registrations mentioned below describe historical Preview builds. iOS remains `com.toni029.townloop`. See [Android identity preparation](../../../native/ANDROID_IDENTITY_CHANGE.md).
+
 # First Google Play Internal Testing preparation — 2026-11-05
 
 Baseline `1261793`; reuse `../play-launch/` and `../blocker-prerequisites/` rather

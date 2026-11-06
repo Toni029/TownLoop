@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
-function configure(env:Record<string,string>,local=false,project='cc-livingcommunity-app',app='com.toni029.townloop'){
+function configure(env:Record<string,string>,local=false,project='cc-livingcommunity-app',app='com.townloop.app'){
  const module={exports:(_:any)=>({})},source=fs.readFileSync(new URL('../plugins/with-inbox-push.cjs',import.meta.url),'utf8');
  vm.runInNewContext(source,{module,__dirname:'/native/plugins',process:{env},require:(id:string)=>{
   if(id==='node:path')return require('node:path');
@@ -12,7 +12,7 @@ function configure(env:Record<string,string>,local=false,project='cc-livingcommu
   if(id==='expo/config-plugins')return {withEntitlementsPlist:(config:any,apply:any)=>({...config,entitlements:apply({modResults:{}}).modResults})};
   throw Error('unexpected dependency');
  }});
- return module.exports({android:{package:'com.toni029.townloop'}}) as any;
+ return module.exports({android:{package:'com.townloop.app'}}) as any;
 }
 test('Android requires matching Firebase configuration; local ignored file and EAS file both work',()=>{
  assert.throws(()=>configure({EAS_BUILD_PLATFORM:'android'}),/Supply/);

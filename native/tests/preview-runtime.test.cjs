@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {assertPreviewRuntime} = require('../scripts/preview-runtime-guard.cjs');
-const config = {expo:{android:{package:'com.toni029.townloop'}}};
-const build = {status:'FINISHED',platform:'ANDROID',buildProfile:'preview',appIdentifier:'com.toni029.townloop',fingerprint:{hash:'native-v1'}};
+const config = {expo:{android:{package:'com.townloop.app'}}};
+const build = {status:'FINISHED',platform:'ANDROID',buildProfile:'preview',appIdentifier:'com.townloop.app',fingerprint:{hash:'native-v1'}};
 test('Preview publication requires exact intended APK runtime',()=>{
  assert.equal(assertPreviewRuntime(build,{hash:'native-v1'},config),'native-v1');
  assert.throws(()=>assertPreviewRuntime(build,{hash:'native-v2'},config),/Native runtime mismatch/);

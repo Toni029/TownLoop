@@ -1,3 +1,5 @@
+> Android identity update: the next builds target `com.townloop.app`. The old Android package and registrations mentioned below describe historical Preview builds. iOS remains `com.toni029.townloop`. See [Android identity preparation](./ANDROID_IDENTITY_CHANGE.md).
+
 # TownLoop development and manual releases
 
 ## Setup status (2026-10-15)
