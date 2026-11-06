@@ -71,3 +71,17 @@ References:
 - https://docs.expo.dev/app-signing/managed-credentials/
 - https://developer.android.com/studio/publish/app-signing
 - https://firebase.google.com/docs/auth/android/google-signin
+
+## Production submission Firebase fingerprint fix
+
+The first AAB attempt `ccba9c34-f401-4959-8e25-bf7162f271ec` stopped before
+compilation because the local CLI fingerprinted the ignored Preview Firebase
+file while EAS fingerprinted the Production secret file. The build log's sole
+fingerprint diff was that file's content; signing was not the failure.
+
+For approved Production submissions, use `scripts/production-build-env.cjs`'s
+`productionBuildEnv()` for the local EAS process. It validates the Production
+Firebase file/certificate and sets local `GOOGLE_SERVICES_JSON`,
+`EAS_BUILD_PROFILE=production`, `EAS_BUILD_PLATFORM=android`. EAS still uses its
+existing Production-only secret file on the builder. No secret visibility or
+remote credential is changed, and runtime fingerprint verification stays enabled.
