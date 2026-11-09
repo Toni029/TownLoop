@@ -13,13 +13,14 @@ for(const [source,actor,other]of [['office_chats','admin','vip'],['maintenance_c
  await h.call(actor,{op:'leaveLegacy',source,legacyId:'legacy'});assert.equal(h.records.get(`${source}/legacy`).messages.length,2);
  assert.equal([...h.records.keys()].filter(p=>p.startsWith('inbox_conversations/')).length,0);
 });
-test('outsiders cannot leave; failed writes roll back; left callers cannot create a replacement',async()=>{
+test('outsiders cannot leave; failed writes roll back; replacement never restores a departed membership',async()=>{
  const h=fixture(),old={identityVersion:2,participantIds:['a','b'],messages:[]};h.records.set('resident_chats/x',old);
  await assert.rejects(h.call('crew',{op:'leaveLegacy',source:'resident_chats',legacyId:'x'}),/permission-denied/);assert.deepEqual(h.records.get('resident_chats/x'),old);
  const transaction=h.db.runTransaction;h.db.runTransaction=fn=>transaction(tx=>fn({...tx,update:()=>{throw Error('fixture_write_failed');}}));
  await assert.rejects(h.call('a',{op:'leaveLegacy',source:'resident_chats',legacyId:'x'}),/fixture_write_failed/);assert.deepEqual(h.records.get('resident_chats/x'),old);h.db.runTransaction=transaction;
  await h.call('a',{op:'leaveLegacy',source:'resident_chats',legacyId:'x'});
- await assert.rejects(h.call('a',{op:'create',type:'private',recipientIds:['b']}),/permission-denied|failed-precondition/);
+ const {conversationId:fresh}=await h.call('a',{op:'create',type:'private',recipientIds:['b']});
+ assert(fresh);assert.equal(h.records.get('resident_chats/x').leftBy.a,true);assert.equal(h.records.get('resident_chats/x').groupConversationId,undefined);
  await h.call('b',{op:'leaveLegacy',source:'resident_chats',legacyId:'x'});assert(h.records.has('resident_chats/x'));assert([...h.records.values()].some(v=>v.status==='awaiting_separate_approval'));
 });
 test('legacy push delivery excludes a departed staff member even for a queued pre-leave event',async()=>{

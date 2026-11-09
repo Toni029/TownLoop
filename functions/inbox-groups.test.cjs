@@ -32,7 +32,7 @@ test('private leave revokes all access, remaining peer is read-only, final leave
  await h.call('a',{op:'leave',conversationId:id});
  assert.equal(canSee(conversation(h,id),membership(h,id,'a'),h.records.get('users/a'),message(h,id,'m')),false);
  await assert.rejects(h.call('b',{op:'send',conversationId:id,messageId:'next',body:'No recipient'}),/failed-precondition/);
- await assert.rejects(h.call('a',{op:'create',type:'private',recipientIds:['b']}),/permission-denied/);
+ assert.notEqual((await h.call('a',{op:'create',type:'private',recipientIds:['b']})).conversationId,id);
  await h.call('b',{op:'leave',conversationId:id});
  assert.equal(conversation(h,id).status,'cleanup_pending');assert(message(h,id,'m'));
  assert.equal(h.records.get(`inbox_cleanup_requests/${id}`).status,'awaiting_separate_approval');
@@ -225,4 +225,64 @@ test('legacy path validation cannot escape its allowlisted collection and fresh 
  await assert.rejects(h.call('a',{op:'createFresh',type:'office',recipientIds:['b']}),/permission-denied/);
  await assert.rejects(h.call('a',{op:'createFresh',type:'maintenance',residentId:'b'}),/permission-denied/);
  await assert.rejects(h.call('a',{op:'createFresh',type:'private',recipientIds:['b']}),/invalid-argument/);
+});
+
+test('new private compose after both participants leave creates fresh history and supports both directions',async()=>{
+ const h=fixture(),{conversationId:old}=await h.call('admin',{op:'create',type:'private',recipientIds:['a']});
+ await h.call('admin',{op:'send',conversationId:old,messageId:'historic',body:'Protected earlier conversation'});
+ await h.call('admin',{op:'leave',conversationId:old});await h.call('a',{op:'leave',conversationId:old});
+ const history=structuredClone(conversation(h,old)),leftAdmin=structuredClone(membership(h,old,'admin'));
+ const {conversationId:fresh}=await h.call('a',{op:'create',type:'private',recipientIds:['admin']});
+ assert.notEqual(fresh,old);assert.deepEqual(conversation(h,old),history);assert.deepEqual(membership(h,old,'admin'),leftAdmin);
+ assert.equal(message(h,fresh,'historic'),undefined);
+ await h.call('a',{op:'send',conversationId:fresh,messageId:'preview',body:'Preview to Play'});
+ assert.equal((await h.call('admin',{op:'create',type:'private',recipientIds:['a']})).conversationId,fresh);
+ await h.call('admin',{op:'send',conversationId:fresh,messageId:'play',body:'Play to Preview'});
+ assert.equal(canSee(conversation(h,old),membership(h,old,'a'),h.records.get('users/a'),message(h,old,'historic')),false);
+});
+
+test('left legacy private pairs never block new compose or copy revoked history',async()=>{
+ const h=fixture(),source={identityVersion:2,participantIds:['a','admin'],leftBy:{a:true,admin:true},messages:[{id:'past',senderId:'a',body:'Retained history',createdAt:1}]};
+ h.records.set('resident_chats/a@example.test_admin@example.test',structuredClone(source));
+ const {conversationId:id}=await h.call('admin',{op:'create',type:'private',recipientIds:['a']});
+ assert.equal(message(h,id,'past'),undefined);assert.deepEqual(h.records.get('resident_chats/a@example.test_admin@example.test'),source);
+ await h.call('admin',{op:'send',conversationId:id,messageId:'new',body:'New Play message'});await h.call('a',{op:'send',conversationId:id,messageId:'reply',body:'Preview reply'});
+});
+
+test('concurrent replacement creates one fresh private thread and cannot revive orphan history',async()=>{
+ const h=fixture(),{conversationId:old}=await h.call('a',{op:'create',type:'private',recipientIds:['b']});
+ await h.call('a',{op:'send',conversationId:old,messageId:'old',body:'Earlier'});
+ await h.call('a',{op:'leave',conversationId:old});await h.call('b',{op:'leave',conversationId:old});
+ h.records.delete(`inbox_conversations/${old}`); // Deleted root, retained subcollections/memberships.
+ const results=await Promise.all([h.call('a',{op:'create',type:'private',recipientIds:['b']}),h.call('b',{op:'create',type:'private',recipientIds:['a']})]);
+ assert.equal(results[0].conversationId,results[1].conversationId);assert.notEqual(results[0].conversationId,old);
+ assert(message(h,old,'old'));assert.equal(membership(h,old,'a').status,'left');assert.equal(message(h,results[0].conversationId,'old'),undefined);
+});
+for(const type of ['office','maintenance'])test(`${type}: resident can start fresh after leaving; current shared membership is not silently restored`,async()=>{
+ const h=fixture(),input={op:'create',type,...(type==='office'?{recipientIds:['admin']}: {})};
+ const {conversationId:old}=await h.call('a',input);await h.call('a',{op:'send',conversationId:old,messageId:'historic',body:'Old group'});
+ await h.call('a',{op:'leave',conversationId:old});const before=structuredClone(conversation(h,old));
+ const {conversationId:fresh}=await h.call('a',input);assert.notEqual(fresh,old);assert.deepEqual(conversation(h,old),before);
+ assert.equal(membership(h,old,'a').status,'left');assert.equal(message(h,fresh,'historic'),undefined);
+ await h.call('a',{op:'send',conversationId:fresh,messageId:'new',body:'New group'});
+ assert.equal((await h.call('a',input)).conversationId,fresh);
+});
+test('group creation cannot infer missing membership or let a departed staff member fork an active shared group',async()=>{
+ const h=fixture(),{conversationId:id}=await h.call('a',{op:'create',type:'office',recipientIds:['admin','vip']});
+ await h.call('admin',{op:'leave',conversationId:id});
+ await assert.rejects(h.call('admin',{op:'create',type:'office',residentId:'a',recipientIds:['admin']}),/permission-denied/);
+ h.records.delete(memberPath(id,'vip'));
+ await assert.rejects(h.call('a',{op:'create',type:'office',recipientIds:['vip']}),/failed-precondition/);
+ h.records.set('user_blocks/a/targets/b',{});
+ await assert.rejects(h.call('a',{op:'create',type:'private',recipientIds:['b']}),/permission-denied/);
+});
+
+test('all-left Office/Crew generations and their retention jobs stay unchanged on recreation',async()=>{
+ for(const type of ['office','maintenance']){
+  const h=fixture(),input={op:'create',type,...(type==='office'?{recipientIds:['admin']}: {})};
+  const {conversationId:old}=await h.call('a',input);
+  for(const uid of conversation(h,old).memberIds)await h.call(uid,{op:'leave',conversationId:old});
+  const original=structuredClone(conversation(h,old)),job=structuredClone(h.records.get(`inbox_cleanup_requests/${old}`));
+  const {conversationId:fresh}=await h.call('a',input);assert.notEqual(fresh,old);assert.deepEqual(conversation(h,old),original);assert.deepEqual(h.records.get(`inbox_cleanup_requests/${old}`),job);
+ }
 });

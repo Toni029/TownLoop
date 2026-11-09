@@ -1,6 +1,6 @@
 const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 // Native Inbox v3, default database only. All mutations are trusted-server operations.
-const { createHash } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const { approved } = require('./inbox-policy.cjs');
 const {grace}=require('./inbox-retention.cjs');
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -72,14 +72,33 @@ async function createConversation(db, uid, data, now) {
   if (recipientIds.some(v => !validId(v)) || recipientIds.length > MAX_MEMBERS - 1) fail('invalid-argument');
   const residentId = data.residentId || uid;
   if (!validId(residentId) || (type === 'private' && (recipientIds.length !== 1 || recipientIds[0] === uid))) fail('invalid-argument');
-  const cid = `v3_${hash(type === 'private' ? `private/${[uid, ...recipientIds].sort().join('/')}` : `${type}/${residentId}`)}`;
-  await db.runTransaction(async tx => {
+  const baseId = `v3_${hash(type === 'private' ? `private/${[uid, ...recipientIds].sort().join('/')}` : `${type}/${residentId}`)}`;
+  // Stable server-only route; every new history gets an unguessable, never-reused ID.
+  // Keep the candidate stable across transaction retries, not across conversations.
+  const route = db.doc(`inbox_conversation_routes/${baseId}`), freshId = `v3_${hash(randomUUID())}`;
+  return db.runTransaction(async tx => {
     await assertReferenceWritesAllowed(tx, db);
     const actor = { ...(await tx.get(db.doc(`users/${uid}`))).data(), id: uid };
     if (!approved(actor)) fail('permission-denied');
     if (type !== 'private' && residentId !== uid && !(type === 'office' ? ['admin', 'vip'].includes(actor.role) : actor.role === 'crew')) fail('permission-denied');
-    const old = await tx.get(ref(db, cid));
-    if (old.exists) { authorize(await load(tx, db, cid), uid); return; }
+    const routing = (await tx.get(route)).data();
+    if (routing && !/^v3_[a-f0-9]{64}$/.test(routing.conversationId || '')) fail('failed-precondition');
+    const currentId = routing?.conversationId || baseId;
+    const old = await tx.get(ref(db, currentId));
+    if (old.exists) {
+      const state = await load(tx, db, currentId), c = state.conversation;
+      if (c.type !== type || c.id !== currentId || c.memberIds.length < 2 || new Set(c.memberIds).size !== c.memberIds.length || state.members.some((m,i)=>!m || m.uid !== c.memberIds[i]) ||
+        (type === 'private' ? c.memberIds.length !== 2 || !c.memberIds.includes(uid) || !c.memberIds.includes(recipientIds[0]) : c.residentId !== residentId)) fail('failed-precondition');
+      const living = active(state), usable = c.status === 'open' || c.status === 'archived' && c.retention?.reason === 'inactivity' && c.retention.previousStatus === 'open';
+      if (usable && (type === 'private' ? living.length === 2 : living.length >= 2 && living.some(m=>m.uid === residentId))) {
+        // A departed staff member cannot fork an otherwise active shared group.
+        authorize(state,uid);
+        tx.set(route,{conversationId:currentId});
+        return {conversationId:currentId};
+      }
+      // Closed/read-only history stays immutable. Never reactivate old membership.
+    }
+    const cid = freshId;
     let ids = type === 'private' ? [uid, ...recipientIds] : [residentId, ...recipientIds, uid];
     if (type === 'office' && !recipientIds.length) fail('invalid-argument');
     if (type === 'maintenance') {
@@ -97,10 +116,11 @@ async function createConversation(db, uid, data, now) {
       subject: type === 'private' ? String(data.subject || 'Conversation').trim().slice(0, 160) : type === 'office' ? 'Community Office' : 'Maintenance Crew', sequence: 0, createdAt: now, updatedAt: now };
     const members = profiles.map(p => ({ uid: p.id, epoch: 1, status: 'active', joinedAt: now, leftAt: null, reason: '', readSequence: 0 }));
     tx.create(ref(db, cid), c);
+    tx.set(route,{conversationId:cid});
     writeProjection(tx, db, cid, c, members, profiles, now);
     // Initial membership is not a fabricated historical join event.
+    return { conversationId: cid };
   });
-  return { conversationId: cid };
 }
 async function updateMembership(db, uid, cid, data, now) {
   return db.runTransaction(async tx => {
@@ -221,7 +241,7 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
     // Reuse an authorized current thread before considering a protected legacy history.
     const pair=Array.isArray(data.recipientIds)&&data.recipientIds.length===1&&validId(data.recipientIds[0])?data.recipientIds[0]:null;
     const currentId=data.type==='private'&&pair?`v3_${hash(`private/${[uid,pair].sort().join('/')}`)}`:['office','maintenance'].includes(data.type)?`v3_${hash(`${data.type}/${data.residentId||uid}`)}`:null;
-    const current=currentId?(await ref(db,currentId).get()).exists:false;
+    const current=currentId?((await db.doc(`inbox_conversation_routes/${currentId}`).get()).exists || (await ref(db,currentId).get()).exists):false;
     if(data.op==='createFresh'||current){
       const result=await createConversation(db,uid,data,now);
       if(data.type==='office')await updateMembership(db,uid,result.conversationId,{op:'add',recipientIds:data.recipientIds},now);
@@ -234,9 +254,13 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
     const matches = legacy.rows.filter(row => (row.collection === source || data.type === 'office' && row.collection === 'resident_chats' && row.data.officeDirect === true && row.data.participantIds?.includes(data.residentId || uid)) && (data.type === 'private'
       ? data.recipientIds?.length === 1 && row.data.participantIds?.includes(data.recipientIds[0])
       : row.collection === 'resident_chats' || row.data.residentId === (data.residentId || uid)));
-    if (matches.length > 1) {const error=Error('failed-precondition');error.safeReason='legacy-review';throw error;}
-    if (matches[0]) {
-      const result = await upgradeLegacy(db, uid, { source: matches[0].collection, legacyId: matches[0].id }, now);
+    // Compose never reopens a left legacy history. A new empty thread needs no historical grant.
+    const reusable = matches.filter(row => row.data.leftBy?.[uid] !== true && (row.collection === 'resident_chats'
+      ? !row.data.participantIds.some(id=>row.data.leftBy?.[id] === true)
+      : row.data.leftBy?.[row.data.residentId] !== true && row.data.sideLeft?.resident !== true && row.data.sideLeft?.team !== true));
+    if (reusable.length > 1) {const error=Error('failed-precondition');error.safeReason='legacy-review';throw error;}
+    if (reusable[0]) {
+      const result = await upgradeLegacy(db, uid, { source: reusable[0].collection, legacyId: reusable[0].id }, now);
       if (data.type === 'office' && data.recipientIds?.length) await updateMembership(db, uid, result.conversationId, { op: 'add', recipientIds: data.recipientIds }, now);
       return result;
     }
