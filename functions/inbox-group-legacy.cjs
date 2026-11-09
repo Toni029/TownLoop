@@ -5,6 +5,7 @@ const { approved, member } = require('./inbox-policy.cjs');
 const { memberPath, visibilityKey, hash, load, stageLeave, writeProjection } = require('./inbox-groups.cjs');
 const sources = { resident_chats: 'private', office_chats: 'office', maintenance_chats: 'maintenance' };
 const fail = code => { const error=Error(code);if(code==='failed-precondition')error.safeReason='legacy-review';throw error; };
+const legacyDocumentId=value=>typeof value==='string'&&value.length>0&&Buffer.byteLength(value)<=1500&&!/[\/\\\x00-\x1f\x7f]/.test(value)&&!['.','..'].includes(value);
 const exact = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 async function legacyList(db, uid, {includeLeft=false}={}) {
   const actor = { ...(await db.doc(`users/${uid}`).get()).data(), id: uid };
@@ -24,7 +25,7 @@ async function legacyList(db, uid, {includeLeft=false}={}) {
   return { rows };
 }
 async function upgradeLegacy(db, uid, data, now, {leave=false}={}) {
-  if (!sources[data.source] || !exact(data.legacyId)) fail('invalid-argument');
+  if (!sources[data.source] || !legacyDocumentId(data.legacyId)) fail('invalid-argument');
   return db.runTransaction(async tx => {
   await assertReferenceWritesAllowed(tx, db);
     const sourceRef = db.doc(`${data.source}/${data.legacyId}`), snapshot = await tx.get(sourceRef), old = snapshot.data();

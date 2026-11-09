@@ -15,6 +15,15 @@ function contentEvent(event,collection,sender,now=Date.now()){
   return {category:'workorders',collection,documentId,eventId:`done-${completed}`,recipientIds:[after.userId],senderId:sender.id,body:'Your Work Order has been completed.'};
  }
  if(collection!=='discussion_feed'||after.storageDraft!==false||after.userId!==before.userId||!id(after.userId))return null;
+ // Reactions are distinct from comments and use a stable per-post/per-actor key.
+ // The slash cannot collide with a valid comment ID; unlike/re-like cannot spam.
+ if(isDeepStrictEqual(before.comments||[],after.comments||[])){
+  const oldLikes=before.likedBy||{},nextLikes=after.likedBy||{};
+  if(!oldLikes||!nextLikes||Array.isArray(oldLikes)||Array.isArray(nextLikes)||typeof oldLikes!=='object'||typeof nextLikes!=='object'||oldLikes[sender.id]===true||nextLikes[sender.id]!==true)return null;
+  const changed=[...new Set([...Object.keys(oldLikes),...Object.keys(nextLikes)])].filter(key=>oldLikes[key]!==nextLikes[key]);
+  if(changed.length!==1||changed[0]!==sender.id||!Number.isSafeInteger(before.likes)||after.likes!==before.likes+1)return null;
+  return {category:'discussion',activity:'like',collection,documentId,eventId:`like/${sender.id}`,recipientIds:after.userId===sender.id?[]:[after.userId],senderId:sender.id,body:'Someone liked your discussion post.'};
+ }
  const old=before.comments||[],next=after.comments;
  if(!Array.isArray(old)||!Array.isArray(next)||next.length!==old.length+1||!isDeepStrictEqual(next.slice(0,-1),old))return null;
  const comment=next.at(-1);

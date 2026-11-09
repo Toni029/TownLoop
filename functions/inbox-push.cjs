@@ -79,7 +79,7 @@ async function sendEvent(db,d,{now,identity,transport,verify,recipientAllowed=()
     const counts=await notificationCounts(db,uid,now);
     const badge=Object.entries(counts).reduce((sum,[category,count])=>sum+(preferences(latest.preferences)[category]?count:0),0);
     const result=(await transport('send',{to:current.token,title:'TownLoop',body:d.body,
-     sound:'default',channelId:channelFor(d.category),badge,ttl:3600,data:{type:'notice',category:d.category,noticeId:notice.id,deviceBinding:hash(`${current.capability}/${uid}`)}})).data;
+     sound:'default',priority:'high',channelId:channelFor(d.category),badge,ttl:3600,data:{type:'notice',category:d.category,noticeId:notice.id,deviceBinding:hash(`${current.capability}/${uid}`)}})).data;
     await claim.update({state:result?.status==='ok'?'accepted':'rejected',ticketId:result?.id||'',error:safeCode(result?.details?.error),checkedAt:new Date(now)});
     trace(result?.status==='ok'?'transport_accepted':'transport_rejected');
     if(result?.details?.error==='DeviceNotRegistered')await removeInvalidDevice(db,device.ref,uid,current.capability);
@@ -120,6 +120,7 @@ async function deliverContent(db,event,collection,{now=Date.now(),identity,trans
   const [record,currentSender]=await Promise.all([tx.get(db.doc(`${collection}/${descriptor.documentId}`)),tx.get(db.doc(`users/${sender.id}`))]);
   const live=record.data();if(!live||!approved(currentSender.data()))return false;
   if(collection==='work_orders')return live.userId===uid&&live.status==='Done';
+  if(descriptor.activity==='like')return live.storageDraft===false&&live.userId===uid&&live.userId===event.data.after.data().userId&&live.likedBy?.[sender.id]===true;
   return live.storageDraft===false&&live.userId===event.data.after.data().userId&&live.comments?.some(c=>c.id===descriptor.commentId&&c.authorId===sender.id)&&
    (live.userId===uid||live.comments.some(c=>String(c.id)===event.data.after.data().comments.at(-1).replyToCommentId&&c.authorId===uid));
  }});

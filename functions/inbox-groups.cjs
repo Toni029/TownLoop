@@ -211,19 +211,30 @@ async function leave(db,uid,cid,_data,now) {
 async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}) {
   if (!validId(uid)) fail('unauthenticated');
   if (!approved((await db.doc(`users/${uid}`).get()).data())) fail('permission-denied');
-  if (data.op === 'capabilities') return { protocolVersion: 3, enabled, permanentCleanup: false };
+  if (data.op === 'capabilities') return { protocolVersion: 3, enabled, permanentCleanup: false, freshGroupConversations:true };
   if (!enabled) fail('failed-precondition');
   if (data.op === 'listLegacy') return require('./inbox-group-legacy.cjs').legacyList(db, uid);
   if (data.op === 'leaveLegacy') return require('./inbox-legacy-leave.cjs').leaveLegacy(db, uid, data, now);
   if (data.op === 'upgradeLegacy') return require('./inbox-group-legacy.cjs').upgradeLegacy(db, uid, data, now);
-  if (data.op === 'create') {
+  if (data.op === 'create' || data.op === 'createFresh') {
+    if(data.op==='createFresh'&&!['office','maintenance'].includes(data.type))fail('invalid-argument');
+    // Reuse an authorized current thread before considering a protected legacy history.
+    const pair=Array.isArray(data.recipientIds)&&data.recipientIds.length===1&&validId(data.recipientIds[0])?data.recipientIds[0]:null;
+    const currentId=data.type==='private'&&pair?`v3_${hash(`private/${[uid,pair].sort().join('/')}`)}`:['office','maintenance'].includes(data.type)?`v3_${hash(`${data.type}/${data.residentId||uid}`)}`:null;
+    const current=currentId?(await ref(db,currentId).get()).exists:false;
+    if(data.op==='createFresh'||current){
+      const result=await createConversation(db,uid,data,now);
+      if(data.type==='office')await updateMembership(db,uid,result.conversationId,{op:'add',recipientIds:data.recipientIds},now);
+      if(data.type==='maintenance')await updateMembership(db,uid,result.conversationId,{op:'sync'},now);
+      return result;
+    }
     const { legacyList, upgradeLegacy } = require('./inbox-group-legacy.cjs');
     const legacy = await legacyList(db, uid, {includeLeft:true});
     const source = { private: 'resident_chats', office: 'office_chats', maintenance: 'maintenance_chats' }[data.type];
     const matches = legacy.rows.filter(row => (row.collection === source || data.type === 'office' && row.collection === 'resident_chats' && row.data.officeDirect === true && row.data.participantIds?.includes(data.residentId || uid)) && (data.type === 'private'
       ? data.recipientIds?.length === 1 && row.data.participantIds?.includes(data.recipientIds[0])
       : row.collection === 'resident_chats' || row.data.residentId === (data.residentId || uid)));
-    if (matches.length > 1) fail('failed-precondition');
+    if (matches.length > 1) {const error=Error('failed-precondition');error.safeReason='legacy-review';throw error;}
     if (matches[0]) {
       const result = await upgradeLegacy(db, uid, { source: matches[0].collection, legacyId: matches[0].id }, now);
       if (data.type === 'office' && data.recipientIds?.length) await updateMembership(db, uid, result.conversationId, { op: 'add', recipientIds: data.recipientIds }, now);

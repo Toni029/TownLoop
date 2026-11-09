@@ -198,3 +198,31 @@ test('atomic legacy leave projects the remaining count and own visible sequence 
  assert.equal(membership(h,id,'b').activeCount,1);assert.equal(membership(h,id,'a').activeCount,1);
  assert.equal(membership(h,id,'a').sequence,1);assert.equal(membership(h,id,'b').sequence,2);
 });
+
+test('email-shaped legacy document IDs can upgrade only their verified private pair',async()=>{
+ const h=fixture(),path='resident_chats/neighbor@example.test_vs_office@example.test';
+ h.records.set(path,{identityVersion:2,participantIds:['a','b'],subject:'Existing contact',messages:[{id:'old',senderId:'a',senderName:'a',senderRole:'resident',body:'Synthetic history',createdAt:1}]});
+ const result=await h.call('a',{op:'create',type:'private',recipientIds:['b']});
+ await h.call('a',{op:'send',conversationId:result.conversationId,messageId:'next',body:'New synthetic message'});
+ await h.call('b',{op:'send',conversationId:result.conversationId,messageId:'reply',body:'Synthetic reply'});
+ assert.equal(message(h,result.conversationId,'old').body,'Synthetic history');
+ await assert.rejects(h.call('crew',{op:'upgradeLegacy',source:'resident_chats',legacyId:path.split('/')[1]}),/permission-denied/);
+});
+test('explicit fresh Office conversation preserves unproven history and cannot grant access to it',async()=>{
+ const h=fixture(),path='office_chats/old';
+ h.records.set(path,{residentId:'a',messages:[{id:'old',senderId:'admin',body:'Protected synthetic history',createdAt:1}]});
+ const before=structuredClone(h.records.get(path));
+ await assert.rejects(h.call('a',{op:'create',type:'office',recipientIds:['admin']}),/failed-precondition/);
+ const {conversationId:cid}=await h.call('a',{op:'createFresh',type:'office',recipientIds:['admin']});
+ assert.deepEqual(h.records.get(path),before);assert.equal(message(h,cid,'old'),undefined);
+ await h.call('a',{op:'send',conversationId:cid,messageId:'new',body:'Current synthetic message'});
+ await h.call('a',{op:'add',conversationId:cid,recipientIds:['vip']});
+ assert.equal(canSee(conversation(h,cid),membership(h,cid,'vip'),h.records.get('users/vip'),message(h,cid,'new')),false);
+ assert.equal((await h.call('a',{op:'create',type:'office',recipientIds:['admin']})).conversationId,cid);
+});
+test('legacy path validation cannot escape its allowlisted collection and fresh groups cannot add unauthorized recipients',async()=>{
+ const h=fixture();for(const legacyId of ['../users/admin','x/y','.', '..','bad\u0000id','x'.repeat(1501)])await assert.rejects(h.call('a',{op:'upgradeLegacy',source:'resident_chats',legacyId}),/invalid-argument/);
+ await assert.rejects(h.call('a',{op:'createFresh',type:'office',recipientIds:['b']}),/permission-denied/);
+ await assert.rejects(h.call('a',{op:'createFresh',type:'maintenance',residentId:'b'}),/permission-denied/);
+ await assert.rejects(h.call('a',{op:'createFresh',type:'private',recipientIds:['b']}),/invalid-argument/);
+});

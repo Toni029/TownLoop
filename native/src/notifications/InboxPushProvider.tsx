@@ -8,7 +8,7 @@ import {useSession} from '../lib/session';
 import {auth,db} from '../lib/firebase';
 import {readThread} from '../profile/model';
 import type {UserProfile} from '../../../src/types';
-import {authorizeTarget,collectionFor,inboxTarget,emptyPreferences,preferenceCategory,type NotificationCategory,type NotificationPreferences,type InboxTarget} from './protocol';
+import {authorizeTarget,notificationCollection,inboxTarget,emptyPreferences,preferenceCategory,type NotificationCategory,type NotificationPreferences,type InboxTarget} from './protocol';
 import {binding,notifications,categoryPreferences,revoke,serialized,setCategoryPreference,syncDevice,applyNotificationPermission,requestNativeNotificationPermission,getNotificationAuthorization,type NotificationAuthorization,refreshBadge,notificationCapabilities,resolveNotice} from './device';
 type State={authorization:NotificationAuthorization;repliesAvailable:boolean;enabled:boolean;preferences:NotificationPreferences;busy:boolean;status:string;target:InboxTarget|null;toggle:(category?:NotificationCategory)=>void;consume:()=>void;read:(category:InboxTarget['category'],id:string)=>void};
 const Context=createContext<State>({authorization:'checking',repliesAvailable:false,enabled:false,preferences:emptyPreferences,busy:false,status:'',target:null,toggle:()=>{},consume:()=>{},read:()=>{}});
@@ -52,8 +52,13 @@ export function InboxPushProvider({children}:PropsWithChildren){
     t=inboxTarget({...resolved,type:'inbox',deviceBinding:t.deviceBinding});if(!t)return;
    }
    const authorized=await authorizeTarget(t,{session:()=>active.current,binding,authorize:async(destination,account)=>{
-    const snap=await getDocFromServer(doc(db,collectionFor[destination.category],destination.conversationId));
+    const targetCollection=notificationCollection(destination);
+    const snap=await getDocFromServer(doc(db,targetCollection,destination.conversationId));
     if(!snap.exists())return false;
+    if(targetCollection==='inbox_conversations'){
+     // This server read is subject to active-membership/role Firestore rules.
+     const group=snap.data();return group.schemaVersion===3&&group.id===destination.conversationId&&Array.isArray(group.memberIds)&&group.memberIds.includes(account)&&({private:'friend',office:'office',maintenance:'maintenance'} as Record<string,string>)[group.type]===destination.category&&group.status!=='cleanup_in_progress';
+    }
     if(destination.category==='discussion')return snap.data().storageDraft===false;
     if(destination.category==='workorders')return snap.data().userId===account||['admin','vip','crew'].includes(profile?.role||'');
     if(destination.category==='marketplace')return snap.data().participantIds?.includes(account)&&[snap.data().sellerId,snap.data().buyerId].includes(account);

@@ -31,3 +31,12 @@ test('explicit four-category preferences; older devices opt into no new categori
  assert.throws(()=>preferences({discussion:'true'}),/invalid-argument/);
  assert.equal(preferences({discussion:true}).discussion,true);assert.equal(preferences({discussion:true}).inbox,false);
 });
+
+test('a new like notifies only the post owner; repeats, self likes, unlikes and forged map changes are excluded',()=>{
+ const h=fixture();h.before.comments=[];h.after.comments=[];h.before.likedBy={};h.after.likedBy={author:true};h.before.likes=0;h.after.likes=1;
+ let result=h.run();assert.equal(result.activity,'like');assert.deepEqual(result.recipientIds,['owner']);assert.equal(result.commentId,undefined);
+ h.after.userId=h.before.userId='author';assert.deepEqual(h.run().recipientIds,[]);h.after.userId=h.before.userId='owner';
+ h.before.likedBy={author:true};h.before.likes=1;assert.equal(h.run(),null);
+ h.after.likedBy={};h.after.likes=0;assert.equal(h.run(),null);
+ h.before.likedBy={};h.before.likes=0;h.after.likedBy={author:true,other:true};h.after.likes=2;assert.equal(h.run(),null);
+});

@@ -40,3 +40,10 @@ test('opaque notification IDs are validated separately and cannot smuggle a chat
  assert.equal(inboxTarget(data)?.noticeId,'a'.repeat(64));assert.equal(inboxTarget(data)?.conversationId,'a'.repeat(64));
  assert.equal(inboxTarget({...data,noticeId:'../other'}),null);
 });
+
+test('v3 private/group push targets use membership-authorized conversation documents, while Marketplace keeps its separate collection',async()=>{
+ const {notificationCollection}=await import('../src/notifications/protocol.ts');
+ const id='v3_'+'a'.repeat(64);
+ for(const category of ['friend','office','maintenance'] as const)assert.equal(notificationCollection({category,conversationId:id}),'inbox_conversations');
+ assert.equal(notificationCollection({category:'marketplace',conversationId:id}),'marketplace_chats');assert.equal(notificationCollection({category:'friend',conversationId:'legacy'}),'resident_chats');
+});

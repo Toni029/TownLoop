@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {registerDevice,deliver,checkReceipts}=require('./inbox-push.cjs');
+const {registerDevice,deliver,deliverContent,checkReceipts}=require('./inbox-push.cjs');
 function fixture(){
  const records=new Map(),sent=[];let hook=()=>{};
  const ref=path=>({path,id:path.split('/').at(-1),get:async()=>snap(path),update:async patch=>records.set(path,{...records.get(path),...patch})});
@@ -136,4 +136,23 @@ test('delivery tracing reports fixed reason codes without message or identity da
   assert(stages.includes(expected),mode+': '+JSON.stringify(stages));
   assert(stages.every(s=>/^[a-z_]+$/.test(s)));assert(!JSON.stringify(stages).includes('PRIVATE CONTENT'));
  }
+});
+
+test('Discussion likes reuse discussion preferences, generic payloads, blocks and per-device duplicate claims',async()=>{
+ const run=async mode=>{
+  const h=fixture();await h.register('b',{preferences:{inbox:false,marketplace:false,discussion:mode!=='off',workorders:false}});
+  const before={userId:'b',storageDraft:false,comments:[],likedBy:{},likes:0},after={...before,likedBy:{a:true},likes:1};
+  h.records.set('discussion_feed/post',after);if(mode==='blocked')h.records.set('user_blocks/b/targets/a',{});
+  const event={authId:'a',authType:'unknown',time:new Date(h.now).toISOString(),params:{documentId:'post'},data:{before:{data:()=>before},after:{data:()=>after}}};
+  const dependencies={now:h.now,identity:async()=>({disabled:false}),transport:async(_,payload)=>{h.sent.push(payload);return{data:{status:'ok',id:'like-ticket'}};}};
+  await deliverContent(h.db,event,'discussion_feed',dependencies);await deliverContent(h.db,event,'discussion_feed',dependencies);
+  if(mode==='on'){assert.equal(h.sent.length,1);assert.equal(h.sent[0].channelId,'discussion');assert.equal(h.sent[0].priority,'high');assert.equal(h.sent[0].body,'Someone liked your discussion post.');assert.equal(h.sent[0].data.commentId,undefined);}
+  else assert.equal(h.sent.length,0);
+ };for(const mode of ['on','off','blocked'])await run(mode);
+});
+test('older Preview and Play installations register independently and both receive eligible Marketplace pushes',async()=>{
+ const h=fixture();await h.register('b',{preferences:{marketplace:true}});await h.register('b',{token:'ExpoPushToken[play]',installationId:'b'.repeat(32),secret:'p'.repeat(64),preferences:{marketplace:true}});
+ const chat={sellerId:'a',buyerId:'b',participantIds:['a','b'],messages:[{id:'fresh',senderId:'a',senderName:'A',text:'Synthetic private text'}]};h.records.set('marketplace_chats/chat',chat);h.event.data.after.data=()=>chat;
+ await deliver(h.db,h.event,'marketplace_chats',{now:h.now,identity:async()=>({disabled:false}),transport:async(_,payload)=>{h.sent.push(payload);return{data:{status:'ok',id:'new-ticket'}};}});
+ assert.equal(h.sent.length,2);assert.equal(new Set(h.sent.map(p=>p.to)).size,2);assert(h.sent.every(p=>p.channelId==='marketplace'&&p.priority==='high'));assert(!JSON.stringify(h.sent).includes('Synthetic private text'));
 });

@@ -1,0 +1,19 @@
+{
+  "approvalRequired": true,
+  "operation": "Associate the existing FCM v1 service credential with the new Android app in EAS; do not generate or replace any key",
+  "easProject": "9f970d26-beed-44d6-a590-9dcdc00e85de",
+  "targetPackage": "com.townloop.app",
+  "targetAndroidAppCredentialsId": "e5879a6a-82ee-4a04-af1d-3f78769a5146",
+  "existingGoogleServiceAccountKeyId": "f05ddda0-da36-4d80-9d4e-d2b36d3b4ca0",
+  "firebaseProject": "cc-livingcommunity-app",
+  "preserveOldAssociation": true,
+  "applied": false,
+  "registrationConfiguration": {
+    "function": "registerInboxDevice",
+    "requiredEnvironment": {
+      "DISCUSSION_REPLIES_ENABLED": "true"
+    },
+    "preserveAllOtherLiveEnvironment": true,
+    "reason": "Deployed sender enables replies, but registration currently advertises replies as unavailable."
+  }
+}

@@ -11,6 +11,10 @@ export function inboxTarget(data:Record<string,unknown>|undefined):InboxTarget|n
  return {category:data.category as InboxTarget['category'],conversationId:data.conversationId,deviceBinding:data.deviceBinding,...(typeof data.commentId==='string'&&data.commentId.length<=200&&!data.commentId.includes('/')?{commentId:data.commentId}:{})};
 }
 export const collectionFor={friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats',marketplace:'marketplace_chats',discussion:'discussion_feed',workorders:'work_orders'} as const;
+/** The server resolves notice IDs first; Firestore still authorizes every target read. */
+export function notificationCollection(target:Pick<InboxTarget,'category'|'conversationId'>){
+ return ['friend','office','maintenance'].includes(target.category)&&/^v3_[a-f0-9]{64}$/.test(target.conversationId)?'inbox_conversations':collectionFor[target.category];
+}
 /** Only one async registration/revocation may own the installation at a time. */
 export function serialOperations(){let tail=Promise.resolve();return <T>(work:()=>Promise<T>):Promise<T>=>{const result=tail.then(work);tail=result.then(()=>{},()=>{});return result;};}
 /** Captures an account epoch across asynchronous server authorization. */

@@ -1,3 +1,4 @@
+import {inboxActionError} from './inboxActionError';
 import {confirmedLegacyLeave,onConfirmedLegacyLeave} from './legacyLeaveEvents';
 import { useEffect, useState } from 'react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
@@ -9,7 +10,8 @@ const callable = httpsCallable<Record<string, unknown>, any>(getFunctions(app, '
 export async function groupAction(op: string, input: Record<string, unknown> = {}) {
   const uid = auth.currentUser?.uid;
   if (!uid) throw Error('Please sign in again.');
-  const result = await callable({ ...input, op });
+  let result;
+  try{result=await callable({...input,op});}catch(error){throw inboxActionError(error);}
   if (auth.currentUser?.uid !== uid) throw Error('Your session changed. Please sign in again.');
   confirmedLegacyLeave(uid,op,input,result.data);
   return result.data;
