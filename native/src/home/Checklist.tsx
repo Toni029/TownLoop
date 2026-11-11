@@ -28,6 +28,8 @@ export function Checklist({
 }) {
   const p = usePalette();
   const tomorrow = nextDate(today);
+  const [headerWidth, setHeaderWidth] = useState(300);
+  const compactHeader = headerWidth < 280;
   const [filter, setFilter] = useState<"today" | "tomorrow" | "date" | "all">(
       "today",
     ),
@@ -52,27 +54,27 @@ export function Checklist({
       <View pointerEvents="none" style={{position:"absolute",top:0,right:0,bottom:0,left:0,borderRadius:30,overflow:"hidden"}}>
         <ChecklistLandscape dark={p.paper!=="#ffffff"}/>
       </View>
-      <View style={{width:"100%",minWidth:0,gap:2}}>
-        <Txt
-          bold
-          accessibilityRole="header"
-          style={{textAlign:"center",fontSize:20,lineHeight:24,color:p.paper==="#ffffff"?"#073f49":p.ink}}
-        >
-          Daily Checklist
-        </Txt>
-        <Txt
-          bold
-          style={{textAlign:"center",fontSize:12,lineHeight:18,color:p.green}}
-        >
-          {filter === "all"
-            ? "All Scheduled Tasks"
-            : `${filter === "today" ? "Today • " : filter === "tomorrow" ? "Tomorrow • " : ""}${friendlyDate(target)}`}
-        </Txt>
-      </View>
-      <Row style={{justifyContent:"center",gap:20}}>
-        <View style={{flexShrink:0}}><ChecklistArtwork /></View>
-        <View style={{alignItems:"center",gap:6,maxWidth:"100%"}}>
-          <Row style={{gap:12,flexWrap:"nowrap",flexShrink:0}}>
+      <View onLayout={event => setHeaderWidth(event.nativeEvent.layout.width)} style={{flexDirection:"row",alignItems:"center",gap:8,minWidth:0}}>
+        <View style={{flexShrink:0}}><ChecklistArtwork size={compactHeader?56:76}/></View>
+        <View style={{flex:1,minWidth:0,gap:2}}>
+          <Txt
+            bold
+            accessibilityRole="header"
+            style={{textAlign:"left",fontSize:compactHeader?16:20,lineHeight:compactHeader?21:24,color:p.paper==="#ffffff"?"#073f49":p.ink}}
+          >
+            Daily Checklist
+          </Txt>
+          <Txt
+            bold
+            style={{textAlign:"left",fontSize:12,lineHeight:18,color:p.green}}
+          >
+            {filter === "all"
+              ? "All Scheduled Tasks"
+              : `${filter === "today" ? "Today • " : filter === "tomorrow" ? "Tomorrow • " : ""}${friendlyDate(target)}`}
+          </Txt>
+        </View>
+        <View style={{alignItems:"center",gap:4,width:96,flexShrink:0}}>
+          <Row style={{gap:8,flexWrap:"nowrap",flexShrink:0}}>
             <Action
               icon={CalendarIcon}
               label="Choose Date on Calendar"
@@ -111,7 +113,7 @@ export function Checklist({
             </Txt>
           </View>
         </View>
-      </Row>
+      </View>
       <View style={{gap:6}}>
         <Row style={{gap:8,justifyContent:"center"}}>
           <Action label="Today" active={filter==="today"} onPress={()=>setFilter("today")}/>
