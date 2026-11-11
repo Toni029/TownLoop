@@ -147,9 +147,10 @@ export function AdminMenu({
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={{
-          padding: 16,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
           borderRadius: 0,
-          gap: 10,
+          gap: 6,
         }}
       >
         <View style={{flexDirection:"row",alignItems:"center",gap:8}}>
@@ -195,7 +196,7 @@ export function AdminMenu({
           </LinearGradient>
           <View style={{flex:1,minWidth:0}} />
         </View>
-        <View style={{width:"100%",minWidth:0,alignItems:"center",gap:4}}>
+        <View style={{width:"100%",minWidth:0,alignItems:"center",gap:2}}>
           <Text style={{ ...font(18, true), color: "#fff", textAlign: "center", maxWidth: "100%" }}>Admin Portal</Text>
           <Text style={{ ...font(11), color: "#fde68acc", textAlign: "center", maxWidth: "100%" }}>
             Resident approvals & system directory

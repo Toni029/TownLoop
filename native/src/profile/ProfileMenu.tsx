@@ -147,7 +147,7 @@ function Row({
   tone?: string;
   badge?: number;
   danger?: boolean;
-  highlight?: boolean;
+  highlight?: boolean | "orange";
 }) {
   const { ink, muted, panel, busy, closing, dark } = useContext(MenuStyle);
   const wide = useWindowDimensions().width >= 640;
@@ -162,6 +162,8 @@ function Row({
         {
           backgroundColor: danger
             ? "#e11d48"
+            : highlight === "orange"
+              ? (dark ? "#7c2d12" : "#ffedd5")
             : highlight
               ? (dark ? "#78350f" : "#fef3c7")
             : dark
@@ -1254,6 +1256,7 @@ export function ProfileMenu({
                         {canAccessAdminPanel(user) && (
                           <Row
                             title="Admin Panel"
+                            highlight="orange"
                             subtitle="Resident Approvals & Role Management"
                             icon={Shield}
                             tone="#d97706"
