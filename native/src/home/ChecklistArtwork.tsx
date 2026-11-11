@@ -2,7 +2,7 @@ import Svg, {Defs,LinearGradient,Stop,Rect,Path,Circle} from 'react-native-svg';
 /** Decorative vector artwork stays crisp at different phone sizes. */
 export function ChecklistArtwork({quiet=false}:{quiet?:boolean}){
  const id=quiet?'checklist-paper-soft':'checklist-paper-badge';
- return <Svg width={quiet?96:50} height={quiet?72:58} viewBox={quiet?'0 0 140 106':'0 0 116 108'} accessible={false}>
+ return <Svg width={quiet?96:64} height={quiet?72:68} viewBox={quiet?'0 0 140 106':'0 0 116 108'} accessible={false}>
   <Defs><LinearGradient id={id} x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor={quiet?'#c9dfd7':'#62dbca'}/><Stop offset="1" stopColor={quiet?'#91b8af':'#069886'}/></LinearGradient></Defs>
   {quiet?<>
    <Path d="M39 89C16 85 13 66 17 58C33 60 40 75 39 89M105 89C122 82 134 70 128 59C111 62 104 77 105 89" fill="#abd4bd"/>
