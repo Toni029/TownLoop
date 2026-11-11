@@ -113,7 +113,7 @@ export function Tile({
               : ["#f0f6fc", "#e1edf8"]
       }
       style={{
-        padding: tone === "medication" ? 16 : 20,
+        padding: tone === "medication" || tone === "checklist" ? 16 : 20,
         borderRadius: 30,
         boxShadow: "0px 1px 2px rgba(0,0,0,0.08)",
         borderWidth: 1,
@@ -126,7 +126,7 @@ export function Tile({
             : tone === "green"
               ? "#bbdfca"
               : "#bcd6ee",
-        gap: tone === "medication" ? 12 : 14,
+        gap: tone === "checklist" ? 8 : tone === "medication" ? 12 : 14,
       }}
     >
       {children}
@@ -164,6 +164,8 @@ export function Action({
   color,
   disabled = false,
   iconOnly = false,
+  iconOnlySize = 32,
+  iconSize = 16,
   large = false,
   square = false,
   borderless = false,
@@ -175,6 +177,8 @@ export function Action({
   color?: string;
   disabled?: boolean;
   iconOnly?: boolean;
+  iconOnlySize?: number;
+  iconSize?: number;
   large?: boolean;
   square?: boolean;
   borderless?: boolean;
@@ -194,8 +198,8 @@ export function Action({
       onPress={onPress}
       hitSlop={iconOnly ? 8 : { top: 8, bottom: 8, left: 2, right: 2 }}
       style={({ pressed }) => ({
-        minWidth: iconOnly ? 32 : undefined,
-        minHeight: iconOnly ? 32 : large ? 40 : active ? 24 : 26,
+        minWidth: iconOnly ? iconOnlySize : undefined,
+        minHeight: iconOnly ? iconOnlySize : large ? 40 : active ? 24 : 26,
         paddingHorizontal: iconOnly ? 8 : large ? 16 : 12,
         paddingVertical: large ? 8 : 4,
         borderRadius: square || large ? 12 : 99,
@@ -210,7 +214,7 @@ export function Action({
         flexShrink: 1,
       })}
     >
-      {Icon && <Icon size={16} color={active ? "#fff" : tint} />}
+      {Icon && <Icon size={iconSize} color={active ? "#fff" : tint} />}
       {!iconOnly && (
         <Txt
           bold

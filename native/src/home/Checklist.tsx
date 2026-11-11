@@ -52,46 +52,7 @@ export function Checklist({
       <View pointerEvents="none" style={{position:"absolute",top:0,right:0,bottom:0,left:0,borderRadius:30,overflow:"hidden"}}>
         <ChecklistLandscape dark={p.paper!=="#ffffff"}/>
       </View>
-      <Row style={{justifyContent:"space-between",gap:10,flexWrap:"nowrap"}}>
-        <View style={{flexShrink:0}}><ChecklistArtwork /></View>
-        <View style={{flex:1,minWidth:0,alignItems:"center"}}>
-          <View
-            style={{
-              maxWidth: "100%",
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 99,
-              borderWidth: 1,
-              borderColor: "#a7f3d0",
-              backgroundColor: "#d1fae5cc",
-            }}
-          >
-            <Txt bold style={{ color: p.green, fontSize: 12, lineHeight: 16, textAlign:"center" }}>
-              {list.filter((t) => t.done).length}/{list.length} Done
-            </Txt>
-          </View>
-        </View>
-        <Row style={{gap:12,flexWrap:"nowrap",flexShrink:0}}>
-          <Action
-            icon={CalendarIcon}
-            label="Choose Date on Calendar"
-            iconOnly
-            onPress={() => {
-              setMonth(parseDate(target));
-              setDialog("calendar");
-            }}
-          />
-          <Action
-            icon={Plus}
-            label="Add Task"
-            iconOnly
-            active
-            disabled={busy}
-            onPress={() => setDialog("add")}
-          />
-        </Row>
-      </Row>
-      <View style={{width:"100%",minWidth:0,gap:4}}>
+      <View style={{width:"100%",minWidth:0,gap:2}}>
         <Txt
           bold
           accessibilityRole="header"
@@ -108,7 +69,50 @@ export function Checklist({
             : `${filter === "today" ? "Today • " : filter === "tomorrow" ? "Tomorrow • " : ""}${friendlyDate(target)}`}
         </Txt>
       </View>
-      <View style={{gap:8}}>
+      <Row style={{justifyContent:"center",gap:20}}>
+        <View style={{flexShrink:0}}><ChecklistArtwork /></View>
+        <View style={{alignItems:"center",gap:6,maxWidth:"100%"}}>
+          <Row style={{gap:12,flexWrap:"nowrap",flexShrink:0}}>
+            <Action
+              icon={CalendarIcon}
+              label="Choose Date on Calendar"
+              iconOnly
+              iconOnlySize={44}
+              iconSize={20}
+              onPress={() => {
+                setMonth(parseDate(target));
+                setDialog("calendar");
+              }}
+            />
+            <Action
+              icon={Plus}
+              label="Add Task"
+              iconOnly
+              iconOnlySize={44}
+              iconSize={20}
+              active
+              disabled={busy}
+              onPress={() => setDialog("add")}
+            />
+          </Row>
+          <View
+            style={{
+              maxWidth: "100%",
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 99,
+              borderWidth: 1,
+              borderColor: "#a7f3d0",
+              backgroundColor: "#d1fae5cc",
+            }}
+          >
+            <Txt bold style={{ color: p.green, fontSize: 12, lineHeight: 16, textAlign:"center" }}>
+              {list.filter((t) => t.done).length}/{list.length} Done
+            </Txt>
+          </View>
+        </View>
+      </Row>
+      <View style={{gap:6}}>
         <Row style={{gap:8,justifyContent:"center"}}>
           <Action label="Today" active={filter==="today"} onPress={()=>setFilter("today")}/>
           <Action label="Tomorrow" active={filter==="tomorrow"} onPress={()=>setFilter("tomorrow")}/>
@@ -120,7 +124,7 @@ export function Checklist({
         </Row>
       </View>
       {list.length === 0 ? (
-        <View style={{alignItems:"center",gap:8,paddingTop:0,paddingBottom:12}}>
+        <View style={{alignItems:"center",gap:4,paddingTop:0,paddingBottom:6}}>
           <View pointerEvents="none" style={{opacity:p.paper==="#ffffff"?.9:.65}}><ChecklistArtwork quiet /></View>
           <Txt bold style={{color:p.muted,fontSize:14,lineHeight:21,textAlign:"center"}}>
             No tasks scheduled for this day.
