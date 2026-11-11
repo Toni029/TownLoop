@@ -149,50 +149,55 @@ export function AdminMenu({
         style={{
           padding: 16,
           borderRadius: 0,
-          paddingRight: 52,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
+          gap: 10,
         }}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to resident menu"
-          onPress={onBack}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 4,
-            paddingVertical: 6,
-            paddingHorizontal: 10,
-            borderRadius: 12,
-            backgroundColor: "#ffffff26",
-          }}
-        >
-          <ChevronLeft size={16} color="#fff" />
-          <Text
-            style={{ fontFamily: "JakartaBold", fontSize: 12, color: "#fff" }}
+        <View style={{flexDirection:"row",alignItems:"center",gap:8}}>
+          <View style={{flex:1,minWidth:0,alignItems:"flex-start"}}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back to resident menu"
+              onPress={onBack}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                minHeight: 44,
+                maxWidth: "100%",
+                gap: 4,
+                paddingVertical: 6,
+                paddingHorizontal: 10,
+                borderRadius: 12,
+                backgroundColor: "#ffffff26",
+              }}
+            >
+              <ChevronLeft size={16} color="#fff" />
+              <Text
+                style={{ fontFamily: "JakartaBold", fontSize: 12, color: "#fff", flexShrink: 1 }}
+              >
+                Back
+              </Text>
+            </Pressable>
+          </View>
+          <LinearGradient
+            colors={["#185d3b", "#145334", "#0c3621"]}
+            style={{
+              width: 40,
+              height: 40,
+              flexShrink: 0,
+              borderRadius: 16,
+              borderWidth: 2,
+              borderColor: "#fbbf24b3",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            Back
-          </Text>
-        </Pressable>
-        <LinearGradient
-          colors={["#185d3b", "#145334", "#0c3621"]}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 16,
-            borderWidth: 2,
-            borderColor: "#fbbf24b3",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <CecilPinesMark size={28} />
-        </LinearGradient>
-        <View>
-          <Text style={{ ...font(18, true), color: "#fff" }}>Admin Portal</Text>
-          <Text style={{ ...font(11), color: "#fde68acc" }}>
+            <CecilPinesMark size={28} />
+          </LinearGradient>
+          <View style={{flex:1,minWidth:0}} />
+        </View>
+        <View style={{width:"100%",minWidth:0,alignItems:"center",gap:4}}>
+          <Text style={{ ...font(18, true), color: "#fff", textAlign: "center", maxWidth: "100%" }}>Admin Portal</Text>
+          <Text style={{ ...font(11), color: "#fde68acc", textAlign: "center", maxWidth: "100%" }}>
             Resident approvals & system directory
           </Text>
         </View>
