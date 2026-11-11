@@ -42,6 +42,7 @@ function fixture(
           limit: (count: number) => count,
           query: (ref: any, ...constraints: unknown[]) => ({ ref, constraints }),
           getDocs: async () => ({ docs: [] }),
+          getDocFromServer: async () => ({ data: () => undefined }),
           FieldPath: class { segments: string[]; constructor(...segments: string[]) { this.segments = segments; } },
           serverTimestamp: () => "SERVER_TIMESTAMP",
           updateDoc: async (ref: any, patch: any) =>

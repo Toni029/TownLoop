@@ -1,10 +1,10 @@
+import {runBudgetedTransaction} from "../../../src/security/abuseBudget";
 import {refreshBadge} from '../notifications/device';
 import { mutateSocial } from "../../../src/services/socialIntegrity";
 import {sendMarketInquiry, mutateMarketChat} from "../../../src/services/marketplaceChatProtocol";
 import {
   collection,
   doc,
-  runTransaction,
   serverTimestamp,
 } from "firebase/firestore";
 import type {
@@ -39,7 +39,7 @@ export async function publishSocial(
       throw Error("Please provide a title and description.");
     const user = await approvedUser();
     const reference = doc(db, collectionFor(kind), id);
-    await runTransaction(db, async (tx) => {
+    await runBudgetedTransaction(db, String(user.id), async (tx) => {
       const previous = await tx.get(reference);
       if (previous.exists() && previous.data().storageDraft !== true) return;
       if (previous.exists() && previous.data().userId !== String(user.id)) throw Error('Draft ownership does not match.');
@@ -117,7 +117,7 @@ export async function editListing(id: string, draft: {title:string;description:s
     if (draft.title.trim().length > 1000 || draft.description.trim().length > 20000) throw Error('Please shorten the listing text.');
     const user = await approvedUser();
     const reference = doc(db, 'marketplace_posts', id);
-    await runTransaction(db, async tx => {
+    await runBudgetedTransaction(db, String(user.id), async tx => {
       const snap = await tx.get(reference);
       if (!snap.exists() || snap.data().storageDraft !== false) throw Error('This listing is no longer available.');
       const data = snap.data();

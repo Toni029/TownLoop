@@ -1,3 +1,4 @@
+const {budget}=require('./abuseLimits.cjs');
 // Review-only surface: never import workers, Storage, or deletion engines here.
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -115,6 +116,8 @@ exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }
     // worker independently checks its audit and authorization before any destruction.
     const automatic=activation.data()?.automaticApprovedProcessing===true&&retention.policyReady(activation.data())&&require('./accountDeletionScope.cjs').writeFreezeReady(activation.data());
     const status = decision === 'approved' ? automatic ? 'queued' : 'approved_held' : decision;
+    const applyBudget=await budget(tx,db,token.uid,'adminMutation',ref.path);
+    try{applyBudget();}catch(error){if(error.code==='resource-exhausted')throw new HttpsError('resource-exhausted','Please wait before submitting more review decisions.');throw error;}
     tx.create(ref.collection('reviews').doc(randomUUID()), { ...review, expiresAt: new Date(retention.deadlines(job.createdAt).retentionDueAt || Date.now()) });
     tx.update(ref, { review, status, lastAttemptAt: FieldValue.serverTimestamp() });
     return { jobId, status };

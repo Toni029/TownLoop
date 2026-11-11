@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 function moduleFor(name,deps){const m={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync('native/src/news/'+name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(id=>deps[id],m,m.exports);return m.exports;}
 const transfer=moduleFor('pdfTransfer.ts',{}),digest=async s=>crypto.createHash('sha256').update(s).digest('hex');
 function fixture(){const rows=new Map(),written=[],journal=[];let failIndex=1,metadata;
- const edition=moduleFor('edition.ts',{'firebase/firestore':{serverTimestamp:()=> 'server-time'},'firebase/storage':{},'../lib/firebase':{auth:{currentUser:{uid:'manager'}}},'./actions':{approvedUser:async()=>({id:'manager'})},'./model':{},'./pdfTransfer':transfer,'./firestorePdf':{
+ const edition=moduleFor('edition.ts',{'../../../src/security/abuseBudget':{abuseControls:async()=>null},'firebase/functions':{},'firebase/firestore':{serverTimestamp:()=> 'server-time'},'firebase/storage':{},'../lib/firebase':{auth:{currentUser:{uid:'manager'}}},'./actions':{approvedUser:async()=>({id:'manager'})},'./model':{},'./pdfTransfer':transfer,'./firestorePdf':{
   pdfRequest:async()=>metadata?{fields:{uploadState:{stringValue:metadata.uploadState},uploadedBy:{stringValue:'manager'}}}:null,
   pdfReceipts:async()=>[...rows.values()].map(({data,...r})=>r),chunkDigest:digest,
   savePdfDraft:async(id,m)=>{metadata=m;journal.push(m.uploadState)},

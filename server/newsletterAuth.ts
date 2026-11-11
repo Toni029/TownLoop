@@ -11,9 +11,12 @@ async function requireRole(req: Request, res: Response, next: NextFunction, role
     return;
   }
   try {
+    // Only native monitoring middleware can populate this verified value. Raw request headers are never forwarded.
+    const verifiedAppCheck = native && typeof res.locals?.verifiedAppCheckToken === 'string' ? res.locals.verifiedAppCheckToken : undefined;
+    const attestationHeaders = verifiedAppCheck ? { 'X-Firebase-AppCheck': verifiedAppCheck } : {};
     const apiKey = process.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey;
     const lookup = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...attestationHeaders },
       body: JSON.stringify({ idToken: token }), signal: AbortSignal.timeout(10_000),
     });
     const account = lookup.ok ? (await lookup.json()).users?.[0] : null;
@@ -25,7 +28,7 @@ async function requireRole(req: Request, res: Response, next: NextFunction, role
     const database = native ? '(default)' : process.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
     const profileResponse = await fetch(
       `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/${encodeURIComponent(database)}/documents/users/${encodeURIComponent(account.localId)}`,
-      { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) },
+      { headers: { Authorization: `Bearer ${token}`, ...attestationHeaders }, signal: AbortSignal.timeout(10_000) },
     );
     const fields = profileResponse.ok ? (await profileResponse.json()).fields : null;
     const profile = fields ? Object.fromEntries(Object.entries(fields).map(([key, value]: [string, any]) =>

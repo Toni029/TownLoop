@@ -1,3 +1,4 @@
+import {runBudgetedTransaction} from "../../../src/security/abuseBudget";
 import {leaveInboxConversation,inboxFailureMessage} from './leaveRequest';
 import {groupAction,useGroupInbox} from './groupInbox';
 import {refreshBadge} from '../notifications/device';
@@ -211,7 +212,7 @@ export async function sendMessage(
         minute: "2-digit",
       }),
     };
-  await runTransaction(db, async (tx) => {
+  await runBudgetedTransaction(db, String(user.id), async (tx) => {
     const ref = doc(db, collectionName[category], id),
       snap = await tx.get(ref),
       existing = snap.data() || {};

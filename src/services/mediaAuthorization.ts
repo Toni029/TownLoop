@@ -1,11 +1,12 @@
-import { doc, runTransaction, serverTimestamp, Timestamp, type Firestore } from 'firebase/firestore';
+import {runBudgetedTransaction} from '../security/abuseBudget';
+import { doc, serverTimestamp, Timestamp, type Firestore } from 'firebase/firestore';
 
 export type MediaCollection = 'work_orders' | 'discussion_feed' | 'posts' | 'marketplace_posts' | 'marketItems';
 export interface MediaRecordLink { recordId: string; collection: MediaCollection }
 /** Drafts carry no public content and expire for new uploads after one hour. Rules enforce ownership. */
 export async function ensureMediaDraft(db: Firestore, link: MediaRecordLink, uid: string): Promise<void> {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(link.recordId)) throw new Error('Invalid attachment record.');
-  await runTransaction(db, async tx => {
+  await runBudgetedTransaction(db, uid, async tx => {
     const reference = doc(db, link.collection, link.recordId);
     const snapshot = await tx.get(reference);
     if (snapshot.exists()) {

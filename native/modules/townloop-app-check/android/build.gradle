@@ -1,0 +1,17 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.townloop.appcheck'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.townloopappcheck'
+}
+
+dependencies {
+  // Firebase BoM 34.7.0 pairs App Check 19.0.1 with the installed
+  // expo-notifications Firebase Messaging 25.0.1. Avoid a global BoM upgrade.
+  implementation 'com.google.firebase:firebase-appcheck-playintegrity:19.0.1'
+}

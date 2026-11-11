@@ -1,3 +1,4 @@
+import {runBudgetedTransaction} from '../security/abuseBudget';
 import {
   collection,
   doc,
@@ -5,7 +6,6 @@ import {
   getDocFromServer,
   or,
   query,
-  runTransaction,
   where,
   type Firestore,
   type DocumentReference,
@@ -82,6 +82,7 @@ const summary = (msg: MarketplaceChatMessage) => ({
 async function marketTransaction<T>(
   db: Firestore,
   ref: DocumentReference,
+  uid: string,
   action: (
     tx: Transaction,
     observed: (chat?: MarketplaceChat) => void,
@@ -90,7 +91,7 @@ async function marketTransaction<T>(
   for (let attempt = 0; ; attempt++) {
     let beforeCount = -2;
     try {
-      return await runTransaction(db, (tx) =>
+      return await runBudgetedTransaction(db, uid, (tx) =>
         action(tx, (chat) => {
           beforeCount = chat ? chat.messages.length : -1;
         }),
@@ -137,7 +138,7 @@ export async function sendMarketInquiry(
   );
   const id = marketChatId(itemId, uid),
     ref = doc(db, "marketplace_chats", id);
-  await marketTransaction(db, ref, async (tx, observed) => {
+  await marketTransaction(db, ref, uid, async (tx, observed) => {
     const [itemSnap, chatSnap] = await Promise.all([
       tx.get(doc(db, "marketplace_posts", itemId)),
       tx.get(ref),
@@ -213,7 +214,7 @@ export async function mutateMarketChat(
 ) {
   const user = await profile(db, uid),
     ref = doc(db, "marketplace_chats", id);
-  await marketTransaction(db, ref, async (tx, observed) => {
+  await marketTransaction(db, ref, uid, async (tx, observed) => {
     const snapshot = await tx.get(ref);
     observed(
       snapshot.exists() ? (snapshot.data() as MarketplaceChat) : undefined,

@@ -2,16 +2,20 @@ import { Platform } from 'react-native';
 import * as FS from 'expo-file-system/legacy';
 import { getDownloadURL, ref, uploadBytesResumable, type UploadMetadata } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, storage } from '../lib/firebase';
+import { appCheckHeaders } from "../lib/appCheck";
+import { abuseControls } from "../../../src/security/abuseBudget";
+import { getFunctions,httpsCallable } from "firebase/functions";
+import { app,db,auth,storage } from '../lib/firebase';
 import { deadline, uploadHttpError } from './deadline';
 
 /** Retry link resolution after a completed transfer without uploading the file again. */
-export async function uploadedFileURL(path: string, uid: string): Promise<string> {
+export async function uploadedFileURL(path: string, uid: string, tokenFree?: boolean): Promise<string> {
   const check = () => { if (auth.currentUser?.uid !== uid) throw new Error('Your session changed. Please sign in again.'); };
   check();
   const reference = ref(storage, path);
-  const url = path.startsWith('work_orders/') ? `gs://${reference.bucket}/${path}`
-    : await deadline(getDownloadURL(reference), 20_000, 'Getting photo link');
+  const privateWrites = tokenFree ?? ((await abuseControls(db))?.tokenFreeMedia === true);
+  // Reader-first cutover: older video players cannot consume token-free object refs.
+  const url = path.startsWith('work_orders/') || privateWrites ? `gs://${reference.bucket}/${path}` : await deadline(getDownloadURL(reference),20_000,'Getting attachment link');
   check();
   return url;
 }
@@ -21,7 +25,8 @@ export async function uploadFile(input: {
   uri: string; webFile?: Blob; size: number; path: string; metadata: UploadMetadata;
   uid: string; progress: (fraction: number) => void; onTransferred?: () => void;
 }): Promise<string> {
-  const { uid, path, metadata, progress } = input;
+  const { uid, path, progress } = input;
+  let metadata = input.metadata;
   const user = auth.currentUser;
   if (!user || user.uid !== uid) throw new Error('Your session changed. Please sign in again.');
   let active = true;
@@ -41,6 +46,12 @@ export async function uploadFile(input: {
   const report = (fraction: number) => { if (active) progress(Math.min(0.99, Math.max(0, fraction))); };
   try {
     const transfer = async () => {
+      const controls=await abuseControls(db);checkSession();
+      if(controls?.prepareClients||controls?.requireMediaReservations){
+        const core=metadata.customMetadata||{};
+        const result=await deadline(httpsCallable<any,{reservationId:string}>(getFunctions(app,'us-central1'),'issueMediaUpload')({path,bytes:input.size,contentType:metadata.contentType,metadata:{uploadedBy:core.uploadedBy,recordId:core.recordId,collection:core.collection,securityVersion:core.securityVersion}}),30000,'Checking upload allowance');
+        checkSession();metadata={...metadata,customMetadata:{...core,quotaReservation:result.data.reservationId}};
+      }
       const reference = ref(storage, path);
       if (Platform.OS === 'web') {
         const controller = new AbortController();
@@ -71,6 +82,7 @@ export async function uploadFile(input: {
             method: 'POST', signal: controller.signal,
             headers: {
               Authorization: `Firebase ${token}`,
+              ...await appCheckHeaders(),
               'Content-Type': 'application/json; charset=utf-8',
               'X-Goog-Upload-Protocol': 'resumable', 'X-Goog-Upload-Command': 'start',
               'X-Goog-Upload-Header-Content-Length': String(input.size),
@@ -88,6 +100,7 @@ export async function uploadFile(input: {
           sessionType: FS.FileSystemSessionType.FOREGROUND,
           headers: {
             Authorization: `Firebase ${token}`,
+              ...await appCheckHeaders(),
             'Content-Type': metadata.contentType || 'application/octet-stream',
             'X-Goog-Upload-Command': 'upload, finalize', 'X-Goog-Upload-Offset': '0',
           },
@@ -99,7 +112,7 @@ export async function uploadFile(input: {
       }
       checkSession();
       input.onTransferred?.();
-      const url = await uploadedFileURL(path, uid);
+      const url = await uploadedFileURL(path, uid, controls?.tokenFreeMedia === true);
       checkSession();
       progress(1);
       return url;

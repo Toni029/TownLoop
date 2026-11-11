@@ -1,3 +1,4 @@
+import {appCheckHeaders} from '../lib/appCheck';
 import backend from '../../newsletter-api.json';
 import { Platform } from 'react-native';
 import { auth } from '../lib/firebase';
@@ -24,6 +25,7 @@ export async function newsletterFetch(url: string, init: RequestInit = {}, fetch
     const owner = auth.currentUser?.uid;
     const routes = [backend.url, backend.fallbackUrl].filter(Boolean).map(value => value.replace(/\/$/, ''));
     const primary = routes.find(base => url.startsWith(base + '/api/newsletter/native/'));
+    if(primary)init={...init,headers:{...Object.fromEntries(new Headers(init.headers)),...await appCheckHeaders()}};
     const suffix = primary ? url.slice(primary.length) : '';
     const retrySafe = /^\/api\/newsletter\/native\/(?:capabilities|analysis-jobs(?:\/[a-f0-9]{64})?)$/.test(suffix);
     const alternate = retrySafe ? routes.find(base => base !== primary) : undefined;

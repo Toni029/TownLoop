@@ -1,5 +1,6 @@
+import { PrivateImage as Image } from './PrivateImage';
 import { useState } from "react";
-import { Animated, Image, PanResponder, View } from "react-native";
+import { Animated, PanResponder, View } from "react-native";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react-native";
 import { Copy, Action, s } from "../news/ui";
 import { MediaZoom } from "./zoom";

@@ -3,7 +3,7 @@ node_modules/
 dist/
 .env*
 !.env.example
-android/
+/android/
 ios/
 
 # Generated from the pinned pdfjs-dist dependency by postinstall.

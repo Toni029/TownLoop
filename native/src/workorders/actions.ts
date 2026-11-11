@@ -1,8 +1,8 @@
+import {runBudgetedTransaction} from "../../../src/security/abuseBudget";
 import { allocateWorkOrder } from "../../../src/data/allocateWorkOrder";
 import {
   doc,
   collection,
-  runTransaction,
   serverTimestamp,
   deleteField,
 } from "firebase/firestore";
@@ -68,7 +68,7 @@ export async function changeWorkOrder(
   return runWorkOrder(`order:${id}`, async () => {
     const user = await approvedUser();
     const reference = doc(db, "work_orders", id);
-    await runTransaction(db, async (tx) => {
+    await runBudgetedTransaction(db, String(user.id), async (tx) => {
       const snap = await tx.get(reference);
       if (!snap.exists())
         throw new Error("This work order is no longer available.");
@@ -153,7 +153,7 @@ export async function editWorkOrder(id:string, draft:{title:string;description:s
     if (draft.title.trim().length > 1000 || draft.description.trim().length > 20000) throw Error('Please shorten the request text.');
     const user = await approvedUser();
     const reference = doc(db,'work_orders',id);
-    await runTransaction(db,async tx => {
+    await runBudgetedTransaction(db, String(user.id),async tx => {
       const snap = await tx.get(reference);
       if (!snap.exists() || snap.data().storageDraft !== false) throw Error('This work order is no longer available.');
       if (!canEditRequest(snap.data(),user)) throw Error('Only the creator can edit a work order before it is marked Done.');

@@ -1,3 +1,4 @@
+import {appCheckHeaders} from '../lib/appCheck';
 import { getBytes, ref } from 'firebase/storage';
 import { auth, storage } from '../lib/firebase';
 import { MAX_PDF_BYTES } from './edition';
@@ -16,7 +17,7 @@ export async function downloadPdfBytes(source: string): Promise<Uint8Array> {
   } else if (base && url.origin === new URL(base).origin && url.protocol === 'https:' && !url.username && !url.password && url.pathname === '/api/newsletter/pdf/current_newsletter.pdf') {
     const token = await auth.currentUser?.getIdToken();
     if (!token) throw new Error('Please sign in again.');
-    const response = await fetch(url.href, { headers: { Authorization: `Bearer ${token}` }, redirect: 'error' });
+    const response = await fetch(url.href, { headers: { Authorization: `Bearer ${token}`, ...await appCheckHeaders() }, redirect: 'error' });
     if (!response.ok || Number(response.headers.get('content-length')) > MAX_PDF_BYTES) throw new Error('Unable to download the newsletter.');
     bytes = new Uint8Array(await response.arrayBuffer());
   } else throw new Error('Unsupported newsletter download location.');

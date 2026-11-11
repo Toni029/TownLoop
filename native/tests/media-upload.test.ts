@@ -8,13 +8,16 @@ import { deadline, uploadHttpError } from '../src/media/deadline.ts';
 const source = ts.transpileModule(readFileSync(new URL('../src/media/uploadFile.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-function harness(status = 200, linkFails = false) {
-  const calls: any[] = [];
+function harness(status = 200, linkFails = false, tokenFreeMedia=true, reservation:'none'|'allow'|'deny'='none') {
+  const calls: any[] = [], reservations:any[]=[];
   let onAuth: (user: any) => void = () => {};
   const user = { uid: 'resident', getIdToken: async () => 'test-user-token' };
   const auth = { currentUser: user };
-  let cancelled = false, unsubscribed = false;
+  let cancelled = false, unsubscribed = false, publicLinkReads = 0;
   const fakeModules: Record<string, any> = {
+    '../../../src/security/abuseBudget': { abuseControls: async () => ({tokenFreeMedia,prepareClients:reservation!=='none'}) },
+    'firebase/functions': {getFunctions:()=>0,httpsCallable:()=>async(data:any)=>{reservations.push(data);if(reservation==='deny')throw Object.assign(Error('Please wait before uploading more files.'),{code:'functions/resource-exhausted'});return {data:{reservationId:'a'.repeat(64)}};}},
+    '../lib/appCheck': { appCheckHeaders: async () => ({}) },
     'react-native': { Platform: { OS: 'android' } },
     'expo-file-system/legacy': {
       FileSystemUploadType: { BINARY_CONTENT: 0 }, FileSystemSessionType: { FOREGROUND: 0 },
@@ -29,7 +32,7 @@ function harness(status = 200, linkFails = false) {
     'firebase/auth': { onAuthStateChanged: (_auth: any, fn: any) => { onAuth = fn; return () => { unsubscribed = true; }; } },
     'firebase/storage': {
       ref: (_storage: any, path: string) => ({ bucket: 'existing-bucket', fullPath: path }),
-      getDownloadURL: async (ref: any) => { if (linkFails) throw Error('Link unavailable'); return `https://example.invalid/${ref.fullPath}`; },
+      getDownloadURL: async (ref: any) => { publicLinkReads++; if (linkFails) throw Error('Link unavailable'); return `https://example.invalid/${ref.fullPath}`; },
       uploadBytesResumable: () => { throw Error('Native must never use browser Blob upload'); },
     },
     '../lib/firebase': { auth, storage: {} },
@@ -43,7 +46,7 @@ function harness(status = 200, linkFails = false) {
       return { ok: true, headers: { get: () => 'https://firebasestorage.googleapis.com/session' } };
     },
   });
-  return { upload: exports.uploadFile, calls, signOut: () => onAuth(null), cleaned: () => cancelled && unsubscribed };
+  return { reservations, upload: exports.uploadFile, uploadedFileURL: exports.uploadedFileURL, publicLinkReads: () => publicLinkReads, calls, signOut: () => onAuth(null), cleaned: () => cancelled && unsubscribed };
 }
 for (const folder of ['work_orders', 'feed', 'marketplace']) {
   test(`${folder}: native transport streams file, preserves metadata and returns persistent URL`, async () => {
@@ -53,7 +56,8 @@ for (const folder of ['work_orders', 'feed', 'marketplace']) {
       metadata: { contentType: 'image/jpeg', customMetadata: { uploadedBy: 'resident', folder } },
       progress: (value: number) => progress.push(value),
     });
-    assert.equal(url, folder === 'work_orders' ? `gs://existing-bucket/${path}` : `https://example.invalid/${path}`);
+    assert.equal(url, `gs://existing-bucket/${path}`);
+    assert.equal(h.publicLinkReads(), 0);
     assert.equal(h.calls[0].options.headers.Authorization, 'Firebase test-user-token');
     assert.equal(JSON.parse(h.calls[0].options.body).metadata.folder, folder);
     assert.equal(JSON.parse(h.calls[0].options.body).name, path);
@@ -127,8 +131,19 @@ for (const folder of ['work_orders', 'feed', 'marketplace']) {
   });
 }
 
-test('completed transfer is reported before link resolution failure for duplicate-free retry', async () => {
+test('completed transfer yields an authenticated reference without public-link lookup or another upload', async () => {
  const h=harness(200,true);let transferred=false;
- await assert.rejects(h.upload({uri:'file:///photo.jpg',size:200,path:'marketplace/photo.jpg',uid:'resident',metadata:{},progress:()=>{},onTransferred:()=>{transferred=true;}}),/Link unavailable/);
- assert.equal(transferred,true);assert.ok(h.cleaned());
+ const result=await h.upload({uri:'file:///photo.jpg',size:200,path:'marketplace/photo.jpg',uid:'resident',metadata:{},progress:()=>{},onTransferred:()=>{transferred=true;}});
+ assert.equal(result,'gs://existing-bucket/marketplace/photo.jpg');assert.equal(transferred,true);assert.ok(h.cleaned());
+ const transfers=h.calls.length;assert.equal(await h.uploadedFileURL('marketplace/photo.jpg','resident'),result);assert.equal(h.calls.length,transfers);assert.equal(h.publicLinkReads(),0);
 });
+
+ test('reader-first rollout preserves older video link compatibility until explicit cutover',async()=>{
+ const h=harness(200,false,false);const url=await h.uploadedFileURL('marketplace/clip.mp4','resident');assert.equal(url,'https://example.invalid/marketplace/clip.mp4');assert.equal(h.publicLinkReads(),1);
+ });
+ test('media reservation denial happens before a network transfer and leaves the selected source untouched',async()=>{
+ const h=harness(200,false,true,'deny');await assert.rejects(h.upload({uri:'file:///selected.jpg',size:4,path:'feed/photo.jpg',uid:'resident',metadata:{contentType:'image/jpeg',customMetadata:{uploadedBy:'resident',recordId:'post',collection:'discussion_feed',securityVersion:'1'}},progress:()=>{}}),/Please wait/);assert.equal(h.calls.length,0);assert.equal(h.reservations.length,1);
+ });
+ test('media reservation binds original bytes and metadata before streaming',async()=>{
+ const h=harness(200,false,true,'allow');await h.upload({uri:'file:///selected.jpg',size:4,path:'feed/photo.jpg',uid:'resident',metadata:{contentType:'image/jpeg',customMetadata:{uploadedBy:'resident',recordId:'post',collection:'discussion_feed',securityVersion:'1'}},progress:()=>{}});assert.equal(h.reservations[0].bytes,4);assert.equal(h.reservations[0].metadata.recordId,'post');assert.equal(JSON.parse(h.calls[0].options.body).metadata.quotaReservation,'a'.repeat(64));
+ });

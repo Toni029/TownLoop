@@ -1,4 +1,5 @@
-import { doc, getDoc, runTransaction, type Firestore, type DocumentReference, type DocumentData } from 'firebase/firestore';
+import {runBudgetedTransaction} from '../security/abuseBudget';
+import { doc, getDoc, type Firestore, type DocumentReference, type DocumentData } from 'firebase/firestore';
 import { nextWorkOrderNumber, workOrderCode } from './workOrderNumber';
 
 // This database currently serves Cecil Pines. Do not scope by resident or device.
@@ -9,7 +10,7 @@ export async function allocateWorkOrder(db: Firestore, reference: DocumentRefere
     let observed: unknown;
     let saved: boolean;
     try {
-    saved = await runTransaction(db, async transaction => {
+    saved = await runBudgetedTransaction(db, String(payload.userId), async transaction => {
       const previous = await transaction.get(reference);
       if (previous.exists() && previous.data().storageDraft !== true) return true;
       if (previous.exists() && previous.data().userId !== payload.userId) throw new Error('Draft ownership does not match.');

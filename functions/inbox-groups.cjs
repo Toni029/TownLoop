@@ -1,3 +1,4 @@
+const {budget,charge}=require('./abuseLimits.cjs');
 const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
 // Native Inbox v3, default database only. All mutations are trusted-server operations.
 const { createHash, randomUUID } = require('node:crypto');
@@ -169,6 +170,7 @@ async function sendMessage(db, uid, cid, data, now) {
   if (!validId(data.messageId) || /^(join|leave|revoke)_/.test(data.messageId) || typeof data.body !== 'string' || !data.body.trim() || data.body.length > 10000 || data.attachments) fail('invalid-argument');
   return db.runTransaction(async tx => {
     await assertReferenceWritesAllowed(tx, db);
+    const commitBudget=await budget(tx,db,uid,'messages',`inbox_conversations/${cid}`,now);
     const state = await load(tx, db, cid), { conversation: c, members, profiles } = state;
     const sender = authorize(state, uid), actor = profiles.find(p => p.id === uid);
     const previous = await tx.get(db.doc(`inbox_conversations/${cid}/messages/${data.messageId}`));
@@ -185,6 +187,7 @@ async function sendMessage(db, uid, cid, data, now) {
     const message = { id: data.messageId, type: 'message', isSystem: false, senderId: uid, senderName: display(actor).name,
       senderRole: actor.role, senderAvatar: display(actor).avatar, body: data.body.trim(), createdAt: now,
       sequence: c.sequence + 1, visibility: [sender, ...recipients].map(visibilityKey), notify: true };
+    commitBudget();
     c.sequence++; c.updatedAt = now; c.lastMessageAt=now;
     if(resume){c.status='open';c.retention=null;tx.set(db.doc(`inbox_cleanup_requests/${cid}`),{conversationId:cid,status:'cancelled',reason:'new_message',updatedAt:now});}
     for (const m of [sender, ...recipients]) m.lastVisibleSequence = c.sequence;
@@ -233,6 +236,7 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
   if (!approved((await db.doc(`users/${uid}`).get()).data())) fail('permission-denied');
   if (data.op === 'capabilities') return { protocolVersion: 3, enabled, permanentCleanup: false, freshGroupConversations:true };
   if (!enabled) fail('failed-precondition');
+  if(['listLegacy','roster','upgradeLegacy','sync','create','createFresh','add'].includes(data.op)) await charge(db,uid,'expensiveRead',String(data.conversationId||data.op),now);
   if (data.op === 'listLegacy') return require('./inbox-group-legacy.cjs').legacyList(db, uid);
   if (data.op === 'leaveLegacy') return require('./inbox-legacy-leave.cjs').leaveLegacy(db, uid, data, now);
   if (data.op === 'upgradeLegacy') return require('./inbox-group-legacy.cjs').upgradeLegacy(db, uid, data, now);

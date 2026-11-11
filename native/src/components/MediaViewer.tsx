@@ -17,8 +17,9 @@ import type { MediaAttachment } from "../../../src/types";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { ZoomImage } from "./ZoomImage";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { usePrivateMedia } from '../media/usePrivateMedia';
 import { useReducedMotion } from "../home/hooks";
-export function Video({ uri }: { uri: string }) {
+function LoadedVideo({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => p.play());
   const [status, setStatus] = useState(player.status);
   const [error, setError] = useState("");
@@ -57,6 +58,14 @@ export function Video({ uri }: { uri: string }) {
       )}
     </View>
   );
+}
+export function Video({ uri }: { uri: string }) {
+  const media = usePrivateMedia(uri, 'video');
+  if (!media.uri) return <View style={{ gap: 12 }}>
+    {media.error ? <><Copy style={{ color: '#fda4af', padding: 12 }}>{media.error}</Copy><Action label="Retry Video" onPress={media.retry} /></>
+      : <ActivityIndicator color="#fff" accessibilityLabel="Loading video" />}
+  </View>;
+  return <LoadedVideo key={media.uri} uri={media.uri} />;
 }
 export function MediaViewer({
   media,

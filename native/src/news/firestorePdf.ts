@@ -1,3 +1,4 @@
+import {appCheckHeaders} from '../lib/appCheck';
 import * as Crypto from 'expo-crypto';
 import { auth } from '../lib/firebase';
 import config from '../../firebase-config.json';
@@ -32,7 +33,7 @@ export async function pdfRequest(path: string, init: RequestInit = {}, options: 
         init.signal?.addEventListener('abort', stop, { once: true });
         let retry = false;
         try {
-            const response = await fetch(documentBase + path, { ...init, signal: controller.signal, redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+            const response = await fetch(documentBase + path, { ...init, signal: controller.signal, redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...await appCheckHeaders() } });
             check();
             if (response.status === 404) return null;
             if (response.ok) return await response.json();

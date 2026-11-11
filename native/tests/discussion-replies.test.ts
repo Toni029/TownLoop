@@ -1,9 +1,11 @@
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';import ts from 'typescript';
 function fixture(parentAuthor='other'){
  let stored:any={userId:'owner',storageDraft:false,comments:[{id:'parent',authorId:parentAuthor,text:'fixture'}]},writes=0;
+ const runTransaction=async(_:any,fn:any)=>fn({get:async()=>({exists:()=>true,data:()=>stored}),update:(_:any,patch:any)=>{stored={...stored,...patch};writes++;}});
  const exports:any={};const code=ts.transpileModule(readFileSync(new URL('../../src/services/socialIntegrity.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
  vm.runInNewContext(code,{exports,require:(name:string)=>{
-  assert.equal(name,'firebase/firestore');return{collection:()=>({}),doc:(_:any,collection:string,id:string)=>({id:id||'generated',collection}),getDoc:async()=>({data:()=>({name:'Fixture',role:'resident',approved:true})}),serverTimestamp:()=> 'server',runTransaction:async(_:any,fn:any)=>fn({get:async()=>({exists:()=>true,data:()=>stored}),update:(_:any,patch:any)=>{stored={...stored,...patch};writes++;}})};
+  if(name==='../security/abuseBudget')return {runBudgetedTransaction:(db:any,_uid:string,fn:any)=>runTransaction(db,fn)};
+  assert.equal(name,'firebase/firestore');return{collection:()=>({}),doc:(_:any,collection:string,id:string)=>({id:id||'generated',collection}),getDoc:async()=>({data:()=>({name:'Fixture',role:'resident',approved:true})}),serverTimestamp:()=> 'server',runTransaction};
  }});
  return {run:(reply='parent')=>exports.mutateSocial({},'sender','discussion_feed','post','comment',{text:'reply',commentId:'new',replyToCommentId:reply}),get:()=>stored,writes:()=>writes};
 }

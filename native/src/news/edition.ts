@@ -1,3 +1,5 @@
+import { abuseControls } from '../../../src/security/abuseBudget';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   collection,
   deleteDoc,
@@ -10,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { deleteObject, ref } from "firebase/storage";
 import type { NewsletterConfig } from "../models";
-import { auth, db, storage } from "../lib/firebase";
+import { app, auth, db, storage } from "../lib/firebase";
 import { approvedUser } from "./actions";
 import { assemblePdf, editionKey, hasUploadedNewsletter } from "./model";
 import { transferPdf, stringPdfSource, newUploadResume, PDF_CHUNK_BYTES, PDF_PREFIX, type PdfSource, type UploadResume, type TransferProgress } from "./pdfTransfer";
@@ -146,9 +148,13 @@ export async function stageEdition(
   const check = () => { if (auth.currentUser?.uid !== uid) throw new Error("Your account changed. Reopen the newsletter uploader."); };
   // The durable draft is never the published pointer. Reopening can recover
   // partial uploads after proving every retained chunk belongs to the selected file.
-  const existing = await pdfRequest(`/newsletters/${config.id}?mask.fieldPaths=uploadState&mask.fieldPaths=uploadedBy`, {signal: options.signal});
+  const existing = await pdfRequest(`/newsletters/${config.id}?mask.fieldPaths=uploadState&mask.fieldPaths=uploadedBy&mask.fieldPaths=sourceBytes&mask.fieldPaths=totalChunks&mask.fieldPaths=totalSize&mask.fieldPaths=uploadBudgetId`, {signal: options.signal});
   if (existing?.fields?.uploadState?.stringValue === 'published') throw Error('This edition is already published. Select a new draft.');
   if (existing?.fields?.uploadedBy?.stringValue && existing.fields.uploadedBy.stringValue !== uid) throw Error('This partial upload belongs to another account. Select a new draft.');
+  for (const [field, expected] of [['sourceBytes', source.size], ['totalChunks', totalChunks], ['totalSize', totalSize]] as const) {
+    const value = existing?.fields?.[field]?.integerValue;
+    if (value !== undefined && Number(value) !== expected) throw Error('This retained upload has different PDF dimensions. Select the original PDF or a new draft.');
+  }
   const receipts = await pdfReceipts(config.id, options.signal);
   const confirmed = new Set<number>();
   for (const receipt of receipts) {
@@ -162,7 +168,26 @@ export async function stageEdition(
     confirmed.add(index);
   }
   check();
-  const base = {...config, hasFirestoreBlob: true, totalChunks, totalSize, sourceBytes: source.size};
+  const base = {...config, uploadedBy: uid, hasFirestoreBlob: true, totalChunks, totalSize, sourceBytes: source.size,
+    ...(existing?.fields?.uploadBudgetId?.stringValue ? {uploadBudgetId: existing.fields.uploadBudgetId.stringValue} : {})};
+  if (existing?.fields?.uploadState?.stringValue === 'uploaded') {
+    if (confirmed.size !== totalChunks) throw Error('This completed draft is missing verified PDF data. Select a new draft.');
+    onProgress(100);
+    return {...base, uploadState: 'uploaded', updatedAt: serverTimestamp()};
+  }
+  const controls = await abuseControls(db);
+  check();
+  if (options.signal?.aborted) throw Error('Upload paused. Retry to resume.');
+  if (controls?.prepareClients || controls?.enforceWrites) {
+    const result = await httpsCallable<
+      {newsletterId: string; bytes: number; totalChunks: number; totalSize: number},
+      {reservationId: string; expiresAt: number}
+    >(getFunctions(app, 'us-central1'), 'issueNewsletterUpload', {timeout: 20000})({newsletterId: config.id, bytes: source.size, totalChunks, totalSize});
+    check();
+    if (options.signal?.aborted) throw Error('Upload paused. Retry to resume.');
+    if (!/^[a-f0-9]{64}$/.test(result.data.reservationId) || result.data.expiresAt <= Date.now()) throw Error('The newsletter upload authorization expired. Retry to resume.');
+    Object.assign(base, {uploadBudgetId: result.data.reservationId});
+  }
   await savePdfDraft(config.id, {...base, uploadState: 'uploading'}, options.signal);
   await transferPdf({
     source, key: `${uid}:${config.id}`, resume: options.resume || newUploadResume(), signal: options.signal, check,

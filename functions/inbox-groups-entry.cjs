@@ -13,8 +13,9 @@ exports.manageInboxConversation = onCall(options, async request => {
     if (identity.disabled || request.auth.token.auth_time * 1000 < Date.parse(identity.tokensValidAfterTime || '1970-01-01')) throw Error('unauthenticated');
     return await operate(getFirestore(), request.auth.uid, request.data || {}, { enabled: process.env.INBOX_GROUPS_ENABLED === 'true' });
   } catch (e) {
-    const code = ['unauthenticated', 'permission-denied', 'invalid-argument', 'not-found', 'failed-precondition', 'already-exists', 'resource-exhausted'].includes(e.message) ? e.message : 'internal';
-    throw new HttpsError(code, e.safeReason === 'database-cleanup-maintenance' ? e.safeMessage : e.safeReason === 'legacy-review' ? 'This older conversation needs community office review before its participants can be updated. Its messages have not been removed.' : code === 'failed-precondition' ? 'This conversation is read-only or the group service is not active.' : code==='invalid-argument'?'The Inbox request format could not be accepted. Refresh Inbox and try again.':'Unable to complete the Inbox action.', e.safeReason==='legacy-review'?{reason:'legacy-review',canStartFresh:true}:undefined);
+    const candidate=e.code||e.message;
+    const code = ['unauthenticated', 'permission-denied', 'invalid-argument', 'not-found', 'failed-precondition', 'already-exists', 'resource-exhausted'].includes(candidate) ? candidate : 'internal';
+    throw new HttpsError(code, ['database-cleanup-maintenance','request-limit'].includes(e.safeReason) ? e.safeMessage : e.safeReason === 'legacy-review' ? 'This older conversation needs community office review before its participants can be updated. Its messages have not been removed.' : code === 'failed-precondition' ? 'This conversation is read-only or the group service is not active.' : code==='invalid-argument'?'The Inbox request format could not be accepted. Refresh Inbox and try again.':'Unable to complete the Inbox action.', e.safeReason==='legacy-review'?{reason:'legacy-review',canStartFresh:true}:e.safeReason==='request-limit'?{retryAfterSeconds:Math.ceil((e.retryAfterMs||1000)/1000)}:undefined);
   }
 });
 exports.notifyInboxGroupMessage = onDocumentCreated({ ...options, database: '(default)', document: 'inbox_conversations/{conversationId}/messages/{messageId}', retry: true }, async event => {

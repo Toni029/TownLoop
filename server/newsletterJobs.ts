@@ -1,3 +1,4 @@
+import {budget, charge} from '../functions/abuseLimits.cjs';
 import {assertReferenceWritesAllowed} from '../functions/referenceWriteBarrier.cjs';
 import {NEWSLETTER_EXTRACTION_VERSION} from '../src/utils/newsletterCoverage.ts';
 import {createHash, randomUUID} from 'node:crypto';
@@ -11,6 +12,7 @@ const COLLECTION='newsletter_analysis_jobs', DAY=86400000, LEASE=400000;
 export const newsletterJobsEnabled=()=>process.env.TOWNLOOP_NEWSLETTER_ANALYSIS_JOBS_ENABLED==='true';
 async function adminApp(){const name='firebase-admin/app';return import(name);}
 async function database(){const {getApps,initializeApp}=await adminApp();if(!getApps().length)initializeApp();const name='firebase-admin/firestore';return (await import(name)).getFirestore('(default)');}
+export async function chargeNewsletterAnalysis(uid:string,target:string,db?:any){ await charge(db||await database(),uid,'analysis',target); }
 const validId=(id:unknown)=>typeof id==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(id);
 function requestData(input:any){
  if(!validId(input?.newsletterId)||(input.newsletterId==='current'&&input.isNewUpload)||typeof input.isNewUpload!=='boolean')throw new NewsletterInputError('Invalid newsletter analysis reference.');
@@ -42,6 +44,9 @@ export async function startNewsletterJob(uid:string,input:any,db?:any,enqueue?: 
   const reuse=old&&!expired(old)&&old.code!=='analysis-input-changed';
   const next={ownerUid:uid,request,pdfRevision:revision,newsletterId:request.newsletterId,state:'queued',generation:(old?.generation||0)+1,dispatchId:randomUUID(),attempts:0,
     checkpoints:reuse?old.checkpoints||{}:{},...(reuse&&old.inputHash?{inputHash:old.inputHash,totalBatches:old.totalBatches}:{}),createdAt:old?.createdAt||new Date(now),updatedAt:new Date(now),expiresAt:new Date(now+DAY)};
+  // Duplicate active/successful requests above are free; every new generation is bounded.
+  const applyBudget = await budget(tx,db,uid,'analysis',id,now);
+  applyBudget();
   tx.set(ref,next);return next;
  });
  if(result.state==='queued'){

@@ -1,3 +1,4 @@
+import {appCheckHeaders} from '../lib/appCheck';
 import { Platform } from 'react-native';
 import { auth } from '../lib/firebase';
 import { approvedUser } from '../news/actions';
@@ -338,7 +339,7 @@ export async function translateWorkOrder(order: WorkOrderItem): Promise<Translat
   const comments = order.comments || [];
   try {
     const response = await fetch(endpoint, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...await appCheckHeaders() },
       body: JSON.stringify({ title: order.title, description: order.description || '', comments: comments.map(c => c.text), targetLang: 'es' }),
       signal: controller.signal,
     });

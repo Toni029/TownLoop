@@ -1,4 +1,5 @@
-import { collection as collectionRef, doc, getDoc, runTransaction, serverTimestamp, type Firestore } from 'firebase/firestore';
+import {runBudgetedTransaction} from '../security/abuseBudget';
+import { collection as collectionRef, doc, getDoc, serverTimestamp, type Firestore } from 'firebase/firestore';
 
 export type SocialCollection = 'posts' | 'discussion_feed' | 'marketItems' | 'marketplace_posts';
 /** A server-read canonical profile and a transaction, never a UI author/role claim. */
@@ -9,7 +10,7 @@ export async function mutateSocial(db: Firestore, uid: string, collection: Socia
     throw Error('An approved account is required.');
   const ref = doc(db, collection, id);
   const commentId = payload.commentId || doc(collectionRef(db, collection)).id;
-  return runTransaction(db, async tx => {
+  return runBudgetedTransaction(db, uid, async tx => {
     const snapshot = await tx.get(ref);
     if (!snapshot.exists() || snapshot.data().storageDraft !== false) throw Error('This item is not published.');
     const before = snapshot.data();

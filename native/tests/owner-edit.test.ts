@@ -12,6 +12,7 @@ function fixture(path:string,data:Record<string,any>,uid='owner'){
  const user={id:uid,role:'resident',approved:true};
  const firestore={doc:(_:any,collection:string,id:string)=>({collection,id}),collection:(_:any,c:string)=>c,serverTimestamp:()=> 'server-time',runTransaction:async(_:any,fn:any)=>fn({get:async()=>({exists:()=>true,data:()=>data}),update:(ref:any,patch:any)=>writes.push({ref,patch})})};
  const modules:any={
+  '../../../src/security/abuseBudget':{runBudgetedTransaction:(db:any,_uid:string,fn:any)=>firestore.runTransaction(db,fn)},
   'firebase/firestore':firestore,'../lib/firebase':{db:{}},'../news/actions':{approvedUser:async()=>user},'../news/model':{singleFlight:()=>async(_:any,fn:any)=>fn()},
   './model':path.includes('workorders')?{canEditRequest}:{formatPrice:(p:string)=>p==='0'?'FREE':p},
   '../../../src/data/workOrderCategories':{getCategoryEmoji:()=> '🔧'},'../../../src/data/allocateWorkOrder':{allocateWorkOrder:()=>{allocations++;}},

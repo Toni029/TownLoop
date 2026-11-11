@@ -3,7 +3,7 @@ const { defineSecret } = require('firebase-functions/params');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 const key = defineSecret('TOWNLOOP_GOOGLE_TRANSLATE_KEY');
-const windows = new Map();
+const { charge } = require('./abuseLimits.cjs');
 exports.translateWorkOrder = onRequest({ region: 'us-central1', secrets: [key], timeoutSeconds: 45, maxInstances: 2, concurrency: 8,
   cors: ['http://localhost:8082', 'http://127.0.0.1:8082', 'https://townloop.web.app', 'https://townloop.firebaseapp.com'] }, async (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -17,20 +17,21 @@ exports.translateWorkOrder = onRequest({ region: 'us-central1', secrets: [key], 
     const profile = (await getFirestore().collection('users').doc(uid).get()).data();
     if (!profile || profile.approved !== true || profile.deletionPending === true || !['admin', 'vip', 'crew'].includes(profile.role))
       return res.status(403).json({ error: 'Translation requires an approved Admin, VIP, or Crew account.' });
+    // Monitoring only; a token never replaces canonical Auth/role authorization.
+    const appToken=req.headers['x-firebase-appcheck'];let appStatus='missing';
+    if(typeof appToken==='string'&&appToken.length<=16384){try{await require('firebase-admin/app-check').getAppCheck().verifyToken(appToken);appStatus='verified';}catch{appStatus='unverified';}}
+    else if(appToken!==undefined)appStatus='unverified';
+    console.info('[Translation App Check]',{status:appStatus});
     const { title, description = '', comments = [], targetLang = 'es' } = req.body || {};
     if (typeof title !== 'string' || typeof description !== 'string' || !Array.isArray(comments) || comments.length > 50 || comments.some(v => typeof v !== 'string') || !['es', 'en'].includes(targetLang))
       return res.status(400).json({ error: 'Invalid translation request.' });
     const texts = [title, description, ...comments];
     if (texts.reduce((sum, value) => sum + value.length, 0) > 25000)
       return res.status(413).json({ error: 'This ticket is too long to translate in one request.' });
-    const now = Date.now();
-    for (const [id, value] of windows) if (value.until < now) windows.delete(id);
-    const window = windows.get(uid) || { count: 0, until: now + 60000 };
-    if (++window.count > 15) return res.status(429).json({ error: 'Please wait a minute before translating again.' });
-    windows.set(uid, window);
     const nonempty = texts.map((text, index) => ({ text, index })).filter(v => v.text.trim());
     const translated = [...texts];
     if (nonempty.length) {
+      await charge(getFirestore(), uid, 'translation', `translation:${targetLang}`);
       const response = await fetch('https://translation.googleapis.com/language/translate/v2', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key.value() },
         body: JSON.stringify({ q: nonempty.map(v => v.text), target: targetLang, format: 'text' }), signal: AbortSignal.timeout(25000),
@@ -45,7 +46,11 @@ exports.translateWorkOrder = onRequest({ region: 'us-central1', secrets: [key], 
       }
     }
     return res.json({ title: translated[0], description: translated[1], comments: translated.slice(2), source: 'google-translate' });
-  } catch {
+  } catch (error) {
+    if (error?.code === 'resource-exhausted') {
+      res.set('Retry-After', String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))));
+      return res.status(429).json({ error: 'Please wait before translating again. Your translation budget resets automatically.' });
+    }
     return res.status(503).json({ error: 'Translation could not complete. Please try again shortly.' });
   }
 });
