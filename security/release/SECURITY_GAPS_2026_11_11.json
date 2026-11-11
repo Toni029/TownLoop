@@ -1,0 +1,140 @@
+{
+  "checkedAt": "2026-11-11T16:47:35.593Z",
+  "project": "cc-livingcommunity-app",
+  "rules": [
+    {
+      "release": "cloud.firestore",
+      "status": 200,
+      "sha256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+    },
+    {
+      "release": "cloud.firestore/ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "status": 200,
+      "sha256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d"
+    },
+    {
+      "release": "cloud.firestore/ai-studio-townloop-a292b2fb-fa69-4503-9bfe-d2ddc8471673",
+      "status": 200,
+      "sha256": "32655d746e24ccf70a066715fd947a96d5b7f186cc9305992c7b32ae4447a7f1"
+    },
+    {
+      "release": "firebase.storage/cc-livingcommunity-app.firebasestorage.app",
+      "status": 200,
+      "sha256": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9"
+    }
+  ],
+  "functionsStatus": 200,
+  "functions": [
+    {
+      "name": "manageInboxConversation",
+      "state": "ACTIVE",
+      "revision": "manageinboxconversation-00004-hey",
+      "maxInstances": 4,
+      "concurrency": 80,
+      "environmentKeyNames": []
+    },
+    {
+      "name": "reviewAccountDeletionRequest",
+      "state": "ACTIVE",
+      "revision": "reviewaccountdeletionrequest-00002-faq",
+      "maxInstances": 1,
+      "concurrency": 80,
+      "environmentKeyNames": []
+    },
+    {
+      "name": "translateWorkOrder",
+      "state": "ACTIVE",
+      "revision": "translateworkorder-00001-foh",
+      "maxInstances": 2,
+      "concurrency": 8,
+      "secretNames": [
+        "TOWNLOOP_GOOGLE_TRANSLATE_KEY"
+      ],
+      "environmentKeyNames": []
+    },
+    {
+      "name": "newsletterApi",
+      "state": "ACTIVE",
+      "revision": "newsletterapi-00006-log",
+      "maxInstances": 2,
+      "concurrency": 1,
+      "secretNames": [
+        "GEMINI_API_KEY"
+      ],
+      "environmentKeyNames": []
+    },
+    {
+      "name": "runNewsletterAnalysis",
+      "state": "ACTIVE",
+      "revision": "runnewsletteranalysis-00003-wiq",
+      "maxInstances": 1,
+      "concurrency": 1,
+      "secretNames": [
+        "GEMINI_API_KEY"
+      ],
+      "environmentKeyNames": []
+    },
+    {
+      "name": "registerInboxDevice",
+      "state": "ACTIVE",
+      "revision": "registerinboxdevice-00005-der",
+      "maxInstances": 4,
+      "concurrency": 80,
+      "environmentKeyNames": []
+    }
+  ],
+  "appCheck": {
+    "servicesStatus": 200,
+    "services": [
+      {
+        "name": "firebasestorage.googleapis.com",
+        "enforcementMode": "UNENFORCED"
+      },
+      {
+        "name": "firestore.googleapis.com",
+        "enforcementMode": "UNENFORCED"
+      },
+      {
+        "name": "identitytoolkit.googleapis.com",
+        "enforcementMode": "UNENFORCED"
+      }
+    ],
+    "playIntegrityStatus": 200,
+    "playIntegrityConfigured": true
+  },
+  "newsletter": {
+    "healthStatus": 200,
+    "health": {
+      "status": "ok",
+      "service": "townloop-native-api",
+      "projectId": "cc-livingcommunity-app",
+      "pdfLoaderVersion": 2
+    },
+    "unauthenticatedCapabilitiesStatus": 401
+  },
+  "namedAnonymousReadStatus": 403,
+  "mutations": 0,
+  "additionalNamedDatabase": {
+    "database": "ai-studio-townloop-a292b2fb-fa69-4503-9bfe-d2ddc8471673",
+    "metadataStatus": 200,
+    "rulesDenyAll": true
+  },
+  "secretScan": {
+    "trackedTextFilesScanned": 816,
+    "knownServerKeyComparisonAvailable": true,
+    "sourceFindings": [],
+    "bundleFiles": 1,
+    "bundleKnownServerKeyMatches": 0,
+    "secretValuesPrinted": 0
+  },
+  "focusedTests": {
+    "passed": 29,
+    "failed": 0
+  },
+  "syntheticAbuseCheck": {
+    "messagesAcceptedAtSameTimestamp": 30,
+    "approvedSender": true,
+    "cloudWrites": 0,
+    "notificationsSent": 0
+  }
+}
