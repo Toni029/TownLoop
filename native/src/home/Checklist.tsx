@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import {
   Calendar as CalendarIcon,
-  CheckCircle2,
   Plus,
   Trash2,
   Square,
@@ -10,6 +9,7 @@ import {
 } from "lucide-react-native";
 import { Action, Box, Input, Row, Sheet, Tile, Txt, usePalette } from "./ui";
 import { Calendar } from "./Calendar";
+import { ChecklistArtwork,ChecklistLandscape } from "./ChecklistArtwork";
 import { friendlyDate, nextDate, parseDate, type TaskItem } from "./model";
 export function Checklist({
   today,
@@ -48,23 +48,24 @@ export function Checklist({
     (dots[t.date] ??= []).push(p.green);
   });
   return (
-    <Tile tone="green">
-      <Row
-        style={{ justifyContent: "space-between", gap: 8, flexWrap: "nowrap" }}
-      >
-        <Row style={{ flex: 1, flexWrap: "nowrap", gap: 8 }}>
-          <CheckCircle2 color={p.green} size={20} />
-          <View style={{ flex: 1, gap: 2 }}>
+    <Tile tone="checklist">
+      <View pointerEvents="none" style={{position:"absolute",top:0,right:0,bottom:0,left:0,borderRadius:30,overflow:"hidden"}}>
+        <ChecklistLandscape dark={p.paper!=="#ffffff"}/>
+      </View>
+      <Row style={{justifyContent:"space-between",gap:12}}>
+        <Row style={{flexGrow:1,flexShrink:1,flexBasis:160,minWidth:0,flexWrap:"nowrap",gap:12}}>
+          <ChecklistArtwork />
+          <View style={{ flex: 1, minWidth:0, gap: 4 }}>
             <Txt
               bold
               accessibilityRole="header"
-              style={{ fontSize: 16, lineHeight: 24 }}
+              style={{fontSize:20,lineHeight:24,color:p.paper==="#ffffff"?"#073f49":p.ink}}
             >
-              Daily Checklist
+              {"Daily\nChecklist"}
             </Txt>
             <Txt
               bold
-              style={{ fontSize: 11, lineHeight: 16.5, color: p.green }}
+              style={{ fontSize: 12, lineHeight: 18, color: p.green }}
             >
               {filter === "all"
                 ? "All Scheduled Tasks"
@@ -72,9 +73,10 @@ export function Checklist({
             </Txt>
           </View>
         </Row>
-        <Row style={{ gap: 8, flexWrap: "nowrap" }}>
+        <Row style={{ gap:8,marginLeft:"auto",maxWidth:"100%",justifyContent:"flex-end" }}>
           <View
             style={{
+              maxWidth: "100%",
               paddingHorizontal: 10,
               paddingVertical: 4,
               borderRadius: 99,
@@ -106,49 +108,24 @@ export function Checklist({
           />
         </Row>
       </Row>
-      <Row>
-        <Action
-          label="Today"
-          active={filter === "today"}
-          onPress={() => setFilter("today")}
-        />
-        <Action
-          label="Tomorrow"
-          active={filter === "tomorrow"}
-          onPress={() => setFilter("tomorrow")}
-        />
-        {filter === "date" && (
-          <Action
-            label={`${friendlyDate(selected)} ×`}
-            active
-            onPress={() => setFilter("today")}
-          />
-        )}
-        <Action
-          icon={CalendarIcon}
-          label="Choose Day"
-          onPress={() => {
-            setMonth(parseDate(target));
-            setDialog("calendar");
-          }}
-        />
-        <Action
-          label="All Tasks"
-          active={filter === "all"}
-          onPress={() => setFilter("all")}
-        />
-      </Row>
+      <View style={{gap:8}}>
+        <Row style={{gap:8,justifyContent:"space-between"}}>
+          <Action label="Today" active={filter==="today"} onPress={()=>setFilter("today")}/>
+          <Action label="Tomorrow" active={filter==="tomorrow"} onPress={()=>setFilter("tomorrow")}/>
+          <Action icon={CalendarIcon} label="Choose Day" onPress={()=>{setMonth(parseDate(target));setDialog("calendar");}}/>
+        </Row>
+        <Row style={{gap:8}}>
+          <Action label="All Tasks" active={filter==="all"} onPress={()=>setFilter("all")}/>
+          {filter==="date"&&<Action label={`${friendlyDate(selected)} ×`} active onPress={()=>setFilter("today")}/>}
+        </Row>
+      </View>
       {list.length === 0 ? (
-        <Txt
-          style={{
-            color: p.muted,
-            fontSize: 12,
-            textAlign: "center",
-            paddingVertical: 12,
-          }}
-        >
-          No tasks scheduled for this day.
-        </Txt>
+        <View style={{alignItems:"center",gap:8,paddingTop:0,paddingBottom:12}}>
+          <View pointerEvents="none" style={{opacity:p.paper==="#ffffff"?.9:.65}}><ChecklistArtwork quiet /></View>
+          <Txt bold style={{color:p.muted,fontSize:14,lineHeight:21,textAlign:"center"}}>
+            No tasks scheduled for this day.
+          </Txt>
+        </View>
       ) : (
         list.map((t) => (
           <Box key={t.id} style={{ padding: 12, gap: 0 }}>

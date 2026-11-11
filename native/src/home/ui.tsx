@@ -93,7 +93,7 @@ export function Row({
 export function Tile({
   children,
   tone = "blue",
-}: PropsWithChildren<{ tone?: "blue" | "green" | "medication" }>) {
+}: PropsWithChildren<{ tone?: "blue" | "green" | "medication" | "checklist" }>) {
   const dark = useContext(Theme);
   return (
     <LinearGradient
@@ -104,6 +104,8 @@ export function Tile({
           ? tone === "medication"
             ? ["#0f172af2", "#0f172ae6", "#1e293be6"]
             : ["#0f172a", "#020617"]
+          : tone === "checklist"
+            ? ["#fffdf8", "#fff6e9"]
           : tone === "medication"
             ? ["#f8fbfd", "#f1f6fa", "#e8f2f9"]
             : tone === "green"
@@ -117,6 +119,8 @@ export function Tile({
         borderWidth: 1,
         borderColor: dark
           ? "#1e293b"
+          : tone === "checklist"
+            ? "#83c9b7"
           : tone === "medication"
             ? "#cfe0ee"
             : tone === "green"
