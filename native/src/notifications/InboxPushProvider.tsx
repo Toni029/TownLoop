@@ -1,3 +1,4 @@
+import {preferenceQueue} from './preferenceQueue';
 import {createContext,useCallback,useContext,useEffect,useRef,useState,type PropsWithChildren} from 'react';
 import {AppState,Platform} from 'react-native';
 import {beforeAuthStateChanged} from 'firebase/auth';
@@ -9,9 +10,9 @@ import {auth,db} from '../lib/firebase';
 import {readThread} from '../profile/model';
 import type {UserProfile} from '../../../src/types';
 import {authorizeTarget,notificationCollection,inboxTarget,emptyPreferences,preferenceCategory,type NotificationCategory,type NotificationPreferences,type InboxTarget} from './protocol';
-import {binding,notifications,categoryPreferences,revoke,serialized,setCategoryPreference,syncDevice,applyNotificationPermission,requestNativeNotificationPermission,getNotificationAuthorization,type NotificationAuthorization,refreshBadge,notificationCapabilities,resolveNotice} from './device';
-type State={authorization:NotificationAuthorization;repliesAvailable:boolean;enabled:boolean;preferences:NotificationPreferences;busy:boolean;status:string;target:InboxTarget|null;toggle:(category?:NotificationCategory)=>void;consume:()=>void;read:(category:InboxTarget['category'],id:string)=>void};
-const Context=createContext<State>({authorization:'checking',repliesAvailable:false,enabled:false,preferences:emptyPreferences,busy:false,status:'',target:null,toggle:()=>{},consume:()=>{},read:()=>{}});
+import {binding,notifications,categoryPreferences,revoke,serialized,saveCategoryPreferences,syncDevice,applyNotificationPermission,requestNativeNotificationPermission,getNotificationAuthorization,type NotificationAuthorization,refreshBadge,notificationCapabilities,resolveNotice} from './device';
+type State={authorization:NotificationAuthorization;repliesAvailable:boolean;enabled:boolean;preferences:NotificationPreferences;busy:boolean;status:string;target:InboxTarget|null;retry:()=>void;toggle:(category?:NotificationCategory,on?:boolean)=>void;consume:()=>void;read:(category:InboxTarget['category'],id:string)=>void};
+const Context=createContext<State>({authorization:'checking',repliesAvailable:false,enabled:false,preferences:emptyPreferences,busy:false,status:'',target:null,retry:()=>{},toggle:()=>{},consume:()=>{},read:()=>{}});
 export const useInboxPush=()=>useContext(Context);
 export function InboxPushProvider({children}:PropsWithChildren){
  const {user,profile,loading}=useSession();const uid=user?.uid||'';
@@ -22,8 +23,38 @@ export function InboxPushProvider({children}:PropsWithChildren){
  const [repliesAvailable,setRepliesAvailable]=useState(false);
  const [authorization,setAuthorization]=useState<NotificationAuthorization>(Platform.OS==='web'?'unavailable':'checking');
  const enabled=Object.values(prefs).some(Boolean);
- const pending=useRef<InboxTarget|null>(null),seen=useRef(new Set<string>()),epoch=useRef(0),permissionOpen=useRef(false),active=useRef({uid:'',ready:false,enabled:false,loading:true});
+ const pending=useRef<InboxTarget|null>(null),seen=useRef(new Set<string>()),permissionOpen=useRef(false),active=useRef({uid:'',ready:false,enabled:false,loading:true});
  active.current={uid,ready,enabled,loading};
+ const preferenceWriter=useRef<ReturnType<typeof preferenceQueue>|null>(null);
+ useEffect(()=>{
+  if(!uid||!ready||Platform.OS==='web')return;
+  const account=uid;
+  const writer=preferenceQueue({
+   load:async()=>{const permission=await getNotificationAuthorization();await applyNotificationPermission(account,permission);return categoryPreferences(account);},
+   persist:values=>saveCategoryPreferences(account,values),
+   sync:()=>serialized(async()=>{
+    if(active.current.uid!==account||!active.current.ready||preferenceWriter.current!==writer)return;
+    const values=await categoryPreferences(account);
+    if(Object.values(values).some(Boolean))await requestNativeNotificationPermission(account);
+    if(active.current.uid!==account||preferenceWriter.current!==writer)return;
+    const result=await syncDevice(account,Object.values(values).some(Boolean));
+    if(['unavailable','setup-required','simulator'].includes(result))throw Error('notification_sync_unconfirmed');
+    const permission=await getNotificationAuthorization();
+    if(active.current.uid!==account||preferenceWriter.current!==writer)return;
+    setAuthorization(permission);setRepliesAvailable(notificationCapabilities().discussionReplies);
+    void refreshBadge(account).catch(()=>{});
+   }),
+   changed:snapshot=>{
+    if(active.current.uid!==account||preferenceWriter.current!==writer)return;
+    setPrefs(snapshot.values);setBusy(snapshot.phase==='saving');
+    setStatus(({loading:'Loading preferences…',saving:'Saving preferences…',saved:'Preferences saved.',pending:'Saved on this device; sync is unconfirmed. Reopen Notifications or change a switch to retry.',
+     'local-error':'Could not save your change. Your previous settings were restored. Please retry.',
+     'load-error':'Could not load your settings. No changes have been saved. Please retry.'})[snapshot.phase]);
+   },
+  });
+  preferenceWriter.current=writer;
+  return()=>{writer.dispose();if(preferenceWriter.current===writer)preferenceWriter.current=null;};
+ },[uid,ready]);
  const read=useCallback((category:InboxTarget['category'],id:string)=>{
   const account=active.current;if(!account.ready)return;
   void refreshBadge(account.uid,{category,conversationId:id}).catch(()=>{if(active.current.uid===account.uid)setStatus('Read notifications will sync when you reconnect.');});
@@ -31,16 +62,21 @@ export function InboxPushProvider({children}:PropsWithChildren){
  const consume=useCallback(()=>{pending.current=null;setTarget(null);},[]);
  const refresh=useCallback((ask=false)=>serialized(async()=>{
   const current=active.current;if(!current.ready){if(!current.loading)await revoke();return;}
+  const writer=preferenceWriter.current,version=writer?.version();
   if(ask)await requestNativeNotificationPermission(current.uid);
   const osPermission=await getNotificationAuthorization();
-  if(active.current.uid!==current.uid)return;setAuthorization(osPermission);
+  if(active.current.uid!==current.uid||preferenceWriter.current!==writer)return;setAuthorization(osPermission);
   await applyNotificationPermission(current.uid,osPermission);
   const values=await categoryPreferences(current.uid);
-  if(active.current.uid!==current.uid)return;setPrefs(values);
+  if(active.current.uid!==current.uid||preferenceWriter.current!==writer)return;
+  if(writer&&preferenceWriter.current===writer)writer.hydrate(values,version!);
   const result=await syncDevice(current.uid,Object.values(values).some(Boolean));
   const updatedPermission=await getNotificationAuthorization();
-  if(active.current.uid!==current.uid)return;
-  setAuthorization(updatedPermission);setPrefs(values);setRepliesAvailable(notificationCapabilities().discussionReplies);setStatus(result==='simulator'?'Preferences saved. Push delivery requires a configured physical iPhone.':updatedPermission==='denied'?'Notifications are off in device settings.':result==='unavailable'?'Notifications require the next TownLoop app build.':result==='setup-required'?'Notification service update is pending.':result==='on'?'Notifications on':'Notifications off');
+  if(active.current.uid!==current.uid||preferenceWriter.current!==writer)return;
+  setAuthorization(updatedPermission);
+  if(writer&&preferenceWriter.current===writer&&(writer.version()!==version||writer.snapshot().phase==='saving'))return;
+  writer?.confirmed(version!);
+  setRepliesAvailable(notificationCapabilities().discussionReplies);setStatus(result==='simulator'?'Preferences saved. Push delivery requires a configured physical iPhone.':updatedPermission==='denied'?'Notifications are off in device settings.':result==='unavailable'?'Notifications require the next TownLoop app build.':result==='setup-required'?'Notification service update is pending.':result==='on'?'Notifications on':'Notifications off');
   await refreshBadge(current.uid).catch(()=>{});
  }),[]);
  const openPending=useCallback(async()=>{
@@ -90,10 +126,8 @@ export function InboxPushProvider({children}:PropsWithChildren){
   return()=>{tap.remove();token.remove();delivered.remove();n.setNotificationHandler(null);};
  },[openPending,refresh]);
  useEffect(()=>{
-  const generation=++epoch.current;
-  if(!ready){setTarget(null);setPrefs(emptyPreferences);setRepliesAvailable(false);}
+  if(!ready){setTarget(null);setPrefs(emptyPreferences);setRepliesAvailable(false);setBusy(false);setStatus('');}
   if(Platform.OS==='web')return;
-  void categoryPreferences(uid).then(values=>{if(epoch.current===generation)setPrefs(values);}).catch(()=>{});
   void refresh().catch(()=>setStatus('Reconnect to finish notification setup.'));
   const listener=AppState.addEventListener('change',state=>{if(state==='active'){void refresh().catch(()=>{});void openPending();}});
   void openPending();return()=>listener.remove();
@@ -121,16 +155,14 @@ export function InboxPushProvider({children}:PropsWithChildren){
   if(Platform.OS==='web')return;
   return beforeAuthStateChanged(auth,async next=>{
    if(!auth.currentUser||next?.uid===auth.currentUser.uid)return;
+   preferenceWriter.current?.dispose();preferenceWriter.current=null;
    pending.current=null;setTarget(null);active.current={uid:'',ready:false,enabled:false,loading:false};
    await Promise.race([serialized(revoke).catch(()=>{}),new Promise<void>(resolve=>setTimeout(resolve,3500))]);
   });
  },[]);
- function toggle(category:NotificationCategory='inbox'){
-  if(busy||!ready)return;setBusy(true);const account=uid,on=!prefs[category];
-  void setCategoryPreference(account,category,on).then(async()=>{
-   const values=await categoryPreferences(account);if(active.current.uid!==account)return;
-   setPrefs(values);await refresh(on);
-  }).catch(()=>setStatus('Could not update notifications. Reconnect and retry.')).finally(()=>setBusy(false));
+ function toggle(category:NotificationCategory='inbox',on?:boolean){
+  const writer=preferenceWriter.current;if(!ready||!writer)return;
+  writer.set(category,on??!writer.snapshot().values[category]);
  }
- return <Context.Provider value={{authorization,repliesAvailable,enabled,preferences:prefs,busy,status,target,toggle,consume,read}}>{children}</Context.Provider>;
+ return <Context.Provider value={{authorization,repliesAvailable,enabled,preferences:prefs,busy,status,target,retry:()=>{const writer=preferenceWriter.current;void refresh().catch(()=>{if(preferenceWriter.current===writer)setStatus('Could not sync your saved preferences. Reconnect and reopen Notifications to retry.');});},toggle,consume,read}}>{children}</Context.Provider>;
 }

@@ -2358,7 +2358,7 @@ export function ProfileMenu({
                           title="Edit Profile"
                           onPress={editProfile}
                         />
-                        <Row title="Notifications" icon={Bell} tone="#d97706" highlight onPress={() => go("notifications")} />
+                        <Row title="Notifications" icon={Bell} tone="#d97706" highlight onPress={() => {push.retry();go("notifications");}} />
                         <LegalLinks dark={dark} vertical />
                       </>
                     )}
@@ -2372,7 +2372,7 @@ export function ProfileMenu({
                         </View>
                         {([['inbox','Private inbox'],['marketplace','Marketplace messages'],['discussion','Discussion replies'],['workorders','Work orders updates']] as const).map(([category,label])=><View key={category} style={[panel,{minHeight:60,padding:14,borderRadius:16,borderWidth:1,flexDirection:'row',alignItems:'center',gap:12}]}>
                           <Text style={[s.rowTitle,{color:ink,flex:1,flexShrink:1}]}>{label}</Text>
-                          <Switch accessibilityLabel={label} value={push.preferences[category]} disabled={push.busy||Platform.OS==='web'} onValueChange={()=>push.toggle(category)} trackColor={{true:'#d97706'}}/>
+                          <Switch accessibilityLabel={label} value={push.preferences[category]} disabled={Platform.OS==='web'} onValueChange={on=>push.toggle(category,on)} trackColor={{true:'#d97706'}}/>
                         </View>)}
                         <Text style={[s.small,{color:muted}]}>{push.status||'Preferences are saved separately for your account.'}</Text>
                       </View>

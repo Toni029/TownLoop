@@ -152,3 +152,14 @@ test('concurrent first-launch and settings requests share a single native permis
  await Promise.all([h.device.requestNativeNotificationPermission(),h.device.requestNativeNotificationPermission('b'),h.device.requestNativeNotificationPermission()]);
  assert.equal(h.permissionRequests(),1);
 });
+
+test('independent category saves cannot overwrite one another',async()=>{
+ const h=fixture();await Promise.all([h.device.setCategoryPreference('b','inbox',true),h.device.setCategoryPreference('b','discussion',true)]);
+ const saved=await h.device.categoryPreferences('b');assert.equal(saved.inbox,true);assert.equal(saved.discussion,true);
+});
+
+test('registration sequences survive restart and account changes, including OFF',async()=>{
+ const storage=new Map<string,string>(),h=fixture(storage);await h.device.setPreference('b',true);await h.device.syncDevice('b',true);
+ const first=h.calls.find((c:any)=>c.callable==='registerInboxDevice').clientRevision;await h.device.syncDevice('b',false);assert(h.calls.filter((c:any)=>c.callable==='registerInboxDevice').at(-1).clientRevision>first);
+ const reopened=fixture(storage);await reopened.device.setPreference('b',true);await reopened.device.syncDevice('b',true);assert(reopened.calls.find((c:any)=>c.callable==='registerInboxDevice').clientRevision>first);
+});

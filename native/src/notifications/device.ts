@@ -7,13 +7,21 @@ import Constants from 'expo-constants';
 import {getFunctions,httpsCallable} from 'firebase/functions';
 import {app,auth} from '../lib/firebase';
 import {serialOperations,emptyPreferences,notificationCategories,type NotificationCategory,type NotificationPreferences,type InboxTarget} from './protocol';
-type Registration={uid:string;token:string;installationId:string;secret:string;enabled:boolean;platform:string;inboxGroupProtocol?:number;previousTokens?:string[];preferences?:NotificationPreferences};
+type Registration={uid:string;token:string;installationId:string;secret:string;enabled:boolean;platform:string;inboxGroupProtocol?:number;previousTokens?:string[];preferences?:NotificationPreferences;clientRevision?:number};
 let capabilities={protocolVersion:1,discussionReplies:false};
 export const notificationCapabilities=()=>capabilities;
 const options={keychainAccessible:SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY};
 const key='townloop.inbox.registration',installKey='townloop.inbox.installation';
 export const serialized=serialOperations();
 const badgeOperations=serialOperations();
+const registrationRevisions=serialOperations();
+const revisionKey='townloop.notifications.registration.revision';
+function nextRegistrationRevision(){return registrationRevisions(async()=>{
+ const stored=Number(await SecureStore.getItemAsync(revisionKey,options));
+ const previous=Number.isSafeInteger(stored)&&stored>=0?stored:0;
+ const next=Math.max(previous+1,Date.now());await SecureStore.setItemAsync(revisionKey,String(next),options);return next;
+});}
+
 const cleanupEpoch=new Map<string,number>();
 const ackKey=(uid:string)=>`townloop.notifications.reads.${uid}`;
 export function notifications():typeof import('expo-notifications')|null {
@@ -32,9 +40,13 @@ export async function categoryPreferences(uid:string):Promise<NotificationPrefer
  return {...emptyPreferences,inbox:legacy,marketplace:legacy};
 }
 export const preference=async(uid:string)=>Object.values(await categoryPreferences(uid)).some(Boolean);
-export async function setCategoryPreference(uid:string,category:NotificationCategory,on:boolean){
+const categoryWrites=new Map<string,ReturnType<typeof serialOperations>>();
+function categoryWrite<T>(uid:string,write:()=>Promise<T>){let queue=categoryWrites.get(uid);if(!queue){queue=serialOperations();categoryWrites.set(uid,queue);}return queue(write);}
+export function saveCategoryPreferences(uid:string,values:NotificationPreferences){return categoryWrite(uid,()=>SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(values),options));}
+export function setCategoryPreference(uid:string,category:NotificationCategory,on:boolean){return categoryWrite(uid,async()=>{
  const value=await categoryPreferences(uid);value[category]=on;await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(value),options);
-}
+});}
+
 export type NotificationAuthorization='checking'|'unavailable'|'undetermined'|'denied'|'granted'|'provisional';
 function authorization(n:NonNullable<ReturnType<typeof notifications>>,p:Awaited<ReturnType<typeof n.getPermissionsAsync>>):NotificationAuthorization {
  if(p.ios?.status!=null&&p.ios.status===n.IosAuthorizationStatus?.PROVISIONAL)return 'provisional';
@@ -73,21 +85,23 @@ async function requestPermission(uid?:string):Promise<NotificationAuthorization>
  catch(error){await AsyncStorage.removeItem(permissionAttemptKey);throw error;}
 }
 
-export const setPreference=async(uid:string,on:boolean)=>{await SecureStore.setItemAsync(prefKey(uid),on?'on':'off',options);await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(Object.fromEntries(notificationCategories.map(k=>[k,on]))),options);};
+export const setPreference=(uid:string,on:boolean)=>categoryWrite(uid,async()=>{await SecureStore.setItemAsync(prefKey(uid),on?'on':'off',options);await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(Object.fromEntries(notificationCategories.map(k=>[k,on]))),options);});
 /** Apply the OS decision once per account/authorization change, not on every resume.
  * A later category opt-out survives restarts. OS denial always disables all four.
  * No token is obtained or registered until an approved authenticated session syncs.
  */
-export async function applyNotificationPermission(uid:string,permission:NotificationAuthorization){
- if(auth.currentUser?.uid!==uid||!['granted','provisional','denied'].includes(permission))return;
- const allowed=permission==='granted'||permission==='provisional';
- const decision=allowed?'on':'off';
- const previous=await SecureStore.getItemAsync(permissionDefaultsKey(uid),options);
- if(auth.currentUser?.uid!==uid)return;
- if(previous!==decision||!allowed){
-  await setPreference(uid,allowed);
-  await SecureStore.setItemAsync(permissionDefaultsKey(uid),decision,options);
- }
+export function applyNotificationPermission(uid:string,permission:NotificationAuthorization){
+ return categoryWrite(uid,async()=>{
+  if(auth.currentUser?.uid!==uid||!['granted','provisional','denied'].includes(permission))return;
+  const allowed=permission==='granted'||permission==='provisional',decision=allowed?'on':'off';
+  const previous=await SecureStore.getItemAsync(permissionDefaultsKey(uid),options);
+  if(auth.currentUser?.uid!==uid)return;
+  if(previous!==decision||!allowed){
+   await SecureStore.setItemAsync(prefKey(uid),allowed?'on':'off',options);
+   await SecureStore.setItemAsync(categoriesKey(uid),JSON.stringify(Object.fromEntries(notificationCategories.map(k=>[k,allowed]))),options);
+   await SecureStore.setItemAsync(permissionDefaultsKey(uid),decision,options);
+  }
+ });
 }
 
 async function saved():Promise<Registration|null>{const raw=await SecureStore.getItemAsync(key,options);try{return raw?JSON.parse(raw):null;}catch{return null;}}
@@ -98,7 +112,7 @@ export async function revoke(){
  // encrypted record on network failure so next launch retries before registering.
  await SecureStore.setItemAsync(key,JSON.stringify({...state,enabled:false}),options);
  const n=notifications();if(n){await n.dismissAllNotificationsAsync().catch(()=>{});await n.setBadgeCountAsync(0).catch(()=>{});await n.unregisterForNotificationsAsync().catch(()=>{});}
- await call({...state,remove:true});await SecureStore.deleteItemAsync(key,options);
+ await call({...state,remove:true,clientRevision:await nextRegistrationRevision()});await SecureStore.deleteItemAsync(key,options);
 }
 export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'off'|'denied'|'unavailable'|'setup-required'|'simulator'>{
  const n=notifications();if(!n)return 'unavailable';
@@ -118,7 +132,7 @@ export async function syncDevice(uid:string,on:boolean,ask=false):Promise<'on'|'
  if(auth.currentUser?.uid!==uid)return 'off';
  const previousTokens=[...new Set([...(old?.uid===uid?old.previousTokens||[]:[]),...(old?.uid===uid&&old.token!==token?[old.token]:[])])].filter(t=>t!==token);
  if(previousTokens.length>20)throw Error('notification_revocation_pending');
- const state:Registration={...JSON.parse(install),uid,token,enabled:true,platform:Platform.OS,inboxGroupProtocol:3,preferences:await categoryPreferences(uid),previousTokens};
+ const state:Registration={...JSON.parse(install),uid,token,enabled:true,platform:Platform.OS,inboxGroupProtocol:3,preferences:await categoryPreferences(uid),previousTokens,clientRevision:await nextRegistrationRevision()};
  // Persist first, so interruption after server registration still leaves a revoke capability.
  await SecureStore.setItemAsync(key,JSON.stringify(state),options);
  const registration=await call(state);

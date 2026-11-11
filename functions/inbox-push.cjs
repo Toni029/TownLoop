@@ -11,22 +11,29 @@ const capability=data=>hash(`${data.installationId}/${data.secret}`);
 async function registerDevice(db,uid,data,{now=Date.now(),authTime=now/1000}={}){
  if(!/^[a-f0-9-]{32,64}$/i.test(data.installationId||'')||!/^[-a-zA-Z0-9]{64,128}$/.test(data.secret||''))error('invalid-argument');
  if(!validToken(data.token))error('invalid-argument');
+ if(data.clientRevision!==undefined&&(!Number.isSafeInteger(data.clientRevision)||data.clientRevision<0))error('invalid-argument');
  const oldTokens=data.previousTokens??(data.previousToken?[data.previousToken]:[]);
  if(!Array.isArray(oldTokens)||oldTokens.length>20||oldTokens.some(t=>!validToken(t)))error('invalid-argument');
  const previousRefs=[...new Set(oldTokens)].filter(t=>t!==data.token).map(t=>db.doc(`notification_devices/${hash(t)}`));
  const ref=db.doc(`notification_devices/${hash(data.token)}`),key=capability(data);
+ const stale=old=>old?.capability===key&&Number.isSafeInteger(old.clientRevision)&&(!Number.isSafeInteger(data.clientRevision)||data.clientRevision<=old.clientRevision);
+ const retire=(tx,r,old)=>Number.isSafeInteger(data.clientRevision)?tx.set(r,{uid:old.uid,capability:old.capability,enabled:false,preferences:preferences({}),clientRevision:data.clientRevision,updatedAt:new Date(now),expiresAt:new Date(now+days)}):tx.delete(r);
+
  await db.runTransaction(async tx=>{
   const [existing,profile,...previous]=await Promise.all([tx.get(ref),uid?tx.get(db.doc(`users/${uid}`)):null,...previousRefs.map(r=>tx.get(r))]);
   const old=existing.data();
-  if(data.remove){if(old&&old.capability!==key)error('permission-denied');if(old)tx.delete(ref);for(const snap of previous)if(snap.data()?.capability===key)tx.delete(snap.ref);return;}
+  if(data.remove){if(old&&old.capability!==key)error('permission-denied');if(stale(old))return;if(old)retire(tx,ref,old);else if(Number.isSafeInteger(data.clientRevision)&&uid&&approved(profile?.data())&&['android','ios'].includes(data.platform))retire(tx,ref,{uid,token:data.token,capability:key,platform:data.platform,preferences:preferences({})});for(const snap of previous)if(snap.data()?.capability===key&&!stale(snap.data()))retire(tx,snap.ref,snap.data());return;}
   if(!uid)error('unauthenticated');if(!approved(profile?.data()))error('permission-denied');
   if(!['android','ios'].includes(data.platform))error('invalid-argument');
   // A token alone cannot transfer a device to another account. Account switching
   // requires the same installation's protected capability; legacy same-owner upgrade is safe.
   if(old&&old.uid!==uid&&old.capability!==key)error('permission-denied');
-  for(const snap of previous)if(snap.data()?.uid===uid&&snap.data().capability===key)tx.delete(snap.ref);
+  // Compare after authorization, across account switches on the same installation.
+  // Tombstones retain this boundary after OFF so a late ON cannot resurrect it.
+  if(stale(old))return;
+  for(const snap of previous)if(snap.data()?.uid===uid&&snap.data().capability===key&&!stale(snap.data()))retire(tx,snap.ref,snap.data());
   tx.set(ref,{uid,token:data.token,platform:data.platform,capability:key,enabled:data.enabled!==false,
-   preferences:preferences(data.preferences),inboxGroupProtocol:data.inboxGroupProtocol===3?3:0,authTime,updatedAt:new Date(now),expiresAt:new Date(now+days)});
+   preferences:preferences(data.preferences),...(Number.isSafeInteger(data.clientRevision)?{clientRevision:data.clientRevision}:{}),inboxGroupProtocol:data.inboxGroupProtocol===3?3:0,authTime,updatedAt:new Date(now),expiresAt:new Date(now+days)});
  });
  return {registered:!data.remove,protocolVersion:2,discussionReplies:process.env.DISCUSSION_REPLIES_ENABLED==='true'};
 }

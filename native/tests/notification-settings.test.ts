@@ -15,7 +15,7 @@ function branch(view:string){
 }
 test('Account places the amber bell Notifications entry directly after Edit Profile',()=>{
  const account=branch('account');
- assert.match(account,/title="Edit Profile"\s+onPress=\{editProfile\}\s*\/>\s*<Row title="Notifications" icon=\{Bell\} tone="#d97706" highlight onPress=\{\(\) => go\("notifications"\)\}/);
+ assert.match(account,/title="Edit Profile"\s+onPress=\{editProfile\}\s*\/>\s*<Row title="Notifications" icon=\{Bell\} tone="#d97706" highlight onPress=\{\(\) => \{push.retry\(\);go\("notifications"\);\}\}/);
  assert.ok(source.includes('? (dark ? "#78350f" : "#fef3c7")'));
  assert.ok(source.includes('notifications: "Notifications"'));
 });
@@ -23,7 +23,8 @@ test('four existing preferences appear only on Notifications, with OS status and
  const settings=branch('notifications'),inbox=branch('inbox');
  for(const label of ['Private inbox','Marketplace messages','Discussion replies','Work orders updates'])assert.ok(settings.includes(`'${label}'`));
  assert.ok(settings.includes('value={push.preferences[category]}'));
- assert.ok(settings.includes('onValueChange={()=>push.toggle(category)}'));
+ assert.ok(settings.includes('onValueChange={on=>push.toggle(category,on)}'));
+ assert.equal(settings.includes('disabled={push.busy'),false);
  assert.ok(settings.includes('push.authorization'));
  assert.ok(settings.includes('Linking.openSettings()'));
  assert.ok(settings.includes('Blocked by your device'));

@@ -156,3 +156,17 @@ test('older Preview and Play installations register independently and both recei
  await deliver(h.db,h.event,'marketplace_chats',{now:h.now,identity:async()=>({disabled:false}),transport:async(_,payload)=>{h.sent.push(payload);return{data:{status:'ok',id:'new-ticket'}};}});
  assert.equal(h.sent.length,2);assert.equal(new Set(h.sent.map(p=>p.to)).size,2);assert(h.sent.every(p=>p.channelId==='marketplace'&&p.priority==='high'));assert(!JSON.stringify(h.sent).includes('Synthetic private text'));
 });
+
+test('late preference requests cannot undo newer choices, OFF, account switch, or token retirement',async()=>{
+ const h=fixture(),device=()=>[...h.records].find(([p])=>p.startsWith('notification_devices/'))?.[1];
+ await h.register('b',{clientRevision:20,preferences:{inbox:false,discussion:true}});
+ await h.register('b',{clientRevision:10,preferences:{inbox:true,discussion:false}});
+ assert.equal(device().preferences.inbox,false);assert.equal(device().preferences.discussion,true);
+ await h.register('b',{clientRevision:30,remove:true});await h.register('b',{clientRevision:25});assert.equal(device().enabled,false);assert.equal(device().token,undefined);assert(Object.values(device().preferences).every(value=>value===false));
+ await h.register('a',{clientRevision:40});await h.register('b',{clientRevision:35});assert.equal(device().uid,'a');
+ await h.register('a',{clientRevision:50,token:'ExpoPushToken[rotated]',previousTokens:['ExpoPushToken[aaa]']});
+ // Requests using older client versions also cannot overwrite a versioned device.
+ await h.register('a');assert.equal(device().clientRevision,50);assert.equal(device().enabled,false);
+ const gone=fixture();await gone.register('b',{clientRevision:2,remove:true});await gone.register('b',{clientRevision:1});assert.equal([...gone.records].find(([p])=>p.startsWith('notification_devices/'))?.[1].enabled,false);
+ await assert.rejects(h.register('a',{clientRevision:NaN}),/invalid-argument/);
+});
