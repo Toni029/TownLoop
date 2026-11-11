@@ -140,13 +140,15 @@ export function InboxPushProvider({children}:PropsWithChildren){
   // device.ts coalesces concurrent prompt requests. Enrollment still requires approval.
   let frame:number|undefined;
   const schedule=()=>{if(frame!==undefined)cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{void (async()=>{
-   if(canceled||permissionOpen.current||AppState.currentState!=='active'||active.current.loading)return;
+   if(canceled||permissionOpen.current||AppState.currentState!=='active'||active.current.loading)return false;
    permissionOpen.current=true;
    try{
+    const previous=await getNotificationAuthorization();
     const permission=await requestNativeNotificationPermission();
     if(!canceled)setAuthorization(permission);
+    return permission!==previous;
    }finally{permissionOpen.current=false;}
-  })().then(()=>{if(!canceled)void refresh().catch(()=>{});}).catch(()=>{});});};
+  })().then(changed=>{if(changed&&!canceled)void refresh().catch(()=>{});}).catch(()=>{});});};
   schedule();
   const resumed=AppState.addEventListener('change',state=>{if(state==='active')schedule();});
   return()=>{canceled=true;if(frame!==undefined)cancelAnimationFrame(frame);resumed.remove();};

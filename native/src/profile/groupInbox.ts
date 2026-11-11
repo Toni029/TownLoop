@@ -1,3 +1,5 @@
+import {AppState} from 'react-native';
+import {foregroundPoll} from '../lib/foregroundPoll';
 import {inboxActionError} from './inboxActionError';
 import {confirmedLegacyLeave,onConfirmedLegacyLeave} from './legacyLeaveEvents';
 import { useEffect, useState } from 'react';
@@ -24,7 +26,7 @@ export function useGroupInbox(user: UserProfile | null) {
   const [state, setState] = useState<{uid:string; enabled:boolean; threads:Thread[]; legacy:Thread[]; error:string}>({uid:'',enabled:false,threads:[],legacy:[],error:''});
   useEffect(() => {
     if (!accountKey || !user) return;
-    let active = true, stop = () => {}, timer: ReturnType<typeof setInterval> | undefined;
+    let active = true,legacyBusy=false,stop = () => {},stopPolling=()=>{};
     const update = (patch: Partial<typeof state>) => { if (active) setState(s => ({ ...(s.uid === accountKey ? s : {uid:accountKey,enabled:false,threads:[],legacy:[],error:''}), ...patch })); };
     const departedLegacy=new Set<string>();
     const stopLeaves=onConfirmedLegacyLeave(uid,(source,id)=>{
@@ -32,11 +34,13 @@ export function useGroupInbox(user: UserProfile | null) {
       if(active)setState(s=>s.uid===accountKey?{...s,legacy:s.legacy.filter(t=>!(t.id===id&&({friend:'resident_chats',office:'office_chats',maintenance:'maintenance_chats'}[t.category])===source))}:s);
     });
     const legacy = async () => {
+      if(!active||legacyBusy||AppState.currentState!=='active')return;
+      legacyBusy=true;
       try {
         const result = await groupAction('listLegacy');
         if (!active) return;
         update({legacy:result.rows.filter((row:any)=>!departedLegacy.has(`${row.collection}/${row.id}`)).map((row:any) => readThread(categoryFor(({resident_chats:'private',office_chats:'office',maintenance_chats:'maintenance'} as Record<string,string>)[row.collection] || ''),row.id,row.data,user)).filter(Boolean),error:''});
-      } catch { update({error:'Unable to refresh Inbox. Reopen the Inbox to retry.'}); }
+      } catch { update({error:'Unable to refresh Inbox. Reopen the Inbox to retry.'}); }finally{legacyBusy=false;}
     };
     void groupAction('capabilities').then(result => {
       if (!active || !result.enabled || result.protocolVersion !== 3) return;
@@ -49,9 +53,9 @@ export function useGroupInbox(user: UserProfile | null) {
         })});
         void legacy();
       }, () => update({error:'Unable to load group conversations.'}));
-      void legacy(); timer=setInterval(() => void legacy(),30_000);
+      stopPolling=foregroundPoll(AppState,legacy,30_000);
     }).catch(() => { /* Unpublished backend: keep the current Inbox intact. */ });
-    return () => { active=false; stopLeaves(); stop(); if(timer)clearInterval(timer); };
+    return () => { active=false; stopLeaves(); stop(); stopPolling(); };
     // Account identity/authorization changes discard all previous projections.
   }, [uid,user?.role,user?.approved]);
   return accountKey && state.uid === accountKey ? state : {uid,enabled:false,threads:[],legacy:[],error:''};

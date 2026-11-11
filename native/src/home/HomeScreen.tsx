@@ -14,7 +14,8 @@ import { usePresentation } from "../shell/TownLoopShell";
 import { Theme, Action, Box, Row, Txt, usePalette } from "./ui";
 import { useHomeStore, useReducedMotion, useHeaderTime } from "./hooks";
 import { friendlyDate, toggleReminder, nextTaskId } from "./model";
-import { Weather } from "./Weather";
+import { VisibleWeather } from "./VisibleWeather";
+import { createWeatherViewport } from "./weatherViewport";
 import { Medications } from "./Medications";
 import { Checklist } from "./Checklist";
 import { Activities } from "./Activities";
@@ -65,6 +66,7 @@ function HomeContent({
     store = useHomeStore(uid),
     {today,greeting} = useHeaderTime(),
     reduced = useReducedMotion();
+  const [weatherViewport] = useState(createWeatherViewport);
   const [toast, setToast] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const opacity = useState(() => new Animated.Value(0))[0];
@@ -167,6 +169,8 @@ function HomeContent({
       )}
       {!embedded && profileOpen && <ProfileMenu open onClose={() => setProfileOpen(false)} onUnread={() => {}} />}
       <ScrollView
+        onLayout={event => weatherViewport.viewport(event.nativeEvent.layout.height)}
+        onScroll={event => weatherViewport.scroll(event.nativeEvent.contentOffset.y)}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           padding: 20,
@@ -174,9 +178,9 @@ function HomeContent({
           paddingBottom: embedded ? 128 : 32,
         }}
       >
-        <Animated.View style={{ gap: 16, opacity }}>
+        <Animated.View onLayout={event => weatherViewport.origin(event.nativeEvent.layout.y)} style={{ gap: 16, opacity }}>
           <HomeBoundary name="Weather Widget">
-            <Weather />
+            <VisibleWeather viewport={weatherViewport} />
           </HomeBoundary>
           {!!store.error && (
             <Box>

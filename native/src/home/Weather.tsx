@@ -1,4 +1,6 @@
 import { ScrollView } from '../keyboard/KeyboardScrollView';
+import {useIsFocused} from "expo-router";
+import {foregroundPoll} from "../lib/foregroundPoll";
 import { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -58,7 +60,8 @@ const backgrounds: Record<
 };
 const TTL = 45 * 60 * 1000;
 let cache: { at: number; data: WeatherData } | undefined;
-export function Weather() {
+export function Weather({visible=true}:{visible?:boolean}={}) {
+  const focused=useIsFocused(),watching=visible&&focused;
   const dark = useContext(Theme);
   const [data, setData] = useState<WeatherData | undefined>(cache?.data),
     [error, setError] = useState(""),
@@ -67,26 +70,32 @@ export function Weather() {
     [day, setDay] = useState(0),
     [hour, setHour] = useState(0);
   useEffect(() => {
-    let active = true;
+    if(!watching)return;
+    let active = true,resumePending=false;
     let controller: AbortController | undefined;
     let inFlight = false;
     async function refresh() {
-      if (inFlight) return;
+      if(!active||AppState.currentState!=='active')return;
+      if (inFlight){resumePending=true;return;}
       if (cache && Date.now() - cache.at < TTL && cache.data.forecastDays[0]?.hourly[0]?.timestamp) {
         setData(cache.data);
         setLoading(false);
         return;
       }
       inFlight = true;
-      controller = new AbortController();
-      const timeout = setTimeout(() => controller?.abort(), 15000);
+      const request = new AbortController();
+      controller = request;
+      let timedOut=false;
+      const timeout = setTimeout(() => {timedOut=true;request.abort();}, 15000);
       setLoading(true);
       try {
         const r = await fetch(OPEN_METEO_API_URL, {
-          signal: controller.signal,
+          signal: request.signal,
         });
         if (!r.ok) throw Error("Weather unavailable");
-        const next = parseWeather(await r.json());
+        const body=await r.json();
+        if(!active||request.signal.aborted||AppState.currentState!=='active')return;
+        const next = parseWeather(body);
         if (active) {
           cache = { at: Date.now(), data: next };
           setData(next);
@@ -95,28 +104,20 @@ export function Weather() {
           setError("");
         }
       } catch {
-        if (active)
+        if (active&&(!request.signal.aborted||timedOut)&&AppState.currentState==='active')
           setError(
             "Weather could not be updated. Check your connection and retry.",
           );
       } finally {
         clearTimeout(timeout);
         inFlight = false;
-        if (active) setLoading(false);
+        if (active&&AppState.currentState==='active') setLoading(false);
+        if(resumePending){resumePending=false;void refresh();}
       }
     }
-    void refresh();
-    const timer = setInterval(() => void refresh(), 60000);
-    const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") void refresh();
-    });
-    return () => {
-      active = false;
-      clearInterval(timer);
-      controller?.abort();
-      sub.remove();
-    };
-  }, [attempt]);
+    const stop=foregroundPoll(AppState,refresh,60000,()=>controller?.abort());
+    return () => {active=false;stop();};
+  }, [attempt,watching]);
   const d = data?.forecastDays[day] || data?.forecastDays[0],
     h = d?.hourly[hour] || d?.hourly[0];
   const Icon = h ? (isNightHour(h) && h.icon === 'sun' ? Moon : isNightHour(h) && h.icon === 'cloudSun' ? Cloud : icons[h.icon]) : Sun;
@@ -230,7 +231,7 @@ export function Weather() {
             boxShadow: "0px 10px 15px -3px rgba(0,0,0,0.1)",
           }}
         >
-          <WeatherAtmosphere hour={h} />
+          <WeatherAtmosphere hour={h} visible={visible} />
           <Row
             style={{
               alignItems: "flex-start",

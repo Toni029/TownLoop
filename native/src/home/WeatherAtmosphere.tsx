@@ -3,26 +3,18 @@ import { AppState, Image, StyleSheet, View } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
-import Animated, { cancelAnimation, Easing, FadeIn, FadeOut, interpolate, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import { useReducedMotion } from './hooks';
 import type { HourlyForecast } from './weatherModel';
 import { atmosphereFor } from './weatherAtmosphereModel';
 import { WetWeatherEffects } from './WetWeatherEffects';
 import { wetProfile } from './wetWeatherModel';
+import { useWeatherCycle as useCycle } from './useWeatherCycle';
 
 type Scene = ReturnType<typeof atmosphereFor>;
 // Bundled photographic cloud textures and fixed particle meshes are composited
 // on the UI thread. No JS frame loop, video, blur filters or remote image loading.
-function useCycle(active: boolean, duration: number) {
-  const phase = useSharedValue(0);
-  useEffect(() => {
-    if (active) phase.value = withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false);
-    else { cancelAnimation(phase); phase.value = 0; }
-    return () => cancelAnimation(phase);
-  }, [active, duration, phase]);
-  return phase;
-}
-export const WeatherAtmosphere = memo(function WeatherAtmosphere({ hour }: { hour: HourlyForecast }) {
+export const WeatherAtmosphere = memo(function WeatherAtmosphere({ hour,visible=true }: { hour: HourlyForecast;visible?:boolean }) {
   const focused = useIsFocused();
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -32,7 +24,7 @@ export const WeatherAtmosphere = memo(function WeatherAtmosphere({ hour }: { hou
   }, []);
   const scene = atmosphereFor(hour);
   const [size, setSize] = useState({ width: 360, height: 440 });
-  const active = focused && foreground && !reduced;
+  const active = visible && focused && foreground && !reduced;
   const key = `${scene.night}:${scene.condition}:${scene.drizzle}:${scene.heavy}:${scene.windy}:${scene.particles}`;
   return <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
     onLayout={e => { const { width, height } = e.nativeEvent.layout; setSize(old => old.width === width && old.height === height ? old : { width, height }); }}
