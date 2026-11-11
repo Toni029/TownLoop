@@ -234,7 +234,7 @@ async function leave(db,uid,cid,_data,now) {
 async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}) {
   if (!validId(uid)) fail('unauthenticated');
   if (!approved((await db.doc(`users/${uid}`).get()).data())) fail('permission-denied');
-  if (data.op === 'capabilities') return { protocolVersion: 3, enabled, permanentCleanup: false, freshGroupConversations:true };
+  if (data.op === 'capabilities') return { protocolVersion: 3, enabled, permanentCleanup: false, freshGroupConversations:true, receiptsVersion:1 };
   if (!enabled) fail('failed-precondition');
   if(['listLegacy','roster','upgradeLegacy','sync','create','createFresh','add'].includes(data.op)) await charge(db,uid,'expensiveRead',String(data.conversationId||data.op),now);
   if (data.op === 'listLegacy') return require('./inbox-group-legacy.cjs').legacyList(db, uid);
@@ -285,6 +285,7 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
   }
   if (!validId(data.conversationId)) fail('invalid-argument');
   const cid = data.conversationId;
+  if (data.op === 'receipt') return require('./inbox-receipts.cjs').acknowledge(db,uid,cid,data,now);
   if (data.op === 'add' || data.op === 'sync') return updateMembership(db, uid, cid, data, now);
   if (data.op === 'send') {
     const c = (await ref(db, cid).get()).data();

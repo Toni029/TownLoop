@@ -10,7 +10,7 @@ function prepareRetention(baselineFile,output){
  const rules=baseline.includes(fence)?baseline:baseline.replace(needle,fence);
  fs.mkdirSync(folder,{recursive:true});
  for(const file of ['abuseLimits.cjs','abusePolicy.cjs','referenceWriteBarrier.cjs','inbox-retention-entry.cjs','inbox-retention-monitor.cjs','inbox-retention.cjs','inbox-group-cleanup-runner.cjs','inbox-group-cleanup.cjs',
-  'inbox-groups-entry.cjs','inbox-groups.cjs','inbox-group-roles.cjs','inbox-group-legacy.cjs','inbox-legacy-leave.cjs','inbox-groups-push.cjs','inbox.cjs','inbox-push.cjs','inbox-policy.cjs','notification-events.cjs','package-lock.json'])fs.copyFileSync(path.join(root,'functions',file),path.join(folder,file));
+  'inbox-groups-entry.cjs','inbox-groups.cjs','inbox-receipts.cjs','inbox-group-roles.cjs','inbox-group-legacy.cjs','inbox-legacy-leave.cjs','inbox-groups-push.cjs','inbox.cjs','inbox-push.cjs','inbox-policy.cjs','notification-events.cjs','package-lock.json'])fs.copyFileSync(path.join(root,'functions',file),path.join(folder,file));
  fs.writeFileSync(path.join(folder,'package.json'),JSON.stringify(require(path.join(root,'functions/package.json')),null,2));
  fs.writeFileSync(path.join(folder,'index.cjs'),"require('firebase-admin/app').initializeApp();\nconst groups=require('./inbox-groups-entry.cjs');\nexports.manageInboxConversation=groups.manageInboxConversation;\nexports.revokeInboxGroupMemberships=groups.revokeInboxGroupMemberships;\nObject.assign(exports,require('./inbox-retention-entry.cjs'));\n");
  // Other deployed notification settings MUST be preserved, not replaced by an old .env.

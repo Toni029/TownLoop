@@ -1,0 +1,16 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createReceiptQueue,receiptStatus} from '../src/profile/inboxReceipts.ts';
+function fixture(){let active=true,fail=false;const timers=new Map<number,()=>void>(),calls:any[]=[];let tick=0;
+ const queue=createReceiptQueue({active:()=>active,send:async(kind,ids)=>{calls.push({kind,ids});if(fail)throw Error('offline');return{kind,acknowledged:ids};},schedule:fn=>{timers.set(++tick,fn);return tick as any;},cancel:id=>{timers.delete(id as any);}});
+ return {queue,calls,setActive:(v:boolean)=>active=v,setFail:(v:boolean)=>fail=v,async run(){const next=[...timers.entries()][0];if(next){timers.delete(next[0]);next[1]();await new Promise(r=>setImmediate(r));}},timers};}
+test('pending/failed/unconfirmed snapshots have no sent marker; cached confirmed messages retain safe status',()=>{assert.equal(receiptStatus({persisted:false,receiptState:'read',receiptVersion:1}),null);assert.equal(receiptStatus({persisted:true,readBy:['other']}),'sent');assert.equal(receiptStatus({persisted:true,receiptState:'read',receiptVersion:1}),'read');assert.equal(receiptStatus({persisted:true,receiptState:'delivered',receiptVersion:1}),'delivered');});
+test('rapid delivery/read batches coalesce, prefer read, deduplicate and avoid downgrade',async()=>{const h=fixture();h.queue.add('delivered',['one','two']);h.queue.add('read',['two']);await h.run();await h.run();assert.deepEqual(h.calls,[{kind:'read',ids:['two']},{kind:'delivered',ids:['one']}]);h.queue.add('delivered',['two']);await h.run();assert.equal(h.calls.length,2);});
+test('offline attempts retain acknowledgments, stop after bounded retries, and resume on foreground/reconnect',async()=>{const h=fixture();h.setFail(true);h.queue.add('read',['one']);for(let i=0;i<6;i++)await h.run();assert.equal(h.calls.length,3);assert.equal(h.timers.size,0);h.setFail(false);h.queue.wake();await h.run();assert.equal(h.calls.length,4);h.queue.add('read',['one']);assert.equal(h.timers.size,0);});
+test('background/account cleanup sends nothing; app resume retries without inferring read',async()=>{const h=fixture();h.setActive(false);h.queue.add('delivered',['one']);await h.run();assert.equal(h.calls.length,0);h.setActive(true);h.queue.wake();await h.run();assert.equal(h.calls[0].kind,'delivered');h.queue.add('read',['one']);h.queue.dispose();await h.run();assert.equal(h.calls.length,1);});
+test('a genuinely viewed offline message survives restart and replays only its saved acknowledgment',async()=>{
+ let saved:any[]=[];const timers:(()=>void)[]=[],calls:any[]=[];let active=false;
+ const options={active:()=>active,load:async()=>saved,save:async(items:any[])=>{saved=structuredClone(items);},send:async(kind:any,ids:string[])=>{calls.push({kind,ids});return{kind,acknowledged:ids};},schedule:(fn:()=>void)=>{timers.push(fn);return 1 as any;},cancel:()=>{}};
+ const first=createReceiptQueue(options);first.add('read',['actually_viewed']);await new Promise(r=>setImmediate(r));first.dispose();assert.deepEqual(saved,[['actually_viewed',2]]);
+ active=true;const restarted=createReceiptQueue(options);await new Promise(r=>setImmediate(r));while(timers.length){timers.shift()!();await new Promise(r=>setImmediate(r));}
+ assert.deepEqual(calls,[{kind:'read',ids:['actually_viewed']}]);assert.deepEqual(saved,[]);restarted.dispose();
+});

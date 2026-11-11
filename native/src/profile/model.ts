@@ -18,6 +18,10 @@ export type Message = {
   senderAvatar?: string;
   sequence?: number;
   readBy?: string[];
+  persisted?: boolean;
+  receiptVersion?: number;
+  receiptState?: string;
+  receipts?: Record<string,{deliveredAt?:number;readAt?:number}>;
   type?: "message" | "join" | "leave" | "legacy_event";
   isSystem?: boolean;
   actorId?: string;

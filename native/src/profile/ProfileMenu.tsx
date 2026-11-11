@@ -1,3 +1,5 @@
+import {useInboxReceipts} from './useInboxReceipts';
+import {receiptStatus} from './inboxReceipts';
 import {InboxThreadIcon} from './InboxThreadIcon';
 import {InboxParticipants} from './InboxParticipants';
 import {groupAction,useGroupConversation} from './groupInbox';
@@ -431,6 +433,7 @@ export function ProfileMenu({
     ...baseConversation,messages:group.messages,
     recipient: baseConversation.category === 'friend' ? {...baseConversation.recipient,...data.directory.items.find(p=>String(p.id)===String(baseConversation.recipient.id))} : baseConversation.recipient,
   } : baseConversation;
+  const receipts=useInboxReceipts(baseConversation,String(user?.id||''),group.messages,open&&!closing&&view==='conversation');
   const contact =
     conversation &&
     (conversation.category === "friend" ||
@@ -440,7 +443,7 @@ export function ProfileMenu({
       ? conversation.recipient
       : null;
   useEffect(() => {
-    if (view !== "conversation" || !conversation?.unread || conversation.data.schemaVersion===3&&!group.loaded) return;
+    if (view !== "conversation" || !conversation?.unread || conversation.data.schemaVersion===3) return;
     void markRead(conversation).catch((e) =>
       setError(e.message || "Unable to mark messages read."),
     );
@@ -2054,6 +2057,8 @@ export function ProfileMenu({
                             {conversation.data.schemaVersion===3 && group.hasMore && <Action title="Load earlier messages" onPress={group.loadMore}/>}
                             <FlatList
                               inverted
+                              viewabilityConfig={receipts.viewabilityConfig}
+                              onViewableItemsChanged={receipts.onViewableItemsChanged}
                               data={[...conversation.messages].reverse()}
                               keyExtractor={message => message.id}
                               initialNumToRender={15}
@@ -2073,7 +2078,9 @@ export function ProfileMenu({
                                   user,
                                   ...data.directory.items,
                                 ]);
-                                const read = (m.readBy?.length || 0) > 0;
+                                const status=receiptStatus(m);
+                                const receiptAudience=conversation.category==='friend'?'recipient':'all original recipients';
+                                const receiptLabel=status==='read'?`Read by ${receiptAudience}`:status==='delivered'?`Delivered to ${receiptAudience}`:'Sent';
                                 const role = m.senderRole;
                                 const badge =
                                   role === "crew"
@@ -2198,18 +2205,16 @@ export function ProfileMenu({
                                             minute: "2-digit",
                                           })}
                                         </Text>
-                                        {mine && (
+                                        {mine && status && (
                                           <View
                                             accessibilityLabel={
-                                              read
-                                                ? "Read by recipient"
-                                                : "Sent"
+                                              receiptLabel
                                             }
                                           >
-                                            {read ? (
+                                            {status!=='sent' ? (
                                               <CheckCheck
                                                 size={16}
-                                                color="#0284c7"
+                                                color={status==='read'?'#0284c7':muted}
                                               />
                                             ) : (
                                               <Check size={16} color={muted} />

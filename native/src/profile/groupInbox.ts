@@ -3,7 +3,7 @@ import {foregroundPoll} from '../lib/foregroundPoll';
 import {inboxActionError} from './inboxActionError';
 import {confirmedLegacyLeave,onConfirmedLegacyLeave} from './legacyLeaveEvents';
 import { useEffect, useState } from 'react';
-import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, doc, getDocsFromServer, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app, auth, db } from '../lib/firebase';
 import type { UserProfile } from '../../../src/types';
@@ -28,6 +28,32 @@ export function useGroupInbox(user: UserProfile | null) {
     if (!accountKey || !user) return;
     let active = true,legacyBusy=false,stop = () => {},stopPolling=()=>{};
     const update = (patch: Partial<typeof state>) => { if (active) setState(s => ({ ...(s.uid === accountKey ? s : {uid:accountKey,enabled:false,threads:[],legacy:[],error:''}), ...patch })); };
+    // Receive real message bytes before acknowledging delivery. Membership
+    // counters and FCM acceptance alone are never evidence of delivery.
+    let membershipVersion='';
+    let receiptsSupported=false,receiving=false,failures=0,retry:ReturnType<typeof setTimeout>|undefined;
+    let latestMemberships:Record<string,any>[]=[];
+    const pendingDelivery=new Map<string,Record<string,any>>();
+    const foreground=()=>active&&AppState.currentState==='active'&&auth.currentUser?.uid===uid;
+    const cancelRetry=()=>{if(retry!==undefined)clearTimeout(retry);retry=undefined;};
+    const receive=async()=>{
+      if(receiving||!foreground()||!receiptsSupported)return;receiving=true;
+      try{while(pendingDelivery.size&&foreground()){
+        const [cid,m]=pendingDelivery.entries().next().value!;
+        let page;try{page=await getDocsFromServer(query(collection(db,'inbox_conversations',cid,'messages'),where('visibility','array-contains',`${uid}:${m.epoch}`),where('sequence','>',m.deliveredSequence||0),orderBy('sequence','desc'),limit(50)));
+        }catch(error){const code=(error as {code?:string}).code?.split('/').at(-1);if(['permission-denied','not-found'].includes(code||'')){pendingDelivery.delete(cid);continue;}throw error;}
+        if(!foreground())return;
+        if(page.docs.length)try{await groupAction('receipt',{conversationId:cid,kind:'delivered',messageIds:page.docs.map(d=>d.id)});}catch(error){const code=(error as {code?:string}).code?.split('/').at(-1);if(['permission-denied','not-found','failed-precondition'].includes(code||'')){pendingDelivery.delete(cid);continue;}throw error;}
+        if(pendingDelivery.get(cid)===m)pendingDelivery.delete(cid);failures=0;
+      }}catch{if(++failures<3&&foreground()){cancelRetry();retry=setTimeout(()=>{retry=undefined;void receive();},5000*failures);}}
+      finally{receiving=false;}
+    };
+    const receiveMemberships=()=>{
+      if(!receiptsSupported||!foreground())return;
+      for(const m of latestMemberships)if(m.sequence>(m.readSequence||0)&&m.sequence>(m.deliveredSequence||0))pendingDelivery.set(m.conversationId,m);
+      void receive();
+    };
+    const receiptLifecycle=AppState.addEventListener('change',state=>{if(state==='active'){failures=0;receiveMemberships();}else cancelRetry();});
     const departedLegacy=new Set<string>();
     const stopLeaves=onConfirmedLegacyLeave(uid,(source,id)=>{
       departedLegacy.add(`${source}/${id}`);
@@ -39,23 +65,26 @@ export function useGroupInbox(user: UserProfile | null) {
       try {
         const result = await groupAction('listLegacy');
         if (!active) return;
-        update({legacy:result.rows.filter((row:any)=>!departedLegacy.has(`${row.collection}/${row.id}`)).map((row:any) => readThread(categoryFor(({resident_chats:'private',office_chats:'office',maintenance_chats:'maintenance'} as Record<string,string>)[row.collection] || ''),row.id,row.data,user)).filter(Boolean),error:''});
+        update({legacy:result.rows.filter((row:any)=>!departedLegacy.has(`${row.collection}/${row.id}`)).map((row:any) => readThread(categoryFor(({resident_chats:'private',office_chats:'office',maintenance_chats:'maintenance'} as Record<string,string>)[row.collection] || ''),row.id,row.data,user)).filter(Boolean).map((thread:Thread)=>({...thread,messages:thread.messages.map(message=>({...message,persisted:true}))})),error:''});
       } catch { update({error:'Unable to refresh Inbox. Reopen the Inbox to retry.'}); }finally{legacyBusy=false;}
     };
     void groupAction('capabilities').then(result => {
       if (!active || !result.enabled || result.protocolVersion !== 3) return;
+      receiptsSupported=result.receiptsVersion===1;
       update({enabled:true});
-      stop = onSnapshot(query(collection(db,'inbox_memberships'),where('uid','==',uid),where('status','==','active'),orderBy('updatedAt','desc'),limit(100)), snapshot => {
+      stop = onSnapshot(query(collection(db,'inbox_memberships'),where('uid','==',uid),where('status','==','active'),orderBy('updatedAt','desc'),limit(100)), {includeMetadataChanges:true}, snapshot => {
+        if(!snapshot.metadata.fromCache&&!snapshot.metadata.hasPendingWrites){latestMemberships=snapshot.docs.map(d=>d.data());for(const cid of pendingDelivery.keys())if(!latestMemberships.some(m=>m.conversationId===cid))pendingDelivery.delete(cid);receiveMemberships();}
         update({threads:snapshot.docs.map(d => {
           const m=d.data(); const category=categoryFor(m.type);
           return {id:m.conversationId,category,name:m.name,subject:m.subject,unread:m.sequence > m.readSequence,messages:[],updatedAt:m.updatedAt,
-            data:{...m,schemaVersion:3},recipient:{id:m.peerId||'',name:m.name} as UserProfile,otherLeft:m.conversationStatus==='read_only'||m.type==='private'&&m.archived===true&&!m.inactivityResumable};
+            data:{...m,schemaVersion:3,receiptsEnabled:result.receiptsVersion===1},recipient:{id:m.peerId||'',name:m.name} as UserProfile,otherLeft:m.conversationStatus==='read_only'||m.type==='private'&&m.archived===true&&!m.inactivityResumable};
         })});
-        void legacy();
+        const version=JSON.stringify(snapshot.docs.map(d=>[d.data().conversationId,d.data().updatedAt]));
+        if(version!==membershipVersion){membershipVersion=version;void legacy();}
       }, () => update({error:'Unable to load group conversations.'}));
       stopPolling=foregroundPoll(AppState,legacy,30_000);
     }).catch(() => { /* Unpublished backend: keep the current Inbox intact. */ });
-    return () => { active=false; stopLeaves(); stop(); stopPolling(); };
+    return () => { active=false;receiptLifecycle.remove();cancelRetry();pendingDelivery.clear();stopLeaves(); stop(); stopPolling(); };
     // Account identity/authorization changes discard all previous projections.
   }, [uid,user?.role,user?.approved]);
   return accountKey && state.uid === accountKey ? state : {uid,enabled:false,threads:[],legacy:[],error:''};
@@ -72,7 +101,7 @@ export function useGroupConversation(thread: Thread | undefined, uid: string) {
     let active=true;
     const update=(patch:Partial<typeof state>)=>{if(active)setState(s=>({... (s.key===key?s:{key,messages:[],error:'',hasMore:false,loaded:false}),...patch}));};
     const stop=onSnapshot(query(collection(db,'inbox_conversations',id,'messages'),where('visibility','array-contains',`${uid}:${epoch}`),orderBy('sequence','desc'),limit(count)),snapshot=>{
-      update({messages:snapshot.docs.map(d=>({...d.data(),id:d.id} as Message)).reverse(),error:'',loaded:true,hasMore:snapshot.docs.length===count});
+      update({messages:snapshot.docs.map(d=>({...d.data(),id:d.id,persisted:!snapshot.metadata.hasPendingWrites&&!d.metadata.hasPendingWrites} as Message)).reverse(),error:'',loaded:true,hasMore:snapshot.docs.length===count});
     },()=>update({messages:[],loaded:false,error:'This conversation is no longer available.'}));
     const stopRoot=onSnapshot(doc(db,'inbox_conversations',id),snapshot=>{
       if(!snapshot.exists())update({messages:[],loaded:false,error:'This conversation is no longer available.'});
