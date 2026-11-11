@@ -443,7 +443,7 @@ export function ProfileMenu({
       ? conversation.recipient
       : null;
   useEffect(() => {
-    if (view !== "conversation" || !conversation?.unread || conversation.data.schemaVersion===3) return;
+    if (view !== "conversation" || !conversation?.unread || conversation.data.schemaVersion===3&&(!group.loaded||conversation.data.receiptsEnabled===true)) return;
     void markRead(conversation).catch((e) =>
       setError(e.message || "Unable to mark messages read."),
     );
