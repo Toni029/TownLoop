@@ -208,12 +208,11 @@ test('email-shaped legacy document IDs can upgrade only their verified private p
  assert.equal(message(h,result.conversationId,'old').body,'Synthetic history');
  await assert.rejects(h.call('crew',{op:'upgradeLegacy',source:'resident_chats',legacyId:path.split('/')[1]}),/permission-denied/);
 });
-test('explicit fresh Office conversation preserves unproven history and cannot grant access to it',async()=>{
+test('automatic fresh Office conversation preserves unproven history and cannot grant access to it',async()=>{
  const h=fixture(),path='office_chats/old';
  h.records.set(path,{residentId:'a',messages:[{id:'old',senderId:'admin',body:'Protected synthetic history',createdAt:1}]});
  const before=structuredClone(h.records.get(path));
- await assert.rejects(h.call('a',{op:'create',type:'office',recipientIds:['admin']}),/failed-precondition/);
- const {conversationId:cid}=await h.call('a',{op:'createFresh',type:'office',recipientIds:['admin']});
+ const {conversationId:cid}=await h.call('a',{op:'create',type:'office',recipientIds:['admin']});
  assert.deepEqual(h.records.get(path),before);assert.equal(message(h,cid,'old'),undefined);
  await h.call('a',{op:'send',conversationId:cid,messageId:'new',body:'Current synthetic message'});
  await h.call('a',{op:'add',conversationId:cid,recipientIds:['vip']});

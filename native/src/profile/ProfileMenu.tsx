@@ -1,4 +1,3 @@
-import {isLegacyReview} from './inboxActionError';
 import {InboxThreadIcon} from './InboxThreadIcon';
 import {InboxParticipants} from './InboxParticipants';
 import {groupAction,useGroupConversation} from './groupInbox';
@@ -412,7 +411,6 @@ export function ProfileMenu({
   });
   const [recipientOpen, setRecipientOpen] = useState(false);
   const [officeIds,setOfficeIds] = useState<string[]>([]);
-  const [freshGroup,setFreshGroup]=useState(false),[legacyReviewRequired,setLegacyReviewRequired]=useState(false);
   const [composeResidentId,setComposeResidentId]=useState<string|undefined>();
   const [participantsOpen,setParticipantsOpen] = useState(false);
   const pendingMessage = useRef<{key:string;id:string} | null>(null);
@@ -680,7 +678,7 @@ export function ProfileMenu({
     go('editProfile');
   }
   function compose(target: Category, recipient?: UserProfile) {
-    setFreshGroup(false);setLegacyReviewRequired(false);setComposeResidentId(undefined);
+    setComposeResidentId(undefined);
     setRecipientOpen(false);
     setCategory(target);
     setPerson(recipient || null);
@@ -704,9 +702,7 @@ export function ProfileMenu({
       if (data.groupsEnabled) {
         if(category==='friend'&&!person || category==='office'&&!officeIds.length) throw Error('Select a recipient first.');
         if(!body.trim())throw Error('Enter a message.');
-        let created;
-        try{created=await groupAction(freshGroup?'createFresh':'create',{type:category==='friend'?'private':category,recipientIds:category==='office'?officeIds:category==='friend'?[String(person!.id)]:[],subject,...(composeResidentId?{residentId:composeResidentId}:{})});}
-        catch(error){if(category!=='friend'&&isLegacyReview(error))setLegacyReviewRequired(true);throw error;}
+        const created=await groupAction('create',{type:category==='friend'?'private':category,recipientIds:category==='office'?officeIds:category==='friend'?[String(person!.id)]:[],subject,...(composeResidentId?{residentId:composeResidentId}:{})});
         await groupAction('send',{conversationId:created.conversationId,body,messageId:messageId(`${category}/${officeIds.join(',')}/${person?.id}/${body}`)});
         pendingMessage.current=null;
         setBody('');go('inbox');setNotice('Message sent.');return;
@@ -1514,7 +1510,7 @@ export function ProfileMenu({
                                       },
                                     ]}
                                   >
-                                    {t.data.archived===true ? `Archived · Deletion grace ends ${new Date(t.data.deleteAfter).toLocaleDateString()}` : t.messages.at(-1)?.body || "Conversation"}
+                                    {t.data.archived===true ? `Archived · Deletion grace ends ${new Date(t.data.deleteAfter).toLocaleDateString()}` : t.otherLeft ? "Previous conversation · Read-only" : t.messages.at(-1)?.body || "Conversation"}
                                   </Text>
                                 </Pressable>
                                 <Pressable
@@ -1795,8 +1791,6 @@ export function ProfileMenu({
                     )}
                     {view === "compose" && (
                       <>
-                        {legacyReviewRequired&&!freshGroup&&<Action title="Start a new conversation instead" onPress={()=>{setFreshGroup(true);setError('');}}/>}
-                        {freshGroup&&<Text style={[s.small,{color:muted}]}>This is a separate conversation. Earlier messages remain protected in the original conversation and are not shared with its new members.</Text>}
                         <View
                           style={[
                             s.composeHero,
@@ -2050,7 +2044,7 @@ export function ProfileMenu({
                             )}
                             {data.groupsEnabled&&conversation.data.schemaVersion!==3&&conversation.category!=='friend'&&<Action title="Start a new conversation" onPress={()=>{
                               const target=conversation.category;const residentId=String(conversation.data.residentId||user.id);
-                              compose(target);setFreshGroup(true);setComposeResidentId(residentId);setSubject(target==='office'?'Community Office':'Maintenance Crew');
+                              compose(target);setComposeResidentId(residentId);setSubject(target==='office'?'Community Office':'Maintenance Crew');
                               if(target==='office'&&officeManager(user)&&residentId!==String(user.id))setOfficeIds([String(user.id)]);
                             }}/>}
                             {!!group.error && <Text style={s.error}>{group.error}</Text>}

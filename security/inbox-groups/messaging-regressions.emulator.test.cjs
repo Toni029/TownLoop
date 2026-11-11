@@ -23,8 +23,7 @@ test('private create/send/reply cut over email-shaped legacy IDs without losing 
 });
 test('fresh Office preserves unverified history; joins expose only messages after membership and leaving revokes reads',async()=>{
  const old=db.doc('office_chats/protected-history'),data={residentId:'residentA',messages:[{id:'historic',senderId:'admin',body:'Protected synthetic history',createdAt:1}]};await old.set(data);
- await assert.rejects(call('residentA',{op:'create',type:'office',recipientIds:['admin']}),/failed-precondition/);
- const {conversationId:id}=await call('residentA',{op:'createFresh',type:'office',recipientIds:['admin']});assert.deepEqual((await old.get()).data(),data);assert.equal((await db.doc(`inbox_conversations/${id}/messages/historic`).get()).exists,false);
+ const {conversationId:id}=await call('residentA',{op:'create',type:'office',recipientIds:['admin']});assert.deepEqual((await old.get()).data(),data);assert.equal((await db.doc(`inbox_conversations/${id}/messages/historic`).get()).exists,false);
  await call('residentA',{op:'send',conversationId:id,messageId:'before',body:'Before current join'});await call('residentA',{op:'add',conversationId:id,recipientIds:['vip']});await call('admin',{op:'send',conversationId:id,messageId:'after',body:'After current join'});
  assert.equal((await clientRead('vip',`inbox_conversations/${id}/messages/before`)).status,403);assert.equal((await clientRead('vip',`inbox_conversations/${id}/messages/after`)).status,200);
  assert.equal((await call('residentA',{op:'create',type:'office',recipientIds:['admin']})).conversationId,id);
@@ -71,4 +70,23 @@ for(const type of ['office','maintenance'])test(`${type} recreation preserves ol
  assert.equal((await clientRead(resident,`inbox_conversations/${fresh}/messages/staff`)).status,200);
  assert.equal((await db.doc(`inbox_conversations/${fresh}/messages/prior`).get()).exists,false);
  await assert.rejects(call('outsider',{...input,residentId:resident}),/permission-denied/);
+});
+
+test('either peer can start fresh after a single departure; concurrent requests isolate history and projections',async()=>{
+ for(const initiator of ['resident','admin']){
+  const resident=`single_${initiator}_resident`,admin=`single_${initiator}_admin`;
+  for(const [uid,role]of [[resident,'resident'],[admin,'admin']])await db.doc(`users/${uid}`).set({approved:true,name:uid,role});
+  const create=uid=>call(uid,{op:'create',type:'private',recipientIds:[uid===resident?admin:resident]});
+  const {conversationId:old}=await create(resident);await call(resident,{op:'send',conversationId:old,messageId:'past',body:'Old synthetic history'});
+  await call(resident,{op:'leave',conversationId:old});const before=(await db.doc(`inbox_conversations/${old}`).get()).data();
+  const actor=initiator==='resident'?resident:admin,other=actor===resident?admin:resident;
+  const [one,two]=await Promise.all([create(actor),create(other)]);const fresh=one.conversationId;assert.equal(fresh,two.conversationId);assert.notEqual(fresh,old);
+  assert.deepEqual((await db.doc(`inbox_conversations/${old}`).get()).data(),before);
+  assert.equal((await clientRead(admin,`inbox_conversations/${old}/messages/past`)).status,200);assert.equal((await clientRead(resident,`inbox_conversations/${old}/messages/past`)).status,403);
+  await call(actor,{op:'send',conversationId:fresh,messageId:'new',body:'Only new history'});
+  for(const uid of [resident,admin]){assert.equal((await clientRead(uid,`inbox_conversations/${fresh}/messages/new`)).status,200);assert.equal((await db.doc(memberPath(fresh,uid)).get()).data().status,'active');}
+  assert.equal((await db.doc(`inbox_conversations/${fresh}/messages/past`).get()).exists,false);assert.equal((await db.doc(`inbox_conversations/${old}/messages/new`).get()).exists,false);
+  assert.equal((await db.doc(`inbox_conversations/${fresh}`).get()).data().sequence,1);
+  await assert.rejects(call(admin,{op:'send',conversationId:old,messageId:'cannotAppend',body:'Do not append'}),/failed-precondition/);
+ }
 });

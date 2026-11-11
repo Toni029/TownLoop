@@ -262,12 +262,22 @@ async function operate(db, uid, data, { now = Date.now(), enabled = false } = {}
     const reusable = matches.filter(row => row.data.leftBy?.[uid] !== true && (row.collection === 'resident_chats'
       ? !row.data.participantIds.some(id=>row.data.leftBy?.[id] === true)
       : row.data.leftBy?.[row.data.residentId] !== true && row.data.sideLeft?.resident !== true && row.data.sideLeft?.team !== true));
-    if (reusable.length > 1) {const error=Error('failed-precondition');error.safeReason='legacy-review';throw error;}
-    if (reusable[0]) {
-      const result = await upgradeLegacy(db, uid, { source: reusable[0].collection, legacyId: reusable[0].id }, now);
-      if (data.type === 'office' && data.recipientIds?.length) await updateMembership(db, uid, result.conversationId, { op: 'add', recipientIds: data.recipientIds }, now);
-      return result;
+    if (reusable.length === 1) {
+      let result;
+      try { result = await upgradeLegacy(db, uid, { source: reusable[0].collection, legacyId: reusable[0].id }, now); }
+      catch (error) {
+        // Starting contact is not a request for access to protected history. Only
+        // the explicit legacy-review outcome permits an empty, independently
+        // authorized conversation; never mask authorization or transport failures.
+        if (error.message !== 'failed-precondition' || error.safeReason !== 'legacy-review') throw error;
+      }
+      if (result) {
+        if (data.type === 'office' && data.recipientIds?.length) await updateMembership(db, uid, result.conversationId, { op: 'add', recipientIds: data.recipientIds }, now);
+        return result;
+      }
     }
+    // Ambiguous histories remain untouched. The transactional route below makes
+    // simultaneous fresh requests converge without copying history or memberships.
     const result = await createConversation(db, uid, data, now);
     if (data.type === 'office') await updateMembership(db, uid, result.conversationId, {op:'add',recipientIds:data.recipientIds}, now);
     if (data.type === 'maintenance') await updateMembership(db, uid, result.conversationId, {op:'sync'}, now);
