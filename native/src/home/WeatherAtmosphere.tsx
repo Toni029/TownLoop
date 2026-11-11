@@ -7,6 +7,8 @@ import Animated, { cancelAnimation, Easing, FadeIn, FadeOut, interpolate, useAni
 import { useReducedMotion } from './hooks';
 import type { HourlyForecast } from './weatherModel';
 import { atmosphereFor } from './weatherAtmosphereModel';
+import { WetWeatherEffects } from './WetWeatherEffects';
+import { wetProfile } from './wetWeatherModel';
 
 type Scene = ReturnType<typeof atmosphereFor>;
 // Bundled photographic cloud textures and fixed particle meshes are composited
@@ -36,11 +38,11 @@ export const WeatherAtmosphere = memo(function WeatherAtmosphere({ hour }: { hou
     onLayout={e => { const { width, height } = e.nativeEvent.layout; setSize(old => old.width === width && old.height === height ? old : { width, height }); }}
     style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
     <Animated.View key={key} entering={reduced ? undefined : FadeIn.duration(650)} exiting={reduced ? undefined : FadeOut.duration(450)} style={StyleSheet.absoluteFill}>
-      <SceneLayer scene={scene} active={active} width={size.width} height={size.height} />
+      <SceneLayer scene={scene} active={active} width={size.width} height={size.height} weatherCode={hour.weatherCode} />
     </Animated.View>
   </View>;
 });
-function SceneLayer({ scene, active, width, height }: { scene: Scene; active: boolean; width: number; height: number }) {
+function SceneLayer({ scene, active, width, height, weatherCode }: { scene: Scene; active: boolean; width: number; height: number; weatherCode?:number }) {
   const phase = useCycle(active, scene.windy ? 18000 : 36000);
   const lighting = useCycle(active, 23000);
   const skyMotion = useAnimatedStyle(() => ({ transform: [{ translateX: Math.sin(phase.value * Math.PI * 2) * 9 }, { scale: 1.09 + Math.cos(phase.value * Math.PI * 2) * 0.025 }] }));
@@ -55,16 +57,6 @@ function SceneLayer({ scene, active, width, height }: { scene: Scene; active: bo
     transform: [{ scale: 1 + Math.sin(lighting.value * Math.PI * 2) * 0.012 }],
   }));
   const haze = useAnimatedStyle(() => ({ transform: [{ translateX: Math.sin(phase.value * Math.PI * 2) * width * 0.14 }, { scaleX: 1.45 }, { scaleY: 0.7 }], opacity: 0.7 + Math.cos(phase.value * Math.PI * 2) * 0.12 }));
-  // Two isolated strikes per 23 seconds, not rapid strobing. Separate the
-  // filament's quick discharge from the softer, longer cloud illumination.
-  const flash = useAnimatedStyle(() => ({ opacity: active && scene.storm ? interpolate(lighting.value,
-    [0, 0.08, 0.087, 0.105, 0.135, 0.54, 0.547, 0.565, 0.60, 1],
-    [0, 0, 0.24, 0.12, 0, 0, 0.20, 0.10, 0, 0]) : 0 }));
-  const discharge = useAnimatedStyle(() => ({ opacity: active && scene.storm ? interpolate(lighting.value,
-    [0, 0.08, 0.083, 0.088, 0.102, 0.54, 0.543, 0.55, 0.565, 1],
-    [0, 0, 0.92, 0.55, 0, 0, 0.78, 0.40, 0, 0]) : 0,
-    transform: [{ scaleX: lighting.value < 0.4 ? 1 : -1 }],
-  }));
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const sunny = !scene.night && (scene.condition === 'sun' || scene.condition === 'cloudSun');
   const fog = scene.condition === 'fog';
@@ -135,16 +127,8 @@ function SceneLayer({ scene, active, width, height }: { scene: Scene; active: bo
     {(fog || scene.wet || scene.snow || scene.windy) && <Animated.View style={[styles.mist, haze]}>
       <Image source={require('../../assets/weather/cumulus.png')} resizeMode="stretch" fadeDuration={0} style={[StyleSheet.absoluteFill, { opacity: fog ? 0.55 : scene.snow ? 0.15 : 0.09 }]} />
     </Animated.View>}
-    {scene.particles > 0 && <><Precipitation scene={scene} active={active} width={width} height={height} far /><Precipitation scene={scene} active={active} width={width} height={height} /></>}
-    {scene.storm && <Animated.View style={[styles.lightning, discharge]}>
-      <Image source={require('../../assets/weather/lightning.png')} resizeMode="contain" fadeDuration={0} style={StyleSheet.absoluteFill} />
-    </Animated.View>}
-    {scene.storm && <Animated.View style={[StyleSheet.absoluteFill, flash]}>
-      <Svg width="100%" height="100%" viewBox="0 0 400 440" preserveAspectRatio="none">
-        <Defs><RadialGradient id={`${id}flash`}><Stop offset="0" stopColor="#eef4ff" /><Stop offset="0.35" stopColor="#c6dbff" stopOpacity={0.75} /><Stop offset="1" stopColor="#a3c3ff" stopOpacity={0} /></RadialGradient></Defs>
-        <Ellipse cx={300} cy={70} rx={175} ry={155} fill={`url(#${id}flash)`} />
-      </Svg>
-    </Animated.View>}
+    {scene.snow && scene.particles > 0 && <><Precipitation scene={scene} active={active} width={width} height={height} far /><Precipitation scene={scene} active={active} width={width} height={height} /></>}
+    {scene.wet && <WetWeatherEffects key={wetProfile(scene,weatherCode).kind} profile={wetProfile(scene,weatherCode)} active={active} width={width} height={height} wind={scene.wind}/>}
   </>;
 }
 function Precipitation({ scene, active, width, height, far = false }: { scene: Scene; active: boolean; width: number; height: number; far?: boolean }) {
@@ -168,7 +152,6 @@ function Precipitation({ scene, active, width, height, far = false }: { scene: S
   </Animated.View>;
 }
 const styles = StyleSheet.create({
-  lightning: { position: 'absolute', top: '-5%', right: '-2%', width: '62%', height: '72%' },
   cloudFar: { position: 'absolute', left: '-22%', right: '-22%', top: '-18%', height: '72%' },
   cloudNear: { position: 'absolute', left: '-35%', right: '-35%', top: '-9%', height: '85%' },
   mist: { position: 'absolute', left: '-40%', right: '-40%', top: '5%', bottom: '-25%' },
