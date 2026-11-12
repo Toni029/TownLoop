@@ -323,33 +323,56 @@ export function translateWorkOrderSync(workOrder: WorkOrderItem): TranslatedCont
 }
 
 
-/** Full translation is server-only; never write translations back to the ticket. */
-export async function translateWorkOrder(order: WorkOrderItem): Promise<TranslatedContent> {
+export type TranslationLanguage = 'es' | 'en';
+/** Shared server-only transport; the existing provider automatically detects source language. */
+async function requestTranslation(title:string,description:string,comments:string[],targetLang:TranslationLanguage,signal?:AbortSignal):Promise<{title:string;description:string;comments:string[]}> {
   const user = await approvedUser();
   if (!canTranslateWorkOrder(user)) throw Error('Translation is available to Admin, VIP and Crew only.');
+  const signedIn=auth.currentUser,uid=signedIn?.uid;
+  if(!signedIn||String(user.id)!==uid)throw Error('Your account changed. Reopen the translation window.');
   const local = Platform.OS === 'web' && typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname);
   const endpoint = process.env.EXPO_PUBLIC_TOWNLOOP_TRANSLATION_URL ||
     'https://us-central1-cc-livingcommunity-app.cloudfunctions.net/translateWorkOrder';
   const url = new URL(endpoint);
   if (url.protocol !== 'https:' && !(local && ['localhost', '127.0.0.1'].includes(url.hostname))) throw Error('Translation requires a secure HTTPS service.');
-  const token = await auth.currentUser?.getIdToken();
+  const token = await signedIn.getIdToken();
   if (!token) throw Error('Please sign in again.');
-  const controller = new AbortController();
+  if(auth.currentUser?.uid!==uid)throw Error('Your account changed. Reopen the translation window.');
+  const controller = new AbortController(),cancel=()=>controller.abort();
+  signal?.addEventListener('abort',cancel);
+  if(signal?.aborted)controller.abort();
   const timer = setTimeout(() => controller.abort(), 65000);
-  const comments = order.comments || [];
   try {
+    const headers=await appCheckHeaders();
+    if(auth.currentUser?.uid!==uid)throw Error('Your account changed. Reopen the translation window.');
+    if(controller.signal.aborted)throw Error('Translation canceled.');
     const response = await fetch(endpoint, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...await appCheckHeaders() },
-      body: JSON.stringify({ title: order.title, description: order.description || '', comments: comments.map(c => c.text), targetLang: 'es' }),
-      signal: controller.signal,
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...headers },
+      body: JSON.stringify({ title, description, comments, targetLang }), signal: controller.signal,
     });
     const result = await response.json().catch(() => null);
+    if(auth.currentUser?.uid!==uid)throw Error('Your account changed. Reopen the translation window.');
     if (!response.ok || !result || result.source === 'fallback') throw Error(result?.error || 'Full translation is unavailable. Please try again.');
     if (typeof result.title !== 'string' || typeof result.description !== 'string' || !Array.isArray(result.comments) || result.comments.length !== comments.length || result.comments.some((c: unknown) => typeof c !== 'string')) throw Error('Translation returned an incomplete result. Please retry.');
-    return { title: result.title, description: result.description, comments: Object.fromEntries(comments.map((c, i) => [c.id, result.comments[i]])), isSpanish: true };
+    return {title:result.title,description:result.description,comments:result.comments};
   } catch (error) {
+    if (signal?.aborted) throw Error('Translation canceled.');
     if (controller.signal.aborted) throw Error('Translation took too long. Please retry.');
     if (error instanceof TypeError) throw Error('Cannot reach the secure translation service. Check your connection and try again.');
     throw error;
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer);signal?.removeEventListener('abort',cancel); }
+}
+/** Full translation is server-only; never write translations back to the ticket. */
+export async function translateWorkOrder(order: WorkOrderItem): Promise<TranslatedContent> {
+  const comments=order.comments||[];
+  const result=await requestTranslation(order.title,order.description||'',comments.map(c=>c.text),'es');
+  return {title:result.title,description:result.description,comments:Object.fromEntries(comments.map((c,i)=>[c.id,result.comments[i]])),isSpanish:true};
+}
+export async function translateCrewResponse(text:string,source:TranslationLanguage,target:TranslationLanguage,signal?:AbortSignal):Promise<string>{
+  if(!text.trim())throw Error('Enter a message to translate.');
+  if(text.length>25000)throw Error('Please shorten your response before translating (25,000 characters maximum).');
+  if(!['es','en'].includes(source)||!['es','en'].includes(target)||source===target)throw Error('Choose different English and Spanish languages.');
+  const result=await requestTranslation('',text,[],target,signal);
+  if(!result.description.trim())throw Error('Translation returned an incomplete response. Please retry.');
+  return result.description;
 }

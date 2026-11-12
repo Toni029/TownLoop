@@ -1,9 +1,10 @@
+import {TranslationComposer} from './TranslationComposer';
 import {useInboxPush} from '../notifications/InboxPushProvider';
 import {relativePostedTime} from '../time/relativePostedTime';
 import {useMinuteNow} from '../time/useMinuteNow';
 import { PrivateImage } from '../components/PrivateImage';
 import type { ImagePickerAsset } from "expo-image-picker";
-import { ScrollView } from '../keyboard/KeyboardScrollView';
+import { ScrollView,TextInput } from '../keyboard/KeyboardScrollView';
 import { usePresentation } from "../shell/TownLoopShell";
 import { useEffect, useRef, useState, useMemo, useCallback, memo } from "react";
 import {
@@ -41,7 +42,6 @@ import {
 import {
   Action,
   Copy,
-  Field,
   ErrorNotice,
   useNewsStyles,
   useNewsFonts,
@@ -342,6 +342,7 @@ const OrderCard = memo(function OrderCard({
     finally { translationLock.current = false; setTranslating(false); }
   }
   const [confirm, setConfirm] = useState(false);
+  const [composerFor,setComposerFor]=useState<string|null>(null);
   const [deleteComment, setDeleteComment] = useState<string | null>(null);
   const previousResolution = editableResolution(order, user);
   const editorKey = JSON.stringify([order.status, previousResolution?.id, previousResolution?.text, previousResolution?.photoUrl]);
@@ -847,14 +848,15 @@ const OrderCard = memo(function OrderCard({
                   <Copy weight="bold">
                     Describe the completed work; a picture is optional
                   </Copy>
-                  <Field
-                    label="Resolution Note / Description *"
-                    value={reply}
-                    onChangeText={setReply}
-                    multiline
-                    editable={!disabled}
-                    placeholder="e.g. Replaced faulty washer, pressure tested at 45 PSI, tested lines."
-                  />
+                  <View style={{gap:6}}>
+                    <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                      <Copy weight="bold" style={{flex:1,minWidth:0,textTransform:'uppercase',color:'#57534e'}}>Resolution Note / Description *</Copy>
+                      {canTranslateWorkOrder(user)&&<Action label="Translate" icon={Languages} tone="light" size="large" disabled={disabled||picking} onPress={()=>setComposerFor(editorKey)}/>}
+                    </View>
+                    <TextInput accessibilityLabel="Resolution Note / Description *" value={reply} onChangeText={setReply} multiline editable={!disabled}
+                      placeholder="e.g. Replaced faulty washer, pressure tested at 45 PSI, tested lines."
+                      placeholderTextColor="#a8a29e" style={[s.input,{minHeight:90,textAlignVertical:'top'}]}/>
+                  </View>
                   <Action
                     label={photo || selectedPhoto ? "Replace Photo" : "Add Photo"}
                     icon={Camera}
@@ -883,6 +885,10 @@ const OrderCard = memo(function OrderCard({
           </View>
         )}
       </Collapsible>
+      {composerFor===editorKey&&expanded&&!q.done&&isCrew(user)&&canTranslateWorkOrder(user)&&(
+        <TranslationComposer key={`${user?.id}/${order.id}/${editorKey}`} user={user} draft={reply} disabled={disabled} onClose={()=>setComposerFor(null)}
+          onUse={text=>{if(mounted.current&&!disabled)setReply(text);}}/>
+      )}
       {media && (
         <MarketplaceGallery
           media={media.urls.map((url) => ({ type: "image", url }))}
