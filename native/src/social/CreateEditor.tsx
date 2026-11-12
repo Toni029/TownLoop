@@ -15,7 +15,8 @@ import {
 } from "../news/ui";
 import { ProductDialog } from "../components/ProductDialog";
 import { pickAndUpload } from "../components/media";
-import { formatPrice, mediaFor, type Listing } from "./model";
+import { mediaFor, type Listing } from "./model";
+import {numericPriceInput,formatListingPrice} from "./listingPrice";
 import { newSocialId, publishSocial, editListing, type SocialKind } from "./actions";
 export function CreateEditor({
   initialKind,
@@ -34,7 +35,7 @@ export function CreateEditor({
   const [id] = useState(() => listing ? String(listing.id) : newSocialId());
   const [title, setTitle] = useState(listing?.title || "");
   const [description, setDescription] = useState(listing?.description || "");
-  const [price, setPrice] = useState(listing?.price || "");
+  const [price, setPrice] = useState(listing ? formatListingPrice(listing.price || "") : "");
   const [media, setMedia] = useState<MediaAttachment[]>(listing ? mediaFor(listing) : []);
   const [pendingMedia, setPendingMedia] = useState<ImagePickerAsset[]>([]);
   const [busy, setBusy] = useState(false);
@@ -125,8 +126,9 @@ export function CreateEditor({
         attachments = [...media, ...uploaded];
       }
       if (!mounted.current) return;
-      if (listing) await editListing(id, { title, description, price, media: attachments });
-      else await publishSocial(id, kind, { title, description, price, media: attachments });
+      const savedPrice=kind==="listing"?formatListingPrice(price):price;
+      if (listing) await editListing(id, { title, description, price:savedPrice, media: attachments });
+      else await publishSocial(id, kind, { title, description, price:savedPrice, media: attachments });
       if (mounted.current) { onSaved(kind); onClose(); }
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : "Unable to publish.");
@@ -237,12 +239,14 @@ export function CreateEditor({
             backgroundColor: dark ? "#1e293b" : "#fff",
             borderRadius: 12,
           }}
-          label="Price (Type FREE or $ amount)"
+          label="Price ($)"
           value={price}
-          onChangeText={setPrice}
-          onBlur={() => setPrice(formatPrice(price))}
+          onChangeText={value=>setPrice(numericPriceInput(value))}
+          onFocus={()=>setPrice(numericPriceInput(price))}
+          onBlur={() => setPrice(formatListingPrice(price))}
+          keyboardType="decimal-pad"
           editable={!busy || progress !== null}
-          placeholder="FREE or $25"
+          placeholder="Leave blank or enter 0 for FREE"
         />
       )}
       <Field

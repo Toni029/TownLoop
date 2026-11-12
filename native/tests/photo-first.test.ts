@@ -1,3 +1,4 @@
+import * as listingPrice from '../src/social/listingPrice.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,6 +47,7 @@ function editor(kind: 'post' | 'listing', pendingDraft = false, failUpload = fal
     '../components/ProductDialog': { ProductDialog: 'ProductDialog' },
     '../components/PrivateImage': { PrivateImage: 'Image' },
     '../components/media': pick,
+    './listingPrice': listingPrice,
     './model': { formatPrice: (p: string) => p },
     './actions': { newSocialId: () => 'draft-id', publishSocial: async () => {} },
   });

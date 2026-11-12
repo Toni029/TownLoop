@@ -1,3 +1,4 @@
+import * as listingPrice from '../src/social/listingPrice.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -58,7 +59,8 @@ function fixture(initialKind = 'post') {
   '../components/ProductDialog': { ProductDialog: 'ProductDialog' },
   '../components/PrivateImage': { PrivateImage: 'Image' },
   '../components/media': media,
-  './model': { formatPrice: (value: string) => value },
+  './listingPrice': listingPrice,
+    './model': { formatPrice: (value: string) => value },
   './actions': { newSocialId: () => 'fixture-draft', publishSocial: async (_id: string, _kind: string, draft: any) => {
    if (!draft.title.trim() || !draft.description.trim()) throw Error('Please provide a title and description.');
    publications.push(draft);
@@ -151,7 +153,7 @@ for (const kind of ['post', 'listing']) {
   h.field(label).props.onChangeText('Keep my text');
   const body=kind==='post'?'Post Content & Discussion Details':'Details & Pickup Information';
   h.field(body).props.onChangeText('Keep my description');
-  if(kind==='listing') h.field('Price (Type FREE or $ amount)').props.onChangeText('$25');
+  if(kind==='listing') h.field('Price ($)').props.onChangeText('$25');
   let finish!: (result:any)=>void;
   h.picker(()=>new Promise(resolve=>{finish=resolve;}));
   h.confirm(); await tick();
@@ -161,7 +163,7 @@ for (const kind of ['post', 'listing']) {
   assert.equal(h.render().props.nativeWindowKey,4);
   assert.equal(h.field(label).props.value,'Keep my text');
   assert.equal(h.field(body).props.value,'Keep my description');
-  if(kind==='listing') assert.equal(h.field('Price (Type FREE or $ amount)').props.value,'$25');
+  if(kind==='listing') assert.equal(h.field('Price ($)').props.value,'25');
   assert.equal(h.drafts.length,0); assert.equal(h.stats().uploads,0);
   h.picker(async()=>{throw Error('Picker unavailable');});
   h.confirm(); await tick();
@@ -237,4 +239,13 @@ test('adding another local photo and then cancelling keeps both staged selection
  assert.equal(nodes(h.render()).filter(n=>n.type==='Image').length,2);
  h.pickerResult.canceled=true;h.pickerResult.assets=null;h.confirm();await tick();
  assert.equal(nodes(h.render()).filter(n=>n.type==='Image').length,2);assert.equal(h.drafts.length,0);assert.equal(h.render().props.busy,false);
+});
+
+test('Marketplace price uses numeric keyboard/filtering, blur formatting and FREE on submit without blur',async()=>{
+ for(const input of ['', '0', '$25.50 each']){
+  const h=fixture('listing');h.field('Item Name').props.onChangeText('Chair');h.field('Details & Pickup Information').props.onChangeText('Synthetic listing');
+  let price=h.field('Price ($)');assert.equal(price.props.keyboardType,'decimal-pad');price.props.onChangeText(input);price=h.field('Price ($)');assert.equal(price.props.value,input.includes('25')?'25.50':input);
+  if(input.includes('25')){price.props.onBlur();assert.equal(h.field('Price ($)').props.value,'$25.50');h.field('Price ($)').props.onFocus();assert.equal(h.field('Price ($)').props.value,'25.50');}
+  nodes(h.render()).find(n=>n.type==='Action'&&n.props.label==='Publish Item to Marketplace').props.onPress();await tick();assert.equal(h.publications[0].price,input.includes('25')?'$25.50':'FREE');
+ }
 });
