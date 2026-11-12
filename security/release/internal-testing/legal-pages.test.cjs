@@ -7,7 +7,7 @@ function form(){const source=read('delete-account.html').match(/<script type="mo
  return{element,calls,auth,advance:ms=>{now+=ms;},handle:next=>{handle=next;},login:async()=>{await settle();await element('passwordLogin').onclick();},submit:()=>element('request').onsubmit({preventDefault(){}})};
 }
 test('all legal URLs are standalone responsive drafts without the retired app shell or service worker',()=>{
- for(const name of ['privacy.html','terms.html','delete-account.html']){const s=read(name);assert.match(s,/name="viewport"/);assert.match(s,/Prepared for owner approval/);assert.match(s,/href="\/privacy\.html"/);assert.match(s,/href="\/terms\.html"/);assert.match(s,/href="\/delete-account\.html"/);assert.doesNotMatch(s,/id="root"|\/src\/|serviceWorker\.register|sw\.js/);}
+ for(const name of ['privacy.html','terms.html','delete-account.html']){const s=read(name);assert.match(s,/name="viewport"/);assert.match(s,/Prepared for owner approval|Draft for owner approval/);assert.match(s,/href="\/privacy\.html"/);assert.match(s,/href="\/terms\.html"/);assert.match(s,/href="\/delete-account\.html"/);assert.doesNotMatch(s,/id="root"|\/src\/|serviceWorker\.register|sw\.js/);}
  assert.equal((read('delete-account.html').match(/id="confirmation"/g)||[]).length,1);
  assert.match(read('delete-account.html'),/mailto:support@seeds4Clix\.com\?subject=/);
 });
@@ -28,5 +28,5 @@ test('retention status never claims permanent completion and status requests do 
 });
 test('legal staging cannot overwrite a site or include the old application bundle',()=>{
  const {stage}=require('./prepare-legal-pages.cjs');assert.throws(()=>stage(path.join(root,'dist')),/ignored \.release/);
- const target=path.join(root,'.release','legal-test-'+process.pid);try{const result=stage(target);assert.deepEqual(fs.readdirSync(target).sort(),['delete-account.html','privacy.html','terms.html']);assert.equal(result.publicationApproved,false);assert.equal(result.hostingConfigChanged,false);}finally{fs.rmSync(target,{recursive:true,force:true});}
+ const target=path.join(root,'.release','legal-test-'+process.pid);try{const result=stage(target);assert.deepEqual(fs.readdirSync(target).sort(),['child-safety.html','delete-account.html','legal.css','privacy.html','terms.html']);assert.equal(result.publicationApproved,false);assert.equal(result.hostingConfigChanged,false);}finally{fs.rmSync(target,{recursive:true,force:true});}
 });

@@ -1,0 +1,74 @@
+{
+  "checkedDate": "2026-11-12",
+  "unitAndFormChecks": {
+    "passed": 14,
+    "failed": 0
+  },
+  "hostingEmulator": {
+    "directRoutes": [
+      "/privacy.html",
+      "/terms.html",
+      "/child-safety.html",
+      "/delete-account.html",
+      "/legal.css"
+    ],
+    "httpStatus": 200,
+    "redirects": false,
+    "retiredAppShell": false,
+    "staticPrecedenceWithExistingCatchAllVerified": true,
+    "existingCatchAll": "** \u2192 /index.html",
+    "sentinelAppRootPresentInTest": true,
+    "destructiveOrAuthenticatedRequests": false
+  },
+  "browserChecks": [
+    {
+      "page": "Privacy Policy",
+      "width": 390,
+      "height": 844,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Privacy Policy",
+      "width": 768,
+      "height": 1024,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Privacy Policy",
+      "width": 1280,
+      "height": 900,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Terms of Use",
+      "width": 320,
+      "height": 844,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Child Safety Standards",
+      "width": 390,
+      "height": 844,
+      "horizontalOverflow": false
+    }
+  ],
+  "footerNavigationTested": [
+    "Child Safety \u2192 Terms of Use",
+    "Terms of Use \u2192 Privacy Policy"
+  ],
+  "physicalDeviceTested": false,
+  "deployed": false,
+  "nativeChanged": false,
+  "backendChanged": false,
+  "residentDataReadOrWritten": false,
+  "productionRulesChanged": false,
+  "consentVersionChanged": false,
+  "remainingOwnerApprovals": [
+    "Effective date and final policy/Terms wording",
+    "Manual safety/restriction/evidence/authority-reporting procedure and mailbox monitoring",
+    "Provider tier/data-use settings and Play Data Safety alignment",
+    "Supporting account-deletion page publication and current processing status",
+    "Retirement of obsolete public assets containing old branding/personal attribution"
+  ],
+  "screenshots": "Ignored .release/legal-previews/*.jpg"
+}
