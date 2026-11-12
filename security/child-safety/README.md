@@ -7,7 +7,7 @@ Hosting deployment, OTA, AAB, notification, email or authority report was execut
 ## Owner-supplied contact and pending approval
 
 - Official mailbox: **support@seeds4clix.com**.
-- Designated child-safety lead: **Antonio Merlano**.
+- Public responsible team: **Seeds4Clix Safety Team**. Individual Google Play contact details are supplied separately by the owner and are not published on the page.
 - Source: `public/child-safety.html`, expected public URL:
   `https://townloop.web.app/child-safety.html`.
 - Draft is explicitly marked unapproved/not effective. The owner supplied the name
@@ -63,7 +63,7 @@ Source tracing:
 1. **No account-suspension control:** Directory has Approve and Role controls, but no
    dedicated suspension/revoke-session action. `manageResident` accepts approval
    changes, but that is not a tested incident-suspension workflow; changing a role
-   or blocking a user is not suspension. Antonio must confirm use of authorized
+   or blocking a user is not suspension. The responsible team must confirm use of authorized
    Firebase administrative tools for disabling/restricting involved accounts and
    handling active sessions, or separately approve a focused suspension feature.
    Do not use account deletion as an incident response shortcut.
@@ -77,14 +77,14 @@ Source tracing:
    Unsafe report after that reporter's prior report was dismissed returns the old
    dismissed report and does not re-enter the queue; the native success notice is
    generic. This was reproduced with synthetic data, not assumed. The page directs
-   continuing/new concerns to existing Community Office Inbox and the lead's email.
+   continuing/new concerns to existing Community Office Inbox and the team's email.
    A separately scoped retry/reopen protocol and accurate acknowledgement UI are
    recommended; no silent backend/native change was bundled here.
 4. **Queue/context operations:** The visible queue caps at 50; no priority-specific
    child-safety queue, attachment evidence submission or message-by-message review
    access is present. A human lead must triage/track serious cases and arrange only
    appropriately authorized context. No unrestricted admin access is proposed.
-5. **External escalation is manual:** Antonio must adopt a procedure for assessing
+5. **External escalation is manual:** The responsible team must adopt a procedure for assessing
    reports, immediate safety actions, lawful restricted evidence preservation,
    removing/restricting related content/media, authorized account restrictions and
    reporting confirmed CSAM/other reportable exploitation to NCMEC or relevant
