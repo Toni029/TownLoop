@@ -16,6 +16,9 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "predeploy": [
+      "node security/legal-pages/block-retired-web-deploy.cjs"
     ]
   },
   "functions": [

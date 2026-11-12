@@ -1,0 +1,720 @@
+{
+  "project": "cc-livingcommunity-app",
+  "verifiedAt": "2026-11-12T21:31:40.545Z",
+  "effectiveDate": "2026-11-12",
+  "sites": [
+    {
+      "site": "townloop",
+      "releaseName": "sites/townloop/releases/1794519037218000",
+      "releaseTime": "2026-11-12T21:30:37.218Z",
+      "version": "sites/townloop/versions/4b8d24abe8cd862f",
+      "files": [
+        {
+          "path": "/.well-known/assetlinks.json",
+          "hash": "8148d1fafd67617079c8530d54f3778974c445f16b5aa36f2dc3344081823d23"
+        },
+        {
+          "path": "/404.html",
+          "hash": "7e2a1f498068577b7aa6abe7608bb03d4f94cfc57c4748b915ea73081dcfbdbe"
+        },
+        {
+          "path": "/__/firebase/init.js",
+          "hash": "3bf9e258d74c60ec3b33ae873ea01ca0515c7a9594c98d1cce5276315d2ebb94"
+        },
+        {
+          "path": "/__/firebase/init.json",
+          "hash": "99fa5384db55424ae5d1fdfe33aff4eae989173a19b979c7acc954621474d0a4"
+        },
+        {
+          "path": "/apple-touch-icon.png",
+          "hash": "322f546d804d08aee7093ce261a102c75700a790605fc5b172dfd99941f951c1"
+        },
+        {
+          "path": "/child-safety.html",
+          "hash": "2509cbdb751f35b1bd9f27ab5b6a71012c334f46d128dc3aa858d2d26b46cd3a"
+        },
+        {
+          "path": "/crew-badge.svg",
+          "hash": "61634afda42280fda62c69cf020eb8996c00f3c03dbcf149ca07a0ba808bcde9"
+        },
+        {
+          "path": "/delete-account.html",
+          "hash": "fab39a3bdcf345b1473487ea2af16537ba91d54e2c37cad79fd2bf6f91467d80"
+        },
+        {
+          "path": "/favicon.svg",
+          "hash": "43e97b7a0659cc8e1b208862b2aedba66fbff10385764cec41c62c98f512a50e"
+        },
+        {
+          "path": "/index.html",
+          "hash": "35ab37e9d49f6591e392ea2b493772d240df9511b85532e0b369358ddbedc31b"
+        },
+        {
+          "path": "/legal.css",
+          "hash": "de5c95da16a2afa179293a1e6be54a49002270cee9c32c2d526cfe3f32167dc5"
+        },
+        {
+          "path": "/privacy.html",
+          "hash": "afdf4d0d02562fbdda99edd16675c7b8f1d1232a10b9880f2b3aa350a07a63da"
+        },
+        {
+          "path": "/pwa-192x192.png",
+          "hash": "4290d0eaf80d1dd683db29f68d54c6831d24a3c717ee9c3b3482e4ede841ffc2"
+        },
+        {
+          "path": "/pwa-512x512.png",
+          "hash": "6985f1c235a352132b3747acad2687773d4c74380adda9a05df65273f08e1a72"
+        },
+        {
+          "path": "/pwa-maskable-512x512.png",
+          "hash": "8892e63190a58613d7e4f488336fcc9b3ce0f3b9b50d48a6b627f6116b86280a"
+        },
+        {
+          "path": "/sw.js",
+          "hash": "f0ee405a4a1b3cf48ff05dfe0a80c4e38e78815e5b710bb354a5030fa0eeffba"
+        },
+        {
+          "path": "/terms.html",
+          "hash": "c380175d37b5e09076400fb417eef9cf27f7ff8417e8a0bb559e53ee4fb579dc"
+        },
+        {
+          "path": "/vip-badge.svg",
+          "hash": "68d961078eaac15a5b5ad2302dc1720c49bc62dddeac01c79f27710a735a4fae"
+        }
+      ],
+      "publicChecks": [
+        {
+          "domain": "townloop.web.app",
+          "pages": [
+            {
+              "path": "/privacy.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/terms.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/child-safety.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/delete-account.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            }
+          ],
+          "removed": [
+            {
+              "path": "/assets/index-C_3tBUcg.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/index-MwarzcAs.css",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-firebase-lqUoxq0t.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-icons-DHS3yZMI.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-motion-CHni9Lk7.js",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-logo.svg",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-trees.svg",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs.map",
+              "status": 404
+            },
+            {
+              "path": "/manifest.json",
+              "status": 404
+            }
+          ],
+          "finalPrivacyBodyMatchesRelease": true
+        },
+        {
+          "domain": "townloop.firebaseapp.com",
+          "pages": [
+            {
+              "path": "/privacy.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/terms.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/child-safety.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/delete-account.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            }
+          ],
+          "removed": [
+            {
+              "path": "/assets/index-C_3tBUcg.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/index-MwarzcAs.css",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-firebase-lqUoxq0t.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-icons-DHS3yZMI.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-motion-CHni9Lk7.js",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-logo.svg",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-trees.svg",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs.map",
+              "status": 404
+            },
+            {
+              "path": "/manifest.json",
+              "status": 404
+            }
+          ],
+          "finalPrivacyBodyMatchesRelease": true
+        }
+      ],
+      "preserved": [
+        {
+          "path": "/.well-known/assetlinks.json",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/__/firebase/init.js",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/__/firebase/init.json",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/apple-touch-icon.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/crew-badge.svg",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/favicon.svg",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/pwa-192x192.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/pwa-512x512.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/pwa-maskable-512x512.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/vip-badge.svg",
+          "status": 200,
+          "bytesUnchanged": true
+        }
+      ],
+      "authHelpers": [
+        {
+          "path": "/__/auth/handler",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/__/auth/iframe",
+          "status": 200,
+          "bytesUnchanged": true
+        }
+      ],
+      "allPublicTextFilesScanned": true,
+      "noSPAFallback": true,
+      "initialVerifiedVersion": "sites/townloop/versions/ab12e618570294c3",
+      "finalDelta": {
+        "changedPaths": [
+          "/privacy.html"
+        ],
+        "allOtherPreviouslyVerifiedPathsUnchanged": true
+      }
+    },
+    {
+      "site": "cc-livingcommunity-app",
+      "releaseName": "sites/cc-livingcommunity-app/releases/1794519037214000",
+      "releaseTime": "2026-11-12T21:30:37.214Z",
+      "version": "sites/cc-livingcommunity-app/versions/21bf30e7c7a227c2",
+      "files": [
+        {
+          "path": "/.well-known/assetlinks.json",
+          "hash": "8148d1fafd67617079c8530d54f3778974c445f16b5aa36f2dc3344081823d23"
+        },
+        {
+          "path": "/404.html",
+          "hash": "7e2a1f498068577b7aa6abe7608bb03d4f94cfc57c4748b915ea73081dcfbdbe"
+        },
+        {
+          "path": "/__/firebase/init.js",
+          "hash": "3bf9e258d74c60ec3b33ae873ea01ca0515c7a9594c98d1cce5276315d2ebb94"
+        },
+        {
+          "path": "/__/firebase/init.json",
+          "hash": "99fa5384db55424ae5d1fdfe33aff4eae989173a19b979c7acc954621474d0a4"
+        },
+        {
+          "path": "/apple-touch-icon.png",
+          "hash": "322f546d804d08aee7093ce261a102c75700a790605fc5b172dfd99941f951c1"
+        },
+        {
+          "path": "/child-safety.html",
+          "hash": "2509cbdb751f35b1bd9f27ab5b6a71012c334f46d128dc3aa858d2d26b46cd3a"
+        },
+        {
+          "path": "/crew-badge.svg",
+          "hash": "61634afda42280fda62c69cf020eb8996c00f3c03dbcf149ca07a0ba808bcde9"
+        },
+        {
+          "path": "/delete-account.html",
+          "hash": "fab39a3bdcf345b1473487ea2af16537ba91d54e2c37cad79fd2bf6f91467d80"
+        },
+        {
+          "path": "/favicon.svg",
+          "hash": "43e97b7a0659cc8e1b208862b2aedba66fbff10385764cec41c62c98f512a50e"
+        },
+        {
+          "path": "/index.html",
+          "hash": "35ab37e9d49f6591e392ea2b493772d240df9511b85532e0b369358ddbedc31b"
+        },
+        {
+          "path": "/legal.css",
+          "hash": "de5c95da16a2afa179293a1e6be54a49002270cee9c32c2d526cfe3f32167dc5"
+        },
+        {
+          "path": "/privacy.html",
+          "hash": "afdf4d0d02562fbdda99edd16675c7b8f1d1232a10b9880f2b3aa350a07a63da"
+        },
+        {
+          "path": "/pwa-192x192.png",
+          "hash": "4290d0eaf80d1dd683db29f68d54c6831d24a3c717ee9c3b3482e4ede841ffc2"
+        },
+        {
+          "path": "/pwa-512x512.png",
+          "hash": "6985f1c235a352132b3747acad2687773d4c74380adda9a05df65273f08e1a72"
+        },
+        {
+          "path": "/pwa-maskable-512x512.png",
+          "hash": "8892e63190a58613d7e4f488336fcc9b3ce0f3b9b50d48a6b627f6116b86280a"
+        },
+        {
+          "path": "/sw.js",
+          "hash": "f0ee405a4a1b3cf48ff05dfe0a80c4e38e78815e5b710bb354a5030fa0eeffba"
+        },
+        {
+          "path": "/terms.html",
+          "hash": "c380175d37b5e09076400fb417eef9cf27f7ff8417e8a0bb559e53ee4fb579dc"
+        },
+        {
+          "path": "/vip-badge.svg",
+          "hash": "68d961078eaac15a5b5ad2302dc1720c49bc62dddeac01c79f27710a735a4fae"
+        }
+      ],
+      "publicChecks": [
+        {
+          "domain": "cc-livingcommunity-app.web.app",
+          "pages": [
+            {
+              "path": "/privacy.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/terms.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/child-safety.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/delete-account.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            }
+          ],
+          "removed": [
+            {
+              "path": "/assets/index-C_3tBUcg.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/index-MwarzcAs.css",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-firebase-lqUoxq0t.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-icons-DHS3yZMI.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-motion-CHni9Lk7.js",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-logo.svg",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-trees.svg",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs.map",
+              "status": 404
+            },
+            {
+              "path": "/manifest.json",
+              "status": 404
+            }
+          ],
+          "finalPrivacyBodyMatchesRelease": true
+        },
+        {
+          "domain": "cc-livingcommunity-app.firebaseapp.com",
+          "pages": [
+            {
+              "path": "/privacy.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/terms.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/child-safety.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/delete-account.html",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            },
+            {
+              "path": "/",
+              "status": 200,
+              "redirect": false,
+              "actualDocument": true,
+              "forbiddenBranding": false,
+              "cacheControl": "no-store, max-age=0"
+            }
+          ],
+          "removed": [
+            {
+              "path": "/assets/index-C_3tBUcg.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/index-MwarzcAs.css",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-firebase-lqUoxq0t.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-icons-DHS3yZMI.js",
+              "status": 404
+            },
+            {
+              "path": "/assets/vendor-motion-CHni9Lk7.js",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-logo.svg",
+              "status": 404
+            },
+            {
+              "path": "/cecil-pines-trees.svg",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs",
+              "status": 404
+            },
+            {
+              "path": "/server.cjs.map",
+              "status": 404
+            },
+            {
+              "path": "/manifest.json",
+              "status": 404
+            }
+          ],
+          "finalPrivacyBodyMatchesRelease": true
+        }
+      ],
+      "preserved": [
+        {
+          "path": "/.well-known/assetlinks.json",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/__/firebase/init.js",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/__/firebase/init.json",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/apple-touch-icon.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/crew-badge.svg",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/favicon.svg",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/pwa-192x192.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/pwa-512x512.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/pwa-maskable-512x512.png",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/vip-badge.svg",
+          "status": 200,
+          "bytesUnchanged": true
+        }
+      ],
+      "authHelpers": [
+        {
+          "path": "/__/auth/handler",
+          "status": 200,
+          "bytesUnchanged": true
+        },
+        {
+          "path": "/__/auth/iframe",
+          "status": 200,
+          "bytesUnchanged": true
+        }
+      ],
+      "allPublicTextFilesScanned": true,
+      "noSPAFallback": true,
+      "initialVerifiedVersion": "sites/cc-livingcommunity-app/versions/668c4b2dd4cdf832",
+      "finalDelta": {
+        "changedPaths": [
+          "/privacy.html"
+        ],
+        "allOtherPreviouslyVerifiedPathsUnchanged": true
+      }
+    }
+  ],
+  "unchanged": {
+    "firestoreAndStorageRuleReleases": true,
+    "functions": [
+      {
+        "name": "newsletterApi",
+        "revision": "newsletterapi-00006-log",
+        "unchanged": true
+      },
+      {
+        "name": "runNewsletterAnalysis",
+        "revision": "runnewsletteranalysis-00003-wiq",
+        "unchanged": true
+      },
+      {
+        "name": "fulfillApprovedAccountDeletions",
+        "revision": "fulfillapprovedaccountdeletions-00005-kux",
+        "unchanged": true
+      }
+    ],
+    "firebaseAuthConfiguration": true
+  },
+  "removedLegacyPaths": [
+    "/assets/index-C_3tBUcg.js",
+    "/assets/index-MwarzcAs.css",
+    "/assets/vendor-firebase-lqUoxq0t.js",
+    "/assets/vendor-icons-DHS3yZMI.js",
+    "/assets/vendor-motion-CHni9Lk7.js",
+    "/cecil-pines-logo.svg",
+    "/cecil-pines-trees.svg",
+    "/server.cjs",
+    "/server.cjs.map",
+    "/manifest.json"
+  ],
+  "noResidentRecordsReadOrChanged": true,
+  "hostingOnly": true,
+  "verified": true,
+  "browserVerification": {
+    "terms": true,
+    "privacy": true,
+    "childSafety": true,
+    "footerNavigation": true,
+    "matchingStyles": true,
+    "effectiveDate": true,
+    "draftNoticesAbsent": true,
+    "scope": "Public documents, styling and footer navigation; final translation-provider clarification independently verified by exact anonymous HTTP body match."
+  },
+  "sourceScan": "exposed-files-scan.json",
+  "geminiConfigurationChanged": false,
+  "privacySetupFinalized": false,
+  "remainingConcern": "Unpaid Gemini must not receive personal/sensitive/confidential information; recommendation is separate and no server-side block was activated.",
+  "rootLegacyHostingDeploymentLocallyBlocked": true
+}

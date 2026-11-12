@@ -1,0 +1,18 @@
+{
+  "checkedDate": "2026-11-12",
+  "function": "translateWorkOrder",
+  "state": "ACTIVE",
+  "revision": "translateworkorder-00001-foh",
+  "usesCloudTranslation": true,
+  "usesGemini": false,
+  "secretBindings": [
+    {
+      "key": "TOWNLOOP_GOOGLE_TRANSLATE_KEY",
+      "secret": "TOWNLOOP_GOOGLE_TRANSLATE_KEY",
+      "version": "1"
+    }
+  ],
+  "newsletterDeployedBundleHasTranslationRoute": false,
+  "analysisInvoked": false,
+  "secretsPrinted": false
+}

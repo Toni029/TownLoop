@@ -1,0 +1,85 @@
+{
+  "checkedDate": "2026-11-12",
+  "scope": "Previously downloaded public server bundle, source map and main web bundle; no secret values output.",
+  "files": [
+    {
+      "file": "server.cjs",
+      "bytes": 51954,
+      "googleKeyClassifications": [],
+      "detections": {
+        "privateKeyBlocks": 0,
+        "serviceAccountPrivateValues": 0,
+        "oauthRefreshTokens": 0,
+        "githubTokens": 0,
+        "awsAccessKeys": 0,
+        "jwtLiterals": 0,
+        "literalSecretAssignments": 0
+      },
+      "serverEnvironmentReferences": {
+        "gemini": true,
+        "translation": false
+      },
+      "sourceMapContainsOriginalSource": false,
+      "emailIndicators": {
+        "publicSupport": 0,
+        "technicalOrPlaceholder": 0,
+        "otherRedacted": 0
+      }
+    },
+    {
+      "file": "server.cjs.map",
+      "bytes": 81244,
+      "googleKeyClassifications": [],
+      "detections": {
+        "privateKeyBlocks": 0,
+        "serviceAccountPrivateValues": 0,
+        "oauthRefreshTokens": 0,
+        "githubTokens": 0,
+        "awsAccessKeys": 0,
+        "jwtLiterals": 0,
+        "literalSecretAssignments": 0
+      },
+      "serverEnvironmentReferences": {
+        "gemini": true,
+        "translation": false
+      },
+      "sourceMapContainsOriginalSource": true,
+      "emailIndicators": {
+        "publicSupport": 0,
+        "technicalOrPlaceholder": 0,
+        "otherRedacted": 0
+      }
+    },
+    {
+      "file": "index-C_3tBUcg.js",
+      "bytes": 759730,
+      "googleKeyClassifications": [
+        {
+          "classification": "known Firebase client configuration (not a server secret)"
+        }
+      ],
+      "detections": {
+        "privateKeyBlocks": 0,
+        "serviceAccountPrivateValues": 0,
+        "oauthRefreshTokens": 0,
+        "githubTokens": 0,
+        "awsAccessKeys": 0,
+        "jwtLiterals": 0,
+        "literalSecretAssignments": 0
+      },
+      "serverEnvironmentReferences": {
+        "gemini": false,
+        "translation": false
+      },
+      "sourceMapContainsOriginalSource": false,
+      "emailIndicators": {
+        "publicSupport": 0,
+        "technicalOrPlaceholder": 0,
+        "otherRedacted": 1
+      }
+    }
+  ],
+  "highConfidencePrivateCredentialMatches": 0,
+  "unclassifiedGoogleKeys": 0,
+  "limitation": "Focused pattern and source-map-content inspection cannot prove a credential was never exposed or exclude every possible secret format. No keys rotated and no backend changed."
+}
