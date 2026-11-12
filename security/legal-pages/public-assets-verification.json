@@ -1,0 +1,201 @@
+{
+  "checkedDate": "2026-11-12",
+  "readOnly": true,
+  "deployed": false,
+  "assets": [
+    {
+      "path": "/.well-known/assetlinks.json",
+      "status": 200,
+      "bytes": 308,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/__/firebase/init.js",
+      "status": 200,
+      "bytes": 549,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/__/firebase/init.json",
+      "status": 200,
+      "bytes": 372,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/apple-touch-icon.png",
+      "status": 200,
+      "bytes": 52501,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/assets/index-C_3tBUcg.js",
+      "status": 200,
+      "bytes": 759730,
+      "oldBranding": true,
+      "personalAttribution": true,
+      "references": []
+    },
+    {
+      "path": "/assets/index-MwarzcAs.css",
+      "status": 200,
+      "bytes": 247951,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/assets/vendor-firebase-lqUoxq0t.js",
+      "status": 200,
+      "bytes": 738432,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/assets/vendor-icons-DHS3yZMI.js",
+      "status": 200,
+      "bytes": 49385,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/assets/vendor-motion-CHni9Lk7.js",
+      "status": 200,
+      "bytes": 130890,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/cecil-pines-logo.svg",
+      "status": 200,
+      "bytes": 2948,
+      "oldBranding": true,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/cecil-pines-trees.svg",
+      "status": 200,
+      "bytes": 3388,
+      "oldBranding": true,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/crew-badge.svg",
+      "status": 200,
+      "bytes": 556915,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "bytes": 1458091,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/index.html",
+      "status": 200,
+      "bytes": 3310,
+      "oldBranding": false,
+      "personalAttribution": true,
+      "references": [
+        "/manifest.json",
+        "/favicon.svg",
+        "/favicon.svg",
+        "/apple-touch-icon.png",
+        "/assets/index-C_3tBUcg.js",
+        "/assets/vendor-icons-DHS3yZMI.js",
+        "/assets/vendor-motion-CHni9Lk7.js",
+        "/assets/vendor-firebase-lqUoxq0t.js",
+        "/assets/index-MwarzcAs.css"
+      ]
+    },
+    {
+      "path": "/manifest.json",
+      "status": 200,
+      "bytes": 1074,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/privacy.html",
+      "status": 200,
+      "bytes": 3158,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/pwa-192x192.png",
+      "status": 200,
+      "bytes": 58759,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/pwa-512x512.png",
+      "status": 200,
+      "bytes": 335847,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/pwa-maskable-512x512.png",
+      "status": 200,
+      "bytes": 231506,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    },
+    {
+      "path": "/server.cjs",
+      "status": 200,
+      "bytes": 51954,
+      "oldBranding": true,
+      "personalAttribution": true,
+      "references": []
+    },
+    {
+      "path": "/server.cjs.map",
+      "status": 200,
+      "bytes": 81244,
+      "oldBranding": true,
+      "personalAttribution": true,
+      "references": []
+    },
+    {
+      "path": "/sw.js",
+      "status": 200,
+      "bytes": 4205,
+      "oldBranding": false,
+      "personalAttribution": true,
+      "references": []
+    },
+    {
+      "path": "/vip-badge.svg",
+      "status": 200,
+      "bytes": 2170591,
+      "oldBranding": false,
+      "personalAttribution": false,
+      "references": []
+    }
+  ]
+}

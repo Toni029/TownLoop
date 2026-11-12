@@ -10,10 +10,9 @@ Hosting deployment, OTA, AAB, notification, email or authority report was execut
 - Public responsible team: **Seeds4Clix Safety Team**. Individual Google Play contact details are supplied separately by the owner and are not published on the page.
 - Source: `public/child-safety.html`, expected public URL:
   `https://townloop.web.app/child-safety.html`.
-- Draft is explicitly marked unapproved/not effective. The owner supplied the name
-  and email but has not yet confirmed the operational procedure or authorized
-  Hosting deployment. Confirm mailbox monitoring, operator access, evidence/media
-  containment and required authority reporting before publication/self-certifying.
+- Draft is explicitly marked unapproved/not effective. The owner confirmed mailbox and manual safety escalation maintenance on
+  November 12, 2026. Hosting deployment and final wording remain unapproved.
+  The public contact is the team; designated individual details stay off the page.
   No 24/7 monitoring, response deadline, age-verification system or automatic NCMEC
   integration is claimed.
 

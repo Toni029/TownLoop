@@ -1,0 +1,76 @@
+{
+  "status": "LOCAL_PROPOSAL_REQUIRES_FINAL_HOSTING_APPROVAL",
+  "site": "townloop",
+  "expectedBaselineVersion": "sites/townloop/versions/d7e22df49f9e4bbf",
+  "publicationDate": {
+    "strategy": "actual publication day",
+    "timeZone": "America/New_York",
+    "ifPublishedOn20261112": "2026-11-12"
+  },
+  "operatorProceduresConfirmedByOwner": true,
+  "childSafetyTeam": "Seeds4Clix Safety Team",
+  "publicEmail": "support@seeds4clix.com",
+  "publishLegalPaths": [
+    "/privacy.html",
+    "/terms.html",
+    "/child-safety.html",
+    "/delete-account.html",
+    "/legal.css"
+  ],
+  "replace": {
+    "/index.html": "index.html",
+    "/404.html": "404.html",
+    "/sw.js": "sw.js"
+  },
+  "omitFromNewRelease": [
+    "/assets/index-C_3tBUcg.js",
+    "/assets/index-MwarzcAs.css",
+    "/assets/vendor-firebase-lqUoxq0t.js",
+    "/assets/vendor-icons-DHS3yZMI.js",
+    "/assets/vendor-motion-CHni9Lk7.js",
+    "/cecil-pines-logo.svg",
+    "/cecil-pines-trees.svg",
+    "/server.cjs",
+    "/server.cjs.map",
+    "/manifest.json"
+  ],
+  "preserveFromCurrentVersion": [
+    "/.well-known/assetlinks.json",
+    "/__/firebase/init.js",
+    "/__/firebase/init.json",
+    "/apple-touch-icon.png",
+    "/crew-badge.svg",
+    "/favicon.svg",
+    "/pwa-192x192.png",
+    "/pwa-512x512.png",
+    "/pwa-maskable-512x512.png",
+    "/vip-badge.svg"
+  ],
+  "reservedFirebasePaths": "Leave /__/auth/** and /__/firebase/** platform handling intact; no redirects/rewrites over these paths.",
+  "removeRewrite": {
+    "glob": "**",
+    "path": "/index.html"
+  },
+  "backendRulesAuthNativeChanges": false,
+  "deployed": false,
+  "sitesRequiringFinalApproval": [
+    {
+      "site": "townloop",
+      "expectedBaselineVersion": "sites/townloop/versions/d7e22df49f9e4bbf",
+      "publicDomains": [
+        "townloop.web.app",
+        "townloop.firebaseapp.com"
+      ]
+    },
+    {
+      "site": "cc-livingcommunity-app",
+      "expectedBaselineVersion": "sites/cc-livingcommunity-app/versions/295af386405e9ead",
+      "publicDomains": [
+        "cc-livingcommunity-app.web.app",
+        "cc-livingcommunity-app.firebaseapp.com"
+      ]
+    }
+  ],
+  "authDomainMustRemain": "cc-livingcommunity-app.firebaseapp.com",
+  "coordinatedHostingOnly": true
+}

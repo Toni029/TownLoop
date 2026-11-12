@@ -1,0 +1,100 @@
+{
+  "checkedDate": "2026-11-12",
+  "project": "cc-livingcommunity-app",
+  "readOnly": true,
+  "secretsPrinted": false,
+  "analysisInvoked": false,
+  "functions": [
+    {
+      "name": "newsletterApi",
+      "state": "ACTIVE",
+      "revision": "newsletterapi-00006-log",
+      "serviceAccount": "townloop-newsletter-api@cc-livingcommunity-app.iam.gserviceaccount.com",
+      "secretBindings": [
+        {
+          "key": "GEMINI_API_KEY",
+          "secret": "GEMINI_API_KEY",
+          "version": "1",
+          "projectId": "cc-livingcommunity-app"
+        }
+      ],
+      "source": {
+        "bucket": "gcf-v2-sources-883715389126-us-central1",
+        "object": "newsletterApi/function-source.zip",
+        "generation": "1793890113425446"
+      },
+      "environmentModelSettings": {}
+    },
+    {
+      "name": "runNewsletterAnalysis",
+      "state": "ACTIVE",
+      "revision": "runnewsletteranalysis-00003-wiq",
+      "serviceAccount": "townloop-newsletter-analysis@cc-livingcommunity-app.iam.gserviceaccount.com",
+      "secretBindings": [
+        {
+          "key": "GEMINI_API_KEY",
+          "secret": "GEMINI_API_KEY",
+          "version": "1",
+          "projectId": "cc-livingcommunity-app"
+        }
+      ],
+      "source": {
+        "bucket": "gcf-v2-sources-883715389126-us-central1",
+        "object": "runNewsletterAnalysis/function-source.zip",
+        "generation": "1793890163156883"
+      },
+      "environmentModelSettings": {}
+    }
+  ],
+  "health": {
+    "status": 200
+  },
+  "secretReadStatus": 200,
+  "keyProjectLookupStatus": 200,
+  "keyOwnerProjectNumber": "688923789416",
+  "keyMetadataStatus": 200,
+  "keyApiTargets": [
+    "generativelanguage.googleapis.com"
+  ],
+  "keyOwnerProjectId": "gen-lang-client-0181680155",
+  "keyProjectBilling": {
+    "status": 200,
+    "billingEnabled": false
+  },
+  "numberedGeminiUsageTier": "Not established by Cloud Billing metadata; confirm in Google AI Studio.",
+  "sourceInspection": [
+    {
+      "function": "newsletterApi",
+      "status": 200,
+      "compiledEntryFound": true,
+      "apiCredentialFromServerEnvironment": true,
+      "models": [
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash"
+      ],
+      "vertexAIExplicitlyEnabled": false,
+      "pageBatching": true
+    },
+    {
+      "function": "runNewsletterAnalysis",
+      "status": 200,
+      "compiledEntryFound": true,
+      "apiCredentialFromServerEnvironment": true,
+      "models": [
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash"
+      ],
+      "vertexAIExplicitlyEnabled": false,
+      "pageBatching": true
+    }
+  ],
+  "serviceTier": {
+    "paidGeminiProject": false,
+    "classification": "unpaid API project: key-owning project has billingEnabled=false",
+    "numberedPaidTier": "not applicable / not established",
+    "keyKeptInMemoryOnly": true,
+    "googleRegionalTermsExceptionsStillApply": true
+  }
+}

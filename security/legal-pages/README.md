@@ -16,6 +16,17 @@ support@seeds4clix.com is the public contact. The Child Safety page names the
 Seeds4Clix Safety Team; its existing standards/report instructions are preserved.
 No legal entity, address, jurisdiction or property-management affiliation is invented.
 
+## November 12 owner follow-up
+
+See `TERMS_REVIEW.md`, `gemini-readonly-verification.json` and `retirement/README.md`.
+The owner confirmed support mailbox and manual safety escalation maintenance.
+Publication uses the actual publication day in America/New_York (November 12 only
+if published that day). Final wording/deployment remain unapproved. Live key-project
+lookup and Cloud Billing show the deployed Gemini key project has billing disabled.
+The Privacy draft now specifically discloses unpaid-service data use; provider
+personal-data restrictions require an operational decision, not just a disclosure.
+No billable service or backend change was activated.
+
 ## Wording evidence and decisions
 
 Preserves the existing live Privacy Policy's account/content/diagnostics, purposes,

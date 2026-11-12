@@ -1,0 +1,231 @@
+{
+  "checkedDate": "2026-11-12",
+  "site": "cc-livingcommunity-app",
+  "version": "sites/cc-livingcommunity-app/versions/295af386405e9ead",
+  "config": {
+    "rewrites": [
+      {
+        "glob": "**",
+        "path": "/index.html"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "/.well-known/assetlinks.json",
+      "hash": "ec89198fb247ee81faf968e1ba34c557ee1c8c5f0a7bde4b46bc8774673b495a"
+    },
+    {
+      "path": "/__/firebase/init.js",
+      "hash": "8569001905aa09d88046c1f1d02c1dbb985995b3514bc7cb1e65982fdc9153a7"
+    },
+    {
+      "path": "/__/firebase/init.json",
+      "hash": "3e1635a48ed78f376a5a3ebde9bd8401d479b26df36e6d35b3451a2bc38e379d"
+    },
+    {
+      "path": "/apple-touch-icon.png",
+      "hash": "1aa62bf3131ff13e9e5dee15a9b2fe0dc54462dcf39551fdcda597f1051d69fa"
+    },
+    {
+      "path": "/assets/index-C_3tBUcg.js",
+      "hash": "3918b8afe8f374f7d8be1be43e6ec75378d3ade76875e3d6f74d1d4faf69f7ee"
+    },
+    {
+      "path": "/assets/index-MwarzcAs.css",
+      "hash": "a62b60b83bdea6eae0fb2e8e884ef3eb500d6fb438da31adb0e3d2604ea1b560"
+    },
+    {
+      "path": "/assets/vendor-firebase-lqUoxq0t.js",
+      "hash": "954128796ddf27a91f68cf7e0757a58da93b7a9e94ebddd15e8014bbc98d9114"
+    },
+    {
+      "path": "/assets/vendor-icons-DHS3yZMI.js",
+      "hash": "d29d25ce4b653e490cd1e2fdbd86b07d439a287e54025a9bf2bce8a200f8aa0f"
+    },
+    {
+      "path": "/assets/vendor-motion-CHni9Lk7.js",
+      "hash": "4f497b569b11c53cae477110a902e98ce2dadb55f8a6724c84fc16b0bda67ab8"
+    },
+    {
+      "path": "/cecil-pines-logo.svg",
+      "hash": "93c70e1548b716c84b12a8038f223dd3762caf438f553f80cde93478659d3946"
+    },
+    {
+      "path": "/cecil-pines-trees.svg",
+      "hash": "3c6c1cc2013be77212f4b9c77a51854d1f9b8e75dee34b61574135262fc8ecde"
+    },
+    {
+      "path": "/crew-badge.svg",
+      "hash": "9b9f89096602f9d4314aad37cad58d1bb73c168c2eb1c4c2e11ed5ad941e2ec1"
+    },
+    {
+      "path": "/favicon.svg",
+      "hash": "91e8376679c06f3a3ba237995eb10f0b68b0fed78ce28be9ddd5f811c511965c"
+    },
+    {
+      "path": "/index.html",
+      "hash": "fec7258fe7f4b203d407585d1ea64ad9b78485083039767280dfb62bdfcf222c"
+    },
+    {
+      "path": "/manifest.json",
+      "hash": "0a170c024a65845b2403de87dcd6a334c8e60f813aced33edb36b7e82bb964a1"
+    },
+    {
+      "path": "/privacy.html",
+      "hash": "426bdc11cc2b059c694439b6fe378d11bc32b1e3b37aaee9fec00fcdbe7a9544"
+    },
+    {
+      "path": "/pwa-192x192.png",
+      "hash": "680d7fd02e03aeb39ba871f48d1d82b3b76f57bcaa5710e6c46e23255a17b0ef"
+    },
+    {
+      "path": "/pwa-512x512.png",
+      "hash": "8c65ca051a303338717e42343ccdebb5208265f9a3307e5ebbccdcdfafa31446"
+    },
+    {
+      "path": "/pwa-maskable-512x512.png",
+      "hash": "e122d3f69507efdb5310dc2d2f77433ae95f737ad255d0912e21b5ce9c32dace"
+    },
+    {
+      "path": "/server.cjs",
+      "hash": "02066f26769b247de80ddd3b0c10a20efb37612734f6330d19daa6115977faf2"
+    },
+    {
+      "path": "/server.cjs.map",
+      "hash": "2faf6648738103d113ef28141877a6c00ac20c0ae55434cd4b4a1db8c427e82c"
+    },
+    {
+      "path": "/sw.js",
+      "hash": "cedd200d57f83ce608d77df0ae322b9e0a1ab6119665fd51231ee5c41ff9c83a"
+    },
+    {
+      "path": "/vip-badge.svg",
+      "hash": "56531b2277ca0b8820e4f7285cd3c43b27fee8945bc08342df45e88dae9f6185"
+    }
+  ],
+  "channels": [
+    {
+      "name": "sites/cc-livingcommunity-app/channels/live",
+      "url": "https://cc-livingcommunity-app.web.app"
+    }
+  ],
+  "findings": [
+    {
+      "path": "/.well-known/assetlinks.json",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/__/firebase/init.js",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/__/firebase/init.json",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/assets/index-C_3tBUcg.js",
+      "status": 200,
+      "oldBranding": true,
+      "personalAttribution": true
+    },
+    {
+      "path": "/assets/index-MwarzcAs.css",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/assets/vendor-firebase-lqUoxq0t.js",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/assets/vendor-icons-DHS3yZMI.js",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/assets/vendor-motion-CHni9Lk7.js",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/cecil-pines-logo.svg",
+      "status": 200,
+      "oldBranding": true,
+      "personalAttribution": false
+    },
+    {
+      "path": "/cecil-pines-trees.svg",
+      "status": 200,
+      "oldBranding": true,
+      "personalAttribution": false
+    },
+    {
+      "path": "/crew-badge.svg",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/index.html",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": true
+    },
+    {
+      "path": "/manifest.json",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/privacy.html",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    },
+    {
+      "path": "/server.cjs",
+      "status": 200,
+      "oldBranding": true,
+      "personalAttribution": true
+    },
+    {
+      "path": "/server.cjs.map",
+      "status": 200,
+      "oldBranding": true,
+      "personalAttribution": true
+    },
+    {
+      "path": "/sw.js",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": true
+    },
+    {
+      "path": "/vip-badge.svg",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": false
+    }
+  ],
+  "readOnly": true,
+  "deployed": false
+}

@@ -1,0 +1,43 @@
+{
+  "checkedDate": "2026-11-12",
+  "siteListStatus": 200,
+  "sites": [
+    {
+      "name": "projects/cc-livingcommunity-app/sites/cc-livingcommunity-app",
+      "defaultUrl": "https://cc-livingcommunity-app.web.app"
+    },
+    {
+      "name": "projects/cc-livingcommunity-app/sites/townloop",
+      "defaultUrl": "https://townloop.web.app"
+    }
+  ],
+  "channelsStatus": 200,
+  "channels": [
+    {
+      "name": "sites/townloop/channels/live",
+      "url": "https://townloop.web.app"
+    }
+  ],
+  "customDomainStatus": 200,
+  "customDomains": [],
+  "paginationRemaining": false,
+  "readOnly": true,
+  "rootChecks": [
+    {
+      "origin": "https://cc-livingcommunity-app.web.app",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": true,
+      "appRoot": true,
+      "title": "TownLoop"
+    },
+    {
+      "origin": "https://townloop.firebaseapp.com",
+      "status": 200,
+      "oldBranding": false,
+      "personalAttribution": true,
+      "appRoot": true,
+      "title": "TownLoop"
+    }
+  ]
+}
