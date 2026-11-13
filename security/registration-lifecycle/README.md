@@ -156,5 +156,3 @@ Sources (checked November 13, 2026):
 - https://firebase.google.com/docs/auth/extend-with-blocking-functions
 - https://cloud.google.com/identity-platform/pricing
 - https://firebase.google.com/docs/rules/rules-behavior
-
-See [activation/COMPATIBILITY.md](activation/COMPATIBILITY.md) for the current separated flags, rollout gates and exact infrastructure/cost proposal.
