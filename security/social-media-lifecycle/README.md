@@ -11,10 +11,10 @@ unqualified metadata remain retained; the inventory cursor reports unclassified 
 ## Prepared interfaces and integration
 
 `functions/socialMediaLifecycleEntry.cjs` exports
-`createSocialMediaLifecycleHandlers({db, databases, bucket, listPage, deploymentReady, enabled})`.
+`createSocialMediaLifecycleHandlers({db, databases, bucket, listPage, deploymentReady, enabled, queueEnabled})`.
 The factory returns `{handlers, queue, tick, inventoryOrphans}`. Only `handlers` would be
 exported from the Functions entry after separate integration/review. Merely requiring
-this file registers nothing. `enabled` defaults false; `deploymentReady` defaults false.
+this file registers nothing. `enabled` (destructive tick) and `queueEnabled` (queue/inventory) both default false; `deploymentReady` defaults false.
 The factory requires the existing two database IDs from `accountDeletionScope.cjs`,
 default `db`, and exact existing bucket. No environment switch is added automatically.
 
@@ -23,7 +23,7 @@ getAccessToken})` uses the existing read-only, bounded REST pager, including mis
 parents with live descendants. Do not supply a query-based pager that loses descendants.
 
 `deploymentReady()` is an **authoritative server verifier**, not a local boolean flag or
-an approval-only Firestore field. Until implemented and verified, the worker reports
+an approval-only Firestore field. Until deployed prerequisites are verified, the worker reports
 `reference_writers_unfenced` and performs no Storage deletion. It must verify:
 
 * Owner-approved server policy, trusted-upload cutover and original secured-upload
@@ -57,7 +57,8 @@ The concrete authoritative verifier is `functions/socialMediaLifecycleReadiness.
 The isolated `functions/socialMediaLifecycleScopedEntry.cjs` wires that verifier, the
 existing bounded pager, both database read scopes and the dedicated worker identity.
 It is not imported by the main entry. Its enablement requires
-`TOWNLOOP_SOCIAL_MEDIA_LIFECYCLE_ENABLED=true` plus the exact production project;
+`TOWNLOOP_SOCIAL_MEDIA_WORKER_ENABLED=true` plus the exact production project;
+queue/inventory separately require `TOWNLOOP_SOCIAL_MEDIA_QUEUE_ENABLED=true`;
 no enablement flag or approved manifest is supplied here.
 
 `socialMediaLifecyclePins.json` pins the root-owned coordinated registration/social
@@ -252,3 +253,6 @@ absence of the extra control lookup, create-only/update-denied semantics and the
 social-create function call graph's two distinct Firestore document paths. This is a
 source-budget proof; Storage emulator access checks passed separately. Physical-device and production
 Storage authorization checks remain part of a separately approved rollout.
+
+Current activation preparation, separated flags, exact IAM/schedules, costs and explicit no-go gates:
+[activation/COMPATIBILITY.md](../registration-lifecycle/activation/COMPATIBILITY.md).

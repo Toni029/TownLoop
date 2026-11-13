@@ -29,10 +29,10 @@ async function scanReferences({databases,listPage,name,maxDocuments=2500,deadlin
  }
  return {shared:false,ambiguous};
 }
-function createSocialMediaLifecycleHandlers({db,databases,bucket,listPage,deploymentReady=async()=>false,enabled=()=>false,now=Date.now,serviceAccount}){
+function createSocialMediaLifecycleHandlers({db,databases,bucket,listPage,deploymentReady=async()=>false,enabled=()=>false,queueEnabled=()=>false,now=Date.now,serviceAccount}){
  if(db.databaseId!=='(default)'||bucket.name!==BUCKET||databases.length!==DATABASES.length||!DATABASES.every(id=>databases.some(source=>source.databaseId===id)))throw Error('Social lifecycle scope mismatch');
  const jobs=db.collection('social_media_jobs'),fence=createSocialReferenceFence({controlDb:db,databases,bucket,deploymentReady,now});
- async function queue(job){if(!job)return;const ref=jobs.doc(job.id);await db.runTransaction(async tx=>{if(!(await tx.get(ref)).exists)tx.create(ref,{...job,nextAttemptAt:job.notBefore,attempts:0});});}
+ async function queue(job){if(!queueEnabled()||!job)return;const ref=jobs.doc(job.id);await db.runTransaction(async tx=>{if(!(await tx.get(ref)).exists)tx.create(ref,{...job,nextAttemptAt:job.notBefore,attempts:0});});}
  async function listOwned(job){
   const paths=[];let token='',pages=0;
   do{const [files,next]=await bucket.getFiles({prefix:`${FOLDERS[job.collection]}/`,autoPaginate:false,maxResults:100,...(token?{pageToken:token}:{})});
@@ -67,7 +67,7 @@ function createSocialMediaLifecycleHandlers({db,databases,bucket,listPage,deploy
   }
  }
  async function inventoryOrphans(){
-  if(!enabled())return;
+  if(!queueEnabled())return;
   // Resumable per-folder cursor; young/unqualified objects cannot starve later pages.
   for(const folder of Object.values(FOLDERS)){
    const cursor=db.doc(`social_media_control/orphans_${folder}`),state=(await cursor.get()).data();
@@ -77,10 +77,10 @@ function createSocialMediaLifecycleHandlers({db,databases,bucket,listPage,deploy
    await cursor.set({pageToken:next?.pageToken||'',updatedAt:now(),unclassifiedOnPage:unclassified,inventoryStatus:unclassified?'retained_unclassified':'page_scanned'});
   }
  }
- const options={region:'us-central1',maxInstances:1,timeoutSeconds:300,...(serviceAccount?{serviceAccount}:{})};
+ const options={region:'us-central1',minInstances:0,memory:'256MiB',maxInstances:1,timeoutSeconds:300,...(serviceAccount?{serviceAccount}:{})};
  const handlers={};
  for(const collection of Object.keys(FOLDERS))handlers[`queueSocialMedia_${collection}`]=onDocumentWritten({...options,database:'(default)',document:`${collection}/{recordId}`,retry:true},async event=>{
-  if(!enabled())return;await queue(eventJob({databaseId:db.databaseId,collection,recordId:event.params.recordId,eventId:event.id,before:event.data?.before.exists?event.data.before.data():null,after:event.data?.after.exists?event.data.after.data():null,now:now()}));
+  if(!queueEnabled())return;await queue(eventJob({databaseId:db.databaseId,collection,recordId:event.params.recordId,eventId:event.id,before:event.data?.before.exists?event.data.before.data():null,after:event.data?.after.exists?event.data.after.data():null,now:now()}));
  });
  handlers.resumeSocialMediaCleanup=onSchedule({...options,schedule:'every 15 minutes',timeZone:'Etc/UTC'},tick);
  handlers.inventorySocialMediaOrphans=onSchedule({...options,schedule:'every 60 minutes',timeZone:'Etc/UTC'},inventoryOrphans);

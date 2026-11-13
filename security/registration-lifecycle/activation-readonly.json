@@ -1,0 +1,47 @@
+{
+  "checkedAt": "2026-11-13T16:34:39.053Z",
+  "project": "cc-livingcommunity-app",
+  "readOnly": true,
+  "rules": [
+    {
+      "kind": "default",
+      "status": 200,
+      "sha256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+    },
+    {
+      "kind": "named",
+      "status": 200,
+      "sha256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d"
+    },
+    {
+      "kind": "storage",
+      "status": 200,
+      "sha256": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9"
+    }
+  ],
+  "worker": [
+    {
+      "generation": "v1",
+      "status": 404,
+      "state": null,
+      "revision": null
+    },
+    {
+      "generation": "v2",
+      "status": 200,
+      "state": "ACTIVE",
+      "revision": "fulfillapprovedaccountdeletions-00005-kux"
+    }
+  ],
+  "accountReceipt": {
+    "status": 200,
+    "scopeRuleHashes": {
+      "(default)": {
+        "stringValue": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+      },
+      "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb": {
+        "stringValue": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2"
+      }
+    }
+  }
+}

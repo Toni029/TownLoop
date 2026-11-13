@@ -14,5 +14,10 @@ function maintenanceError(message) {
 async function assertReferenceWritesAllowed(transaction, db, errorFactory = maintenanceError) {
   const control = await transaction.get(db.doc(REFERENCE_WRITE_CONTROL));
   if (control.data()?.referenceWritesBlocked === true) throw errorFactory(REFERENCE_WRITE_MAINTENANCE_MESSAGE);
+  // Social cleanup mutates only (default); named-database writers must be separately drained.
+  if (db.databaseId == null || db.databaseId === '(default)') {
+    const social = await transaction.get(db.doc('social_media_control/active'));
+    if (social.data()?.blocked === true) throw errorFactory(REFERENCE_WRITE_MAINTENANCE_MESSAGE);
+  }
 }
 module.exports = { assertReferenceWritesAllowed, REFERENCE_WRITE_CONTROL, REFERENCE_WRITE_MAINTENANCE_MESSAGE };

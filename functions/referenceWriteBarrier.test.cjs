@@ -29,7 +29,8 @@ test('barrier prevents Inbox new references, historical copies and queued avatar
     { op: 'leave', conversationId },
   ]) await assert.rejects(h.call('a', data), blocked);
   await assert.rejects(syncDirectoryProfile(h.db, 'a'), blocked);
-  assert.deepEqual([...h.records], before);
+  // Abuse-budget accounting may advance before a blocked operation; resident content must not.
+  assert.deepEqual([...h.records].filter(([path])=>!path.startsWith('safety_limits/')), before.filter(([path])=>!path.startsWith('safety_limits/')));
   h.records.set(REFERENCE_WRITE_CONTROL, { referenceWritesBlocked: false });
   await h.call('a', { op: 'send', conversationId, messageId: 'after', body: media });
   await syncDirectoryProfile(h.db, 'a');
@@ -44,7 +45,7 @@ test('an optimistic transaction begun before barrier acquisition conflicts and r
   const db = { doc: path => ({ path }), async runTransaction(action) {
     for (;;) {
       const observed = version, snapshot = structuredClone(control), writes = [];
-      const result = await action({ get: async ref => { assert.equal(ref.path, REFERENCE_WRITE_CONTROL); return { data: () => snapshot }; }, set: (...args) => writes.push(args) });
+      const result = await action({ get: async ref => { assert.ok([REFERENCE_WRITE_CONTROL,'social_media_control/active'].includes(ref.path)); return { data: () => ref.path===REFERENCE_WRITE_CONTROL?snapshot:{} }; }, set: (...args) => writes.push(args) });
       if (version !== observed) continue;
       written = writes.length > 0; return result;
     }
@@ -76,5 +77,7 @@ test('safety submission and review cannot create evidence holds or copy review/c
     [handlers.submitSafetyReport, { kind: 'post', id: 'target', reason: 'other', details: media }],
     [handlers.reviewSafetyReport, { reportId: 'report', action: 'resolve', note: media }],
   ]) await assert.rejects(handler(request(data)), error => error.code === 'failed-precondition' && /maintenance/.test(error.message));
-  assert.deepEqual([...h.records], before);
+  // Abuse-budget accounting may advance before a blocked operation; resident content must not.
+  assert.deepEqual([...h.records].filter(([path])=>!path.startsWith('safety_limits/')), before.filter(([path])=>!path.startsWith('safety_limits/')));
 });
+test('default social fence blocks private Inbox reference writes without altering conversations; named DB is read-only to social guard',async()=>{const h=fixture();h.db.databaseId='(default)';const {conversationId}=await h.call('a',{op:'create',type:'private',recipientIds:['b']});h.records.set('social_media_control/active',{blocked:true});const before=structuredClone([...h.records]);await assert.rejects(h.call('a',{op:'send',conversationId,messageId:'social-block',body:media}),blocked);assert.deepEqual([...h.records],before);const reads=[];await assertReferenceWritesAllowed({get:async ref=>{reads.push(ref.path);return{data:()=>({})};}},{databaseId:'legacy-named',doc:path=>({path})});assert.deepEqual(reads,['database_cleanup_control/active']);});
