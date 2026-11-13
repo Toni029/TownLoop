@@ -1,0 +1,121 @@
+{
+  "checkedAt": "2026-11-13T19:22:37.699Z",
+  "project": "cc-livingcommunity-app",
+  "changesMade": false,
+  "functions": [
+    {
+      "name": "cleanupDeleted_marketplace_posts",
+      "status": 404,
+      "flags": {},
+      "generation1Status": 404
+    },
+    {
+      "name": "cleanupDeleted_discussion_feed",
+      "status": 404,
+      "flags": {},
+      "generation1Status": 404
+    },
+    {
+      "name": "resumeMediaCleanup",
+      "status": 404,
+      "flags": {},
+      "generation1Status": 404
+    },
+    {
+      "name": "fulfillApprovedAccountDeletions",
+      "status": 200,
+      "state": "ACTIVE",
+      "revision": "fulfillapprovedaccountdeletions-00005-kux",
+      "flags": {
+        "TOWNLOOP_AUTOMATIC_ACCOUNT_DELETION_ENABLED": "true",
+        "TOWNLOOP_ACCOUNT_DELETION_ENABLED": "true",
+        "TOWNLOOP_SCOPED_DELETION_ENABLED": "true"
+      }
+    },
+    {
+      "name": "previewDatabaseCleanup",
+      "status": 404,
+      "flags": {},
+      "generation1Status": 404
+    }
+  ],
+  "rules": [
+    {
+      "release": "cloud.firestore",
+      "status": 200,
+      "sha256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+    },
+    {
+      "release": "cloud.firestore/ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "status": 200,
+      "sha256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d"
+    },
+    {
+      "release": "firebase.storage/cc-livingcommunity-app.firebasestorage.app",
+      "status": 200,
+      "sha256": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9"
+    }
+  ],
+  "approvedJobs": {
+    "status": 200,
+    "completeInventory": true,
+    "total": 2,
+    "approved": 2,
+    "within60Days": 2,
+    "past60Days": 0,
+    "statusCounts": {
+      "retention_pending": 2
+    },
+    "phases": {
+      "scoped_retention": 2
+    },
+    "errorCounts": {}
+  },
+  "accountPolicy": {
+    "status": 200,
+    "ownerApproved": true,
+    "scopeRuleHashes": {
+      "(default)": {
+        "stringValue": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0"
+      },
+      "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb": {
+        "stringValue": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2"
+      }
+    },
+    "retentionDays": "60",
+    "collections": []
+  },
+  "mediaPolicy": {
+    "status": 200,
+    "ownerApproved": true,
+    "storageRulesSha256": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9",
+    "trustedUploadsAfter": "2026-10-23T12:57:03.246Z",
+    "collections": [
+      "marketItems",
+      "posts",
+      "marketplace_posts",
+      "work_orders",
+      "discussion_feed"
+    ]
+  },
+  "bucket": {
+    "status": 200,
+    "location": "US-EAST1",
+    "softDeleteSeconds": "604800"
+  },
+  "mediaMetadata": {
+    "feed/": {
+      "status": 200,
+      "sampled": 6,
+      "linked": 4,
+      "legacy": 2
+    },
+    "marketplace/": {
+      "status": 200,
+      "sampled": 10,
+      "linked": 4,
+      "legacy": 6
+    }
+  },
+  "generation1FollowupAt": "2026-11-13T19:32:45.894Z"
+}

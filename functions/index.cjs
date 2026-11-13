@@ -56,3 +56,8 @@ exports.getWorkOrderQueuePositions = require("./workOrderQueue.cjs").getWorkOrde
 
 // Stage A only, disabled by default; scoped deployment and rules require separate approval.
 Object.assign(exports, require('./inbox-groups-entry.cjs'));
+
+// User-triggered canonical post media only. Do not export broad orphan/draft/retry cleanup.
+const postDeletionTriggers = require('./mediaCleanup.cjs');
+exports.cleanupDeleted_marketplace_posts = postDeletionTriggers.cleanupDeleted_marketplace_posts;
+exports.cleanupDeleted_discussion_feed = postDeletionTriggers.cleanupDeleted_discussion_feed;

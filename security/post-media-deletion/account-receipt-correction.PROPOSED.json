@@ -1,0 +1,12 @@
+{
+  "status": "PROPOSAL_ONLY_REQUIRES_SEPARATE_APPROVAL",
+  "project": "cc-livingcommunity-app",
+  "document": "deletion_policies/account",
+  "database": "(default)",
+  "field": ["scopeRuleHashes", "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb"],
+  "expectedCurrent": "224a64b96335d0b4b4e3d6ab72e12d8d640ae46d2b0aca0654741d7dc156e7e2",
+  "proposed": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+  "warning": "All three existing deletion flags are true. Acknowledgment can resume existing approved jobs automatically on the next scheduler invocation. Preserve their approval, evidence, token-drain and 60-calendar-day retention safeguards. No patch has been applied.",
+  "prerequisites": ["Fresh worker/rules/receipt verification", "Independent approval and hold review of queued requests", "Explicit owner authorization to resume existing approved jobs"],
+  "doNotChange": ["retentionDays", "approval requirements", "Firestore rules", "Storage rules", "worker source", "resident data"]
+}
