@@ -69,8 +69,6 @@ exports.reviewSafetyReport = onCall(options, async request => {
         throw new HttpsError('failed-precondition', 'User reports need office account review; no account is automatically removed.');
       const parent = db.doc(`${report.collection}/${report.id}`), content = await tx.get(parent);
       if (content.exists) {
-        if (['discussion_feed','marketplace_posts'].includes(report.collection) && require('./databaseCleanup.cjs').protectedRecord(content.data(), Date.now()))
-          throw new HttpsError('failed-precondition', 'This content is retained for safety or legal review. Use the authorized evidence-handling process.');
         if (report.kind === 'comment') {
           const comments = content.data().comments || [];
           if (comments.filter(c => String(c.id) === report.commentId).length !== 1) throw new HttpsError('failed-precondition', 'Comment changed. Review it again.');

@@ -1,8 +1,0 @@
-{
-  "project": "cc-livingcommunity-app",
-  "bucket": "cc-livingcommunity-app.firebasestorage.app",
-  "defaultRulesSha256": "8bc7d56c0c3929aa641d90711a972b908c3af4e228d6b20f86eaf787d47e0b9b",
-  "storageRulesSha256": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9",
-  "namedRulesSha256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
-  "workerServiceAccount": "townloop-social-media@cc-livingcommunity-app.iam.gserviceaccount.com"
-}

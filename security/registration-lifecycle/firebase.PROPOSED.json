@@ -1,1 +1,0 @@
-{"functions":[{"source":"../../.release/registration-lifecycle","codebase":"registration-lifecycle","ignore":["node_modules",".git","*.test.cjs"]}],"firestore":{"database":"(default)","rules":"coordinated.firestore.rules","indexes":"firestore.indexes.json"}}

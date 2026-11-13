@@ -318,10 +318,6 @@ export async function manageResident(
   await runTransaction(db, async transaction => {
     const target = await transaction.get(ref);
     if (!target.exists()) throw new Error("This account is no longer available. Refresh the directory.");
-    if (target.data().approved !== true)
-      throw new Error("Use registration review to approve pending accounts.");
-    if (patch.approved !== undefined)
-      throw new Error("Use registration review to change approval.");
     if (target.data().deletionPending === true)
       throw new Error("This account is already being deleted and cannot be approved or have its role changed. Refresh the directory.");
     if (auth.currentUser?.uid !== String(user.id))

@@ -30,7 +30,7 @@ function ApprovalStages() {
     </View>
   </View>;
 }
-export function PendingApprovalView({error,message,terminal=false,retry,onSignOut}:{error?:string|null;message?:string;terminal?:boolean;retry:()=>void;onSignOut:()=>void}) {
+export function PendingApprovalView({error,retry,onSignOut}:{error?:string|null;retry:()=>void;onSignOut:()=>void}) {
   const screen = useWindowDimensions(), insets = useSafeAreaInsets();
   const width = Math.max(1,Math.min(520,screen.width-insets.left-insets.right)), scale=width/852;
   return <SafeAreaView edges={['left','right','bottom']} style={styles.page}>
@@ -39,12 +39,12 @@ export function PendingApprovalView({error,message,terminal=false,retry,onSignOu
         <ApprovalArtwork width={width}/>
         <View style={[styles.card,{marginHorizontal:45*scale,marginTop:-248*scale,paddingTop:270*scale}]}>
           <Text accessibilityRole="header" style={[styles.heading,{fontSize:width<360?24:28,lineHeight:width<360?32:37}]}>
-            {error ? 'Unable to load your account' : terminal ? 'Registration closed' : 'Awaiting approval'}
+            {error ? 'Unable to load your account' : 'Awaiting approval'}
           </Text>
           <Text accessibilityRole={error?'alert':undefined} style={styles.explanation}>
-            {error || message || 'Your community office must approve your account before you can enter TownLoop.'}
+            {error || 'Your community office must approve your account before you can enter TownLoop.'}
           </Text>
-          {!error && !terminal && <ApprovalStages/>}
+          {!error && <ApprovalStages/>}
           <View style={styles.actions}>
             <MotionPressable accessibilityRole="button" accessibilityLabel="Try again" onPress={retry} style={styles.retry}>
               <RefreshCw size={22} strokeWidth={2.5} color="#fff"/><Text style={styles.retryText}>Try again</Text>
@@ -53,7 +53,7 @@ export function PendingApprovalView({error,message,terminal=false,retry,onSignOu
               <LogOut size={22} strokeWidth={2.5} color={green}/><Text style={styles.signOutText}>Sign Out</Text>
             </MotionPressable>
           </View>
-          {!error && !terminal && <View style={styles.information}>
+          {!error && <View style={styles.information}>
             <Info size={24} strokeWidth={2.5} color={green} style={{marginTop:2,flexShrink:0}}/>
             <View style={{flex:1,minWidth:0,gap:3}}>
               <Text style={styles.infoTitle}>Please check back later.</Text>
