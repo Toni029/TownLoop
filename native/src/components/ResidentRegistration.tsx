@@ -13,13 +13,13 @@ import {
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
-import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { submitResidentRegistration, registrationError } from "../lib/registration";
+import { auth } from "../lib/firebase";
 import { friendlyError } from "../lib/profile";
-import { TERMS_VERSION, requireTermsAcceptance } from '../../../src/data/legal';
+import { requireTermsAcceptance } from '../../../src/data/legal';
 import { LegalLinks } from './LegalLinks';
 import { useSession } from '../lib/session';
-import { obtainRegistrationUser, INCOMPLETE_REGISTRATION_MESSAGE } from '../../../src/services/registrationRecovery';
+import { obtainRegistrationUser } from '../../../src/services/registrationRecovery';
 export function ResidentRegistration({
   dark,
   wide,
@@ -77,43 +77,19 @@ export function ResidentRegistration({
         create: () => createUserWithEmailAndPassword(auth, email, fields.password),
         signIn: () => signInWithEmailAndPassword(auth, email, fields.password),
       });
-      const profileData = {
-        id: credential.user.uid,
-        name: fields.name.trim(),
-        email: credential.user.email,
-        role: "resident",
-        address: fields.address.trim(),
-        phone: fields.phone.trim(),
+      const result = await submitResidentRegistration({
+        name: fields.name.trim(), address: fields.address.trim(), phone: fields.phone.trim(),
         emergencyContactName: fields.emergencyContactName.trim(),
         emergencyContactPhone: fields.emergencyContactPhone.trim(),
-        emergencyContactAddress: fields.emergencyContactAddress.trim(),
-        emergencyContact: fields.emergencyContactName.trim(),
-        emergency_contact: fields.emergencyContactName.trim(),
-        avatarUrl: "",
-        approved: false,
-        termsVersion: TERMS_VERSION,
-        termsAcceptedAt: serverTimestamp(),
-        createdAt: new Date().toISOString(),
-      };
-      let createdProfile = false;
-      try {
-        createdProfile = await runTransaction(db, async transaction => {
-          const reference = doc(db, "users", credential.user.uid);
-          const existing = await transaction.get(reference);
-          if (existing.exists()) return false;
-          transaction.set(reference, profileData);
-          return true;
-        });
-      } catch {
-        throw new Error(INCOMPLETE_REGISTRATION_MESSAGE);
-      }
+        emergencyContactAddress: fields.emergencyContactAddress.trim(), termsAccepted: true,
+      });
       // Profile persistence succeeds independently of the optional Auth display name.
-      if (createdProfile) {
+      if (result.created) {
         try { await updateProfile(credential.user, { displayName: fields.name.trim() }); } catch {}
       }
       setRegistrationInProgress(false);
     } catch (e) {
-      onError(e instanceof Error && e.message === INCOMPLETE_REGISTRATION_MESSAGE ? e.message : friendlyError(e));
+      onError(registrationError(e));
     } finally {
       setBusy(false);
     }
@@ -261,7 +237,7 @@ export function ResidentRegistration({
             }}
           >
             {busy
-              ? "Registering with Firestore..."
+              ? "Submitting registration…"
               : "Create Account & Request Approval"}
           </Text>
           <ArrowRight size={20} color="#fff" />

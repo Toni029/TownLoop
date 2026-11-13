@@ -1,3 +1,4 @@
+import {socialRetentionBlocked} from './socialRetention';
 import {runBudgetedTransaction} from '../security/abuseBudget';
 import { collection as collectionRef, doc, getDoc, serverTimestamp, type Firestore } from 'firebase/firestore';
 
@@ -17,6 +18,7 @@ export async function mutateSocial(db: Firestore, uid: string, collection: Socia
     const owner = before.userId ?? before.authorId;
     const manager = profile.role === 'admin' || profile.role === 'vip';
     if (action === 'delete') {
+      if (socialRetentionBlocked(before)) throw Error('This item is retained for safety or legal review. Please contact the community office.');
       if (owner !== uid && !manager) throw Error('Only the author or office can remove this item.');
       tx.delete(ref); return;
     }

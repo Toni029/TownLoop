@@ -1,3 +1,4 @@
+import { registrationError } from '../lib/registration';
 import { LegalLinks } from "../components/LegalLinks";
 import { ScrollView, TextInput } from '../keyboard/KeyboardScrollView';
 import { ScreenSystemBars } from "../components/SystemBars";
@@ -564,7 +565,7 @@ export default function SignIn() {
                       setRegistrationInProgress(true);
                       await googleSignIn(googleTermsAccepted);
                     } catch (e) {
-                      setMessage(friendlyError(e));
+                      setMessage(registrationError(e));
                     } finally {
                       setRegistrationInProgress(false);
                       setBusy(false);

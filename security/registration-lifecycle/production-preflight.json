@@ -1,0 +1,290 @@
+{
+  "checkedAt": "2026-11-13T15:36:07.104Z",
+  "project": "cc-livingcommunity-app",
+  "database": "(default)",
+  "functions": [
+    {
+      "name": "syncResidentDirectory",
+      "region": "us-central1",
+      "state": "ACTIVE",
+      "revision": "syncresidentdirectory-00001-zaz",
+      "identity": "883715389126-compute@developer.gserviceaccount.com",
+      "flags": {}
+    },
+    {
+      "name": "cleanupCompletedWorkOrders",
+      "region": "us-central1",
+      "state": "ACTIVE",
+      "revision": "cleanupcompletedworkorders-00001-cot",
+      "identity": "883715389126-compute@developer.gserviceaccount.com",
+      "flags": {}
+    }
+  ],
+  "rules": [
+    {
+      "release": "projects/cc-livingcommunity-app/releases/cloud.firestore",
+      "ruleset": "projects/cc-livingcommunity-app/rulesets/47d08be7-f155-4895-87f0-551dbaec7902",
+      "sha256": "4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0",
+      "denyAllClient": false
+    },
+    {
+      "release": "projects/cc-livingcommunity-app/releases/cloud.firestore/ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb",
+      "ruleset": "projects/cc-livingcommunity-app/rulesets/b9930259-e74c-4438-8c50-facadabfd8a5",
+      "sha256": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d",
+      "denyAllClient": true
+    },
+    {
+      "release": "projects/cc-livingcommunity-app/releases/cloud.firestore/ai-studio-townloop-a292b2fb-fa69-4503-9bfe-d2ddc8471673",
+      "ruleset": "projects/cc-livingcommunity-app/rulesets/3ad3fa1a-fda2-4231-b1e7-09cb466593d2",
+      "sha256": "32655d746e24ccf70a066715fd947a96d5b7f186cc9305992c7b32ae4447a7f1",
+      "denyAllClient": true
+    },
+    {
+      "release": "projects/cc-livingcommunity-app/releases/firebase.storage/cc-livingcommunity-app.firebasestorage.app",
+      "ruleset": "projects/cc-livingcommunity-app/rulesets/ed336b3f-bb22-4241-8655-9aca44ca7ab4",
+      "sha256": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9",
+      "denyAllClient": false
+    }
+  ],
+  "mediaPolicy": {
+    "status": 200,
+    "ownerApproved": true,
+    "trustedCutoverPresent": true,
+    "collectionNames": [
+      "work_orders",
+      "marketItems",
+      "posts",
+      "marketplace_posts",
+      "discussion_feed"
+    ],
+    "storageRulesHash": "9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9"
+  },
+  "schedulerStatus": 200,
+  "jobs": [],
+  "projectIAMReadStatus": 200,
+  "roles": [
+    {
+      "identity": "883715389126-compute@developer.gserviceaccount.com",
+      "projectRoles": [
+        "roles/editor",
+        "roles/eventarc.eventReceiver",
+        "roles/run.invoker"
+      ]
+    }
+  ],
+  "bucketIAMReadStatus": 200,
+  "bucketRoleBindings": [
+    {
+      "role": "roles/storage.legacyBucketOwner",
+      "matchingRuntimeIdentities": []
+    },
+    {
+      "role": "roles/storage.legacyBucketReader",
+      "matchingRuntimeIdentities": []
+    }
+  ],
+  "registrationHmacSecretMetadataStatus": 404,
+  "changesMade": false,
+  "residentRecordsRead": 0,
+  "generation1InventoryStatus": 200,
+  "generation1RelevantFunctions": [],
+  "bucketPolicy": {
+    "status": 200,
+    "softDeleteSeconds": "604800",
+    "retentionSeconds": null,
+    "versioningEnabled": false
+  },
+  "storageMetadataSamples": [
+    {
+      "folder": "feed/",
+      "status": 200,
+      "samples": [
+        {
+          "customKeys": [
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": false,
+          "hasUploader": true,
+          "hasRecordLink": false,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": false,
+          "hasUploader": true,
+          "hasRecordLink": false,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "securityVersion",
+            "recordId",
+            "collection",
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": true,
+          "hasUploader": true,
+          "hasRecordLink": true,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "securityVersion",
+            "recordId",
+            "collection",
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": true,
+          "hasUploader": true,
+          "hasRecordLink": true,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "securityVersion",
+            "recordId",
+            "collection",
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": true,
+          "hasUploader": true,
+          "hasRecordLink": true,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        }
+      ]
+    },
+    {
+      "folder": "marketplace/",
+      "status": 200,
+      "samples": [
+        {
+          "customKeys": [
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": false,
+          "hasUploader": true,
+          "hasRecordLink": false,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": false,
+          "hasUploader": true,
+          "hasRecordLink": false,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": false,
+          "hasUploader": true,
+          "hasRecordLink": false,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": false,
+          "hasUploader": true,
+          "hasRecordLink": false,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        },
+        {
+          "customKeys": [
+            "uploadedBy",
+            "uploaderEmail",
+            "uploaderName",
+            "folder",
+            "originalName",
+            "uploadedAt",
+            "firebaseStorageDownloadTokens"
+          ],
+          "hasSecurityVersion1": false,
+          "hasUploader": true,
+          "hasRecordLink": false,
+          "hasGeneration": true,
+          "hasCreationTime": true,
+          "temporaryHold": false
+        }
+      ]
+    }
+  ]
+}

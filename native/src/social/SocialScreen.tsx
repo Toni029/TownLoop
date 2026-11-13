@@ -124,8 +124,8 @@ export default function SocialScreen() {
         ? "Comment posted!"
         : operation === "sold"
           ? "Listing status updated"
-          : operation === "delete" && kind !== "listing"
-            ? "Item deleted"
+          : operation === "delete"
+            ? "Item removed. Media cleanup is pending; protected or shared files may remain."
             : "",
     );
   const readChatAction = useCallback(

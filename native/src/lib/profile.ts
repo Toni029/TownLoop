@@ -1,3 +1,4 @@
+import {terminalRegistration} from './registrationModel';
 export type ResidentProfile = {
   name: string;
   email: string;
@@ -22,7 +23,7 @@ export function readProfile(data: Record<string, unknown>): ResidentProfile {
       ) || "Resident",
     email: text(data.email),
     role: typeof data.role === "string" && ["resident", "crew", "vip", "admin"].includes(data.role) ? data.role : "",
-    approved: data.approved === true,
+    approved: data.approved === true && !terminalRegistration(data),
     address: text(data.address, data.unit),
   };
 }

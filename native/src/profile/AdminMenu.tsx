@@ -1,3 +1,4 @@
+import { RegistrationReview } from "./RegistrationReview";
 import { AccountDeletionRequests } from "./AccountDeletionRequests";
 import { DatabaseCleanup } from "./DatabaseCleanup";
 import { useDatabaseCleanup } from "./useDatabaseCleanup";
@@ -78,7 +79,6 @@ export function AdminMenu({
     setTabDirection(order.indexOf(next) > order.indexOf(tab) ? 1 : -1);
     setTab(next);
   }
-  const [pendingOnly, setPendingOnly] = useState(false);
   const events = useLiveCollection("community_events", readNewsEvent);
   const ink = dark ? "#f1f5f9" : "#1c1917",
     muted = dark ? "#94a3b8" : "#78716c";
@@ -95,8 +95,8 @@ export function AdminMenu({
     fontSize: size,
     color: ink,
   });
-  const people = adminDirectory(residents);
-  const pending = people.filter((p) => p.approved === false).length;
+  const people = adminDirectory(residents).filter(person => person.approved === true);
+
   const sortedEvents = sortEventsEarlyFirst(events.items);
   const totalRsvpCount = events.items.reduce(
     (count, event) =>
@@ -250,7 +250,6 @@ export function AdminMenu({
                 {id === "rsvp" && totalRsvpCount > 0
                   ? ` (${totalRsvpCount})`
                   : ""}
-                {id === "residents" && pending ? ` (${pending})` : ""}
               </Text>
             </Pressable>
           );
@@ -287,34 +286,11 @@ export function AdminMenu({
                 }}
               >
                 <Text style={font(12, true)}>DIRECTORY ({people.length})</Text>
-                {pending > 0 && (
-                  <Text style={{ ...font(11, true), color: "#b45309" }}>
-                    {pending} pending approval
-                  </Text>
-                )}
               </View>
-              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                {button(`All residents (${people.length})`, () =>
-                  setPendingOnly(false),
-                )}
-                {button(`Pending approvals (${pending})`, () =>
-                  setPendingOnly(true),
-                )}
-              </View>
-              <Text style={{ ...font(12), color: muted }}>
-                {pendingOnly
-                  ? "Showing new signups awaiting approval."
-                  : "New signups appear first. Approve them to give them access as residents."}
-              </Text>
-              {pendingOnly && pending === 0 && (
-                <Text style={font(13)}>No signups awaiting approval.</Text>
-              )}
-              {people.length === 0 && !pendingOnly && (
-                <Text style={{ ...font(13), textAlign: "center", padding: 24 }}>
-                  No residents in directory.
-                </Text>
-              )}
-              {residents.filter(person => person.profileUpdateRequest?.status === "pending").map(person => {
+              <RegistrationReview dark={dark} admin={user.role === "admin"}/>
+              <Text style={{ ...font(12), color: muted }}>Approved residents</Text>
+              {people.length === 0 && <Text style={font(13)}>No approved residents in directory.</Text>}
+              {residents.filter(person => person.approved === true && person.profileUpdateRequest?.status === "pending").map(person => {
                 const request = person.profileUpdateRequest!;
                 const labels: Record<string, string> = {phone:"Resident Phone",address:"Residency Address",dateOfBirth:"Date of Birth",maritalStatus:"Marital Status",emergencyContactName:"Emergency Contact Name",emergencyContactPhone:"Emergency Contact Phone",emergencyContactAddress:"Emergency Contact Address"};
                 return <View key={`request-${person.id}`} style={panel}>
@@ -329,7 +305,6 @@ export function AdminMenu({
                 </View>;
               })}
               {people
-                .filter((p) => !pendingOnly || p.approved === false)
                 .map((p) => {
                   const badge = getRoleBadgeInfo(getUserRole(p));
                   return (
@@ -363,9 +338,7 @@ export function AdminMenu({
                         <View style={{ flex: 1, gap: 3 }}>
                           <Text style={font(14, true)}>{p.name}</Text>
                           <Text style={{ ...font(10, true), color: "#b45309" }}>
-                            {p.approved === false
-                              ? "Pending approval"
-                              : badge.label}
+                            {badge.label}
                           </Text>
                           <Text style={{ ...font(12), color: muted }}>
                             {p.email}
@@ -374,20 +347,6 @@ export function AdminMenu({
                             {p.address || p.unit || "Resident Unit"}
                           </Text>
                         </View>
-                        {p.approved === false ? (
-                          button(
-                            "Approve",
-                            () =>
-                              void act(
-                                () =>
-                                  manageResident(String(p.id), {
-                                    approved: true,
-                                    ...(!p.role ? { role: "resident" } : {}),
-                                  }),
-                                `${p.name} approved.`,
-                              ),
-                          )
-                        ) : (
                           <View
                             style={{
                               flexDirection: "row",
@@ -402,9 +361,8 @@ export function AdminMenu({
                               Approved
                             </Text>
                           </View>
-                        )}
                       </View>
-                      {String(p.id) !== String(user.id) && (
+                      {user.role === "admin" && String(p.id) !== String(user.id) && (
                         <>
                           {button("Role controls", () =>
                             setRoles(
