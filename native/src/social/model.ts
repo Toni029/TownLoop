@@ -14,6 +14,7 @@ export interface Chat {
   itemTitle: string;
   itemPrice: string;
   itemMediaUrl?: string;
+  listingDeleted?: boolean;
   sellerId: string;
   sellerName: string;
   sellerAvatar?: string;

@@ -43,6 +43,9 @@ const helpers=`
     }
 `;
 s=s.replace('    function mediaDraft(data) {',helpers+'    function mediaDraft(data) {');
+// Reject unmodeled attachment aliases during publication rather than let a second
+// parent smuggle a foreign file through photos/imageUrl/attachments.
+s=s.replace('return published(data) && socialOwner(data, legacy) &&', `return data.keys().hasOnly(['storageDraft','userId','authorId','uid','createdAt','title','author','authorAvatar','authorEmail','unit','media','mediaUrl','comments','timeAgo','content','tag','likes','likedBy','description','price','sold','claimed']) && published(data) && socialOwner(data, legacy) &&`);
 for(const collection of ['marketplace_posts','discussion_feed','posts','marketItems']){
  const re=new RegExp('(match /'+collection+'/\\{([^}]+)\\} \\{)([\\s\\S]*?)(\\n    \\})');
  s=s.replace(re,(_all,head,id,body,end)=>head+body.replace('allow create: if isApproved()', 'allow create: if emptyMediaCreate() && isApproved()').replace('allow update: if isApproved()',`allow update: if socialMediaOwned('${collection}', ${id}) && isApproved()`)+end);

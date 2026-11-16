@@ -12,7 +12,7 @@ function deletedPostJob(collection,recordId,before,eventId){
  return{kind:'post_delete_v1',collection,recordId,uid:typeof uid==='string'?uid:'',databaseId:'(default)',eventHash:hash(eventId),paths:refs.paths,unknownReferences:refs.unknown.length,
  hold:before.storageDraft!==false?'unpublished_record':protectedRecord(before,Date.now())?'protected_record':typeof uid!=='string'||!uid||uid.includes('/')||before.userId!=null&&before.authorId!=null&&before.userId!==before.authorId?'ownership_unverified':refs.paths.length>100?'inventory_incomplete':null};
 }
-// Exhaustive bounded, read-only scan. Never edits chats or other records; unknown references fail closed.
+// Exhaustive bounded, read-only scan; unknown references fail closed.
 function scanReferenceData(data){
  const omit=new Set(['mediaUploadGeneration','mediaUploadTickets','previewCopyKey','previewCopySource']);let nodes=0;
  function clean(value,depth=0){if(++nodes>20000||depth>20)throw Error('reference_inventory_incomplete');if(Array.isArray(value))return value.map(v=>clean(v,depth+1));if(value&&typeof value==='object'&&typeof value.toMillis!=='function')return Object.fromEntries(Object.entries(value).filter(([k])=>!omit.has(k)).map(([k,v])=>[k,clean(v,depth+1)]));return value;}
@@ -50,7 +50,6 @@ async function processDeletedPost(job,deps){
    if(metadata.temporaryHold||metadata.eventBasedHold||metadata.retention||metadata.retentionExpirationTime&&Date.parse(metadata.retentionExpirationTime)>Date.now()||['legalHold','evidenceHold','retentionHold','quarantined'].some(k=>custom[k]==='true')){hold(path,'storage_hold');continue;}
    // No production writer protection is supplied until separately reviewed; do not buy a scan that cannot authorize deletion.
    if(!deps.withReferenceProtection){hold(path,'concurrent_reference_protection_required');continue;}
-   if(deps.preserveChatPreviews)await deps.preserveChatPreviews(job,path,metadata);
    const shared=await deps.referenceState(path);
    if(shared.shared||shared.ambiguous){hold(path,shared.shared?'shared_reference':'ambiguous_reference');continue;}
    // A point-in-time scan alone is not a race-safe exclusivity guarantee. Never pretend otherwise.
@@ -74,9 +73,12 @@ async function handleDeletedPost(db,bucket,job,{referenceState,withReferenceProt
  const assertLease=data=>{if(data?.lease!==lease||data.leaseUntil<Date.now())throw Error('post_media_lease_lost');};
  try {
  // No arbitrary request can select a UID/file. Only a trusted Firestore delete-event snapshot enters here.
+ if(job.collection==='marketplace_posts')await require('./marketplaceListingRetirement.cjs').retireListingPreviews(db,job.recordId);
  const activeVerify=verifyRules||require('./recordMediaOwnership.cjs').verifyOwnershipRules;
- await activeVerify(); // No preview copies or Storage deletions before ownership rules are active.
- const protectedDelete=withReferenceProtection||(async(_job,_path,body)=>{await activeVerify();if((await db.doc(job.collection+'/'+job.recordId).get()).exists)throw Error('protection_changed');return body();});
+ await activeVerify(); // No Storage deletions before ownership rules are active.
+ // A rules hash and a scan do not serialize every reference writer. Do not
+ // supply an unproven production deletion capability. Held jobs expose the gap.
+ const protectedDelete=withReferenceProtection;
  const {getFirestore}=require('firebase-admin/firestore');
  const sources=databases||require('./accountDeletionScope.cjs').DATABASES.map(id=>getFirestore(id));
  const pager=listPage||(source=>require('./databaseCleanup.cjs').createDocumentPager({project:'cc-livingcommunity-app',databaseId:source.databaseId,getAccessToken:async()=>(await require('firebase-admin/app').getApp().options.credential.getAccessToken()).access_token}));
@@ -88,7 +90,6 @@ async function handleDeletedPost(db,bucket,job,{referenceState,withReferenceProt
   policy:async()=> (await db.doc('deletion_policies/media').get()).data(),
   previousIntent:async path=>(await ref.get()).data()?.intents?.[hash(path)],
   referenceState:referenceState||(path=>sharedReferenceState(path,{databases:sources,listPage:pager})),withReferenceProtection:protectedDelete,
-  preserveChatPreviews:(job,path,metadata)=>require('./marketplacePreviewCopy.cjs').preserveChatPreviews(db,bucket,job,path,metadata),
   persistIntent:async(path,proof)=>db.runTransaction(async tx=>{const data=(await tx.get(ref)).data();assertLease(data);if(data.intents?.[hash(path)]?.status==='active_removed')return;tx.update(ref,{intents:{...data.intents,[hash(path)]:{path,...proof,status:'deleting'}}});}),
   remove:(path,options)=>bucket.file(path).delete(options),
   markRemoved:async path=>db.runTransaction(async tx=>{const data=(await tx.get(ref)).data(),key=hash(path);assertLease(data);tx.update(ref,{intents:{...data.intents,[key]:{...data.intents[key],status:'active_removed'}}});})

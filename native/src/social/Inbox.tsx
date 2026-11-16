@@ -209,7 +209,11 @@ export function Inbox({
           </View>
           <SafetyActions target={{kind:"user",id:otherUid}} allowBlock blockInReport/>
           </View>
-          <Pressable
+          {selected.listingDeleted ? (
+            <View style={[s.card, { backgroundColor: dark ? "#1e293b" : "#f5f5f4" }]}>
+              <Copy>This listing has been deleted.</Copy>
+            </View>
+          ) : <Pressable
             accessibilityRole="button"
             accessibilityLabel={`View listing ${selected.itemTitle}`}
             onPress={() => onViewItem(selected.itemId)}
@@ -219,7 +223,7 @@ export function Inbox({
               {selected.itemTitle} • {selected.itemPrice}
             </Copy>
             <Copy>View Listing</Copy>
-          </Pressable>
+          </Pressable>}
           {closed && (
             <View style={s.card}>
               <Copy weight="bold">{other} has left this chat</Copy>

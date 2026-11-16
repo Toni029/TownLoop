@@ -24,8 +24,9 @@ for (const collection of Object.keys(FOLDERS)) {
   exports[`cleanupDeleted_${collection}`] = onDocumentDeleted({ ...options, database, document: `${collection}/{recordId}`, retry: true }, async event => {
     // Narrow post-deletion path: no draft/orphan/global cleanup activation.
     if (['marketplace_posts','discussion_feed','work_orders'].includes(collection)) {
-      if(process.env.TOWNLOOP_POST_DELETE_MEDIA_ENABLED !== 'true')return;
       if (database !== '(default)') throw Error('post_media_scope_mismatch');
+      if(collection==='marketplace_posts')await require('./marketplaceListingRetirement.cjs').retireListingPreviews(getFirestore(database),event.params.recordId);
+      if(process.env.TOWNLOOP_POST_DELETE_MEDIA_ENABLED !== 'true')return;
       const {deletedPostJob,handleDeletedPost}=require('./postMediaCleanup.cjs');
       const job=deletedPostJob(collection,event.params.recordId,event.data?.data(),event.id);
       if(job)await handleDeletedPost(getFirestore(database),getStorage().bucket('cc-livingcommunity-app.firebasestorage.app'),job);

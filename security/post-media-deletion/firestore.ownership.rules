@@ -150,7 +150,7 @@ service cloud.firestore {
       return currentProfile().get('avatarUrl', '') != '' ? currentProfile().avatarUrl : currentProfile().get('avatar_url', '');
     }
     function socialNew(data, legacy, market) {
-      return published(data) && socialOwner(data, legacy) &&
+      return data.keys().hasOnly(['storageDraft','userId','authorId','uid','createdAt','title','author','authorAvatar','authorEmail','unit','media','mediaUrl','comments','timeAgo','content','tag','likes','likedBy','description','price','sold','claimed']) && published(data) && socialOwner(data, legacy) &&
         data.get('userId', request.auth.uid) == request.auth.uid &&
         data.get('authorId', request.auth.uid) == request.auth.uid && data.get('uid', request.auth.uid) == request.auth.uid &&
         data.createdAt == request.time &&
