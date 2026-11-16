@@ -80,7 +80,7 @@ export function readCleanupJob(value:unknown):CleanupJob {
 export function cleanupStorageReason(code:string):string {
   const reasons:Record<string,string>={
     read_only_execution_disabled:'Ownership metadata matches; exclusivity is not certified in read-only mode',shared_reference:'Shared with another record',metadata_missing:'Object metadata is missing',ownership_unverified:'Ownership could not be verified',
-    protected_record:'Referenced by protected data',reference_writers_unfenced:'Reference writers are not yet fenced; file deletion is blocked',
+    recovery_retained:'Backup or recovery generation retained; active file removal is separate',protected_record:'Referenced by protected data',reference_writers_unfenced:'Reference writers are not yet fenced; file deletion is blocked',
     object_changed:'Object changed after inventory',inventory_incomplete:'Inventory is incomplete',active_analysis:'Analysis is still active',
     newsletter_storage_unverified:'Newsletter file ownership is unverified',file_missing:'File is missing',
   };

@@ -2,13 +2,13 @@
 // Default-database only. No production activation is implied by importing this module.
 const {createHash,randomUUID}=require('node:crypto');
 const {FieldPath}=require('firebase-admin/firestore');
-const CATEGORIES=Object.freeze({workOrders:['work_orders'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
+const CATEGORIES=Object.freeze({workOrders:['work_orders','work_order_numbers'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
 const PHRASE='DELETE SELECTED DATA';
 const TERMINAL=new Set(['completed','completed_with_holds','cancelled']);
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const version=doc=>doc.exists?`${doc.updateTime.seconds}:${doc.updateTime.nanoseconds}`:null;
 // PDF data is deliberately excluded: planning neither decodes nor copies PDF chunks.
-const FIELDS=['role','approved','deletionPending','legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','id','state','status','leaseUntil','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt','photoUrl','photos','media','mediaUrl','itemMediaUrl','imageUrl','attachmentUrl','attachments','fileUrl','pdfUrl','pageImages','url','storagePath','comments','messages'];
+const FIELDS=['role','approved','deletionPending','legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','orderId','id','state','status','leaseUntil','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt','photoUrl','photos','media','mediaUrl','itemMediaUrl','imageUrl','attachmentUrl','attachments','fileUrl','pdfUrl','pageImages','url','storagePath','comments','messages'];
 const zero=()=>({records:0,documents:0,deleted:0,held:0,failed:0,remaining:0,storageDeleted:0,storageHeld:0});
 class CleanupError extends Error{constructor(code,message){super(message);this.code=code;}}
 const fail=(code,message)=>{throw new CleanupError(code,message);};
@@ -132,6 +132,11 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const [collection,id]=path.split('/'),[snap]=await db.getAll(db.doc(path),{fieldMask:FIELDS}),data=snap.data()||{};
   const reports=await db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1).get();
   if(!reports.empty)return {reason:'reported_evidence'};
+  if(collection==='work_order_numbers'){
+   if(typeof data.orderId!=='string'||!data.orderId||data.orderId.includes('/'))return {reason:'work_order_attribution_unverified'};
+   const owner=await db.doc('work_orders/'+data.orderId).get();
+   if(owner.exists){const report=await db.collection('moderation_reports').where('collection','==','work_orders').where('id','==',data.orderId).limit(1).get();if(protectedRecord(owner.data(),now())||!report.empty)return {reason:'protected_work_order_dependency'};}
+  }
   if(category==='newsletters'){
    if(['community_events','community_highlights'].includes(collection)){
     if(data.isAiExtracted!==true)return {skip:true};
@@ -145,9 +150,9 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   }
   return {};
  }
- async function lease(){
+ async function lease(expectedJobId){
   return db.runTransaction(async tx=>{
-   const lock=await tx.get(control);if(!lock.data()?.jobId)return null;
+   const lock=await tx.get(control);if(!lock.data()?.jobId||expectedJobId&&lock.data().jobId!==expectedJobId)return null;
    const ref=jobRef(lock.data().jobId),snap=await tx.get(ref),job=snap.data();
    if(!job||!['planning','queued','running'].includes(job.state)||job.leaseUntil>now())return null;
    job.lease=randomUUID();job.leaseUntil=now()+120000;tx.set(ref,job);return job;
@@ -307,8 +312,8 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    tx.update(jobRef(job.id),{finalizing:true});
   });
  }
- async function tick(){
-  let job=await lease();if(!job)return false;
+ async function tick(expectedJobId){
+  let job=await lease(expectedJobId);if(!job)return false;
   try{
    await authorized(job.operatorUid);
    if(job.cancelRequested){

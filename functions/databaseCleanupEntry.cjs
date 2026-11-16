@@ -4,7 +4,6 @@ const {getFirestore}=require('firebase-admin/firestore');
 const {getAuth}=require('firebase-admin/auth');
 const {getStorage}=require('firebase-admin/storage');
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
-const {onSchedule}=require('firebase-functions/v2/scheduler');
 const {createHash}=require('node:crypto');
 const {createCleanupService,createDocumentPager}=require('./databaseCleanup.cjs');
 const {validatePolicy,mediaDeletionDisabled,referenceWritersVerified,PINS}=require('./databaseCleanupSafety.cjs');
@@ -37,22 +36,19 @@ async function verifySafety(){
 }
 const {createStorageCleanup}=require('./databaseCleanupStorage.cjs');
 const media=createStorageCleanup({db,databases,bucket:getStorage(app).bucket(PINS.bucket),listPage:source=>createDocumentPager({project:PROJECT,databaseId:source.databaseId,getAccessToken:token}),deploymentReady:verifySafety,verifyBarrier:barriers.verify,trustedAfter:async()=>{const policy=(await db.doc('deletion_policies/media').get()).data();return policy?.ownerApproved&&policy.storageRulesSha256===require('./deletionMediaProvenance.json').storageRulesSha256?policy.trustedUploadsAfter?.toMillis?.():NaN;}});
-const service=createCleanupService({db,enabled,verifySafety,verifyIdentity:uid=>auth.getUser(uid),listPage:createDocumentPager({project:PROJECT,getAccessToken:token}),media,acquireBarriers:barriers.acquire,releaseBarriers:barriers.release});
-// Dedicated identity must be provisioned and approved separately; no existing worker identity is reused.
-const options={region:'us-central1',serviceAccount:'townloop-database-cleanup@cc-livingcommunity-app.iam.gserviceaccount.com',maxInstances:1};
-exports.manageDatabaseCleanup=onCall({...options,timeoutSeconds:60},async request=>{
+const service=createCleanupService({db,enabled,verifySafety,verifyIdentity:uid=>auth.getUser(uid),listPage:createDocumentPager({project:PROJECT,getAccessToken:token}),media,beforeDelete:async path=>{if(path.startsWith('marketplace_posts/'))await require('./marketplaceListingRetirement.cjs').retireListingPreviews(db,path.split('/')[1],{allowExisting:true});},acquireBarriers:barriers.acquire,releaseBarriers:barriers.release});
+// Reuse the existing Firebase runtime identity; no new service account or schedule.
+const options={region:'us-central1',maxInstances:1,concurrency:1};
+exports.manageDatabaseCleanup=onCall({...options,timeoutSeconds:120},async request=>{
  const bearer=request.rawRequest.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
  if(!request.auth||!bearer)throw new HttpsError('unauthenticated','Sign in with an approved Admin account.');
  try{
   const identity=await auth.verifyIdToken(bearer,true);
   if(identity.uid!==request.auth.uid)throw new HttpsError('unauthenticated','Refresh your Admin session.');
-  return await service.operate(identity.uid,request.data);
+  return await require('./databaseCleanupRequest.cjs').advanceCleanupRequest(service,identity.uid,request.data);
  }catch(error){
   const safe=['unauthenticated','permission-denied','invalid-argument','failed-precondition','already-exists','not-found'];
   if(safe.includes(error.code))throw new HttpsError(error.code,error.message);
   throw new HttpsError('unavailable','The cleanup request could not be verified. Refresh its status before retrying.');
  }
-});
-exports.runDatabaseCleanup=onSchedule({...options,timeoutSeconds:120,schedule:'every 1 minutes',timeZone:'Etc/UTC',retryCount:0},async()=>{
- const deadline=Date.now()+45000;for(let step=0;step<80&&Date.now()<deadline;step++)if(!await service.tick())break;
 });

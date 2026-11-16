@@ -58,7 +58,8 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
  }
  async function storageHeld(metadata){
   const [policy]=await bucket.getMetadata();
-  return policy.versioning?.enabled===true||Number(policy.softDeletePolicy?.retentionDurationSeconds)>0||Number(policy.retentionPolicy?.retentionPeriod)>0||
+  // Recovery copies do not prevent removing the ACTIVE generation. Report them separately.
+  return Number(policy.retentionPolicy?.retentionPeriod)>0||
    metadata.temporaryHold===true||metadata.eventBasedHold===true||metadata.retention!=null||
    metadata.retentionExpirationTime&&Date.parse(metadata.retentionExpirationTime)>Date.now()||
    ['legalHold','evidenceHold','retentionHold','quarantined'].some(key=>metadata.metadata?.[key]==='true');
@@ -67,20 +68,29 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   const [rows,next]=await bucket.getFiles({prefix:`${FOLDERS[category]}/`,autoPaginate:false,maxResults:maxObjects+1});
   if(next?.pageToken||rows.length>maxObjects)throw error('inventory_incomplete');return rows;
  }
- async function shared(name,ownerRoot){
+ async function shared(name,ownerRoot,job){
   let seen=0;const deadline=Date.now()+20000;
   for(const source of databases){
    const pager=listPage(source);const roots=await source.listCollections();
+   const selected=new Set([ownerRoot]);
+   if(job){const candidates=await db.collection('database_cleanup_jobs').doc(job.id).collection('items').where('category','==','newsletters').limit(1001).get();if(candidates.size>1000)throw error('inventory_incomplete');for(const row of candidates.docs)if(['pending','deleting','deleted'].includes(row.data().state))selected.add(row.data().path);}
    async function visit(collection){
     let token='';do{
      const page=await pager(collection,token,25);
      for(const path of page.paths){
       if(++seen>maxReferenceDocuments||Date.now()>deadline)throw error('inventory_incomplete');
-      if(source===db&&(path===ownerRoot||path.startsWith(ownerRoot+'/')))continue;
+      if(source===db&&[...selected].some(root=>path===root||path.startsWith(root+'/')))continue;
+      // Edition dependencies are fully inventoried before confirmation; execution
+      // skips only confirmed, unheld manifest roots above.
+      if(source===db&&job&&!job.confirmedAt&&path.startsWith('newsletters/'))continue;
       const ref=source.doc(path);
       // Native PDF chunks cannot carry attachment references. Their payload is never fetched.
       const [snapshot]=await source.getAll(ref,...(/^newsletters\/[^/]+\/chunks\/[^/]+$/.test(path)?[{fieldMask:['index','totalChunks']}]:[]));
-      if(snapshot.exists&&references(snapshot.data()).paths.includes(name))return true;
+      if(snapshot.exists){const data={...snapshot.data()};
+       // Only the listing summary is disposable; private chat media/text still protects files.
+       if(source===db&&ownerRoot.startsWith('marketplace_posts/')&&path.split('/').length===2&&path.startsWith('marketplace_chats/')&&data.itemId===ownerRoot.split('/')[1])delete data.itemMediaUrl;
+       if(references(data).paths.includes(name))return true;
+      }
       const children=await ref.listCollections();if(children.length>50)throw error('inventory_incomplete');
       for(const child of children)if(await visit(child.path))return true;
      }
@@ -89,7 +99,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
    }
    for(const root of roots){
     // These server-only records contain paths/proofs, never resident content or live attachment use.
-    if(/^database_cleanup_(jobs|audit|control|fences|policies)$/.test(root.id))continue;
+    if(/^database_cleanup_(jobs|audit|control|fences|policies)$/.test(root.id)||['safety_limits','media_cleanup_jobs','media_deletion_tombstones','deletion_policies','newsletter_draft_cleanup'].includes(root.id))continue;
     if(await visit(root.path))return true;
    }
   }return false;
@@ -104,8 +114,16 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   }
   await visit(path);return {paths:[...found],unknown:[...unknown]};
  }
+ async function newsletterOwned(metadata,path){
+  const [,id]=path.split('/');if(!/^[A-Za-z0-9_-]+$/.test(id))return false;
+  const root=await db.doc(path).get();
+  const edition=id==='current'?root.data()?.id:id;
+  return typeof edition==='string'&&/^[A-Za-z0-9_-]+$/.test(edition)&&
+   metadata?.name===`newsletters/${edition}/document.pdf`&&metadata.contentType==='application/pdf'&&
+   /^[1-9]\d*$/.test(String(metadata.generation))&&/^[1-9]\d*$/.test(String(metadata.metageneration));
+ }
  async function provenance(metadata,path){
-  const [collection,recordId]=path.split('/');const cutover=typeof trustedAfter==='function'?await trustedAfter():trustedAfter;if(!Number.isFinite(cutover)||cutover<=0)return false;
+  const [collection,recordId]=path.split('/');if(collection==='newsletters')return newsletterOwned(metadata,path);const cutover=typeof trustedAfter==='function'?await trustedAfter():trustedAfter;if(!Number.isFinite(cutover)||cutover<=0)return false;
   const policy={ownerApproved:true,approvalReference:'database-cleanup-v2',trustedUploadsAfter:{toMillis:()=>cutover},storageRulesSha256:require('./deletionMediaProvenance.json').storageRulesSha256,collections:{[collection]:{action:'delete_linked_media_on_parent_deletion',reason:'Separately confirmed category cleanup'}}};
   return trustedMedia(metadata,{collection,recordId,uid:metadata.metadata?.uploadedBy,databaseId:'(default)'},policy);
  }
@@ -115,18 +133,21 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   if(item.reason)reason=item.reason==='active_newsletter_analysis'?'active_analysis':'protected_record';
   else if(!metadata)reason='file_missing';
   else if(await storageHeld(metadata))reason='protected_record';
-  else if(item.category==='newsletters')reason='newsletter_storage_unverified'; // Historical newsletter metadata is descriptive, not an enforced ownership capability.
-  else if(!metadata.metadata?.securityVersion||!metadata.metadata?.recordId||!metadata.metadata?.collection||!/^[1-9]\d*$/.test(String(metadata.generation))||!/^[1-9]\d*$/.test(String(metadata.metageneration)))reason='metadata_missing';
+  else if(item.category==='newsletters'&&!await newsletterOwned(metadata,item.path))reason='newsletter_storage_unverified';
+  else if(item.category!=='newsletters'&&(!metadata.metadata?.securityVersion||!metadata.metadata?.recordId||!metadata.metadata?.collection||!/^[1-9]\d*$/.test(String(metadata.generation))||!/^[1-9]\d*$/.test(String(metadata.metageneration))))reason='metadata_missing';
   else if(metadata.name!==name||metadata.bucket!==BUCKET||!Number.isSafeInteger(Number(metadata.size))||Number(metadata.size)<0)reason='ownership_unverified';
   else if(!name.startsWith(`${FOLDERS[item.category]}/`)||!await provenance(metadata,item.path))reason='ownership_unverified';
   else if(!await deploymentReady())reason='reference_writers_unfenced';
-  else if(await shared(name,item.path))reason='shared_reference';
+  else if(await shared(name,item.path,item.category==='newsletters'?job:undefined))reason='shared_reference';
   return {...common,status:reason?(metadata?'held':'missing'):'exclusive',...(reason?{reason}:{}),...(metadata?{generation:String(metadata.generation),metageneration:String(metadata.metageneration)}:{})};
  }
  async function planRoot(job,item){
   if(!ROOTS[item.category]?.includes(item.path.split('/')[0]))return {files:[],reason:null};
   const refs=await rootRefs(item.path),listed=await list(item.category),map=new Map(listed.map(file=>[file.name,file.metadata]));
   const candidates=new Set(refs.paths);
+  // A current pointer does not own a second copy of its edition's PDF. The
+  // canonical edition manifest will delete it; edition holds propagate to both.
+  if(item.path==='newsletters/current'){const pointer=await db.doc(item.path).get(),id=pointer.data()?.id;if(typeof id==='string'&&id!=='current'&&/^[A-Za-z0-9_-]+$/.test(id)&&(await db.doc('newsletters/'+id).get()).exists)for(const name of candidates)if(name.startsWith('newsletters/'+id+'/'))candidates.delete(name);}
   for(const file of listed)if(file.metadata?.metadata?.collection===item.path.split('/')[0]&&file.metadata?.metadata?.recordId===item.path.split('/')[1])candidates.add(file.name);
   const result=[];let reason=refs.unknown.length?'ownership_unverified':null;
   for(const name of candidates){
@@ -157,7 +178,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
     for(const file of versions){const metadata=file.metadata||{},generation=String(metadata.generation);
      if(mode.softDeleted&&!metadata.softDeleteTime||!mode.softDeleted&&live.get(file.name)===generation)continue;
      const path=canonicalPath(file.name);if(!path||!/^\d+$/.test(generation))throw error('inventory_incomplete');
-     await files(job).doc(hash(`${path}\0${generation}\0retained`)).set({path,generation,category,root:'',status:'held',reason:'protected_record',bytes:Number(metadata.size)||0});
+     await files(job).doc(hash(`${path}\0${generation}\0retained`)).set({path,generation,category,root:'',status:'held',reason:'recovery_retained',bytes:Number(metadata.size)||0});
     }
    }
   }
@@ -203,7 +224,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
    }
    if(String(metadata.generation)!==file.generation||String(metadata.metageneration)!==file.metageneration||!await provenance(metadata,item.path))throw error('object_changed');
    if(await storageHeld(metadata))throw error('protected_record');
-   if(await shared(file.path,item.path))throw error('shared_reference');
+   if(await shared(file.path,item.path,item.category==='newsletters'?job:undefined))throw error('shared_reference');
    await assertRoot();if(!await verifyBarrier(job))throw error('reference_writers_unfenced');
    const attempt=await claim(job,row,file);
    try{await object.delete({ifGenerationMatch:file.generation,ifMetagenerationMatch:file.metageneration});}
@@ -219,7 +240,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   // Once generation/metageneration advances, an older conditional request can never match it again.
   if(String(metadata.generation)!==file.generation||String(metadata.metageneration)!==file.metageneration){await row.ref.update({status:'held',reason:'object_changed'});return false;}
   await assertIntent(file);
-  if(await storageHeld(metadata)||await shared(file.path,file.root))throw error('in_flight_deletion');
+  if(await storageHeld(metadata)||await shared(file.path,file.root,file.category==='newsletters'?job:undefined))throw error('in_flight_deletion');
   await object.delete({ifGenerationMatch:file.generation,ifMetagenerationMatch:file.metageneration}).catch(failure=>{if(failure.code!==404)throw failure;});
   await complete(row,file);return false;
  }

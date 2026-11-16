@@ -10,7 +10,7 @@ function mediaDeletionDisabled(inventory){
   const generic=/^(cleanupDeleted_|cleanupLateOrphanMedia$|resumeMediaCleanup$|expireMediaDrafts$)/i.test(entry)||/^(cleanupdeleted|cleanuplateorphanmedia$|resumemediacleanup$|expiremediadrafts$)/i.test(id);
   const account=/^(fulfillApprovedAccountDeletions|resumeAccountDeletions)$/.test(entry)||/^(fulfillapprovedaccountdeletions|resumeaccountdeletions)$/i.test(id);
   if(account&&(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_ACCOUNT_DELETION_ENABLED!=='false')return false;
-  return !generic||(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_MEDIA_CLEANUP_ENABLED==='false';
+  return !generic||((fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_MEDIA_CLEANUP_ENABLED==='false'&&(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_POST_DELETE_MEDIA_ENABLED!=='true');
  });
 }
 const REQUIRED_WRITERS=['manageInboxConversation','revokeInboxGroupMemberships','syncResidentDirectory','submitSafetyReport','reviewSafetyReport','newsletterApi','runNewsletterAnalysis'];

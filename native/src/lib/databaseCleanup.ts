@@ -1,7 +1,7 @@
 import {getFunctions,httpsCallable} from 'firebase/functions';
 import {app,auth} from './firebase';
 import {readCleanupJob,readCleanupScopePage,type CleanupCategory,type CleanupJob,type CleanupScopePage} from '../profile/databaseCleanupModel';
-export const CLEANUP_READ_ONLY_RELEASE=true;
+export const CLEANUP_READ_ONLY_RELEASE=false;
 export type CleanupRequest =
   | {action:'preview';categories:CleanupCategory[];requestId:string}
   | {action:'status'|'resume'|'cancel';jobId:string}

@@ -104,7 +104,7 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
     <View style={panel}>
       <View style={{flexDirection:'row',gap:8,alignItems:'center'}}><ShieldCheck size={19} color={dark?'#6ee7b7':'#047857'}/><Text style={font(14,true)}>Protected data stays protected</Text></View>
       <Text style={{...font(12),color:muted}}>Resident accounts and profiles, private messages, app settings, audit records, and unselected categories are outside this cleanup. Files without verified ownership, or shared with protected or unselected records, are held and reported.</Text>
-      <Text style={{...font(11),color:muted}}>Newsletters includes their related RSVP Events and Pinned Highlights. Preview does not authorize deletion. Leaving this screen stops status checks; it does not cancel or restart a confirmed server job.</Text>
+      <Text style={{...font(11),color:muted}}>Newsletters includes their related RSVP Events and Pinned Highlights. Preview does not authorize deletion. Keep this screen open while cleanup runs. Leaving pauses further batches; return and refresh to continue. A confirmed cleanup temporarily blocks app writes until it finishes or you cancel safely. This removes active content; backups, Firebase recovery copies and external-provider data may remain under their existing retention policies.</Text>
     </View>
   </View>;
 }
