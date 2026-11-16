@@ -23,7 +23,7 @@ async function enqueue(db, parent, eventId) {
 for (const collection of Object.keys(FOLDERS)) {
   exports[`cleanupDeleted_${collection}`] = onDocumentDeleted({ ...options, database, document: `${collection}/{recordId}`, retry: true }, async event => {
     // Narrow post-deletion path: no draft/orphan/global cleanup activation.
-    if (['marketplace_posts','discussion_feed'].includes(collection)) {
+    if (['marketplace_posts','discussion_feed','work_orders'].includes(collection)) {
       if(process.env.TOWNLOOP_POST_DELETE_MEDIA_ENABLED !== 'true')return;
       if (database !== '(default)') throw Error('post_media_scope_mismatch');
       const {deletedPostJob,handleDeletedPost}=require('./postMediaCleanup.cjs');

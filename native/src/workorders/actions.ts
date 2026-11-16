@@ -1,3 +1,4 @@
+import {authorizeReferences} from '../media/authorizeReferences';
 import {runBudgetedTransaction} from "../../../src/security/abuseBudget";
 import { allocateWorkOrder } from "../../../src/data/allocateWorkOrder";
 import {
@@ -35,6 +36,7 @@ export async function submitWorkOrder(
     const user = await approvedUser();
     if (!canCreateWorkOrder(user))
       throw new Error("This role cannot submit maintenance requests.");
+    await authorizeReferences("work_orders",id,{photos:draft.photos});
     const reference = doc(db, "work_orders", id);
     await allocateWorkOrder(db, reference, {
         title: draft.title.trim(),
@@ -67,6 +69,7 @@ export async function changeWorkOrder(
 ) {
   return runWorkOrder(`order:${id}`, async () => {
     const user = await approvedUser();
+    if(photo)await authorizeReferences("work_orders",id,{photo});
     const reference = doc(db, "work_orders", id);
     await runBudgetedTransaction(db, String(user.id), async (tx) => {
       const snap = await tx.get(reference);
@@ -152,6 +155,7 @@ export async function editWorkOrder(id:string, draft:{title:string;description:s
     if (!draft.title.trim()) throw Error('Please describe what needs fixing.');
     if (draft.title.trim().length > 1000 || draft.description.trim().length > 20000) throw Error('Please shorten the request text.');
     const user = await approvedUser();
+    await authorizeReferences('work_orders',id,{photos:draft.photos});
     const reference = doc(db,'work_orders',id);
     await runBudgetedTransaction(db, String(user.id),async tx => {
       const snap = await tx.get(reference);

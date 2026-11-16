@@ -12,7 +12,6 @@ import {
   Pressable,
   FlatList,
   View,
-  Share,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,7 +25,6 @@ import {
   Send,
   CheckCircle2,
   RotateCcw,
-  Share2,
 } from "lucide-react-native";
 import type {
   UserProfile,
@@ -1017,7 +1015,6 @@ export function Detail({
 }) {
   const now=useMinuteNow(kind==='post');
   const [revealContentY,setRevealContentY]=useState<number|undefined>();
-  const [shareError, setShareError] = useState("");
   const [pendingDelete,setPendingDelete]=useState<string|null>(null);
   const post = kind === "post" ? (item as Post) : null;
   const listing = kind === "listing" ? (item as Listing) : null;
@@ -1030,7 +1027,7 @@ export function Detail({
       busy={busy}
       initiallyFull
     >
-      {!!(error || shareError) && <ErrorNotice message={error || shareError} />}
+      {!!error && <ErrorNotice message={error} />}
       <View style={[s.row, { alignItems: "flex-start", flexWrap: "nowrap" }]}>
         <Copy weight="bold" style={{ flex: 1, minWidth: 0, fontSize: listing ? 21 : 20, lineHeight: 29 }}>
           {item.title}
@@ -1081,15 +1078,6 @@ export function Detail({
       <View style={[s.row, { justifyContent: "space-between", flexWrap: "nowrap" }]}>
         <Copy weight="bold" style={{ flex: 1, minWidth: 0 }}>{item.comments?.length || 0} Comments</Copy>
         <View style={{flexDirection:"row",alignItems:"center",gap:8,flexShrink:0}}>
-        <Action
-          label="Share post"
-          icon={Share2}
-          tone="light"
-          onPress={() => void Share.share({
-            title: item.title,
-            message: `${item.title}\n${post?.content || listing?.description || ""}`,
-          }).catch(() => setShareError("Unable to share this item. Please try again."))}
-        />
           <SafetyActions target={{kind:kind==='post'?'post':'listing',id:String(item.id),authorId:String(item.authorId || "")}}/>
         </View>
       </View>

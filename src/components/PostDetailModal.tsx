@@ -12,12 +12,10 @@ import {
   X,
   Heart,
   MessageSquare,
-  Share2,
   Tag,
   Clock,
   User,
   Send,
-  Check,
   Play,
   Film,
   Sparkles,
@@ -62,7 +60,6 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
 }) => {
   const [newCommentText, setNewCommentText] = useState('');
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isFullscreenMediaOpen, setIsFullscreenMediaOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -114,11 +111,6 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
     } finally {
       submittingRef.current = false;
     }
-  };
-
-  const handleShare = () => {
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   return (
@@ -260,17 +252,6 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 </button>
               )
             )}
-            <button
-              onClick={handleShare}
-              className="p-2 rounded-full hover:bg-stone-200/70 dark:hover:bg-slate-800 text-stone-500 dark:text-slate-400 hover:text-stone-800 dark:hover:text-slate-200 transition cursor-pointer"
-              title="Share post"
-            >
-              {copiedLink ? (
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <Share2 className="w-4 h-4" />
-              )}
-            </button>
             <button
               onClick={handleClose}
               className="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-slate-800 text-stone-500 dark:text-slate-400 hover:text-stone-800 dark:hover:text-slate-200 transition cursor-pointer"

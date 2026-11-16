@@ -1,3 +1,4 @@
+import {authorizeReferences} from '../media/authorizeReferences';
 import {runBudgetedTransaction} from "../../../src/security/abuseBudget";
 import {refreshBadge} from '../notifications/device';
 import { mutateSocial } from "../../../src/services/socialIntegrity";
@@ -38,6 +39,7 @@ export async function publishSocial(
     if (!draft.title.trim() || !draft.description.trim())
       throw Error("Please provide a title and description.");
     const user = await approvedUser();
+    await authorizeReferences(collectionFor(kind),id,{media:draft.media});
     const reference = doc(db, collectionFor(kind), id);
     await runBudgetedTransaction(db, String(user.id), async (tx) => {
       const previous = await tx.get(reference);
@@ -116,6 +118,7 @@ export async function editListing(id: string, draft: {title:string;description:s
     if (!draft.title.trim() || !draft.description.trim()) throw Error('Please provide a title and description.');
     if (draft.title.trim().length > 1000 || draft.description.trim().length > 20000) throw Error('Please shorten the listing text.');
     const user = await approvedUser();
+    await authorizeReferences('marketplace_posts',id,{media:draft.media});
     const reference = doc(db, 'marketplace_posts', id);
     await runBudgetedTransaction(db, String(user.id), async tx => {
       const snap = await tx.get(reference);

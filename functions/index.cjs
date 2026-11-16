@@ -61,3 +61,8 @@ Object.assign(exports, require('./inbox-groups-entry.cjs'));
 const postDeletionTriggers = require('./mediaCleanup.cjs');
 exports.cleanupDeleted_marketplace_posts = postDeletionTriggers.cleanupDeleted_marketplace_posts;
 exports.cleanupDeleted_discussion_feed = postDeletionTriggers.cleanupDeleted_discussion_feed;
+
+// Reuse existing upload callable for per-record attachment ownership validation.
+exports.issueMediaUpload = require('./media-upload-entry.cjs').issueMediaUpload;
+exports.cleanupDeleted_work_orders = postDeletionTriggers.cleanupDeleted_work_orders;
+exports.completeMediaUpload = require('./media-upload-entry.cjs').completeMediaUpload;
