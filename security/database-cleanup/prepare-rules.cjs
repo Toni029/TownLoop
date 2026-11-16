@@ -4,7 +4,7 @@ const {createHash} = require('node:crypto');
 
 const BASELINE_SHA256 = '4d1c449fc847c8273efdee3b813d16a1e996dd0fdfc766e3cfb09c4ace8eb6d0';
 const STORAGE_BASELINE_SHA256 = '9aac5f82b7e31fef034b92340714136ec943232de88b1a0076c001331958c3e9';
-const ROOTS = ['work_orders', 'discussion_feed', 'posts', 'marketplace_posts', 'marketItems',
+const ROOTS = ['work_orders', 'discussion_feed', 'posts', 'marketplace_posts', 'marketItems', 'marketplace_chats',
   'newsletters', 'community_events', 'community_highlights', 'newsletter_analysis_jobs'];
 const sha256 = source => createHash('sha256').update(source).digest('hex');
 const HELPER = `
@@ -28,7 +28,7 @@ const HELPER = `
       return (!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
         get(/databases/$(database)/documents/database_cleanup_control/active).data.get('referenceWritesBlocked', false) != true) &&
         (!(rootCollection in ['work_orders', 'discussion_feed', 'posts', 'marketplace_posts',
-          'marketItems', 'newsletters', 'community_events', 'community_highlights', 'newsletter_analysis_jobs']) ||
+          'marketItems', 'marketplace_chats', 'newsletters', 'community_events', 'community_highlights', 'newsletter_analysis_jobs']) ||
         ((!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
           !(rootCollection in get(/databases/$(database)/documents/database_cleanup_control/active).data.get('collections', []))) &&
          (rootCollection in ['community_events', 'community_highlights'] ? databaseCleanupDerivedWriteAllowed() :

@@ -52,6 +52,7 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
             return <View key={category.key} style={{gap:6,borderTopWidth:1,borderColor:border,paddingTop:12,marginTop:4}}>
               <Text style={font(14,true)}>{category.label}</Text>
               <Text style={{...font(12),color:muted}}>{`${count.records.toLocaleString()} records · ${count.documents.toLocaleString()} documents in inventory`}</Text>
+              {category.key==='marketplace'&&<Text style={{...font(12),color:muted}}>Includes verified buyer–seller conversations and their messages/media: {(count.conversations??0).toLocaleString()} conversations · {(count.conversationsDeleted??0).toLocaleString()} deleted · {(count.conversationsRemaining??0).toLocaleString()} remaining</Text>}
               <View style={{flexDirection:'row',flexWrap:'wrap',columnGap:16,rowGap:4}}>
                 <Text style={font(12)}>{count.deleted.toLocaleString()} documents deleted</Text>
                 <Text style={font(12)}>{count.held.toLocaleString()} records held</Text>
@@ -103,7 +104,7 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
     </>}
     <View style={panel}>
       <View style={{flexDirection:'row',gap:8,alignItems:'center'}}><ShieldCheck size={19} color={dark?'#6ee7b7':'#047857'}/><Text style={font(14,true)}>Protected data stays protected</Text></View>
-      <Text style={{...font(12),color:muted}}>Resident accounts and profiles, private messages, app settings, audit records, and unselected categories are outside this cleanup. Files without verified ownership, or shared with protected or unselected records, are held and reported.</Text>
+      <Text style={{...font(12),color:muted}}>Resident accounts and profiles, ordinary Inbox messages, app settings, audit records, and unselected categories are outside this cleanup. Marketplace cleanup includes verified listing-associated buyer–seller conversations. Files without verified ownership, or shared with protected or unselected records, are held and reported.</Text>
       <Text style={{...font(11),color:muted}}>Newsletters includes their related RSVP Events and Pinned Highlights. Preview does not authorize deletion. Keep this screen open while cleanup runs. Leaving pauses further batches; return and refresh to continue. A confirmed cleanup temporarily blocks app writes until it finishes or you cancel safely. This removes active content; backups, Firebase recovery copies and external-provider data may remain under their existing retention policies.</Text>
     </View>
   </View>;

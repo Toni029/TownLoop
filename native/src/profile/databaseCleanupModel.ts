@@ -6,7 +6,7 @@ export const CLEANUP_CATEGORIES = [
 ] as const;
 export type CleanupCategory = typeof CLEANUP_CATEGORIES[number]['key'];
 export type CleanupState = 'planning'|'review'|'queued'|'running'|'paused'|'completed'|'completed_with_holds'|'failed'|'cancelled';
-export type CleanupCount = {records:number;documents:number;deleted:number;held:number;failed:number;remaining:number;storageDeleted:number;storageHeld:number};
+export type CleanupCount = {records:number;documents:number;deleted:number;held:number;failed:number;remaining:number;storageDeleted:number;storageHeld:number;conversations?:number;conversationsDeleted?:number;conversationsRemaining?:number};
 export type CleanupStorageScope = {files:number;bytes:number;exclusive:number;held:number;missing:number;remaining:number;reasons:{code:string;count:number}[]};
 export type CleanupScopeItem = {path:string;category:CleanupCategory;status:'exclusive'|'held'|'missing'|'deleted';bytes:number;reason?:string;generation?:string};
 export type CleanupScopePage = {items:CleanupScopeItem[];nextCursor?:string};
@@ -64,6 +64,7 @@ export function readCleanupJob(value:unknown):CleanupJob {
     const count=job.counts[key];
     if(!count || !['records','documents','deleted','held','failed','remaining','storageDeleted','storageHeld'].every(field=>Number.isSafeInteger(count[field as keyof CleanupCount]) && count[field as keyof CleanupCount]>=0)) return invalid();
   }
+  for(const key of job.categories)for(const field of ['conversations','conversationsDeleted','conversationsRemaining'] as const){const value=job.counts[key]?.[field];if(value!==undefined&&(!Number.isSafeInteger(value)||value<0))return invalid();}
   if(job.storageScope!==undefined) {
     if(!job.storageScope || typeof job.storageScope!=='object' || Array.isArray(job.storageScope))return invalid();
     for(const [key,scope] of Object.entries(job.storageScope)) {
@@ -82,7 +83,7 @@ export function cleanupStorageReason(code:string):string {
     read_only_execution_disabled:'Ownership metadata matches; exclusivity is not certified in read-only mode',shared_reference:'Shared with another record',metadata_missing:'Object metadata is missing',ownership_unverified:'Ownership could not be verified',
     recovery_retained:'Backup or recovery generation retained; active file removal is separate',protected_record:'Referenced by protected data',reference_writers_unfenced:'Reference writers are not yet fenced; file deletion is blocked',
     object_changed:'Object changed after inventory',inventory_incomplete:'Inventory is incomplete',active_analysis:'Analysis is still active',
-    newsletter_storage_unverified:'Newsletter file ownership is unverified',file_missing:'File is missing',
+    protected_marketplace_dependency:'Listing or associated conversation is protected',marketplace_conversation_unverified:'Conversation listing relationship could not be verified',marketplace_mixed_content:'Conversation contains conflicting or unrelated structured content',newsletter_storage_unverified:'Newsletter file ownership is unverified',file_missing:'File is missing',
   };
   return Object.hasOwn(reasons,code)?reasons[code]:'File retained for an unrecognized safety reason';
 }

@@ -2,14 +2,14 @@
 // Default-database only. No production activation is implied by importing this module.
 const {createHash,randomUUID}=require('node:crypto');
 const {FieldPath}=require('firebase-admin/firestore');
-const CATEGORIES=Object.freeze({workOrders:['work_orders','work_order_numbers'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
+const CATEGORIES=Object.freeze({workOrders:['work_orders','work_order_numbers'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems','marketplace_chats'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
 const PHRASE='DELETE SELECTED DATA';
 const TERMINAL=new Set(['completed','completed_with_holds','cancelled']);
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const version=doc=>doc.exists?`${doc.updateTime.seconds}:${doc.updateTime.nanoseconds}`:null;
 // PDF data is deliberately excluded: planning neither decodes nor copies PDF chunks.
-const FIELDS=['role','approved','deletionPending','legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','orderId','id','state','status','leaseUntil','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt','photoUrl','photos','media','mediaUrl','itemMediaUrl','imageUrl','attachmentUrl','attachments','fileUrl','pdfUrl','pageImages','url','storagePath','comments','messages'];
-const zero=()=>({records:0,documents:0,deleted:0,held:0,failed:0,remaining:0,storageDeleted:0,storageHeld:0});
+const FIELDS=['role','approved','deletionPending','legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','itemId','sellerId','buyerId','participantIds','listingId','listingIds','relatedListingIds','unrelatedContent','conversationType','groupConversationId','senderId','authorId','isSystem','orderId','userId','id','state','status','leaseUntil','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt','photoUrl','photos','media','mediaUrl','itemMediaUrl','imageUrl','attachmentUrl','attachments','fileUrl','pdfUrl','pageImages','url','storagePath','comments','messages'];
+const zero=()=>({records:0,documents:0,deleted:0,held:0,failed:0,remaining:0,storageDeleted:0,storageHeld:0,conversations:0,conversationsDeleted:0,conversationsRemaining:0});
 class CleanupError extends Error{constructor(code,message){super(message);this.code=code;}}
 const fail=(code,message)=>{throw new CleanupError(code,message);};
 function protectedRecord(data,now){
@@ -114,23 +114,29 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   }));
  }
  async function tree(path){
-  const documents=[];const media=new Set();let hold=false;let names=0;
+  const rootPath=path;let chat;
+  if(path.startsWith('marketplace_chats/'))chat=(await db.doc(path).get()).data();
+  const documents=[];const media=new Set();let hold=false,mixed=false;let names=0;
   async function visit(path,depth){
    if(depth>8||++names>1000)throw Error('nested_inventory_bound');
    const ref=db.doc(path);const [snap]=await db.getAll(ref,{fieldMask:FIELDS});
-   if(snap.exists){const data=snap.data();documents.push({path,version:version(snap)});hold=hold||protectedRecord(data,now());for(const key of mediaReferences(data))media.add(key);}
+   if(snap.exists){const data=snap.data();documents.push({path,version:version(snap)});hold=hold||protectedRecord(data,now());if(chat)mixed=mixed||require('./databaseCleanupMarketplace.cjs').mixedMarketplaceData(data,rootPath.split('/')[1],chat.itemId,[chat.sellerId,chat.buyerId]);for(const key of mediaReferences(data))media.add(key);}
    const collections=await ref.listCollections();if(collections.length>50)throw Error('nested_inventory_bound');
    for(const collection of collections){let token='';do{const page=await listPage(collection.path,token,25);for(const child of page.paths)await visit(child,depth+1);token=page.next;}while(token);}
   }
   await visit(path,0);documents.sort((a,b)=>b.path.split('/').length-a.path.split('/').length||a.path.localeCompare(b.path));
-  return {documents,media:[...media],hold};
+  return {documents,media:[...media],hold,mixed};
  }
  async function hasActiveAnalysis(){
   const rows=await db.collection('newsletter_analysis_jobs').where('state','in',['queued','running','retrying']).limit(1).get();return !rows.empty;
  }
- async function classification(path,category){
+ async function classification(path,category,job){
   const [collection,id]=path.split('/'),[snap]=await db.getAll(db.doc(path),{fieldMask:FIELDS}),data=snap.data()||{};
   const reports=await db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1).get();
+  if(collection==='marketplace_chats'){
+   const binding=await require('./databaseCleanupMarketplace.cjs').marketplaceBinding(db,id,data,job?.id);
+   return {...binding,...(!reports.empty?{reason:'reported_evidence'}:{})};
+  }
   if(!reports.empty)return {reason:'reported_evidence'};
   if(collection==='work_order_numbers'){
    if(typeof data.orderId!=='string'||!data.orderId||data.orderId.includes('/'))return {reason:'work_order_attribution_unverified'};
@@ -174,26 +180,28 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const scope=job.scan[job.scanIndex],page=await listPage(scope.collection,job.pageToken),path=page.paths[0];
   if(!path)return checkpoint(job,{scanIndex:job.scanIndex+1,pageToken:''});
   const itemRef=jobRef(job.id).collection('items').doc(hash(path));
-  const kind=await classification(path,scope.category);
+  const kind=await classification(path,scope.category,job);
   const advance={scanIndex:page.next?job.scanIndex:job.scanIndex+1,pageToken:page.next||''};
   if(kind.skip)return checkpoint(job,advance);
-  const inventory=await tree(path),reason=kind.reason||(inventory.hold?'retention_or_evidence_hold':inventory.media.length&&!media?'storage_exclusivity_unverified':null);
-  const [root]=await db.getAll(db.doc(path),{fieldMask:['newsletterId','id']});
+  const inventory=await tree(path),reason=kind.reason||(inventory.mixed?'marketplace_mixed_content':inventory.hold?'retention_or_evidence_hold':inventory.media.length&&!media?'storage_exclusivity_unverified':null);
+  const [root]=await db.getAll(db.doc(path),{fieldMask:['newsletterId','id','userId','authorId']});
   const newsletterId=scope.category==='newsletters'?(scope.collection==='newsletters'?(root.id==='current'?root.data()?.id:root.id):root.data()?.newsletterId):null;
-  const item={path,category:scope.category,newsletterId:typeof newsletterId==='string'?newsletterId:null,documents:inventory.documents,storageHeld:inventory.media.length,reason,state:reason?'held':'pending',cursor:0};
+  const listingId=scope.category==='marketplace'?(scope.collection==='marketplace_chats'?kind.listingId:root.id):null;
+  const listingOwnerUid=scope.category==='marketplace'?(scope.collection==='marketplace_chats'?kind.listingOwnerUid:root.data()?.userId??root.data()?.authorId):null;
+  const item={path,category:scope.category,listingId:listingId||null,listingOwnerUid:listingOwnerUid||null,newsletterId:typeof newsletterId==='string'?newsletterId:null,documents:inventory.documents,storageHeld:inventory.media.length,reason,state:reason?'held':'pending',cursor:0};
   if(media){const result=await media.planRoot(job,item);if(result.reason&&!item.reason){item.reason=result.reason;item.state='held';}item.storageHeld=result.files.filter(file=>file.status!=='exclusive').length;}
   if(Buffer.byteLength(JSON.stringify(item))>650000)throw Error('nested_inventory_bound');
-  const counts=structuredClone(job.counts),count=counts[scope.category];count.records++;count.documents+=inventory.documents.length;count.remaining+=inventory.documents.length;
+  const counts=structuredClone(job.counts),count=counts[scope.category];count.records++;if(scope.collection==='marketplace_chats'){count.conversations++;count.conversationsRemaining++;}count.documents+=inventory.documents.length;count.remaining+=inventory.documents.length;
   if(item.reason){count.held++;count.storageHeld+=item.storageHeld;}
-  return checkpoint(job,{...advance,counts,digest:hash(job.digest+JSON.stringify(item))},tx=>{tx.create(itemRef,item);if(item.reason&&item.newsletterId)tx.set(jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)),{reason:item.reason});});
+  return checkpoint(job,{...advance,counts,digest:hash(job.digest+JSON.stringify(item))},tx=>{tx.create(itemRef,item);if(item.reason&&item.newsletterId)tx.set(jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)),{reason:item.reason});if(item.reason&&item.listingId)tx.set(jobRef(job.id).collection('marketplace_holds').doc(hash(item.listingId)),{reason:item.reason});});
  }
  async function propagateNewsletterHolds(job){
   let query=jobRef(job.id).collection('items').orderBy(FieldPath.documentId()).limit(1);
   if(job.dependencyCursor)query=query.startAfter(job.dependencyCursor);
   const rows=await query.get();if(rows.empty)return checkpoint(job,{dependenciesChecked:true});
   const row=rows.docs[0],item=row.data();
-  const blocked=item.newsletterId&&(await jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)).get()).exists;
-  if(item.state==='pending'&&blocked){if(media)await media.holdRoot(job,item,'protected_newsletter_dependency');const counts=structuredClone(job.counts);counts[item.category].held++;return checkpoint(job,{dependencyCursor:row.id,counts},tx=>tx.update(row.ref,{state:'held',reason:'protected_newsletter_dependency'}));}
+  const blocked=item.newsletterId&&(await jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)).get()).exists||item.listingId&&(await jobRef(job.id).collection('marketplace_holds').doc(hash(item.listingId)).get()).exists;
+  if(item.state==='pending'&&blocked){if(media)await media.holdRoot(job,item,(item.listingId?'protected_marketplace_dependency':'protected_newsletter_dependency'));const counts=structuredClone(job.counts);counts[item.category].held++;return checkpoint(job,{dependencyCursor:row.id,counts},tx=>tx.update(row.ref,{state:'held',reason:(item.listingId?'protected_marketplace_dependency':'protected_newsletter_dependency')}));}
   return checkpoint(job,{dependencyCursor:row.id});
  }
  async function protectChanged(job,itemRef,item,reason){
@@ -208,12 +216,12 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const row=rows.docs[0],item=row.data(),[collection,id]=item.path.split('/');job.currentCategory=item.category;job.currentPath=item.path;
   if(!CATEGORIES[item.category]?.includes(collection)||item.path.split('/').length!==2)throw Error('manifest_scope_invalid');
   if(item.state==='pending'){
-   const current=await tree(item.path),kind=await classification(item.path,item.category);
+   const current=await tree(item.path),kind=await classification(item.path,item.category,job);
    // Newsletter-linked data can refer to a deleted edition only if it was proven in this exact confirmed plan.
    const [currentRoot]=await db.getAll(db.doc(item.path),{fieldMask:['newsletterId','isAiExtracted']});
    const knownLink=item.newsletterId&&currentRoot.data()?.newsletterId===item.newsletterId&&currentRoot.data()?.isAiExtracted===true;
    const reason=kind.reason==='newsletter_attribution_unverified'&&knownLink&&['community_events','community_highlights'].includes(collection)?null:kind.reason;
-   if(reason||current.hold||(!media&&current.media.length)||JSON.stringify(current.documents)!==JSON.stringify(item.documents))return protectChanged(job,row.ref,item,reason||'record_changed_after_preview');
+   if(reason||current.hold||current.mixed||(!media&&current.media.length)||JSON.stringify(current.documents)!==JSON.stringify(item.documents))return protectChanged(job,row.ref,item,reason||'record_changed_after_preview');
    await db.runTransaction(async tx=>{
     const [snap,lock,profile,revoked,analyses]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(db.doc(`users/${job.operatorUid}`)),tx.get(db.doc(`account_access_revocations/${job.operatorUid}`)),item.category==='newsletters'?tx.get(db.collection('newsletter_analysis_jobs').where('state','in',['queued','running','retrying']).limit(1)):Promise.resolve(null)]);
     if(snap.data()?.lease!==job.lease||lock.data()?.jobId!==job.id||profile.data()?.role!=='admin'||!profile.data()?.approved||revoked.exists)throw Error('cleanup_authorization_changed');
@@ -262,6 +270,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
     if(doc.exists){tx.delete(doc.ref);deleted++;}
    }
    const cursor=item.cursor+batch.length,done=cursor===item.documents.length;
+   if(done&&collection==='marketplace_chats'){latest.counts[item.category].conversationsDeleted=(latest.counts[item.category].conversationsDeleted||0)+1;latest.counts[item.category].conversationsRemaining=Math.max(0,(latest.counts[item.category].conversationsRemaining||0)-1);}
    latest.counts[item.category].deleted+=deleted;latest.counts[item.category].remaining=Math.max(0,latest.counts[item.category].remaining-deleted);
    latest.state='running';latest.leaseUntil=0;latest.updatedAt=now();
    tx.update(row.ref,{cursor,state:done?'deleted':'deleting'});tx.set(jobRef(job.id),latest);
@@ -275,10 +284,10 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   if(media&&!await media.settle(job,async file=>assertIntent(job,file)))return checkpoint(job,{state:'running',message:'Resolving an already-started file operation.'});
   // Final inventory is also checkpointed: no unbounded end-of-job collection scan.
   const counts=structuredClone(job.counts);
-  if(job.verifyIndex===undefined){for(const category of job.categories)counts[category].remaining=0;return checkpoint(job,{verifyIndex:0,verifyPageToken:'',counts});}
+  if(job.verifyIndex===undefined){for(const category of job.categories){counts[category].remaining=0;if(category==='marketplace')counts[category].conversationsRemaining=0;}return checkpoint(job,{verifyIndex:0,verifyPageToken:'',counts});}
   if(job.verifyIndex<job.scan.length){
    const scope=job.scan[job.verifyIndex],page=await listPage(scope.collection,job.verifyPageToken);
-   for(const path of page.paths){const kind=await classification(path,scope.category);if(kind.skip)continue;const current=await tree(path);counts[scope.category].remaining+=current.documents.length;}
+   for(const path of page.paths){const kind=await classification(path,scope.category,job);if(kind.skip)continue;const current=await tree(path);if(scope.collection==='marketplace_chats'&&current.documents.some(d=>d.path===path))counts[scope.category].conversationsRemaining++;counts[scope.category].remaining+=current.documents.length;}
    return checkpoint(job,{counts,verifyIndex:page.next?job.verifyIndex:job.verifyIndex+1,verifyPageToken:page.next||''});
   }
   if(media)await media.verifyRemaining(job);

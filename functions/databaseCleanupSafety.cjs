@@ -1,5 +1,5 @@
 'use strict';
-const PINS=Object.freeze({project:'cc-livingcommunity-app',database:'(default)',namedDatabase:'ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb',bucket:'cc-livingcommunity-app.firebasestorage.app',defaultRulesSha256:'3f4a221d543783499b0b0cd53369f2177f6137fb5d3f8446137309f6ac941360',namedRulesSha256:'8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d',storageRulesSha256:'06d24519f84deb79f2cd6d24248f1ac45242e841cdd69d2ac56a5b3ee4fcbdae'});
+const PINS=Object.freeze({project:'cc-livingcommunity-app',database:'(default)',namedDatabase:'ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb',bucket:'cc-livingcommunity-app.firebasestorage.app',defaultRulesSha256:'ee68e66da3e7e4e55546e77790ca674ca4c550e1ea816aa54b5902dfaded3c42',namedRulesSha256:'8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d',storageRulesSha256:'06d24519f84deb79f2cd6d24248f1ac45242e841cdd69d2ac56a5b3ee4fcbdae'});
 function validatePolicy(policy){return policy?.ownerApproved===true&&policy.version===2&&Object.entries(PINS).every(([key,value])=>policy[key]===value)&&policy.storageMode==='exclusive-generation-fenced-v2'&&policy.genericMediaCleanupDisabledAcknowledged===true;}
 /** Fail closed on incomplete inventory or a live generic reaper that could be triggered indirectly. */
 function mediaDeletionDisabled(inventory){

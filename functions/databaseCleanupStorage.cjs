@@ -4,7 +4,7 @@ const {FieldPath}=require('firebase-admin/firestore');
 const {trustedMedia}=require('./mediaCleanupPolicy.cjs');
 const BUCKET='cc-livingcommunity-app.firebasestorage.app';
 const FOLDERS={workOrders:'work_orders',discussion:'feed',marketplace:'marketplace',newsletters:'newsletters'};
-const ROOTS={workOrders:['work_orders'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems'],newsletters:['newsletters']};
+const ROOTS={workOrders:['work_orders'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems','marketplace_chats'],newsletters:['newsletters']};
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const error=reason=>Object.assign(Error(reason),{cleanupHold:reason});
 function canonicalPath(value){
@@ -73,7 +73,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   for(const source of databases){
    const pager=listPage(source);const roots=await source.listCollections();
    const selected=new Set([ownerRoot]);
-   if(job){const candidates=await db.collection('database_cleanup_jobs').doc(job.id).collection('items').where('category','==','newsletters').limit(1001).get();if(candidates.size>1000)throw error('inventory_incomplete');for(const row of candidates.docs)if(['pending','deleting','deleted'].includes(row.data().state))selected.add(row.data().path);}
+   if(job){const candidates=await db.collection('database_cleanup_jobs').doc(job.id).collection('items').where('category','==',job.categories.includes('marketplace')&&ownerRoot.startsWith('market')?'marketplace':'newsletters').limit(1001).get();if(candidates.size>1000)throw error('inventory_incomplete');for(const row of candidates.docs)if(['pending','deleting','deleted'].includes(row.data().state))selected.add(row.data().path);}
    async function visit(collection){
     let token='';do{
      const page=await pager(collection,token,25);
@@ -82,13 +82,17 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
       if(source===db&&[...selected].some(root=>path===root||path.startsWith(root+'/')))continue;
       // Edition dependencies are fully inventoried before confirmation; execution
       // skips only confirmed, unheld manifest roots above.
-      if(source===db&&job&&!job.confirmedAt&&path.startsWith('newsletters/'))continue;
+      if(source===db&&job&&!job.confirmedAt&&ownerRoot.startsWith('newsletters/')&&path.startsWith('newsletters/'))continue;
       const ref=source.doc(path);
       // Native PDF chunks cannot carry attachment references. Their payload is never fetched.
       const [snapshot]=await source.getAll(ref,...(/^newsletters\/[^/]+\/chunks\/[^/]+$/.test(path)?[{fieldMask:['index','totalChunks']}]:[]));
       if(snapshot.exists){const data={...snapshot.data()};
-       // Only the listing summary is disposable; private chat media/text still protects files.
-       if(source===db&&ownerRoot.startsWith('marketplace_posts/')&&path.split('/').length===2&&path.startsWith('marketplace_chats/')&&data.itemId===ownerRoot.split('/')[1])delete data.itemMediaUrl;
+       if(source===db&&job&&!job.confirmedAt&&job.categories.includes('marketplace')&&path.split('/').length===2&&path.startsWith('marketplace_chats/')){
+        const {marketplaceBinding,mixedMarketplaceData}=require('./databaseCleanupMarketplace.cjs');
+        const binding=await marketplaceBinding(db,path.split('/')[1],data,job.id);
+        const reports=await db.collection('moderation_reports').where('collection','==','marketplace_chats').where('id','==',path.split('/')[1]).limit(1).get();
+        if(!binding.reason&&!require('./databaseCleanup.cjs').protectedRecord(data,Date.now())&&reports.empty&&!mixedMarketplaceData(data,path.split('/')[1],data.itemId,[data.sellerId,data.buyerId]))continue;
+       }
        if(references(data).paths.includes(name))return true;
       }
       const children=await ref.listCollections();if(children.length>50)throw error('inventory_incomplete');
@@ -122,8 +126,15 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
    metadata?.name===`newsletters/${edition}/document.pdf`&&metadata.contentType==='application/pdf'&&
    /^[1-9]\d*$/.test(String(metadata.generation))&&/^[1-9]\d*$/.test(String(metadata.metageneration));
  }
- async function provenance(metadata,path){
-  const [collection,recordId]=path.split('/');if(collection==='newsletters')return newsletterOwned(metadata,path);const cutover=typeof trustedAfter==='function'?await trustedAfter():trustedAfter;if(!Number.isFinite(cutover)||cutover<=0)return false;
+ async function provenance(metadata,path,job){
+  const [collection,recordId]=path.split('/');if(collection==='newsletters')return newsletterOwned(metadata,path);
+  if(collection==='marketplace_chats'){
+   const data=(await db.doc(path).get()).data();if(!data)return false;
+   const proof=metadata.metadata||{},cutover=typeof trustedAfter==='function'?await trustedAfter():trustedAfter;
+   const binding=await require('./databaseCleanupMarketplace.cjs').marketplaceBinding(db,recordId,data,job?.id);
+   return !binding.reason&&proof.securityVersion==='1'&&proof.collection==='marketplace_chats'&&proof.recordId===recordId&&[data.sellerId,data.buyerId].includes(proof.uploadedBy)&&(!proof.databaseId||proof.databaseId==='(default)')&&Number.isFinite(cutover)&&Date.parse(metadata.timeCreated)>=cutover;
+  }
+  const cutover=typeof trustedAfter==='function'?await trustedAfter():trustedAfter;if(!Number.isFinite(cutover)||cutover<=0)return false;
   const policy={ownerApproved:true,approvalReference:'database-cleanup-v2',trustedUploadsAfter:{toMillis:()=>cutover},storageRulesSha256:require('./deletionMediaProvenance.json').storageRulesSha256,collections:{[collection]:{action:'delete_linked_media_on_parent_deletion',reason:'Separately confirmed category cleanup'}}};
   return trustedMedia(metadata,{collection,recordId,uid:metadata.metadata?.uploadedBy,databaseId:'(default)'},policy);
  }
@@ -136,9 +147,9 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   else if(item.category==='newsletters'&&!await newsletterOwned(metadata,item.path))reason='newsletter_storage_unverified';
   else if(item.category!=='newsletters'&&(!metadata.metadata?.securityVersion||!metadata.metadata?.recordId||!metadata.metadata?.collection||!/^[1-9]\d*$/.test(String(metadata.generation))||!/^[1-9]\d*$/.test(String(metadata.metageneration))))reason='metadata_missing';
   else if(metadata.name!==name||metadata.bucket!==BUCKET||!Number.isSafeInteger(Number(metadata.size))||Number(metadata.size)<0)reason='ownership_unverified';
-  else if(!name.startsWith(`${FOLDERS[item.category]}/`)||!await provenance(metadata,item.path))reason='ownership_unverified';
+  else if(!name.startsWith(`${FOLDERS[item.category]}/`)||!await provenance(metadata,item.path,job))reason='ownership_unverified';
   else if(!await deploymentReady())reason='reference_writers_unfenced';
-  else if(await shared(name,item.path,item.category==='newsletters'?job:undefined))reason='shared_reference';
+  else if(await shared(name,item.path,['newsletters','marketplace'].includes(item.category)?job:undefined))reason='shared_reference';
   return {...common,status:reason?(metadata?'held':'missing'):'exclusive',...(reason?{reason}:{}),...(metadata?{generation:String(metadata.generation),metageneration:String(metadata.metageneration)}:{})};
  }
  async function planRoot(job,item){
@@ -149,6 +160,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   // canonical edition manifest will delete it; edition holds propagate to both.
   if(item.path==='newsletters/current'){const pointer=await db.doc(item.path).get(),id=pointer.data()?.id;if(typeof id==='string'&&id!=='current'&&/^[A-Za-z0-9_-]+$/.test(id)&&(await db.doc('newsletters/'+id).get()).exists)for(const name of candidates)if(name.startsWith('newsletters/'+id+'/'))candidates.delete(name);}
   for(const file of listed)if(file.metadata?.metadata?.collection===item.path.split('/')[0]&&file.metadata?.metadata?.recordId===item.path.split('/')[1])candidates.add(file.name);
+  if(item.path.startsWith('marketplace_chats/'))for(const name of candidates){const m=map.get(name)?.metadata;if(['marketplace_posts','marketItems'].includes(m?.collection)&&m.recordId===item.listingId)candidates.delete(name);}
   const result=[];let reason=refs.unknown.length?'ownership_unverified':null;
   for(const name of candidates){
    // Out-of-category object references protect their root; never enter a deletion manifest for another category.
@@ -222,9 +234,9 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
     if(failure.code===404&&file.status==='deleting'){await complete(row,file);continue;}
     if(failure.code===404)throw error('file_missing');throw failure;
    }
-   if(String(metadata.generation)!==file.generation||String(metadata.metageneration)!==file.metageneration||!await provenance(metadata,item.path))throw error('object_changed');
+   if(String(metadata.generation)!==file.generation||String(metadata.metageneration)!==file.metageneration||!await provenance(metadata,item.path,job))throw error('object_changed');
    if(await storageHeld(metadata))throw error('protected_record');
-   if(await shared(file.path,item.path,item.category==='newsletters'?job:undefined))throw error('shared_reference');
+   if(await shared(file.path,item.path,['newsletters','marketplace'].includes(item.category)?job:undefined))throw error('shared_reference');
    await assertRoot();if(!await verifyBarrier(job))throw error('reference_writers_unfenced');
    const attempt=await claim(job,row,file);
    try{await object.delete({ifGenerationMatch:file.generation,ifMetagenerationMatch:file.metageneration});}
@@ -240,7 +252,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
   // Once generation/metageneration advances, an older conditional request can never match it again.
   if(String(metadata.generation)!==file.generation||String(metadata.metageneration)!==file.metageneration){await row.ref.update({status:'held',reason:'object_changed'});return false;}
   await assertIntent(file);
-  if(await storageHeld(metadata)||await shared(file.path,file.root,file.category==='newsletters'?job:undefined))throw error('in_flight_deletion');
+  if(await storageHeld(metadata)||await shared(file.path,file.root,['newsletters','marketplace'].includes(file.category)?job:undefined))throw error('in_flight_deletion');
   await object.delete({ifGenerationMatch:file.generation,ifMetagenerationMatch:file.metageneration}).catch(failure=>{if(failure.code!==404)throw failure;});
   await complete(row,file);return false;
  }

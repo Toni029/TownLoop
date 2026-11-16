@@ -36,7 +36,7 @@ async function verifySafety(){
 }
 const {createStorageCleanup}=require('./databaseCleanupStorage.cjs');
 const media=createStorageCleanup({db,databases,bucket:getStorage(app).bucket(PINS.bucket),listPage:source=>createDocumentPager({project:PROJECT,databaseId:source.databaseId,getAccessToken:token}),deploymentReady:verifySafety,verifyBarrier:barriers.verify,trustedAfter:async()=>{const policy=(await db.doc('deletion_policies/media').get()).data();return policy?.ownerApproved&&policy.storageRulesSha256===require('./deletionMediaProvenance.json').storageRulesSha256?policy.trustedUploadsAfter?.toMillis?.():NaN;}});
-const service=createCleanupService({db,enabled,verifySafety,verifyIdentity:uid=>auth.getUser(uid),listPage:createDocumentPager({project:PROJECT,getAccessToken:token}),media,beforeDelete:async path=>{if(path.startsWith('marketplace_posts/'))await require('./marketplaceListingRetirement.cjs').retireListingPreviews(db,path.split('/')[1],{allowExisting:true});},acquireBarriers:barriers.acquire,releaseBarriers:barriers.release});
+const service=createCleanupService({db,enabled,verifySafety,verifyIdentity:uid=>auth.getUser(uid),listPage:createDocumentPager({project:PROJECT,getAccessToken:token}),media,acquireBarriers:barriers.acquire,releaseBarriers:barriers.release});
 // Reuse the existing Firebase runtime identity; no new service account or schedule.
 const options={region:'us-central1',maxInstances:1,concurrency:1};
 exports.manageDatabaseCleanup=onCall({...options,timeoutSeconds:120},async request=>{

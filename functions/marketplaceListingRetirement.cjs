@@ -7,7 +7,9 @@ async function retireListingPreviews(db,recordId,{allowExisting=false}={}){
   if(cursor)query=query.startAfter(cursor);
   const rows=await query.get();
   for(const row of rows.docs)await db.runTransaction(async tx=>{
-   const [listing,current,control]=await Promise.all([tx.get(db.doc('marketplace_posts/'+recordId)),tx.get(row.ref),allowExisting?tx.get(db.doc('database_cleanup_control/active')):Promise.resolve(null)]);
+   const [listing,current,control]=await Promise.all([tx.get(db.doc('marketplace_posts/'+recordId)),tx.get(row.ref),tx.get(db.doc('database_cleanup_control/active'))]);
+   // Bulk cleanup owns these chat versions; do not race its confirmed manifest.
+   if(!allowExisting&&control.data()?.referenceWritesBlocked===true&&control.data()?.collections?.includes('marketplace_chats'))return;
    const bulk=allowExisting&&control.data()?.referenceWritesBlocked===true&&control.data()?.collections?.includes('marketplace_posts');
    if(listing.exists&&!bulk)throw Error('listing_restored_requires_review');
    if(!current.exists||current.data().itemId!==recordId)return;

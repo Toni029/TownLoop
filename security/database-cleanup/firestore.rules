@@ -23,7 +23,7 @@ service cloud.firestore {
       return (!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
         get(/databases/$(database)/documents/database_cleanup_control/active).data.get('referenceWritesBlocked', false) != true) &&
         (!(rootCollection in ['work_orders', 'discussion_feed', 'posts', 'marketplace_posts',
-          'marketItems', 'newsletters', 'community_events', 'community_highlights', 'newsletter_analysis_jobs']) ||
+          'marketItems', 'marketplace_chats', 'newsletters', 'community_events', 'community_highlights', 'newsletter_analysis_jobs']) ||
         ((!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
           !(rootCollection in get(/databases/$(database)/documents/database_cleanup_control/active).data.get('collections', []))) &&
          (rootCollection in ['community_events', 'community_highlights'] ? databaseCleanupDerivedWriteAllowed() :
