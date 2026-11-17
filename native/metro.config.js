@@ -2,7 +2,9 @@ const path = require('node:path');
 const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 // Reuse only imported platform-independent web utilities; preserve the web package.
-config.watchFolders = [path.resolve(__dirname, '../src')];
+// The shared request-budget adapter imports the existing pure quota policy.
+// Watching its folder makes that explicit dependency visible to Metro on EAS.
+config.watchFolders = [path.resolve(__dirname, '../src'), path.resolve(__dirname, '../functions')];
 // Shared source must resolve the same Firebase SDK as the native application.
 config.resolver.nodeModulesPaths = [path.resolve(__dirname, 'node_modules')];
 // Keep query-string 7's callable CommonJS contract while using the upstream
