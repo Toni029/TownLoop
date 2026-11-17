@@ -1,6 +1,9 @@
-# Read-only Preview release — prepared, not released
+# Read-only Preview release
 
-The separate `previewDatabaseCleanup` callable has only the `preview` action.
+The stateless callable has only the `preview` action. As of November 17 it is
+deployed as `manageDatabaseCleanup`, matching the installed native app. See
+[the deployment record](ACTIVATION_2026_11_17.md). The historical November 6
+release attempt below used `previewDatabaseCleanup` and was not deployed.
 It neither imports the purge engine nor writes jobs/controls/audit records. It
 has no scheduler or destructive export. It counts default-database selected
 roots and nested documents, excludes manual News, inventories bucket file
@@ -18,7 +21,7 @@ bindings were granted. No resident data was changed. A production preflight
 must still check inherited/folder/organization and bucket-specific grants if
 this identity is reused outside the narrowly scoped read-only endpoint.
 
-Native client release mode routes to the separate preview callable. Server
+The installed native client routes to `manageDatabaseCleanup`. Server
 responses are `readOnly:true`, `enabled:false`, lack a confirmation plan hash,
 and cannot be confirmed. Refresh and file paging rerun read-only inventory;
 there is no stored job. Counts are live observations, not a transactional

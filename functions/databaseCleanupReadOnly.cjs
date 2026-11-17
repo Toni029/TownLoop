@@ -1,7 +1,7 @@
 'use strict';
 const {createHash}=require('node:crypto');
-const CATEGORIES=Object.freeze({workOrders:['work_orders'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
-const FIELDS=['legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','state','status','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt'];
+const CATEGORIES=Object.freeze({workOrders:['work_orders','work_order_numbers'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems','marketplace_chats'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
+const FIELDS=['legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','state','status','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt','collection','id'];
 const BUCKET='cc-livingcommunity-app.firebasestorage.app';
 const fail=(code,message)=>{throw Object.assign(Error(message),{code});};
 const hash=x=>createHash('sha256').update(x).digest('hex');
@@ -19,24 +19,33 @@ function createReadOnlyInventory({read,children,list,files,bucketPolicy,identity
   const bound=()=>{if(++visited>maxDocuments||now()>deadline)fail('resource-exhausted','Read-only inventory exceeded its safety limit. Select fewer categories; no data was changed.');};
   const activeAnalysis=categories.includes('newsletters')?(await list('newsletter_analysis_jobs')).some(row=>['queued','running','retrying'].includes(row.data?.state)):false;
   const held=data=>FIELDS.some(k=>/Hold$|^hold$|^holds$|^retention$|^evidence$|^reported$|^reportId/.test(k)&&data[k]!=null&&data[k]!==false&&data[k]!=='' )||data.retentionVersion!=null||['retainUntil','retentionUntil','deleteAfter','retentionDueAt','retentionExpiresAt'].some(k=>data[k]!=null);
-  async function subtree(path,depth=0){
+  const reports=new Set((await list('moderation_reports')).map(row=>JSON.stringify([row.data?.collection,row.data?.id])));
+  async function subtree(path,depth=0,listed){
    bound();if(depth>8)fail('resource-exhausted','Nested inventory exceeds the safe preview limit. No data was changed.');
-   const snap=await read(path,FIELDS);let documents=snap.exists?1:0,protectedData=snap.exists&&held(snap.data);
-   for(const collection of await children(path))for(const row of await list(collection)){const result=await subtree(row.path,depth+1);documents+=result.documents;protectedData ||= result.protectedData;}
+   const snap=typeof listed?.exists==='boolean'?listed:await read(path,FIELDS);let documents=snap.exists?1:0,protectedData=snap.exists&&held(snap.data);
+   // Root traversal stays serial. At most four child branches run together;
+   // deeper traversal is serial so concurrency never multiplies with depth.
+   for(const collection of await children(path)){
+    const rows=await list(collection),batchSize=depth===0?4:1;
+    for(let offset=0;offset<rows.length;offset+=batchSize){
+     const results=await Promise.all(rows.slice(offset,offset+batchSize).map(row=>subtree(row.path,depth+1,row)));
+     for(const result of results){documents+=result.documents;protectedData ||= result.protectedData;}
+    }
+   }
    return{documents,protectedData};
   }
   for(const category of categories){
    const count=counts[category]={records:0,documents:0,deleted:0,held:0,failed:0,remaining:0,storageDeleted:0,storageHeld:0};
    for(const collection of CATEGORIES[category])for(const row of await list(collection)){
-    const snap=await read(row.path,FIELDS),data=snap.data||{};
+    const snap=typeof row.exists==='boolean'?row:await read(row.path,FIELDS),data=snap.data||{};
     let ambiguous=false;
     if(['community_events','community_highlights'].includes(collection)){
      if(data.isAiExtracted!==true)continue;
      ambiguous=typeof data.newsletterId!=='string'||!data.newsletterId||data.newsletterId.includes('/')||!(await read(`newsletters/${data.newsletterId}`,['id'])).exists;
     }
-    const tree=await subtree(row.path);rootIds.add(row.path);count.records++;count.documents+=tree.documents;count.remaining+=tree.documents;
-    const reports=await list('moderation_reports',{collection,id:row.path.split('/')[1]});
-    if(tree.protectedData||ambiguous||reports.length||category==='newsletters'&&activeAnalysis)count.held++;
+    const tree=await subtree(row.path,0,snap);rootIds.add(row.path);count.records++;count.documents+=tree.documents;count.remaining+=tree.documents;
+    const reported=reports.has(JSON.stringify([collection,row.path.split('/')[1]]));
+    if(collection==='marketplace_chats'||tree.protectedData||ambiguous||reported||category==='newsletters'&&activeAnalysis)count.held++;
    }
    const policy=await bucketPolicy();
    const scope=storageScope[category]={files:0,bytes:0,exclusive:0,held:0,missing:0,remaining:0,reasons:[]};
@@ -58,7 +67,7 @@ function createReadOnlyInventory({read,children,list,files,bucketPolicy,identity
    count.storageHeld=scope.held;
   }
   items.sort((a,b)=>a.category.localeCompare(b.category)||a.path.localeCompare(b.path)||String(a.generation).localeCompare(String(b.generation)));
-  return{id:'readonly_'+hash(JSON.stringify(categories)).slice(0,40),readOnly:true,state:'review',categories,counts,storageScope,confirmationPhrase:'DELETE SELECTED DATA',enabled:false,completeInventory:true,message:'Live read-only inventory. No cleanup job was created. All deletion is disabled. Counts can change as residents use TownLoop; file exclusivity is not certified by this preview.',filePage:{items:items.slice(cursor,cursor+100),...(items.length>cursor+100?{nextCursor:String(cursor+100)}:{})}};
+  return{id:'readonly_'+hash(JSON.stringify(categories)).slice(0,40),readOnly:true,state:'review',categories,counts,storageScope,confirmationPhrase:'DELETE SELECTED DATA',enabled:false,completeInventory:true,message:'Live read-only inventory. No cleanup job was created. All deletion is disabled. Counts can change as residents use TownLoop; file exclusivity is not certified by this preview. Marketplace conversations are counted as candidates and held pending authoritative listing and content verification.',filePage:{items:items.slice(cursor,cursor+100),...(items.length>cursor+100?{nextCursor:String(cursor+100)}:{})}};
  };
 }
-module.exports={createReadOnlyInventory,CATEGORIES,BUCKET};
+module.exports={createReadOnlyInventory,CATEGORIES,BUCKET,FIELDS};
