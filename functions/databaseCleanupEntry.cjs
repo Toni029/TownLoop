@@ -48,9 +48,14 @@ exports.manageDatabaseCleanup=onCall({...options,timeoutSeconds:120},async reque
  try{
   const identity=await auth.verifyIdToken(bearer,true);
   if(identity.uid!==request.auth.uid)throw new HttpsError('unauthenticated','Refresh your Admin session.');
+  const profile=(await db.doc('users/'+identity.uid).get()).data();
+  if(profile?.role!=='admin'||profile.approved!==true||profile.deletionPending===true)throw new HttpsError('permission-denied','A currently approved Admin account is required.');
+  const input=request.data||{},scope=['preview','scope'].includes(input.action)?'adminRead':'expensiveRead';
+  await require('./abuseLimits.cjs').charge(db,identity.uid,scope,'cleanup:'+String(input.action||'invalid'));
   return await require('./databaseCleanupRequest.cjs').advanceCleanupRequest(service,identity.uid,request.data);
  }catch(error){
   if(error.cleanupFailure)throw new HttpsError(error.cleanupFailure==='safety_quota_limited'?'resource-exhausted':'unavailable',cleanupFailure(error).message,{reason:error.cleanupFailure,retryAfterSeconds:error.retryAfterSeconds||15});
+  if((error.code||error.message)==='resource-exhausted')throw new HttpsError('resource-exhausted','Please wait a minute before requesting more cleanup operations.');
   const safe=['unauthenticated','permission-denied','invalid-argument','failed-precondition','already-exists','not-found'];
   if(safe.includes(error.code))throw new HttpsError(error.code,error.message);
   throw new HttpsError('unavailable','The cleanup request could not be verified. Refresh its status before retrying.');

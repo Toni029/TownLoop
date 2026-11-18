@@ -2,8 +2,10 @@
 
 Local preparation, November 11, 2026. Continues the confirmed findings in
 `security/release/SECURITY_GAPS_2026_11_11.md`; this is not another audit.
-**Nothing here has been deployed or activated.** No production data, IAM, rules,
-policy receipts, tokens, signing credentials or billable services were changed.
+Originally prepared locally. The coordinated November 18 activation is recorded in
+[`V1_BLOCKERS_RESOLVED_2026_11_18.md`](../release/V1_BLOCKERS_RESOLVED_2026_11_18.md).
+Current rules compose these budgets with the later cleanup/upload safeguards.
+The future rollout below is historical preparation, not the current deployment state.
 
 ## Controls prepared
 
@@ -107,7 +109,7 @@ build/configuration/device verification. An OTA cannot supply this native module
    `completeMediaUpload`, `issueNewsletterUpload`, and `newsletterApi`.
    Existing `runNewsletterAnalysis` task implementation, extraction prompts,
    notification triggers and destructive workers are unchanged.
-3. Cleanup preview needs the separate quota gateway and private read-only inventory
+3. Historical proposal (not needed/deployed): cleanup preview needs the separate quota gateway and private read-only inventory
    described in `functions/databaseCleanupQuotaGateway.IAM.md`. Keep the inventory
    identity read-only. Provision the dedicated gateway identity only with approval;
    deploy `readOnlyDatabaseCleanupInventory` privately, verify actual Cloud Run URI
@@ -147,3 +149,10 @@ TypeScript and targeted lint are checked separately. Tests do not establish live
 IAM, Play attestation, existing attachment token retirement or physical Samsung/
 iPhone behavior. The installed app and production backend remain unchanged until
 the separately approved coordinated release.
+
+November 18: only `manageDatabaseCleanup` exists in the live function inventory;
+it now charges approved Admin requests directly through the existing identity.
+There is no public legacy preview alias requiring the proposed extra gateway.
+No new gateway service/identity was created. Enforcement uses `enforceWrites:true`,
+`requireMediaReservations:true`, `prepareClients:true`, `tokenFreeMedia:false`.
+Play Integrity monitoring is configured; enforcement remains off.

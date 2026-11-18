@@ -8,17 +8,34 @@ const {trustedMedia,FOLDERS}=require('./mediaCleanupPolicy.cjs');
 const provenance=require('./deletionMediaProvenance.json');
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const CONTROL=['users','resident_directory','notification_devices','safety_limits','user_blocks','account_access_revocations','account_deletion_jobs','account_deletion_scopes','account_cleanup_devices','deletion_policies','media_cleanup_jobs','media_deletion_tombstones','media_cleanup_cursors','work_order_numbers','counters','storage_web_authorization','notification_state','deletion_review_deliveries','notification_rollouts','inbox_cleanup_requests','inbox_group_commands','inbox_legacy_leaves'];
+// Server-owned operational metadata added by cleanup and Inbox routing. These
+// contain no resident content; any actual UID reference still requires disposition.
+const SERVER_METADATA=new Set(['database_cleanup_audit','database_cleanup_control','database_cleanup_fences','database_cleanup_jobs','database_cleanup_policies','inbox_conversation_routes','security_controls']);
+async function inspectServerMetadata(db,collection,uid){
+ let count=0,referenced=false;
+ async function visit(path,depth=0){
+  if(depth>8)throw Error('inventory_bound');let cursor;
+  for(;;){let q=db.collection(path).orderBy('__name__').limit(100);if(cursor)q=q.startAfter(cursor);const page=await q.get();
+   for(const doc of page.docs){if(++count>2500)throw Error('inventory_bound');if(doc.id.includes(uid)||JSON.stringify(doc.data()).includes(uid))referenced=true;for(const child of await db.doc(doc.ref.path).listCollections())await visit(child.path||doc.ref.path+'/'+child.id,depth+1);}
+   if(page.size<100)break;cursor=page.docs.at(-1).id;
+  }
+ }
+ await visit(collection);return referenced;
+}
 // Executed after access revocation/token drain and BEFORE any record destruction.
 // Private values remain in memory; receipts contain hashes/metadata, never content or URLs.
 async function preflightDeletion(job,{dbFor,bucket,mediaPolicy,now=Date.now()}) {
  const holds=[],required=new Map(),references=new Map(),scopes=[];
- const known=new Set([...TARGETS.filter(t=>!t.group).map(t=>t.collection),...CONTROL]);
+ const known=new Set([...TARGETS.filter(t=>!t.group).map(t=>t.collection),...CONTROL,...SERVER_METADATA]);
  for(const databaseId of DATABASES){
   const db=dbFor(databaseId),profileRef=db.doc(`users/${job.uid}`),profile=(await profileRef.get()).data();
   if(profile&&['id','uid','userId','authorId'].some(k=>profile[k]!=null&&profile[k]!==job.uid))holds.push({databaseId,reason:'profile_identity_conflict'});
   if((await profileRef.listCollections()).length)holds.push({databaseId,reason:'private_subcollection_adapter_required'});
   for(const key of ['avatarUrl','avatar_url'])if(typeof profile?.[key]==='string'&&/^https?:/.test(profile[key]))holds.push({databaseId,reason:'avatar_object_ownership_adapter_required'});
-  for(const c of await db.listCollections())if(!known.has(c.id))holds.push({databaseId,reason:'unclassified_collection_metadata',collection:c.id});
+  for(const c of await db.listCollections()){
+   if(!known.has(c.id))holds.push({databaseId,reason:'unclassified_collection_metadata',collection:c.id});
+   else if(SERVER_METADATA.has(c.id)&&await inspectServerMetadata(db,c.id,job.uid))holds.push({databaseId,reason:'administrative_reference_requires_disposition',collection:c.id});
+  }
   // Authorization-related media links only; never fetch another profile's private fields.
   let profileCursor;
   for(let page=0;;page++){
@@ -67,4 +84,4 @@ async function preflightDeletion(job,{dbFor,bucket,mediaPolicy,now=Date.now()}) 
  if(manifest.length>100||holds.length>100)throw Error('preflight_receipt_bound');
  return {version:1,uid:job.uid,jobId:job.id,checkedAt:new Date(now),scopes,manifest,holds};
 }
-module.exports={preflightDeletion};
+module.exports={preflightDeletion,inspectServerMetadata};

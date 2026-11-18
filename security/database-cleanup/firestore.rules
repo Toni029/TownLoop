@@ -214,29 +214,29 @@ service cloud.firestore {
     match /posts/{postId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/posts/$(postId)) || published(resource.data) || resource.data.get('userId', '') == request.auth.uid);
       allow list: if isApproved() && published(resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, false)));
-      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(true, false));
+      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, false)) && usesQuota(request.resource.data.get('storageDraft',false) == true ? 'drafts' : 'posts', 'posts/'+postId) && uploadTicketIntegrity());
+      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(true, false) && socialQuota('posts/'+postId, false) && uploadTicketIntegrity());
       allow delete: if databaseCleanupWriteAllowed() && (isApproved() && (socialOwner(resource.data, true) || isManager()));
     }
     match /marketItems/{itemId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/marketItems/$(itemId)) || published(resource.data) || resource.data.get('userId', '') == request.auth.uid);
       allow list: if isApproved() && published(resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('marketItems', itemId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, true)));
-      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(true, true));
+      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('marketItems', itemId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, true, true)) && usesQuota(request.resource.data.get('storageDraft',false) == true ? 'drafts' : 'listings', 'marketItems/'+itemId) && uploadTicketIntegrity());
+      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(true, true) && socialQuota('marketItems/'+itemId, true) && uploadTicketIntegrity());
       allow delete: if databaseCleanupWriteAllowed() && (isApproved() && (socialOwner(resource.data, true) || isManager()));
     }
     match /marketplace_posts/{postId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/marketplace_posts/$(postId)) || published(resource.data) || socialOwner(resource.data, false));
       allow list: if isApproved() && published(resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('marketplace_posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, true)));
-      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(false, true));
+      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('marketplace_posts', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, true)) && usesQuota(request.resource.data.get('storageDraft',false) == true ? 'drafts' : 'listings', 'marketplace_posts/'+postId) && uploadTicketIntegrity());
+      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(false, true) && socialQuota('marketplace_posts/'+postId, true) && uploadTicketIntegrity());
       allow delete: if databaseCleanupWriteAllowed() && (isApproved() && (socialOwner(resource.data, false) || isManager()));
     }
     match /discussion_feed/{postId} {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/discussion_feed/$(postId)) || published(resource.data) || socialOwner(resource.data, false));
       allow list: if isApproved() && published(resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('discussion_feed', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, false)));
-      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(false, false));
+      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('discussion_feed', postId) && (mediaDraft(request.resource.data) || socialNew(request.resource.data, false, false)) && usesQuota(request.resource.data.get('storageDraft',false) == true ? 'drafts' : 'posts', 'discussion_feed/'+postId) && uploadTicketIntegrity());
+      allow update: if databaseCleanupWriteAllowed() && (isApproved() && socialUpdate(false, false) && socialQuota('discussion_feed/'+postId, false) && uploadTicketIntegrity());
       allow delete: if databaseCleanupWriteAllowed() && (isApproved() && (socialOwner(resource.data, false) || isManager()));
     }
     function unallocatedOrder(orderId) {
@@ -409,26 +409,97 @@ service cloud.firestore {
       allow get: if isApproved() && (!exists(/databases/$(database)/documents/work_orders/$(orderId)) ||
         resource.data.userId == request.auth.uid || (published(resource.data) && isCrewOrManager()));
       allow list: if isApproved() && published(resource.data) && (isCrewOrManager() || resource.data.userId == request.auth.uid);
-      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('work_orders', orderId) && (mediaDraft(request.resource.data) || validPublishedOrder(orderId)));
+      allow create: if databaseCleanupWriteAllowed() && (isApproved() && mediaParentMayCreate('work_orders', orderId) && (mediaDraft(request.resource.data) || validPublishedOrder(orderId)) && usesQuota(request.resource.data.get('storageDraft',false) == true ? 'drafts' : 'workorders', 'work_orders/'+orderId) && uploadTicketIntegrity());
       allow update: if databaseCleanupWriteAllowed() && (isApproved() &&
         ((resource.data.get('storageDraft', false) == true && resource.data.userId == request.auth.uid && validPublishedOrder(orderId)) ||
          (published(resource.data) && published(request.resource.data) &&
           (isCrewOrManager() || resource.data.userId == request.auth.uid) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'code', 'ticketNumber', 'createdAt', 'storageDraft', 'storageDraftExpiresAt']) &&
-          validWorkOrderTransition())));
+          validWorkOrderTransition())) && orderQuota('work_orders/'+orderId) && uploadTicketIntegrity());
       allow delete: if databaseCleanupWriteAllowed() && (isApproved() && (isManager() ||
         (currentProfile().role == 'resident' && resource.data.userId == request.auth.uid && resource.data.get('status', '') != 'Done')));
     }
 
-    match /newsletters/{newsletterId} {
-      allow read: if isApproved();
-      allow write: if databaseCleanupWriteAllowed() && (isManager());
+function pdfBudgetEnforced() {
+  return exists(/databases/$(database)/documents/security_controls/abuse_limits) &&
+    get(/databases/$(database)/documents/security_controls/abuse_limits).data.get('enforceWrites', false) == true;
+}
+function pdfSourceShape(item, editionId) {
+  return item.id == editionId && item.uploadedBy is string &&
+    item.sourceBytes is int && item.sourceBytes > 0 && item.sourceBytes <= 64 * 1024 * 1024 &&
+    item.totalChunks == int((item.sourceBytes + 491519) / 491520) &&
+    item.totalSize == 'data:application/pdf;base64,'.size() + int((item.sourceBytes + 2) / 3) * 4;
+}
+function pdfTicket(item, editionId) {
+  let ticket = get(/databases/$(database)/documents/safety_limits/$(request.auth.uid)).data.pdfUploads[item.uploadBudgetId];
+  return item.uploadBudgetId is string && ticket.uid == request.auth.uid &&
+    ticket.newsletterId == editionId && ticket.status == 'issued' && ticket.expiresAt > request.time &&
+    ticket.bytes == item.sourceBytes && ticket.totalChunks == item.totalChunks && ticket.totalSize == item.totalSize;
+}
+function pdfSameSource(old, next) {
+  return next.uploadedBy == old.get('uploadedBy', next.uploadedBy) &&
+    next.id == old.get('id', next.id) &&
+    next.sourceBytes == old.get('sourceBytes', next.sourceBytes) &&
+    next.totalChunks == old.get('totalChunks', next.totalChunks) &&
+    next.totalSize == old.get('totalSize', next.totalSize) &&
+    next.get('uploadBudgetId','') == old.get('uploadBudgetId', next.get('uploadBudgetId',''));
+}
+function pdfParentCreate(editionId) {
+  return request.resource.data.uploadState == 'uploading' &&
+    request.resource.data.uploadedBy == request.auth.uid && pdfSourceShape(request.resource.data, editionId) && pdfTicket(request.resource.data, editionId);
+}
+function pdfParentUpdate(editionId) {
+  let old = resource.data;
+  let next = request.resource.data;
+  return pdfSameSource(old, next) &&
+    ((old.get('uploadState', '') in ['', 'uploading'] &&
+      next.uploadState in ['uploading', 'uploaded'] && next.uploadedBy == request.auth.uid && pdfSourceShape(next, editionId) && pdfTicket(next, editionId)) ||
+     (old.get('uploadState', '') == 'uploaded' && next.uploadState in ['uploaded', 'published', 'discarded']) ||
+     // Published metadata is immutable, including original PDF identity/dimensions.
+     (old.get('uploadState', '') == 'published' && next == old) || next.get('uploadState','') == 'discarded');
+}
+function pdfChunkShape(chunk, chunkId, parent) {
+  let prefix = 'data:application/pdf;base64,';
+  let expected = (chunk.index < parent.totalChunks - 1 ? 655360 :
+    parent.totalSize - prefix.size() - chunk.index * 655360) + (chunk.index == 0 ? prefix.size() : 0);
+  return chunk.keys().hasOnly(['index', 'data', 'sha256', 'totalChunks', 'totalSize', 'updatedAt']) &&
+    chunk.index is int && chunk.index >= 0 && chunk.index < parent.totalChunks && string(chunk.index) == chunkId &&
+    chunk.totalChunks == parent.totalChunks && chunk.totalSize == parent.totalSize &&
+    chunk.sha256 is string && chunk.sha256.matches('[a-f0-9]{64}') &&
+    chunk.data is string && chunk.data.size() == expected &&
+    chunk.updatedAt == request.time;
+}
+match /newsletters/{newsletterId} {
+  allow read: if isApproved();
+  // current is the published pointer, not an upload parent. Keep its existing
+  // bounded pointer checks separately; never allow a /current/chunks namespace.
+  allow create: if databaseCleanupWriteAllowed() && (isManager() && (!pdfBudgetEnforced() ||
+    (newsletterId == 'current' ? request.resource.data.uploadState == 'published' : pdfParentCreate(newsletterId))));
+  allow update: if databaseCleanupWriteAllowed() && (isManager() && (!pdfBudgetEnforced() ||
+    (newsletterId == 'current' ? request.resource.data.uploadState == 'published' : pdfParentUpdate(newsletterId))));
+  // No delete/recreate of active uploading parents. Uploaded/published retained
+  // editions remain manageable through existing reviewed cleanup authorization.
+  allow delete: if databaseCleanupWriteAllowed() && (isManager() && (!pdfBudgetEnforced() || newsletterId == 'current' ||
+    resource.data.get('uploadState', '') in ['uploaded', 'published', 'closed', 'discarded']));
+  match /chunks/{chunkId} {
+    allow read: if isApproved();
+    allow create: if databaseCleanupWriteAllowed() && (isManager() && (!pdfBudgetEnforced() ||
+      (newsletterId != 'current' &&
+       get(/databases/$(database)/documents/newsletters/$(newsletterId)).data.uploadState == 'uploading' &&
+       pdfTicket(get(/databases/$(database)/documents/newsletters/$(newsletterId)).data, newsletterId) &&
+       pdfChunkShape(request.resource.data, chunkId, get(/databases/$(database)/documents/newsletters/$(newsletterId)).data))));
+    // REST retries change only updatedAt; byte strings and receipt identity stay immutable.
+    allow update: if databaseCleanupWriteAllowed() && (isManager() && (!pdfBudgetEnforced() ||
+      (newsletterId != 'current' &&
+       get(/databases/$(database)/documents/newsletters/$(newsletterId)).data.uploadState == 'uploading' &&
+       pdfTicket(get(/databases/$(database)/documents/newsletters/$(newsletterId)).data, newsletterId) &&
+       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']) &&
+       request.resource.data.updatedAt == request.time)));
+    allow delete: if databaseCleanupWriteAllowed() && (isManager() && (!pdfBudgetEnforced() ||
+      get(/databases/$(database)/documents/newsletters/$(newsletterId)).data.get('uploadState', '') in ['uploaded', 'published', 'closed', 'discarded']));
+  }
+}
 
-      match /chunks/{chunkId} {
-        allow read: if isApproved();
-        allow write: if databaseCleanupWriteAllowed() && (isManager());
-      }
-    }
 
     // A resident can change only their own RSVP, never the event or another attendee.
     function ownRsvp() {
@@ -493,8 +564,65 @@ service cloud.firestore {
       allow read: if isManager();
       allow write: if databaseCleanupWriteAllowed() && (false);
     }
-    match /safety_limits/{uid} { allow read: if false;
-    allow write: if databaseCleanupWriteAllowed() && (false); }
+    // Server-enforced atomic quota counters. Separate rollout receipt, never deletion policy.
+    function abuseConfig() { return get(/databases/$(database)/documents/security_controls/abuse_limits).data; }
+    function enforceAbuse() { return exists(/databases/$(database)/documents/security_controls/abuse_limits) && abuseConfig().get('enforceWrites', false) == true; }
+    function burstLimit(scope) { return scope in ['posts','listings','workorders'] ? 10 : scope == 'inquiries' ? 20 : scope == 'drafts' ? 40 : scope in ['comments','edits','orderUpdates'] ? 60 : 120; }
+    function dailyLimit(scope) { return scope == 'listings' ? 50 : scope in ['posts','workorders'] ? 100 : scope == 'inquiries' ? 200 : scope == 'drafts' ? 500 : scope == 'comments' ? 1000 : scope in ['edits','orderUpdates'] ? 2000 : 5000; }
+    function validQuotaCounter(scope, old, next) {
+      return next.keys().hasOnly(['windowAt','dayAt','windowCount','dayCount','bytesDay','lastAt','target']) &&
+        next.windowAt is timestamp && next.dayAt is timestamp && next.lastAt == request.time && next.bytesDay == 0 &&
+        next.windowCount is int && next.dayCount is int && next.windowCount > 0 && next.windowCount <= burstLimit(scope) && next.dayCount > 0 && next.dayCount <= dailyLimit(scope) &&
+        next.target is string && next.target.size() > 0 && next.target.size() <= 400 &&
+        ((old.size() == 0 && next.windowCount == 1 && next.windowAt == request.time) ||
+         (old.size() > 0 && ((request.time >= old.windowAt + duration.value(60,'s') && next.windowCount == 1 && next.windowAt == request.time) ||
+          (request.time < old.windowAt + duration.value(60,'s') && next.windowAt == old.windowAt && next.windowCount == old.windowCount + 1)))) &&
+        ((old.size() == 0 && next.dayCount == 1 && next.dayAt == request.time) ||
+         (old.size() > 0 && ((request.time >= old.dayAt + duration.value(24,'h') && next.dayCount == 1 && next.dayAt == request.time) ||
+          (request.time < old.dayAt + duration.value(24,'h') && next.dayAt == old.dayAt && next.dayCount == old.dayCount + 1))));
+    }
+    function quotaWrite(uid) {
+      let before = resource == null ? {} : resource.data;
+      let after = request.resource.data;
+      let scope = after.activityScope;
+      return isApproved() && uid == request.auth.uid && scope in ['posts','listings','comments','messages','inquiries','workorders','drafts','edits','engagement','orderUpdates'] &&
+        after.diff(before).affectedKeys().hasOnly(['activity','activityScope']) && after.activity is map &&
+        after.activity.diff(before.get('activity',{})).affectedKeys().hasOnly([scope]) &&
+        validQuotaCounter(scope,before.get('activity',{}).get(scope,{}),after.activity[scope]);
+    }
+    function quotaProof(scope, target) {
+      let path = /databases/$(database)/documents/safety_limits/$(request.auth.uid);
+      let before = exists(path) ? get(path).data.get('activity',{}).get(scope,{}) : {};
+      let after = getAfter(path).data;
+      return after.activityScope == scope && after.activity[scope].target == target && after.activity[scope].lastAt == request.time && after.activity[scope] != before;
+    }
+    function usesQuota(scope,target) { return !enforceAbuse() || quotaProof(scope,target); }
+
+    function uploadTicketIntegrity() {
+      let before=resource == null ? {} : resource.data;
+      let after=request.resource.data;
+      return after.get('mediaUploadGeneration','') == before.get('mediaUploadGeneration','') &&
+        after.get('mediaUploadTickets',{}) == before.get('mediaUploadTickets',{});
+    }
+
+    function socialQuota(target, market) {
+      let before = resource.data;
+      let after = request.resource.data;
+      return usesQuota(before.get('storageDraft',false) == true && after.get('storageDraft',true) == false ? (market ? 'listings' : 'posts') :
+        after.get('comments',[]).size() > before.get('comments',[]).size() ? 'comments' :
+        after.diff(before).affectedKeys().hasAny(['likedBy']) ? 'engagement' : 'edits',target);
+    }
+    function orderQuota(target) {
+      let before=resource.data;
+      let after=request.resource.data;
+      return usesQuota(before.get('storageDraft',false) == true && after.get('storageDraft',true) == false ? 'workorders' :
+        after.get('comments',[]).size() > before.get('comments',[]).size() ? 'comments' : after.diff(before).affectedKeys().hasAny(['status']) ? 'orderUpdates' : 'edits',target);
+    }
+    match /security_controls/abuse_limits { allow read: if isApproved(); allow write: if databaseCleanupWriteAllowed() && (false); }
+
+    match /safety_limits/{uid} { allow get: if isApproved() && uid == request.auth.uid; allow list: if false;
+      allow delete: if databaseCleanupWriteAllowed() && (false); allow create, update: if databaseCleanupWriteAllowed() && (quotaWrite(uid)); }
+
     match /account_access_revocations/{uid} { allow read: if false;
     allow write: if databaseCleanupWriteAllowed() && (false); }
     match /account_deletion_jobs/{jobId}/{document=**} { allow read: if false;
@@ -581,22 +709,22 @@ service cloud.firestore {
     match /maintenance_chats/{chatId} {
       allow get: if (!exists(/databases/$(database)/documents/maintenance_chats/$(chatId)) || legacyGroupAccess(resource.data)) && isApproved() && ((!exists(/databases/$(database)/documents/maintenance_chats/$(chatId)) && (chatId == request.auth.uid || chatTeam('maintenance'))) || chatAccess('maintenance', resource.data));
       allow list: if legacyGroupAccess(resource.data) && chatAccess('maintenance', resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (!('groupConversationId' in request.resource.data) && chatCreate('maintenance', chatId));
-      allow update: if databaseCleanupWriteAllowed() && (legacyGroupAccess(resource.data) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || legacyMaySend('maintenance_chats', resource.data)) && !('groupConversationId' in resource.data) && !('groupConversationId' in request.resource.data) && chatUpdate('maintenance'));
+      allow create: if databaseCleanupWriteAllowed() && (!('groupConversationId' in request.resource.data) && chatCreate('maintenance', chatId) && usesQuota('messages', 'maintenance_chats/'+chatId));
+      allow update: if databaseCleanupWriteAllowed() && (legacyGroupAccess(resource.data) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || legacyMaySend('maintenance_chats', resource.data)) && !('groupConversationId' in resource.data) && !('groupConversationId' in request.resource.data) && chatUpdate('maintenance') && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || usesQuota('messages', 'maintenance_chats/'+chatId)));
       allow delete: if databaseCleanupWriteAllowed() && (false); // Stage B requires separate backend approval.
     }
     match /office_chats/{chatId} {
       allow get: if (!exists(/databases/$(database)/documents/office_chats/$(chatId)) || legacyGroupAccess(resource.data)) && isApproved() && ((!exists(/databases/$(database)/documents/office_chats/$(chatId)) && (chatId == request.auth.uid || chatTeam('office'))) || chatAccess('office', resource.data));
       allow list: if legacyGroupAccess(resource.data) && chatAccess('office', resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (!('groupConversationId' in request.resource.data) && chatCreate('office', chatId));
-      allow update: if databaseCleanupWriteAllowed() && (legacyGroupAccess(resource.data) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || legacyMaySend('office_chats', resource.data)) && !('groupConversationId' in resource.data) && !('groupConversationId' in request.resource.data) && chatUpdate('office'));
+      allow create: if databaseCleanupWriteAllowed() && (!('groupConversationId' in request.resource.data) && chatCreate('office', chatId) && usesQuota('messages', 'office_chats/'+chatId));
+      allow update: if databaseCleanupWriteAllowed() && (legacyGroupAccess(resource.data) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || legacyMaySend('office_chats', resource.data)) && !('groupConversationId' in resource.data) && !('groupConversationId' in request.resource.data) && chatUpdate('office') && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || usesQuota('messages', 'office_chats/'+chatId)));
       allow delete: if databaseCleanupWriteAllowed() && (false); // Stage B requires separate backend approval.
     }
     match /resident_chats/{chatId} {
       allow get: if (!exists(/databases/$(database)/documents/resident_chats/$(chatId)) || legacyGroupAccess(resource.data)) && isApproved() && (!exists(/databases/$(database)/documents/resident_chats/$(chatId)) || chatAccess('friend', resource.data));
       allow list: if legacyGroupAccess(resource.data) && chatAccess('friend', resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (!('groupConversationId' in request.resource.data) && chatCreate('friend', chatId));
-      allow update: if databaseCleanupWriteAllowed() && (legacyGroupAccess(resource.data) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || legacyMaySend('resident_chats', resource.data)) && !('groupConversationId' in resource.data) && !('groupConversationId' in request.resource.data) && chatUpdate('friend'));
+      allow create: if databaseCleanupWriteAllowed() && (!('groupConversationId' in request.resource.data) && chatCreate('friend', chatId) && usesQuota('messages', 'resident_chats/'+chatId));
+      allow update: if databaseCleanupWriteAllowed() && (legacyGroupAccess(resource.data) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || legacyMaySend('resident_chats', resource.data)) && !('groupConversationId' in resource.data) && !('groupConversationId' in request.resource.data) && chatUpdate('friend') && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || usesQuota('messages', 'resident_chats/'+chatId)));
       allow delete: if databaseCleanupWriteAllowed() && (false); // Stage B requires separate backend approval.
     }
 
@@ -671,8 +799,8 @@ service cloud.firestore {
     match /marketplace_chats/{chatId} {
       allow get: if marketApproved() && (!exists(/databases/$(database)/documents/marketplace_chats/$(chatId)) || marketParticipant(resource.data));
       allow list: if marketApproved() && marketParticipant(resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (marketApproved() && marketCreate(chatId));
-      allow update: if databaseCleanupWriteAllowed() && (marketApproved() && marketParticipant(resource.data) && marketUpdate());
+      allow create: if databaseCleanupWriteAllowed() && (marketApproved() && marketCreate(chatId) && usesQuota('inquiries', 'marketplace_chats/'+chatId));
+      allow update: if databaseCleanupWriteAllowed() && (marketApproved() && marketParticipant(resource.data) && marketUpdate() && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || usesQuota('messages', 'marketplace_chats/'+chatId)));
       // Second participant may remove the chat only after the other already left.
       allow delete: if databaseCleanupWriteAllowed() && (marketApproved() && marketParticipant(resource.data) &&
         marketLeft(resource.data, resource.data.sellerId == request.auth.uid ? 'buyer' : 'seller'));

@@ -105,17 +105,40 @@ service firebase.storage {
       return liveUploadParent(firestore.get(/databases/(default)/documents/$(metadata.collection)/$(metadata.recordId)).data);
     }
 
+    // Strict candidate. Compatibility variant below uses false until approved cutover.
+    function mediaQuotasOn() { return true; }
+    function uploadTicket(path) {
+      let metadata=request.resource.metadata;
+      let parent=firestore.get(/databases/(default)/documents/$(metadata.collection)/$(metadata.recordId)).data;
+      let ticket=parent.mediaUploadTickets[metadata.quotaReservation];
+      return ticket.status == 'issued' && ticket.parentGeneration == parent.mediaUploadGeneration &&
+        ticket.path == path && ticket.bytes == request.resource.size && ticket.contentType == request.resource.contentType &&
+        ticket.issuedAt <= request.time && ticket.expiresAt > request.time &&
+        ticket.metadata.uploadedBy == request.auth.uid && metadata.uploadedBy == request.auth.uid &&
+        ticket.metadata.recordId == metadata.recordId && ticket.metadata.collection == metadata.collection &&
+        metadata.securityVersion == '1' && ticket.metadata.securityVersion == '1';
+    }
+    function uploadQuota(path) { return (!mediaQuotasOn() && !('quotaReservation' in request.resource.metadata)) || uploadTicket(path); }
+    function deleteTicketReady() {
+      let metadata=resource.metadata;
+      let parent=/databases/(default)/documents/$(metadata.collection)/$(metadata.recordId);
+      return !firestore.exists(parent) || !(metadata.quotaReservation in firestore.get(parent).data.get('mediaUploadTickets',{})) ||
+        firestore.get(parent).data.mediaUploadTickets[metadata.quotaReservation].status == 'complete' ||
+        request.time >= firestore.get(parent).data.mediaUploadTickets[metadata.quotaReservation].expiresAt;
+    }
+    function deleteQuotaReady() { return !('quotaReservation' in resource.metadata) || deleteTicketReady(); }
+
     match /work_orders/{fileName} {
       allow get: if orderAccess(resource.metadata) || legacyOwnRead();
       allow create: if (resource == null && newUpload() && image() && orderAccess(request.resource.metadata) &&
-        order(request.resource.metadata).get('status', '') != 'Done' && liveUploadParent(order(request.resource.metadata)));
+        order(request.resource.metadata).get('status', '') != 'Done' && liveUploadParent(order(request.resource.metadata))) && uploadQuota('work_orders/'+fileName);
       // Never replace bytes or relabel ownership of an existing attachment.
       allow update: if false;
       // Crew cannot delete. Residents cannot remove completed-ticket attachments.
       // Admin/VIP may remove orphaned legacy attachments during reviewed cleanup.
       allow delete: if (manager() && databaseCleanupReferenceWriteAllowed()) || (approved() && validLink(resource.metadata, 'work_orders') &&
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'resident' &&
-        order(resource.metadata).userId == request.auth.uid && parentMediaUnlocked(order(resource.metadata)) && order(resource.metadata).get('status', '') != 'Done');
+        order(resource.metadata).userId == request.auth.uid && parentMediaUnlocked(order(resource.metadata)) && order(resource.metadata).get('status', '') != 'Done') && deleteQuotaReady();
     }
 
     match /{folder}/{fileName} {
@@ -125,10 +148,10 @@ service firebase.storage {
         (folder in ['feed', 'marketplace'] && resource.metadata.get('securityVersion', '') != '1' && webApproved());
       allow create: if (resource == null && folder in ['feed', 'marketplace'] && newUpload() && media() &&
         socialLink(request.resource.metadata, folder) && socialOwner(request.resource.metadata) &&
-        socialUpload(request.resource.metadata));
+        socialUpload(request.resource.metadata)) && uploadQuota(folder+'/'+fileName);
       allow update: if false;
       allow delete: if folder in ['feed', 'marketplace'] &&
-        ((manager() && databaseCleanupReferenceWriteAllowed()) || (approved() && socialLink(resource.metadata, folder) && socialOwner(resource.metadata) && socialUpload(resource.metadata)));
+        ((manager() && databaseCleanupReferenceWriteAllowed()) || (approved() && socialLink(resource.metadata, folder) && socialOwner(resource.metadata) && socialUpload(resource.metadata))) && deleteQuotaReady();
     }
 
     match /newsletters/{editionId}/document.pdf {
