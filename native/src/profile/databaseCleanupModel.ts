@@ -11,7 +11,9 @@ export type CleanupStorageScope = {files:number;bytes:number;exclusive:number;he
 export type CleanupScopeItem = {path:string;category:CleanupCategory;status:'exclusive'|'held'|'missing'|'deleted';bytes:number;reason?:string;generation?:string};
 export type CleanupScopePage = {items:CleanupScopeItem[];nextCursor?:string};
 export type CleanupJob = {
-  readOnly?:boolean;filePage?:CleanupScopePage;
+  readOnly?:boolean;filePage?:CleanupScopePage;remainingVerified?:boolean;
+  recordSummary?:Partial<Record<CleanupCategory,{deletedRoots:number;deletedNested:number;heldReasons:{code:string;count:number}[]}>>;
+  lastError?:{code:string;message:string;retryAfterSeconds?:number};
   id:string;state:CleanupState;categories:CleanupCategory[];counts:Partial<Record<CleanupCategory,CleanupCount>>;
   storageScope?:Partial<Record<CleanupCategory,CleanupStorageScope>>;
   planHash?:string;confirmationPhrase:'DELETE SELECTED DATA';enabled:boolean;completeInventory:boolean;message?:string;
@@ -62,7 +64,7 @@ export function readCleanupJob(value:unknown):CleanupJob {
     || (job.message!==undefined && typeof job.message!=='string')) return invalid();
   for(const key of job.categories) {
     const count=job.counts[key];
-    if(!count || !['records','documents','deleted','held','failed','remaining','storageDeleted','storageHeld'].every(field=>Number.isSafeInteger(count[field as keyof CleanupCount]) && count[field as keyof CleanupCount]>=0)) return invalid();
+    if(!count || !['records','documents','deleted','held','failed','remaining','storageDeleted','storageHeld'].every(field=>{const value=count[field as keyof CleanupCount];return typeof value==='number'&&Number.isSafeInteger(value)&&value>=0;})) return invalid();
   }
   for(const key of job.categories)for(const field of ['conversations','conversationsDeleted','conversationsRemaining'] as const){const value=job.counts[key]?.[field];if(value!==undefined&&(!Number.isSafeInteger(value)||value<0))return invalid();}
   if(job.storageScope!==undefined) {
@@ -73,6 +75,12 @@ export function readCleanupJob(value:unknown):CleanupJob {
         || !Array.isArray(scope.reasons) || !scope.reasons.every(reason=>reason && typeof reason.code==='string' && /^[a-z_]+$/.test(reason.code) && Number.isSafeInteger(reason.count) && reason.count>=0))return invalid();
     }
   }
+  if(job.remainingVerified!==undefined&&typeof job.remainingVerified!=='boolean')return invalid();
+  if(job.recordSummary!==undefined){
+    if(!job.recordSummary||typeof job.recordSummary!=='object'||Array.isArray(job.recordSummary))return invalid();
+    for(const [key,summary]of Object.entries(job.recordSummary))if(!job.categories.includes(key as CleanupCategory)||!summary||![summary.deletedRoots,summary.deletedNested].every(v=>Number.isSafeInteger(v)&&v>=0)||!Array.isArray(summary.heldReasons)||!summary.heldReasons.every(r=>r&&typeof r.code==='string'&&/^[a-z_]{1,80}$/.test(r.code)&&Number.isSafeInteger(r.count)&&r.count>=0))return invalid();
+  }
+  if(job.lastError!==undefined&&(!job.lastError||!/^[a-z_-]{1,80}$/.test(job.lastError.code)||typeof job.lastError.message!=='string'||job.lastError.message.length>1000||(job.lastError.retryAfterSeconds!==undefined&&(!Number.isSafeInteger(job.lastError.retryAfterSeconds)||job.lastError.retryAfterSeconds<1||job.lastError.retryAfterSeconds>3600))))return invalid();
   if(job.readOnly!==undefined&&job.readOnly!==true)return invalid();
   if(job.readOnly&&(job.enabled||job.state!=='review'||job.planHash))return invalid();
   if(job.filePage!==undefined)readCleanupScopePage(job.filePage,job.categories);
@@ -102,4 +110,11 @@ export function readCleanupScopePage(value:unknown,categories:CleanupCategory[])
       || (item.generation!==undefined&&(typeof item.generation!=='string'||!/^\d+$/.test(item.generation))) || (item.reason!==undefined && (typeof item.reason!=='string' || !/^[a-z_]+$/.test(item.reason))))return invalid();
   }
   return page;
+}
+
+export function cleanupRecordReason(code:string):string {
+ if(code==='inventory_incomplete')return 'Reference verification was incomplete; retained for safety';
+ if(code==='retention_or_evidence_hold')return 'Retention or evidence protection';
+ if(code==='storage_exclusivity_unverified')return 'Exclusive file ownership is not verified';
+ return cleanupStorageReason(code);
 }

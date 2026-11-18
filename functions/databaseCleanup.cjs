@@ -2,6 +2,8 @@
 // Default-database only. No production activation is implied by importing this module.
 const {createHash,randomUUID}=require('node:crypto');
 const {FieldPath}=require('firebase-admin/firestore');
+const {progressCounts,summarizeRecords}=require('./cleanupProgress.cjs');
+const {cleanupFailure}=require('./cleanupSafetyReads.cjs');
 const {assertCleanupExecutionAvailable}=require('./deletionExecutionCoordination.cjs');
 const CATEGORIES=Object.freeze({workOrders:['work_orders','work_order_numbers'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems','marketplace_chats'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
 const PHRASE='DELETE SELECTED DATA';
@@ -54,9 +56,14 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
  const jobRef=id=>db.doc(`database_cleanup_jobs/${id}`);
  const audit=id=>db.doc(`database_cleanup_audit/${id}`);
  async function publicJob(job){
-  const scope=media?await media.summary(job):undefined;const counts=structuredClone(job.counts);
+  const scope=media?await media.summary(job):undefined;const {counts,remainingVerified}=progressCounts(job);
+  const manifest=await jobRef(job.id).collection('items').select('category','path','cursor','state','reason','rootIndex','documentCount').limit(1001).get();
+  let recordSummary;
+  if(manifest.size<=1000){const rows=manifest.docs.map(row=>row.data()),legacy=manifest.docs.filter(row=>row.data().rootIndex===undefined);
+   if(legacy.length<=20){const old=legacy.length?await db.getAll(...legacy.map(row=>row.ref),{fieldMask:['documents']}):[];for(const snap of old){const row=rows.find(item=>item.path===manifest.docs.find(doc=>doc.ref.path===snap.ref.path)?.data().path);if(row)row.documents=snap.data()?.documents;}recordSummary=summarizeRecords(rows,job.categories);}
+  }
   if(scope)for(const category of job.categories){counts[category].storageDeleted=scope[category].files-scope[category].remaining;counts[category].storageHeld=scope[category].held+scope[category].missing;}
-  return {id:job.id,state:job.state,categories:job.categories,counts,...(scope?{storageScope:scope}:{}),...(job.planHash?{planHash:job.planHash}:{}),confirmationPhrase:PHRASE,enabled:enabled(),completeInventory:job.completeInventory,...(job.message?{message:job.message}:{})};}
+  return {id:job.id,state:job.state,categories:job.categories,counts,remainingVerified,...(recordSummary?{recordSummary}:{}),...(job.lastError?{lastError:job.lastError}:{}),...(scope?{storageScope:scope}:{}),...(job.planHash?{planHash:job.planHash}:{}),confirmationPhrase:PHRASE,enabled:enabled(),completeInventory:job.completeInventory,...(job.message?{message:job.message}:{})};}
  async function authorized(uid){
   if(!uid)fail('unauthenticated','Sign in with an approved Admin account.');
   const [profile,revoked,identity]=await Promise.all([db.doc(`users/${uid}`).get(),db.doc(`account_access_revocations/${uid}`).get(),verifyIdentity(uid)]);
@@ -107,6 +114,8 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
     tx.set(audit(job.id),{operatorUid:uid,confirmedAt:job.confirmedAt,categories:job.categories,outcome:'queued',counts:job.counts});
    }else if(input.action==='resume'){
     if(!['paused','failed'].includes(job.state))return job;
+    delete job.lastError;
+    if(job.verifyIndex!==undefined){job.verifyIndex=0;job.verifyPageToken='';delete job.verificationCounts;job.remainingVerified=false;}
     job.operatorUid=uid;job.state=job.confirmedAt?'queued':'planning';job.message='Retrying from the last confirmed checkpoint.';job.leaseUntil=0;
    }else{
     // A currently leased batch must reach its transaction boundary before cancellation.
@@ -170,7 +179,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   return db.runTransaction(async tx=>{
    const [current,lock]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control)]),latest=current.data();
    if(latest?.lease!==job.lease||lock.data()?.jobId!==job.id)throw Error('cleanup_lease_lost');
-   Object.assign(latest,update,{updatedAt:now(),leaseUntil:0});extra(tx,latest);tx.set(jobRef(job.id),latest);return latest;
+   Object.assign(latest,typeof update==='function'?update(latest):update,{updatedAt:now(),leaseUntil:0});extra(tx,latest);tx.set(jobRef(job.id),latest);return latest;
   });
  }
  async function plan(job){
@@ -190,7 +199,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const newsletterId=scope.category==='newsletters'?(scope.collection==='newsletters'?(root.id==='current'?root.data()?.id:root.id):root.data()?.newsletterId):null;
   const listingId=scope.category==='marketplace'?(scope.collection==='marketplace_chats'?kind.listingId:root.id):null;
   const listingOwnerUid=scope.category==='marketplace'?(scope.collection==='marketplace_chats'?kind.listingOwnerUid:root.data()?.userId??root.data()?.authorId):null;
-  const item={path,category:scope.category,listingId:listingId||null,listingOwnerUid:listingOwnerUid||null,newsletterId:typeof newsletterId==='string'?newsletterId:null,documents:inventory.documents,storageHeld:inventory.media.length,reason,state:reason?'held':'pending',cursor:0};
+  const item={path,category:scope.category,listingId:listingId||null,listingOwnerUid:listingOwnerUid||null,newsletterId:typeof newsletterId==='string'?newsletterId:null,documents:inventory.documents,rootIndex:inventory.documents.findIndex(doc=>doc.path===path),documentCount:inventory.documents.length,storageHeld:inventory.media.length,reason,state:reason?'held':'pending',cursor:0};
   if(media){const result=await media.planRoot(job,item);if(result.reason&&!item.reason){item.reason=result.reason;item.state='held';}item.storageHeld=result.files.filter(file=>file.status!=='exclusive').length;}
   if(Buffer.byteLength(JSON.stringify(item))>650000)throw Error('nested_inventory_bound');
   const counts=structuredClone(job.counts),count=counts[scope.category];count.records++;if(scope.collection==='marketplace_chats'){count.conversations++;count.conversationsRemaining++;}count.documents+=inventory.documents.length;count.remaining+=inventory.documents.length;
@@ -275,7 +284,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    if(done&&collection==='marketplace_chats'){latest.counts[item.category].conversationsDeleted=(latest.counts[item.category].conversationsDeleted||0)+1;latest.counts[item.category].conversationsRemaining=Math.max(0,(latest.counts[item.category].conversationsRemaining||0)-1);}
    latest.counts[item.category].deleted+=deleted;latest.counts[item.category].remaining=Math.max(0,latest.counts[item.category].remaining-deleted);
    latest.state='running';latest.leaseUntil=0;latest.updatedAt=now();
-   tx.update(row.ref,{cursor,state:done?'deleted':'deleting'});tx.set(jobRef(job.id),latest);
+   tx.update(row.ref,{cursor,state:done?'deleted':'deleting',rootIndex:item.documents.findIndex(doc=>doc.path===item.path),documentCount:item.documents.length});tx.set(jobRef(job.id),latest);
    if(done&&collection==='newsletters'){
     if(id==='current')tx.set(db.doc('database_cleanup_fences/newsletters/records/current'),{jobId:job.id,descendantsOnly:true,createdAt:now()});
     else tx.set(db.doc(`newsletter_draft_cleanup/${id}`),{state:'purged',reason:'admin_database_cleanup',jobId:job.id,completedAt:new Date(now())},{merge:true});
@@ -286,12 +295,13 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   if(media&&!await media.settle(job,async file=>assertIntent(job,file)))return checkpoint(job,{state:'running',message:'Resolving an already-started file operation.'});
   // Final inventory is also checkpointed: no unbounded end-of-job collection scan.
   const counts=structuredClone(job.counts);
-  if(job.verifyIndex===undefined){for(const category of job.categories){counts[category].remaining=0;if(category==='marketplace')counts[category].conversationsRemaining=0;}return checkpoint(job,{verifyIndex:0,verifyPageToken:'',counts});}
+  if(job.verifyIndex===undefined||!job.verificationCounts)return checkpoint(job,{verifyIndex:0,verifyPageToken:'',verificationCounts:Object.fromEntries(job.categories.map(category=>[category,{remaining:0,conversationsRemaining:0}])),counts:progressCounts(job).counts,remainingVerified:false});
   if(job.verifyIndex<job.scan.length){
-   const scope=job.scan[job.verifyIndex],page=await listPage(scope.collection,job.verifyPageToken);
-   for(const path of page.paths){const kind=await classification(path,scope.category,job);if(kind.skip)continue;const current=await tree(path);if(scope.collection==='marketplace_chats'&&current.documents.some(d=>d.path===path))counts[scope.category].conversationsRemaining++;counts[scope.category].remaining+=current.documents.length;}
-   return checkpoint(job,{counts,verifyIndex:page.next?job.verifyIndex:job.verifyIndex+1,verifyPageToken:page.next||''});
+   const scope=job.scan[job.verifyIndex],page=await listPage(scope.collection,job.verifyPageToken),verificationCounts=structuredClone(job.verificationCounts);
+   for(const path of page.paths){const kind=await classification(path,scope.category,job);if(kind.skip)continue;const current=await tree(path);if(scope.collection==='marketplace_chats'&&current.documents.some(d=>d.path===path))verificationCounts[scope.category].conversationsRemaining++;verificationCounts[scope.category].remaining+=current.documents.length;}
+   return checkpoint(job,{verificationCounts,verifyIndex:page.next?job.verifyIndex:job.verifyIndex+1,verifyPageToken:page.next||''});
   }
+  for(const category of job.categories){counts[category].remaining=job.verificationCounts[category].remaining;if(category==='marketplace')counts[category].conversationsRemaining=job.verificationCounts[category].conversationsRemaining;}
   if(media)await media.verifyRemaining(job);
   const mediaScope=media?await media.summary(job):null;
   if(mediaScope)for(const category of job.categories){counts[category].storageDeleted=mediaScope[category].files-mediaScope[category].remaining;counts[category].storageHeld=mediaScope[category].held+mediaScope[category].missing;}
@@ -299,7 +309,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   await beginRelease(job);
   await releaseBarriers(job);
   const held=(mediaScope&&Object.values(mediaScope).some(scope=>scope.remaining))||Object.values(counts).some(count=>count.remaining||count.held||count.storageHeld),state=held?'completed_with_holds':'completed';
-  return checkpoint(job,{state,counts,completedAt:now(),message:held?'Cleanup finished with retained records or files. No claim of a complete purge is made. Inspect the server-only manifest for hold categories.':'All confirmed category records were removed; unrelated data was preserved.'},(tx,latest)=>{
+  return checkpoint(job,{state,counts,remainingVerified:true,completedAt:now(),message:held?'Cleanup finished with retained records or files. No claim of a complete purge is made. Inspect the server-only manifest for hold categories.':'All confirmed category records were removed; unrelated data was preserved.'},(tx,latest)=>{
    tx.set(control,{jobId:null,collections:[],referenceWritesBlocked:false,phase:state},{merge:true});tx.set(audit(job.id),{operatorUid:latest.operatorUid,initiatedBy:latest.initiatedBy,categories:latest.categories,confirmedAt:latest.confirmedAt,completedAt:latest.completedAt,outcome:state,counts:latest.counts});
   });
  }
@@ -342,16 +352,19 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    if(job.confirmedAt){await safety();await acquireBarriers(job);}
    if(job.finalizing)await finalize(job);else if(job.state==='planning')await plan(job);else await remove(job);
   }catch(error){
-   onError(error);
+   onError(error,{jobId:job.id,stage:job.verifyIndex!==undefined?'final_recount':job.currentPath?'record_operation':'inventory'});
    if(job.currentPath&&((error.cleanupHold&&job.confirmedAt)||['cleanup_record_changed','cleanup_reported_evidence','cleanup_retention_changed','cleanup_active_analysis'].includes(error.message))){
     const active=await jobRef(job.id).collection('items').where('path','==',job.currentPath).limit(1).get();
     if(!active.empty){await protectChanged(job,active.docs[0].ref,active.docs[0].data(),error.cleanupHold||error.message);return true;}
    }
-   const counts=structuredClone(job.counts);if(job.confirmedAt)counts[job.currentCategory||job.categories[0]].failed++;
-   const code=error instanceof CleanupError?error.code:(String(error.message||'').startsWith('nested_inventory')||error.cleanupHold==='inventory_incomplete')?'inventory_bound':'operation_failed';
-   // Safe fixed-category errors only: never return resident content or raw transport responses.
-   const cancelling=(await jobRef(job.id).get()).data()?.cancelRequested===true;
-   await checkpoint(job,{state:cancelling&&error.message==='cleanup_cancel_requested'?'queued':'paused',counts,completeInventory:code==='inventory_bound'?false:job.completeInventory,message:`Cleanup paused (${code}). Some data may remain. Refresh status before resuming.`}).catch(()=>{});
+   const failure=cleanupFailure(error);
+   const code=error instanceof CleanupError?error.code:(String(error.message||'').startsWith('nested_inventory')||error.cleanupHold==='inventory_incomplete')?'inventory_bound':failure.code;
+   // Read the committed job inside the checkpoint: a lost commit response must
+   // never roll back successful document deletions or advance a cursor twice.
+   await checkpoint(job,latest=>{
+    const counts=structuredClone(latest.counts);if(latest.confirmedAt)counts[job.currentCategory||latest.categories[0]].failed++;
+    return{state:latest.cancelRequested&&error.message==='cleanup_cancel_requested'?'queued':'paused',counts,completeInventory:code==='inventory_bound'?false:latest.completeInventory,lastError:{code,message:failure.message,...(failure.retryAfterSeconds?{retryAfterSeconds:failure.retryAfterSeconds}:{})},message:`Cleanup paused (${code}). ${failure.message}`};
+   }).catch(()=>{});
   }
   return true;
  }

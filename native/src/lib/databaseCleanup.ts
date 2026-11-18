@@ -24,7 +24,10 @@ async function callCleanup(input:CleanupRequest|CleanupScopeRequest):Promise<unk
     return (await call(input)).data;
   } catch(error) {
     const code=String((error as {code?:string})?.code || '');
-    if(['functions/not-found','functions/unimplemented','functions/unavailable'].includes(code)) {
+    const reason=(error as {details?:{reason?:string}})?.details?.reason;
+    if(reason==='safety_quota_limited')throw Error('Cleanup safety checks reached a temporary API limit. Wait a minute, refresh job status, then resume.');
+    if(code==='functions/unavailable')throw Error('The cleanup service is temporarily unavailable. The last operation could not be confirmed. Refresh job status before retrying.');
+    if(['functions/not-found','functions/unimplemented'].includes(code)) {
       throw Error('The Database Cleanup service is pending setup or temporarily unavailable. The last request could not be verified. Try again after the service is available; refresh any existing job status before continuing.');
     }
     if(code==='functions/permission-denied'||code==='functions/unauthenticated') {

@@ -1,0 +1,13 @@
+'use strict';
+const {createHash}=require('node:crypto');
+function quotaError(seconds=60){return Object.assign(Error('Cleanup safety checks are temporarily rate-limited. Wait a minute, refresh status, then resume.'),{cleanupFailure:'safety_quota_limited',code:'resource-exhausted',httpStatus:429,retryAfterSeconds:seconds});}
+// Rulesets are immutable (Firebase Rules REST projects.rulesets). Releases and
+// the actual safety decision are NEVER cached. Every check still reads live state.
+function createCleanupSafetyReader({project,fetchJSON,now=Date.now,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),minimumInterval=6000}){
+ const hashes=new Map();let queue=Promise.resolve(),nextAt=0,blockedUntil=0;
+ async function rulesHash(release){const live=await fetchJSON(`https://firebaserules.googleapis.com/v1/projects/${project}/releases/${release}`);if(!live.rulesetName?.startsWith(`projects/${project}/rulesets/`))throw Error('cleanup_ruleset_mismatch');if(hashes.has(live.rulesetName))return hashes.get(live.rulesetName);const source=await fetchJSON('https://firebaserules.googleapis.com/v1/'+live.rulesetName),files=source.source?.files;if(files?.length!==1||typeof files[0].content!=='string')throw Error('cleanup_ruleset_unrecognized');const hash=createHash('sha256').update(files[0].content).digest('hex');if(hashes.size>=16)hashes.delete(hashes.keys().next().value);hashes.set(live.rulesetName,hash);return hash;}
+ function verify(work){const task=queue.then(async()=>{if(now()<blockedUntil)throw quotaError(Math.ceil((blockedUntil-now())/1000));if(now()<nextAt)await sleep(nextAt-now());nextAt=now()+minimumInterval;try{return await work();}catch(error){if(error.cleanupFailure==='safety_quota_limited')blockedUntil=now()+Math.max(60000,(error.retryAfterSeconds||60)*1000);throw error;}});queue=task.catch(()=>{});return task;}
+ return{verify,rulesHash};
+}
+function cleanupFailure(error){if(error?.cleanupFailure==='safety_quota_limited')return{code:'safety_quota_limited',message:'Safety verification reached its API limit. No further deletion was authorized. Wait a minute, refresh status, then resume.',retryAfterSeconds:Math.max(1,Math.min(3600,error.retryAfterSeconds||60))};if(error?.cleanupFailure==='safety_service_unavailable')return{code:'safety_service_unavailable',message:'Safety verification is temporarily unavailable. No further deletion was authorized. Refresh status before resuming.'};return{code:'operation_failed',message:'A cleanup operation failed. Some data may remain. Refresh status before resuming.'};}
+module.exports={createCleanupSafetyReader,quotaError,cleanupFailure};

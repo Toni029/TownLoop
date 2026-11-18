@@ -54,7 +54,7 @@ const require = createRequire(import.meta.url), ts = require('typescript');
 function loadClient(response: unknown, failure?: unknown,readOnly=false) {
   const calls: any[] = [];
   const module = {exports:{} as any};
-  const source = ts.transpileModule(readFileSync(new URL('../src/lib/databaseCleanup.ts',import.meta.url),'utf8').replace('CLEANUP_READ_ONLY_RELEASE=true',`CLEANUP_READ_ONLY_RELEASE=${readOnly}`), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const source = ts.transpileModule(readFileSync(new URL('../src/lib/databaseCleanup.ts',import.meta.url),'utf8').replace(/CLEANUP_READ_ONLY_RELEASE=(?:true|false)/,`CLEANUP_READ_ONLY_RELEASE=${readOnly}`), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   vm.runInNewContext(source,{module,exports:module.exports,Error,require:(name:string) => {
     if(name==='firebase/functions') return {getFunctions:(_app:any,region:string)=>{assert.equal(region,'us-central1');return {};},httpsCallable:(_functions:any,name:string)=>async(input:any)=>{calls.push({name,input});if(failure)throw failure;return {data:response};}};
     if(name==='./firebase')return {app:{},auth:{currentUser:{uid:'admin'}}};
@@ -358,3 +358,5 @@ test('read-only release uses only the preview endpoint and rejects job mutation 
  const screen=nativeScreen({job:readCleanupJob(value)},false,true);
  assert.match(screen.text,/Deletion is disabled on the server/);assert.doesNotMatch(screen.text,/Continue to confirmation|Delete selected data|Resume cleanup|Cancel cleanup/);
 });
+
+test('partial cleanup displays root/nested progress, incomplete recount and retained-record reasons',()=>{const value=readCleanupJob(job({state:'paused',remainingVerified:false,counts:{workOrders:{...counts,records:14,documents:14,deleted:10,remaining:4,held:4,failed:1}},recordSummary:{workOrders:{deletedRoots:10,deletedNested:0,heldReasons:[{code:'inventory_incomplete',count:3},{code:'metadata_missing',count:1}]}},lastError:{code:'safety_quota_limited',message:'Wait before resuming.',retryAfterSeconds:60}}));const screen=nativeScreen({job:value});assert.match(screen.text,/top-level records deleted/);assert.match(screen.text,/nested documents deleted/);assert.match(screen.text,/final recount pending/);assert.match(screen.text,/Reference verification was incomplete/);assert.match(screen.text,/failed attempts/);assert.equal(value.counts.workOrders?.remaining,4);assert.throws(()=>readCleanupJob({...value,remainingVerified:'yes'}),/verify/);});

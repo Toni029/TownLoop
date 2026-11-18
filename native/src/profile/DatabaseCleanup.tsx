@@ -1,7 +1,7 @@
 import {ActivityIndicator,Pressable,Text,View} from 'react-native';
 import {AlertTriangle,Check,ChevronRight,ShieldCheck,Trash2} from 'lucide-react-native';
 import {TextInput} from '../keyboard/KeyboardScrollView';
-import {CLEANUP_CATEGORIES,CLEANUP_PHRASE,canConfirmCleanup,cleanupCanCancel,cleanupIsActive,cleanupOutcome,cleanupStorageReason} from './databaseCleanupModel';
+import {CLEANUP_CATEGORIES,CLEANUP_PHRASE,canConfirmCleanup,cleanupCanCancel,cleanupIsActive,cleanupOutcome,cleanupStorageReason,cleanupRecordReason} from './databaseCleanupModel';
 import {CLEANUP_READ_ONLY_RELEASE} from '../lib/databaseCleanup';
 import type {DatabaseCleanupController} from './useDatabaseCleanup';
 
@@ -25,7 +25,7 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
       <View style={{flexDirection:'row',gap:8,alignItems:'center'}}><AlertTriangle size={19} color={dark?'#fcd34d':'#92400e'}/><Text style={{...font(14,true),flex:1}}>{CLEANUP_READ_ONLY_RELEASE?'Read-only preview. Nothing will be deleted.':'Review carefully. This cannot be undone.'}</Text></View>
       <Text style={{...font(),color:muted}}>{CLEANUP_READ_ONLY_RELEASE?'Review live record counts, file metadata and protection warnings. This service cannot create cleanup jobs or delete data.':'Selected categories include real community data. Preview is read-only. Confirmed cleanup temporarily makes the app read-only to prevent files being shared while they are removed.'}</Text>
     </View>
-    {!!c.error&&<View accessibilityRole="alert" style={[panel,{borderColor:'#fb7185'}]}><Text style={{...font(),color:dark?'#fda4af':'#9f1239'}}>{c.error}</Text>{c.needsStatus&&<Text style={{...font(12),color:muted}}>The last response could not be verified. Refresh status before confirming or resuming; do not assume the request failed.</Text>}</View>}
+    {!!c.error&&<View accessibilityRole="alert" style={[panel,{borderColor:'#fb7185'}]}><Text style={{...font(),color:dark?'#fda4af':'#9f1239'}}>{c.error}</Text>{c.needsStatus&&<Text style={{...font(12),color:muted}}>The last response could not be verified. Counts below are the last verified status. Refresh status before confirming or resuming; do not assume the request failed.</Text>}</View>}
     {!job&&<View style={panel}>
       <Text accessibilityRole="header" style={font(16,true)}>{CLEANUP_READ_ONLY_RELEASE?'Choose categories to review':'1. Choose what to remove'}</Text>
       <Text style={{...font(12),color:muted}}>Each category is independent. All options start unchecked.</Text>
@@ -48,19 +48,23 @@ export function DatabaseCleanup({controller:c,dark}:{controller:DatabaseCleanupC
           {(!job.enabled||(!job.completeInventory&&job.state==='review'))&&<Text style={{...font(12,true),color:dark?'#fcd34d':'#92400e'}}>{!job.enabled?(job.readOnly?'Deletion is disabled on the server. This inventory does not authorize a purge.':'The cleanup service is not enabled. Confirmation is unavailable until the service is ready.'):'The inventory is incomplete. Deletion is unavailable; refresh status or cancel this preview.'}</Text>}
           <Text selectable style={{...font(10),color:muted}}>{job.readOnly?'Preview':'Job'} {job.id}</Text>
           {CLEANUP_CATEGORIES.filter(category=>job.categories.includes(category.key)).map(category=>{
-            const count=job.counts[category.key]!, storage=job.storageScope?.[category.key];
+            const count=job.counts[category.key]!, storage=job.storageScope?.[category.key], records=job.recordSummary?.[category.key];
             return <View key={category.key} style={{gap:6,borderTopWidth:1,borderColor:border,paddingTop:12,marginTop:4}}>
               <Text style={font(14,true)}>{category.label}</Text>
               <Text style={{...font(12),color:muted}}>{`${count.records.toLocaleString()} records · ${count.documents.toLocaleString()} documents in inventory`}</Text>
               {category.key==='marketplace'&&<Text style={{...font(12),color:muted}}>Includes verified buyer–seller conversations and their messages/media: {(count.conversations??0).toLocaleString()} conversations · {(count.conversationsDeleted??0).toLocaleString()} deleted · {(count.conversationsRemaining??0).toLocaleString()} remaining</Text>}
               <View style={{flexDirection:'row',flexWrap:'wrap',columnGap:16,rowGap:4}}>
                 <Text style={font(12)}>{count.deleted.toLocaleString()} documents deleted</Text>
-                <Text style={font(12)}>{count.held.toLocaleString()} records held</Text>
-                <Text style={font(12)}>{count.remaining.toLocaleString()} documents remaining</Text>
-                <Text style={font(12)}>{count.failed.toLocaleString()} operations failed</Text>
+                <Text style={font(12)}>{count.held.toLocaleString()} records retained for safety</Text>
+                <Text style={font(12)}>{count.remaining.toLocaleString()} documents {job.remainingVerified===false?'not yet removed (final recount pending)':'remaining'}</Text>
+                <Text style={font(12)}>{count.failed.toLocaleString()} failed attempts (includes recovered retries)</Text>
                 <Text style={font(12)}>{count.storageDeleted.toLocaleString()} files deleted</Text>
                 <Text style={font(12)}>{count.storageHeld.toLocaleString()} media references held</Text>
               </View>
+              {records&&<View style={{gap:4}}>
+                <Text style={font(12,true)}>{records.deletedRoots.toLocaleString()} top-level records deleted · {records.deletedNested.toLocaleString()} nested documents deleted</Text>
+                {records.heldReasons.map(reason=><Text key={reason.code} style={{...font(12),color:muted}}>{cleanupRecordReason(reason.code)}: {reason.count.toLocaleString()} records</Text>)}
+              </View>}
               {storage?<View style={{gap:4}}>
                 <Text style={font(12,true)}>Storage scope: {storage.files.toLocaleString()} files · {storage.bytes.toLocaleString()} bytes</Text>
                 <Text style={{...font(12),color:muted}}>{storage.exclusive.toLocaleString()} exclusive · {storage.held.toLocaleString()} held · {storage.missing.toLocaleString()} missing · {storage.remaining.toLocaleString()} remaining</Text>

@@ -77,16 +77,20 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
    async function visit(collection){
     let token='';do{
      const page=await pager(collection,token,25);
-     for(const path of page.paths){
-      if(++seen>maxReferenceDocuments||Date.now()>deadline)throw error('inventory_incomplete');
-      if(source===db&&[...selected].some(root=>path===root||path.startsWith(root+'/')))continue;
-      // Edition dependencies are fully inventoried before confirmation; execution
-      // skips only confirmed, unheld manifest roots above.
-      if(source===db&&job&&!job.confirmedAt&&ownerRoot.startsWith('newsletters/')&&path.startsWith('newsletters/'))continue;
-      const ref=source.doc(path);
-      // Native PDF chunks cannot carry attachment references. Their payload is never fetched.
-      const [snapshot]=await source.getAll(ref,...(/^newsletters\/[^/]+\/chunks\/[^/]+$/.test(path)?[{fieldMask:['index','totalChunks']}]:[]));
-      if(snapshot.exists){const data={...snapshot.data()};
+     for(let offset=0;offset<page.paths.length;offset+=8){
+      const paths=[];
+      for(const path of page.paths.slice(offset,offset+8)){
+       if(++seen>maxReferenceDocuments||Date.now()>deadline)throw error('inventory_incomplete');
+       if(source===db&&[...selected].some(root=>path===root||path.startsWith(root+'/')))continue;
+       if(source===db&&job&&!job.confirmedAt&&ownerRoot.startsWith('newsletters/')&&path.startsWith('newsletters/'))continue;
+       paths.push(path);
+      }
+      const refs=paths.map(path=>source.doc(path));
+      // Bound concurrency and batch reads; PDF bytes remain excluded. Descendants
+      // are still visited, including descendants of missing parent documents.
+      const chunks=refs.filter(ref=>/^newsletters\/[^/]+\/chunks\/[^/]+$/.test(ref.path)),other=refs.filter(ref=>!chunks.includes(ref));
+      const snapshots=(await Promise.all([other.length?source.getAll(...other):[],chunks.length?source.getAll(...chunks,{fieldMask:['index','totalChunks']}):[]])).flat();
+      for(const snapshot of snapshots)if(snapshot.exists){const path=snapshot.ref.path,data={...snapshot.data()};
        if(source===db&&job&&!job.confirmedAt&&job.categories.includes('marketplace')&&path.split('/').length===2&&path.startsWith('marketplace_chats/')){
         const {marketplaceBinding,mixedMarketplaceData}=require('./databaseCleanupMarketplace.cjs');
         const binding=await marketplaceBinding(db,path.split('/')[1],data,job.id);
@@ -95,8 +99,10 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
        }
        if(references(data).paths.includes(name))return true;
       }
-      const children=await ref.listCollections();if(children.length>50)throw error('inventory_incomplete');
-      for(const child of children)if(await visit(child.path))return true;
+      const children=await Promise.all(refs.map(ref=>ref.listCollections()));
+      snapshots.length=0; // release document bodies before descending recursively
+      if(Date.now()>deadline)throw error('inventory_incomplete');
+      for(const collections of children){if(collections.length>50)throw error('inventory_incomplete');for(const child of collections)if(await visit(child.path))return true;}
      }
      token=page.next;
     }while(token);return false;
