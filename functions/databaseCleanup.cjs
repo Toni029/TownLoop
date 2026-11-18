@@ -9,9 +9,9 @@ const CATEGORIES=Object.freeze({workOrders:['work_orders','work_order_numbers'],
 const PHRASE='DELETE SELECTED DATA';
 const TERMINAL=new Set(['completed','completed_with_holds','cancelled']);
 const hash=value=>createHash('sha256').update(value).digest('hex');
-const version=doc=>doc.exists?`${doc.updateTime.seconds}:${doc.updateTime.nanoseconds}`:null;
+const {version,freeze:freezeParent,releaseOne:releaseOneParent,readDocuments}=require('./cleanupParentLock.cjs');
 // PDF data is deliberately excluded: planning neither decodes nor copies PDF chunks.
-const FIELDS=['role','approved','deletionPending','legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','itemId','sellerId','buyerId','participantIds','listingId','listingIds','relatedListingIds','unrelatedContent','conversationType','groupConversationId','senderId','authorId','isSystem','orderId','userId','id','state','status','leaseUntil','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt','photoUrl','photos','media','mediaUrl','itemMediaUrl','imageUrl','attachmentUrl','attachments','fileUrl','pdfUrl','pageImages','url','storagePath','comments','messages'];
+const FIELDS=['databaseCleanupLock','role','approved','deletionPending','legalHold','evidenceHold','retentionHold','hold','holds','retention','retainUntil','retentionUntil','deleteAfter','evidence','reported','reportId','reportIds','isAiExtracted','newsletterId','itemId','sellerId','buyerId','participantIds','listingId','listingIds','relatedListingIds','unrelatedContent','conversationType','groupConversationId','senderId','authorId','isSystem','orderId','userId','id','state','status','leaseUntil','retentionVersion','completedAt','retentionDueAt','retentionExpiresAt','photoUrl','photos','media','mediaUrl','itemMediaUrl','imageUrl','attachmentUrl','attachments','fileUrl','pdfUrl','pageImages','url','storagePath','comments','messages'];
 const zero=()=>({records:0,documents:0,deleted:0,held:0,failed:0,remaining:0,storageDeleted:0,storageHeld:0,conversations:0,conversationsDeleted:0,conversationsRemaining:0});
 class CleanupError extends Error{constructor(code,message){super(message);this.code=code;}}
 const fail=(code,message)=>{throw new CleanupError(code,message);};
@@ -139,7 +139,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const documents=[];const media=new Set();let hold=false,mixed=false;let names=0;
   async function visit(path,depth){
    if(depth>8||++names>1000)throw Error('nested_inventory_bound');
-   const ref=db.doc(path);const [snap]=await db.getAll(ref,{fieldMask:FIELDS});
+   const ref=db.doc(path);const [snap]=await readDocuments(db,[ref],FIELDS);
    if(snap.exists){const data=snap.data();documents.push({path,version:version(snap)});hold=hold||protectedRecord(data,now());if(chat)mixed=mixed||require('./databaseCleanupMarketplace.cjs').mixedMarketplaceData(data,rootPath.split('/')[1],chat.itemId,[chat.sellerId,chat.buyerId]);for(const key of mediaReferences(data))media.add(key);}
    const collections=await ref.listCollections();if(collections.length>50)throw Error('nested_inventory_bound');
    for(const collection of collections){let token='';do{const page=await listPage(collection.path,token,25);for(const child of page.paths)await visit(child,depth+1);token=page.next;}while(token);}
@@ -259,12 +259,13 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
     const [snap,lock,profile,revoked,analyses]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(db.doc(`users/${job.operatorUid}`)),tx.get(db.doc(`account_access_revocations/${job.operatorUid}`)),item.category==='newsletters'?tx.get(db.collection('newsletter_analysis_jobs').where('state','in',['queued','running','retrying']).limit(1)):Promise.resolve(null)]);
     if(snap.data()?.lease!==job.lease||lock.data()?.jobId!==job.id||profile.data()?.role!=='admin'||!profile.data()?.approved||revoked.exists)throw Error('cleanup_authorization_changed');
     if(analyses&&!analyses.empty)throw Error('cleanup_active_analysis');
+    item.parentStorageLocked=await freezeParent(tx,db,job,item);
     tx.set(db.doc(`database_cleanup_fences/${collection}/records/${id}`),{jobId:job.id,createdAt:now()});
     // Derived news shares its edition's fence, keeping a large atomic publish
     // within Firestore's rules-read budget and preventing old AI results returning.
     if(['community_events','community_highlights'].includes(collection)&&item.newsletterId)tx.set(db.doc(`database_cleanup_fences/newsletters/records/${item.newsletterId}`),{jobId:job.id,createdAt:now()});
     if(collection==='newsletters'&&id!=='current')tx.set(db.doc(`newsletter_draft_cleanup/${id}`),{state:'purging',reason:'admin_database_cleanup',jobId:job.id,createdAt:new Date(now())});
-    tx.update(row.ref,{state:'deleting'});
+    tx.update(row.ref,{state:'deleting',parentStorageLocked:item.parentStorageLocked});
    });
    item.state='deleting';
   }
@@ -272,7 +273,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   if(media){const complete=await media.removeRoot(job,item,async()=>{
    await authorized(job.operatorUid);await safety();
    await db.runTransaction(async tx=>{
-    const [active,lock,reports,docs]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1)),item.documents.slice(item.cursor).length?tx.getAll(...item.documents.slice(item.cursor).map(record=>db.doc(record.path)),{fieldMask:FIELDS}):Promise.resolve([])]);
+    const [active,lock,reports,docs]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1)),item.documents.slice(item.cursor).length?readDocuments(tx,item.documents.slice(item.cursor).map(record=>db.doc(record.path)),FIELDS):Promise.resolve([])]);
     if(active.data()?.lease!==job.lease||active.data()?.cancelRequested||lock.data()?.jobId!==job.id||lock.data()?.referenceWritesBlocked!==true)throw Error('cleanup_checkpoint_changed');
     if(!reports.empty)throw Error('cleanup_reported_evidence');
     for(let i=0;i<docs.length;i++){if(protectedRecord(docs[i].data()||{},now()))throw Error('cleanup_retention_changed');if(version(docs[i])!==item.documents[item.cursor+i].version)throw Error('cleanup_record_changed');}
@@ -287,13 +288,14 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   readPaths.add(item.path);
   // Each batch commits deletions and its progress atomically, with version preconditions.
   await db.runTransaction(async tx=>{
-   const [current,lock,manifest,profile,revoked,reports,docs,analyses]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(row.ref),tx.get(db.doc(`users/${job.operatorUid}`)),tx.get(db.doc(`account_access_revocations/${job.operatorUid}`)),tx.get(db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1)),tx.getAll(...[...readPaths].map(path=>db.doc(path)),{fieldMask:FIELDS}),item.category==='newsletters'?tx.get(db.collection('newsletter_analysis_jobs').where('state','in',['queued','running','retrying']).limit(1)):Promise.resolve(null)]);
+   const [current,lock,manifest,profile,revoked,reports,docs,analyses]=await Promise.all([tx.get(jobRef(job.id)),tx.get(control),tx.get(row.ref),tx.get(db.doc(`users/${job.operatorUid}`)),tx.get(db.doc(`account_access_revocations/${job.operatorUid}`)),tx.get(db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1)),readDocuments(tx,[...readPaths].map(path=>db.doc(path)),FIELDS),item.category==='newsletters'?tx.get(db.collection('newsletter_analysis_jobs').where('state','in',['queued','running','retrying']).limit(1)):Promise.resolve(null)]);
    const latest=current.data();
    if(latest?.lease!==job.lease||lock.data()?.jobId!==job.id||!lock.data()?.collections?.includes(collection)||manifest.data()?.cursor!==item.cursor)throw Error('cleanup_checkpoint_changed');
    if(profile.data()?.role!=='admin'||profile.data()?.approved!==true||profile.data()?.deletionPending||revoked.exists)throw Error('cleanup_authorization_changed');
    if(latest.cancelRequested)throw Error('cleanup_cancel_requested');
    if(!reports.empty)throw Error('cleanup_reported_evidence');
    if(analyses&&!analyses.empty)throw Error('cleanup_active_analysis');
+    item.parentStorageLocked=await freezeParent(tx,db,job,item);
    if(docs.some(doc=>doc.exists&&protectedRecord(doc.data(),now())))throw Error('cleanup_retention_changed');
    for(const doc of docs)if(version(doc)!==(expected.get(doc.ref.path)??null))throw Error('cleanup_record_changed');
    const snapshots=new Map(docs.map(doc=>[doc.ref.path,doc]));
@@ -306,7 +308,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    if(done&&collection==='marketplace_chats'){latest.counts[item.category].conversationsDeleted=(latest.counts[item.category].conversationsDeleted||0)+1;latest.counts[item.category].conversationsRemaining=Math.max(0,(latest.counts[item.category].conversationsRemaining||0)-1);}
    latest.counts[item.category].deleted+=deleted;latest.counts[item.category].remaining=Math.max(0,latest.counts[item.category].remaining-deleted);
    latest.state='running';latest.leaseUntil=0;latest.updatedAt=now();
-   tx.update(row.ref,{cursor,state:done?'deleted':'deleting',rootIndex:item.documents.findIndex(doc=>doc.path===item.path),documentCount:item.documents.length});tx.set(jobRef(job.id),latest);
+   tx.update(row.ref,{cursor,state:done?'deleted':'deleting',...(done?{parentStorageLocked:false}:{}),rootIndex:item.documents.findIndex(doc=>doc.path===item.path),documentCount:item.documents.length});tx.set(jobRef(job.id),latest);
    if(done&&collection==='newsletters'){
     if(id==='current')tx.set(db.doc('database_cleanup_fences/newsletters/records/current'),{jobId:job.id,descendantsOnly:true,createdAt:now()});
     else tx.set(db.doc(`newsletter_draft_cleanup/${id}`),{state:'purged',reason:'admin_database_cleanup',jobId:job.id,completedAt:new Date(now())},{merge:true});
@@ -315,6 +317,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
  }
  async function finalize(job){
   if(media&&!await media.settle(job,async file=>assertIntent(job,file)))return checkpoint(job,{state:'running',message:'Resolving an already-started file operation.'});
+  if(await releaseOneParent(db,job))return checkpoint(job,{state:'running'});
   // Final inventory is also checkpointed: no unbounded end-of-job collection scan.
   const counts=structuredClone(job.counts);
   if(job.verifyIndex===undefined||!job.verificationCounts)return checkpoint(job,{verifyIndex:0,verifyPageToken:'',verificationCounts:Object.fromEntries(job.categories.map(category=>[category,{remaining:0,conversationsRemaining:0}])),counts:progressCounts(job).counts,remainingVerified:false});
@@ -342,7 +345,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   const rows=await jobRef(job.id).collection('items').where('path','==',file.root).limit(1).get();
   if(rows.empty)throw Error('cleanup_intent_scope');
   const item=rows.docs[0].data(),remaining=item.documents.slice(item.cursor);
-  const [reports,docs]=await Promise.all([db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1).get(),remaining.length?db.getAll(...remaining.map(record=>db.doc(record.path)),{fieldMask:FIELDS}):Promise.resolve([])]);
+  const [reports,docs]=await Promise.all([db.collection('moderation_reports').where('collection','==',collection).where('id','==',id).limit(1).get(),remaining.length?readDocuments(db,remaining.map(record=>db.doc(record.path)),FIELDS):Promise.resolve([])]);
   if(!reports.empty||docs.some((doc,i)=>protectedRecord(doc.data()||{},now())||version(doc)!==remaining[i].version))throw Error('cleanup_in_flight_deletion');
  }
  // Seal the job before releasing either database's barrier. A lease takeover
@@ -361,6 +364,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    await authorized(job.operatorUid);
    if(job.cancelRequested){
     if(media&&!await media.settle(job,async file=>{await assertIntent(job,file);}))return checkpoint(job,{state:'queued',message:'Finishing an already-started file operation before cancelling.'});
+    if(await releaseOneParent(db,job))return checkpoint(job,{state:'queued'});
     await beginRelease(job);
     if(media){const scope=await media.summary(job);for(const category of job.categories){job.counts[category].storageDeleted=scope[category].files-scope[category].remaining;job.counts[category].storageHeld=scope[category].held+scope[category].missing;}}
     // Retain partial-root fences and release the broader collection lock without further destruction.

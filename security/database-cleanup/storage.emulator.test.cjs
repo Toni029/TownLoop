@@ -20,7 +20,7 @@ beforeEach(async()=>{
  objects.set('work_orders/photo.jpg',metadata('work_orders/photo.jpg'));
 });
 const item=()=>({path:'work_orders/a',category:'workOrders',reason:null});
-async function lock(){await db.doc('database_cleanup_control/active').set({jobId:job.id,referenceWritesBlocked:true,collections:['work_orders']});}
+async function lock(){await db.doc('database_cleanup_control/active').set({jobId:job.id,referenceWritesBlocked:true,collections:['work_orders']});await db.doc('work_orders/a').update({databaseCleanupLock:{jobId:job.id,blocked:true}});}
 test('canonical identity removes tokens and refuses private/foreign paths',()=>{
  assert.equal(canonicalPath('https://firebasestorage.googleapis.com/v0/b/cc-livingcommunity-app.firebasestorage.app/o/work_orders%2Fphoto.jpg?alt=media&token=SECRET'),'work_orders/photo.jpg');
  for(const path of ['inbox_groups/private/file.jpg','avatars/a.jpg','gs://foreign/work_orders/a.jpg','work_orders/../private.jpg'])assert.equal(canonicalPath(path),null);
@@ -144,4 +144,8 @@ test('a descendant hold blocks intent redrive and keeps the write barrier safely
  assert.equal(await media.noInFlight(job),false);await db.doc('work_orders/a/comments/evidence').update({legalHold:true});
  await engine.operate('admin',{action:'cancel',jobId:view.id});await engine.tick();view=await engine.operate('admin',{action:'status',jobId:view.id});
  assert.equal(view.state,'paused');assert.equal(deletes.length,0);assert.equal((await db.doc('database_cleanup_control/active').get()).data().referenceWritesBlocked,true);
+});
+
+test('new parent-owned objects after preview hold the root instead of deleting unreviewed media',async()=>{
+ await media.planRoot(job,item());objects.set('work_orders/late.jpg',metadata('work_orders/late.jpg'));await lock();await assert.rejects(media.removeRoot(job,item(),async()=>{}),/storage_scope_changed/);assert.equal(deletes.length,0);assert(objects.has('work_orders/photo.jpg'));assert(objects.has('work_orders/late.jpg'));
 });

@@ -1,0 +1,35 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),{createRequire}=require('node:module'),path=require('node:path');const sdk=createRequire(path.resolve('functions/package.json'));const {initializeApp,deleteApp}=sdk('firebase-admin/app'),{getFirestore}=sdk('firebase-admin/firestore');const {freeze,version,releaseOne}=require('../../functions/cleanupParentLock.cjs');
+const host=process.env.FIRESTORE_EMULATOR_HOST,storeHost=process.env.FIREBASE_STORAGE_EMULATOR_HOST;if(!/^127\.0\.0\.1:\d+$/.test(host||'')||!/^127\.0\.0\.1:\d+$/.test(storeHost||''))throw Error('Loopback emulators required');const project='demo-townloop-resident-upload',app=initializeApp({projectId:project},project),db=getFirestore(app),bucket=project+'.appspot.com';
+const jwt=uid=>{const b=x=>Buffer.from(JSON.stringify(x)).toString('base64url'),now=Math.floor(Date.now()/1000);return`${b({alg:'none',typ:'JWT'})}.${b({sub:uid,user_id:uid,aud:project,iss:`https://securetoken.google.com/${project}`,iat:now,exp:now+3600,firebase:{sign_in_provider:'password'}})}.`;};let serial=0;
+async function start(folder,collection,id,{uid='resident',type='image/jpeg',metadata={}}={}){const name=folder+'/synthetic-'+(++serial)+(type.startsWith('video')?'.mp4':'.jpg');const response=await fetch(`http://${storeHost}/v0/b/${bucket}/o?name=${encodeURIComponent(name)}`,{method:'POST',headers:{Authorization:'Firebase '+jwt(uid),'Content-Type':'application/json','X-Goog-Upload-Protocol':'resumable','X-Goog-Upload-Command':'start','X-Goog-Upload-Header-Content-Length':'4','X-Goog-Upload-Header-Content-Type':type},body:JSON.stringify({name,contentType:type,metadata:{uploadedBy:uid,securityVersion:'1',collection,recordId:id,...metadata}})});return{response,url:response.headers.get('X-Goog-Upload-URL'),uid,type};}
+async function finish(session){if(!session.response.ok)return session.response;assert.equal(new URL(session.url).host,storeHost);return fetch(session.url,{method:'POST',headers:{Authorization:'Firebase '+jwt(session.uid),'Content-Type':session.type,'X-Goog-Upload-Command':'upload, finalize','X-Goog-Upload-Offset':'0'},body:Buffer.from('test')});}
+const allow=r=>assert.equal(r.status,200),deny=r=>assert([401,403].includes(r.status),'Expected denial, got '+r.status);
+test('Resident media: normal drafts, ownership, approval, per-parent cleanup locks, late finalize and release',async()=>{try{
+ for(const [uid,role,approved]of [['resident','resident',true],['other','resident',true],['pending','resident',false],['crew','crew',true],['admin','admin',true]])await db.doc('users/'+uid).set({role,approved});
+ const control=db.doc('database_cleanup_control/active');await control.set({referenceWritesBlocked:false});
+ for(const [folder,collection]of [['feed','discussion_feed'],['marketplace','marketplace_posts'],['work_orders','work_orders']]){
+  const ref=db.doc(collection+'/draft');await ref.set({userId:'resident',storageDraft:true,storageDraftExpiresAt:new Date(Date.now()+3600000),status:'Open'});
+  allow(await finish(await start(folder,collection,'draft')));if(folder!=='work_orders')allow(await finish(await start(folder,collection,'draft',{type:'video/mp4'})));
+  deny(await finish(await start(folder,collection,'draft',{uid:'other'})));deny(await finish(await start(folder,collection,'draft',{uid:'pending'})));deny(await finish(await start(folder,collection,'draft',{metadata:{recordId:'missing'}})));
+  await ref.update({storageDraftExpiresAt:new Date(Date.now()-1000)});deny(await finish(await start(folder,collection,'draft')));await ref.update({storageDraftExpiresAt:new Date(Date.now()+3600000)});
+  const before=await ref.get(),originalVersion=version(before),job={id:'cleanup_'+'d'.repeat(40),lease:'synthetic'},item={path:ref.path,documents:[{path:ref.path,version:originalVersion}]};
+  const pending=await start(folder,collection,'draft');await control.set({jobId:job.id,referenceWritesBlocked:true});await db.doc('database_cleanup_jobs/'+job.id).set({lease:job.lease});await db.doc('database_cleanup_jobs/'+job.id+'/items/'+collection).set({path:ref.path,parentStorageLocked:true});
+  await db.runTransaction(tx=>freeze(tx,db,job,item));assert.equal(version(await ref.get()),originalVersion,'Own lock must preserve the confirmed version');
+  deny(await finish(pending));deny(await finish(await start(folder,collection,'draft')));
+  // New media cannot be reattributed to the locked parent. Other owned records remain independent.
+  await db.doc(collection+'/unrelated').set({userId:'resident',storageDraft:false,status:'Open'});allow(await finish(await start(folder,collection,'unrelated')));
+  assert.equal(await releaseOne(db,job),true);assert.equal((await ref.get()).data().databaseCleanupLock.blocked,false);assert.equal(version(await ref.get()),originalVersion);await control.set({referenceWritesBlocked:false});allow(await finish(await start(folder,collection,'draft')));
+  await ref.update({status:'Changed outside the cleanup worker'});assert.notEqual(version(await ref.get()),originalVersion,'Unrelated changes must not be normalized away');
+ }
+ // Staff retains photo access on published Work Orders; completed orders stay immutable.
+ await db.doc('work_orders/published').set({userId:'resident',storageDraft:false,status:'Open'});allow(await finish(await start('work_orders','work_orders','published',{uid:'crew'})));await db.doc('work_orders/published').update({status:'Done'});deny(await finish(await start('work_orders','work_orders','published')));
+}finally{await deleteApp(app);}});
+test('Clients cannot forge cleanup lock metadata on native parents',async()=>{
+ const app=initializeApp({projectId:project},project+'-reserved'),db=getFirestore(app);
+ try{
+ await db.doc('users/resident').set({role:'resident',approved:true,name:'Resident'});await db.doc('database_cleanup_control/active').set({referenceWritesBlocked:false});
+ const encode=v=>v===null?{nullValue:null}:typeof v==='string'?{stringValue:v}:typeof v==='boolean'?{booleanValue:v}:typeof v==='number'?{integerValue:String(v)}:Array.isArray(v)?{arrayValue:{values:v.map(encode)}}:{mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,x])=>[k,encode(x)]))}};
+ async function create(id,extra={}){const data={userId:'resident',storageDraft:false,title:'Synthetic',content:'Test',author:'Resident',authorAvatar:'',unit:'TownLoop Resident',comments:[],likes:0,likedBy:{},...extra};return fetch(`http://${host}/v1/projects/${project}/databases/(default)/documents:commit`,{method:'POST',headers:{Authorization:'Bearer '+jwt('resident'),'Content-Type':'application/json'},body:JSON.stringify({writes:[{update:{name:`projects/${project}/databases/(default)/documents/discussion_feed/${id}`,fields:encode(data).mapValue.fields},updateTransforms:[{fieldPath:'createdAt',setToServerValue:'REQUEST_TIME'}]}]})});}
+ const clean=await create('valid-clean');assert.equal(clean.status,200,await clean.text());const forged=await create('forged-lock',{databaseCleanupLock:{blocked:false,bodySha256:'fake'}});assert.equal(forged.status,403,await forged.text());
+ }finally{await deleteApp(app);}
+});

@@ -233,6 +233,14 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
  async function removeRoot(job,item,assertRoot){
   if(!await verifyBarrier(job)||!await deploymentReady())throw error('reference_writers_unfenced');
   const rows=await files(job).where('root','==',item.path).get();
+  if(require('./cleanupParentLock.cjs').COLLECTIONS.has(item.path.split('/')[0])){
+   const parent=await db.doc(item.path).get(),lock=parent.data()?.databaseCleanupLock;
+   if(parent.exists&&(lock?.blocked!==true||lock.jobId!==job.id))throw error('parent_uploads_unfenced');
+   const names=new Set(rows.docs.map(row=>row.data().path));
+   // Uploads that finalized after preview but before this parent was frozen
+   // invalidate its scope. Never delete an unreviewed file or detach its parent.
+   for(const object of await list(item.category))if(object.metadata?.metadata?.collection===item.path.split('/')[0]&&object.metadata?.metadata?.recordId===item.path.split('/')[1]&&!names.has(object.name))throw error('storage_scope_changed');
+  }
   let processed=0;
   for(const row of rows.docs){
    const file=row.data();if(file.status==='deleted')continue;

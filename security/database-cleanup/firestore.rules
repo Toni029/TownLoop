@@ -20,7 +20,12 @@ service cloud.firestore {
     function databaseCleanupWriteAllowed() {
       let rootCollection = request.path[3];
       let rootId = request.path[4];
-      return (!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
+      return
+        (!(rootCollection in ['work_orders','discussion_feed','posts','marketplace_posts','marketItems']) ||
+          !(request.method in ['create','update']) ||
+          (request.method == 'create' ? !request.resource.data.keys().hasAny(['databaseCleanupLock']) :
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['databaseCleanupLock']))) &&
+        (!exists(/databases/$(database)/documents/database_cleanup_control/active) ||
         get(/databases/$(database)/documents/database_cleanup_control/active).data.get('referenceWritesBlocked', false) != true) &&
         (!(rootCollection in ['work_orders', 'discussion_feed', 'posts', 'marketplace_posts',
           'marketItems', 'marketplace_chats', 'newsletters', 'community_events', 'community_highlights', 'newsletter_analysis_jobs']) ||
