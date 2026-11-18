@@ -3,14 +3,14 @@ type Scene=ReturnType<typeof atmosphereFor>;
 export function wetProfile(scene:Pick<Scene,'wet'|'storm'|'drizzle'|'heavy'>,code?:number){
  const kind=!scene.wet?'dry':scene.storm?'storm':scene.drizzle?'drizzle':scene.heavy?'heavy':[61,66,80].includes(code??-1)?'light':'rain';
  const count={dry:0,drizzle:10,light:16,rain:24,heavy:34,storm:34}[kind];
- return {kind,count,beads:kind==='dry'?0:kind==='drizzle'?5:8,runners:kind==='dry'?0:kind==='drizzle'?2:3};
+ return {kind,count,beads:kind==='dry'?0:kind==='drizzle'?5:kind==='heavy'||kind==='storm'?14:12,runners:kind==='dry'?0:kind==='drizzle'?2:kind==='light'?4:kind==='heavy'||kind==='storm'?6:5};
 }
 export function noise(seed:number){'worklet';const n=Math.sin(seed*12.9898+78.233)*43758.5453;return n-Math.floor(n);}
 export function rainMesh(kind:ReturnType<typeof wetProfile>['kind'],count:number){
  return Array.from({length:count},(_,i)=>{
   const seed=i*31.73+19,depth=.18+noise(seed)*.82,fine=kind==='drizzle';
-  return {seed,depth,x:noise(seed+1),phase:noise(seed+2),duration:(fine?2500:kind==='light'?1450:850)*(1.7-depth*.8+noise(seed+3)*.4),
-   length:(fine?2.2:kind==='storm'||kind==='heavy'?14:8)*(depth+.5),thickness:fine?.35+depth*.25:.35+depth*.6,opacity:(fine?.10:.16)+depth*(fine?.12:.23)};
+  return {seed,depth,x:noise(seed+1),phase:noise(seed+2),duration:(fine?2500:kind==='light'?1450:850)*(1.7-depth*.8+noise(seed+3)*.4)*(fine?1:1.05-depth*.2),
+   length:(fine?2.2:kind==='storm'||kind==='heavy'?14:8)*(depth+.5),thickness:fine?.35+depth*.25:.45+depth*.7,radius:fine?0:(kind==='heavy'||kind==='storm'?1.1+depth*2.1:.9+depth*1.75),opacity:(fine?.10:.14)+depth*(fine?.12:.34)};
  });
 }
 export type RainDrop=ReturnType<typeof rainMesh>[number];

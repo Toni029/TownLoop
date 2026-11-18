@@ -4,7 +4,7 @@ import {atmosphereFor} from '../src/home/weatherAtmosphereModel';import type{Hou
 const scene=(code:number,icon:HourlyForecast['icon'])=>atmosphereFor({weatherCode:code,icon,time:'Now',temp:'70°',condition:'',shortForecast:''});
 test('only wet conditions get water; drizzle/light rain/heavy rain have bounded distinct intensities',()=>{
  const drizzle=wetProfile(scene(51,'rain'),51),light=wetProfile(scene(61,'rain'),61),rain=wetProfile(scene(63,'rain'),63),heavy=wetProfile(scene(65,'rain'),65);
- assert(drizzle.count<light.count&&light.count<rain.count&&rain.count<heavy.count);assert(heavy.count<=34);
+ assert(drizzle.count<light.count&&light.count<rain.count&&rain.count<heavy.count);assert(heavy.count<=34);assert(rain.runners>drizzle.runners&&heavy.runners>rain.runners&&heavy.runners<=6);assert(heavy.beads>drizzle.beads);
  for(const [code,icon]of [[0,'sun'],[2,'cloudSun'],[3,'cloud'],[45,'fog'],[75,'snow']] as const)assert.deepEqual(wetProfile(scene(code,icon),code),{kind:'dry',count:0,beads:0,runners:0});
 });
 test('fine rain uses thin short streaks, distinct lifetimes and unsynchronized paths',()=>{
@@ -12,6 +12,7 @@ test('fine rain uses thin short streaks, distinct lifetimes and unsynchronized p
  const a=rainPosition(100,drops[0],360,440,12),b=rainPosition(120,drops[0],360,440,12);assert(b.y>a.y);assert.notEqual(a.y,rainPosition(100,drops[1],360,440,12).y);
  for(const d of drops)for(const t of [0,500,60000,3600000]){const p=rainPosition(t,d,320,440,60);assert(Number.isFinite(p.x)&&p.opacity>=0&&p.opacity<=.4);}
 });
+test('falling rain has larger bounded drop bodies while drizzle stays fine',()=>{const rain=rainMesh('rain',24),heavy=rainMesh('heavy',34);assert(rain.every(drop=>drop.radius>1&&drop.radius<3));assert(heavy.every(drop=>drop.radius>1&&drop.radius<=3.2));assert(rainMesh('drizzle',10).every(drop=>drop.radius===0));assert(new Set(rain.map(drop=>drop.radius)).size>12);});
 test('glass beads converge then gain mass and accelerate down the glass without a visible reset',()=>{
  const track={...glassTrack(0),phase:0};const early=glassPosition(track.duration*.05,track,440),merged=glassPosition(track.duration*.3,track,440),late=glassPosition(track.duration*.8,track,440);
  assert(early.feederOpacity>merged.feederOpacity);assert(merged.mass>early.mass);assert(late.y>merged.y);assert.equal(glassPosition(0,track,440).opacity,0);
