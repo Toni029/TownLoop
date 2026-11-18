@@ -71,7 +71,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
  async function shared(name,ownerRoot,job){
   let seen=0;const deadline=Date.now()+20000;
   for(const source of databases){
-   const pager=listPage(source);const roots=await source.listCollections();
+   const pager=listPage(source);const roots=await source.listCollections();const pending=[],scanState={index:0,shared:false};
    const selected=new Set([ownerRoot]);
    if(job){const candidates=await db.collection('database_cleanup_jobs').doc(job.id).collection('items').where('category','==',job.categories.includes('marketplace')&&ownerRoot.startsWith('market')?'marketplace':'newsletters').limit(1001).get();if(candidates.size>1000)throw error('inventory_incomplete');for(const row of candidates.docs)if(['pending','deleting','deleted'].includes(row.data().state))selected.add(row.data().path);}
    async function visit(collection){
@@ -102,7 +102,7 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
       const children=await Promise.all(refs.map(ref=>ref.listCollections()));
       snapshots.length=0; // release document bodies before descending recursively
       if(Date.now()>deadline)throw error('inventory_incomplete');
-      for(const collections of children){if(collections.length>50)throw error('inventory_incomplete');for(const child of collections)if(await visit(child.path))return true;}
+      for(const collections of children){if(collections.length>50)throw error('inventory_incomplete');for(const child of collections)pending.push(child.path);}
      }
      token=page.next;
     }while(token);return false;
@@ -110,8 +110,12 @@ function createStorageCleanup({db,databases,bucket,listPage,deploymentReady,veri
    for(const root of roots){
     // These server-only records contain paths/proofs, never resident content or live attachment use.
     if(/^database_cleanup_(jobs|audit|control|fences|policies)$/.test(root.id)||['safety_limits','media_cleanup_jobs','media_deletion_tombstones','deletion_policies','newsletter_draft_cleanup'].includes(root.id))continue;
-    if(await visit(root.path))return true;
+    pending.push(root.path);
    }
+   // Four bounded scan lanes avoid serial round trips across independent collections.
+   // Every discovered child remains queued, including children of missing parents.
+   await Promise.all(Array.from({length:4},async()=>{while(!scanState.shared&&scanState.index<pending.length){const collection=pending[scanState.index++];try{if(await visit(collection)){scanState.shared=true;return;}}catch(failure){if(!scanState.shared)throw failure;}}}));
+   if(scanState.shared)return true;
   }return false;
  }
  async function rootRefs(path){
