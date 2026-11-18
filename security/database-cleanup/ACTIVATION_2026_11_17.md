@@ -1,5 +1,7 @@
 # Database Cleanup activation — 2026-11-17
 
+**Historical preview stage — superseded by the completed [coordinated activation](COORDINATED_ACTIVATION.md#production-release-record).**
+
 ## Outcome
 
 Restored the installed app's `manageDatabaseCleanup` endpoint in

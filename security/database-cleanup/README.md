@@ -1,5 +1,7 @@
 # Database Cleanup Manager — LOCAL, NOT ACTIVATED
 
+**Current production status and safeguards: [Coordinated activation](COORDINATED_ACTIVATION.md). The initial design below is historical; latest Marketplace scope is documented in [the Marketplace release](MARKETPLACE_RELEASE_2026_11_16.md).**
+
 This package is not deployed, does not run a production purge, and does not
 change existing account-deletion workers, receipts, rules, Storage, Auth, Inbox,
 notifications, Gemini, backups, or the named legacy database.

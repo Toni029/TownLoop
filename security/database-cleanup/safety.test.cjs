@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {PINS,validatePolicy,mediaDeletionDisabled,referenceWritersVerified,inventoryDigest,REQUIRED_WRITERS}=require('../../functions/databaseCleanupSafety.cjs');
 test('policy requires explicit approved scope and exact deployed rules pins',()=>{
- const policy={...PINS,version:2,ownerApproved:true,storageMode:'exclusive-generation-fenced-v2',genericMediaCleanupDisabledAcknowledged:true};
+ const policy={...PINS,version:3,accountCoordinationVersion:1,mediaProvenance:{storageRulesSha256:require('../../functions/deletionMediaProvenance.json').storageRulesSha256,trustedUploadsAfterMillis:Date.parse('2026-10-23T12:57:03.246Z')},ownerApproved:true,storageMode:'exclusive-generation-fenced-v2',genericMediaCleanupDisabledAcknowledged:true};
  assert.equal(validatePolicy(policy),true);
  for(const override of [{ownerApproved:false},{database:'legacy'},{defaultRulesSha256:'old'},{storageRulesSha256:'wrong'},{storageMode:'delete-all'},{genericMediaCleanupDisabledAcknowledged:false}])assert.equal(validatePolicy({...policy,...override}),false);
 });
@@ -34,3 +34,5 @@ test('cleanup cannot overlap an active or unverified account-deletion worker',()
   assert.equal(mediaDeletionDisabled(inventory),flag==='false');
  }
 });
+
+test('a revision-pinned coordination-capable account worker need not be disabled',()=>{assert.equal(mediaDeletionDisabled({functions:[{buildConfig:{entryPoint:'fulfillApprovedAccountDeletions'},serviceConfig:{environmentVariables:{TOWNLOOP_ACCOUNT_DELETION_ENABLED:'true',TOWNLOOP_DELETION_COORDINATION_VERSION:'1'}}}]}),true);});

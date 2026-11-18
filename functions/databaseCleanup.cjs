@@ -2,6 +2,7 @@
 // Default-database only. No production activation is implied by importing this module.
 const {createHash,randomUUID}=require('node:crypto');
 const {FieldPath}=require('firebase-admin/firestore');
+const {assertCleanupExecutionAvailable}=require('./deletionExecutionCoordination.cjs');
 const CATEGORIES=Object.freeze({workOrders:['work_orders','work_order_numbers'],discussion:['discussion_feed','posts'],marketplace:['marketplace_posts','marketItems','marketplace_chats'],newsletters:['newsletters','community_events','community_highlights','newsletter_analysis_jobs']});
 const PHRASE='DELETE SELECTED DATA';
 const TERMINAL=new Set(['completed','completed_with_holds','cancelled']);
@@ -80,7 +81,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
      }
     }
     const job={id,operatorUid:uid,initiatedBy:uid,state:'planning',categories,scan:categories.flatMap(category=>CATEGORIES[category].map(collection=>({category,collection}))),scanIndex:0,pageToken:'',counts:Object.fromEntries(categories.map(key=>[key,zero()])),completeInventory:true,createdAt:now(),updatedAt:now(),expiresAt:now()+30*60000,leaseUntil:0,digest:hash(id),message:'Preparing exact record and nested-document counts. No resident data is changed.'};
-    tx.create(ref,job);tx.set(control,{jobId:id,operatorUid:uid,collections:[],phase:'planning'});return job;
+    tx.create(ref,job);tx.set(control,{jobId:id,operatorUid:uid,collections:[],phase:'planning'},{merge:true});return job;
    });return publicJob(job);
   }
   validateId(input.jobId);const ref=jobRef(input.jobId);
@@ -96,12 +97,13 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    if(TERMINAL.has(job.state))return job;
    if(lock.data()?.jobId!==job.id)fail('failed-precondition','This preview is no longer active. Create a new inventory.');
    if(input.action==='confirm'){
+    assertCleanupExecutionAvailable(lock.data());
     if(input.confirmation!==PHRASE)fail('invalid-argument','Enter the exact confirmation phrase.');
     if(input.planHash!==job.planHash||!job.completeInventory||job.expiresAt<now())fail('failed-precondition','The preview has changed or expired. Prepare a new inventory.');
     if(['queued','running','paused'].includes(job.state))return job;
     if(job.state!=='review')fail('failed-precondition','Wait for the complete inventory preview.');
     job.operatorUid=uid;job.state='queued';job.confirmedAt=now();job.message='Confirmed selected categories only. Preparing bounded deletion.';
-    tx.set(control,{jobId:job.id,operatorUid:uid,collections:job.scan.map(item=>item.collection),referenceWritesBlocked:true,phase:'running'});
+    tx.set(control,{jobId:job.id,operatorUid:uid,collections:job.scan.map(item=>item.collection),referenceWritesBlocked:true,phase:'running'},{merge:true});
     tx.set(audit(job.id),{operatorUid:uid,confirmedAt:job.confirmedAt,categories:job.categories,outcome:'queued',counts:job.counts});
    }else if(input.action==='resume'){
     if(!['paused','failed'].includes(job.state))return job;
@@ -298,7 +300,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   await releaseBarriers(job);
   const held=(mediaScope&&Object.values(mediaScope).some(scope=>scope.remaining))||Object.values(counts).some(count=>count.remaining||count.held||count.storageHeld),state=held?'completed_with_holds':'completed';
   return checkpoint(job,{state,counts,completedAt:now(),message:held?'Cleanup finished with retained records or files. No claim of a complete purge is made. Inspect the server-only manifest for hold categories.':'All confirmed category records were removed; unrelated data was preserved.'},(tx,latest)=>{
-   tx.set(control,{jobId:null,collections:[],phase:state});tx.set(audit(job.id),{operatorUid:latest.operatorUid,initiatedBy:latest.initiatedBy,categories:latest.categories,confirmedAt:latest.confirmedAt,completedAt:latest.completedAt,outcome:state,counts:latest.counts});
+   tx.set(control,{jobId:null,collections:[],referenceWritesBlocked:false,phase:state},{merge:true});tx.set(audit(job.id),{operatorUid:latest.operatorUid,initiatedBy:latest.initiatedBy,categories:latest.categories,confirmedAt:latest.confirmedAt,completedAt:latest.completedAt,outcome:state,counts:latest.counts});
   });
  }
  async function assertIntent(job,file){
@@ -332,7 +334,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
     // Retain partial-root fences and release the broader collection lock without further destruction.
     await releaseBarriers(job);
     await checkpoint(job,{state:'cancelled',counts:job.counts,message:'Cleanup cancelled. Partial records remain fenced for review; already deleted data cannot be restored.'},(tx,latest)=>{
-     tx.set(control,{jobId:null,collections:[],phase:'cancelled'});
+     tx.set(control,{jobId:null,collections:[],referenceWritesBlocked:false,phase:'cancelled'},{merge:true});
      if(job.categories.includes('newsletters')&&job.confirmedAt)tx.set(db.doc('database_cleanup_fences/newsletters/records/current'),{jobId:job.id,descendantsOnly:true,createdAt:now()},{merge:true});
      if(job.confirmedAt)tx.set(audit(job.id),{operatorUid:latest.operatorUid,initiatedBy:latest.initiatedBy,categories:latest.categories,outcome:'cancelled',counts:latest.counts,completedAt:now()});
     });return true;

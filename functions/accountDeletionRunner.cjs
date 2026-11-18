@@ -11,6 +11,10 @@ async function runApprovedDeletions({control,dbFor,auth,bucket,verifyRules,now=D
  const policy=(await control.doc('deletion_policies/account').get()).data(),mediaPolicy=(await control.doc('deletion_policies/media').get()).data();
  if(!policyReady(policy)||!writeFreezeReady(policy))throw Error('activation_policy_incomplete');
  await verifyRules(policy,mediaPolicy);
+ const coordination=require('./deletionExecutionCoordination.cjs'),executionOwner=randomUUID();
+ if(!await coordination.claimAccountExecution(control,executionOwner,now()))return;
+ let executionSettled=false;
+ try{
  const jobs=await control.collection('account_deletion_jobs').where('status','in',['approved_held','queued','processing','waiting_for_media','retention_pending','failed']).orderBy('lastAttemptAt').limit(10).get();
  const deadline=now()+240000;
  for(const row of jobs.docs){if(now()>deadline)break;const leaseOwner=randomUUID();
@@ -41,6 +45,9 @@ async function runApprovedDeletions({control,dbFor,auth,bucket,verifyRules,now=D
    const transient=[4,8,10,13,14,429,500,502,503,504,'ECONNRESET','ETIMEDOUT','auth/internal-error'].includes(error?.code);
    issue={status:transient?'failed':'needs_review',lastError:transient?'retry_required':/^[a-z_]{3,100}$/.test(error.message||'')?error.message:'processing_permission_or_schema_requires_review'};
   }finally{await control.runTransaction(async tx=>{const current=(await tx.get(row.ref)).data();if(current?.leaseOwner===leaseOwner)tx.update(row.ref,{leaseOwner:'',leaseUntil:0,lastAttemptAt:new Date(now()),...(issue||{})});});}
+  if(issue)throw Error('account_execution_requires_recovery');
  }
+ executionSettled=true;
+ }finally{if(executionSettled)await coordination.releaseAccountExecution(control,executionOwner);}
 }
 module.exports={runApprovedDeletions};

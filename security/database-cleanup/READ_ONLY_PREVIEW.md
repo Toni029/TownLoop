@@ -1,5 +1,7 @@
 # Read-only Preview release
 
+**Historical preview stage — superseded by the completed [coordinated activation](COORDINATED_ACTIVATION.md#production-release-record).**
+
 The stateless callable has only the `preview` action. As of November 17 it is
 deployed as `manageDatabaseCleanup`, matching the installed native app. See
 [the deployment record](ACTIVATION_2026_11_17.md). The historical November 6

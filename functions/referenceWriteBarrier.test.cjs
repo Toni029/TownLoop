@@ -15,7 +15,7 @@ test('absent and false control preserve writes; only an explicit true blocks', a
   await assert.rejects(h.db.runTransaction(async tx => { await assertReferenceWritesAllowed(tx, h.db); tx.set(h.db.doc('posts/blocked'), { photoUrl: media }); }), blocked);
   assert.equal(h.records.has('posts/blocked'), false);
 });
-test('barrier prevents Inbox new references, historical copies and queued avatar projection with no partial writes', async () => {
+test('barrier prevents Inbox new references, historical copies and queued avatar projection with no partial reference writes', async () => {
   const h = fixture(), { conversationId } = await h.call('a', { op: 'create', type: 'private', recipientIds: ['b'] });
   h.records.set('resident_chats/legacy', { identityVersion: 2, participantIds: ['a', 'b'], messages: [{ id: 'old', senderId: 'a', senderAvatar: media, body: media, createdAt: 1 }] });
   h.records.set('users/a', { ...h.records.get('users/a'), avatarUrl: media });
@@ -29,7 +29,11 @@ test('barrier prevents Inbox new references, historical copies and queued avatar
     { op: 'leave', conversationId },
   ]) await assert.rejects(h.call('a', data), blocked);
   await assert.rejects(syncDirectoryProfile(h.db, 'a'), blocked);
-  assert.deepEqual([...h.records], before);
+  // Existing durable abuse counters intentionally charge blocked API attempts.
+  // They contain no resident content/media and are excluded by the reference scanner.
+  const withoutBudget=rows=>rows.filter(([path])=>path!=='safety_limits/a');
+  assert.deepEqual(withoutBudget([...h.records]), withoutBudget(before));
+  assert(!JSON.stringify(h.records.get('safety_limits/a')).includes(media));
   h.records.set(REFERENCE_WRITE_CONTROL, { referenceWritesBlocked: false });
   await h.call('a', { op: 'send', conversationId, messageId: 'after', body: media });
   await syncDirectoryProfile(h.db, 'a');

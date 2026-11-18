@@ -1,6 +1,6 @@
 'use strict';
 const PINS=Object.freeze({project:'cc-livingcommunity-app',database:'(default)',namedDatabase:'ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb',bucket:'cc-livingcommunity-app.firebasestorage.app',defaultRulesSha256:'ee68e66da3e7e4e55546e77790ca674ca4c550e1ea816aa54b5902dfaded3c42',namedRulesSha256:'8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d',storageRulesSha256:'06d24519f84deb79f2cd6d24248f1ac45242e841cdd69d2ac56a5b3ee4fcbdae'});
-function validatePolicy(policy){return policy?.ownerApproved===true&&policy.version===2&&Object.entries(PINS).every(([key,value])=>policy[key]===value)&&policy.storageMode==='exclusive-generation-fenced-v2'&&policy.genericMediaCleanupDisabledAcknowledged===true;}
+function validatePolicy(policy){return policy?.ownerApproved===true&&policy.version===3&&policy.accountCoordinationVersion===1&&policy.mediaProvenance?.storageRulesSha256===require('./deletionMediaProvenance.json').storageRulesSha256&&Number.isSafeInteger(policy.mediaProvenance?.trustedUploadsAfterMillis)&&policy.mediaProvenance.trustedUploadsAfterMillis>0&&Object.entries(PINS).every(([key,value])=>policy[key]===value)&&policy.storageMode==='exclusive-generation-fenced-v2'&&policy.genericMediaCleanupDisabledAcknowledged===true;}
 /** Fail closed on incomplete inventory or a live generic reaper that could be triggered indirectly. */
 function mediaDeletionDisabled(inventory){
  if(!Array.isArray(inventory?.functions)||inventory.nextPageToken||inventory.unreachable?.length)return false;
@@ -9,12 +9,12 @@ function mediaDeletionDisabled(inventory){
   const id=(fn.name?.split('/').at(-1)||'').replace(/[^a-zA-Z]/g,'');
   const generic=/^(cleanupDeleted_|cleanupLateOrphanMedia$|resumeMediaCleanup$|expireMediaDrafts$)/i.test(entry)||/^(cleanupdeleted|cleanuplateorphanmedia$|resumemediacleanup$|expiremediadrafts$)/i.test(id);
   const account=/^(fulfillApprovedAccountDeletions|resumeAccountDeletions)$/.test(entry)||/^(fulfillapprovedaccountdeletions|resumeaccountdeletions)$/i.test(id);
-  if(account&&(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_ACCOUNT_DELETION_ENABLED!=='false')return false;
+  if(account){const env=fn.serviceConfig?.environmentVariables||fn.environmentVariables||{};if(env.TOWNLOOP_ACCOUNT_DELETION_ENABLED!=='false'&&env.TOWNLOOP_DELETION_COORDINATION_VERSION!=='1')return false;}
   return !generic||((fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_MEDIA_CLEANUP_ENABLED==='false'&&(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_POST_DELETE_MEDIA_ENABLED!=='true');
  });
 }
-const REQUIRED_WRITERS=['manageInboxConversation','revokeInboxGroupMemberships','syncResidentDirectory','submitSafetyReport','reviewSafetyReport','newsletterApi','runNewsletterAnalysis'];
-const OPTIONAL_WRITERS=['monitorInboxRetention'];
+const REQUIRED_WRITERS=['manageInboxConversation','revokeInboxGroupMemberships','syncResidentDirectory','submitSafetyReport','reviewSafetyReport','newsletterApi','runNewsletterAnalysis','fulfillApprovedAccountDeletions'];
+const OPTIONAL_WRITERS=['monitorInboxRetention','resumeAccountDeletions'];
 const revision=fn=>fn.serviceConfig?.revision||fn.updateTime;
 function inventoryDigest(inventory){return require('node:crypto').createHash('sha256').update(JSON.stringify(inventory.functions.map(fn=>[fn.name,fn.buildConfig?.entryPoint||fn.entryPoint||'',revision(fn)||'',(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_MEDIA_CLEANUP_ENABLED||'']).sort((a,b)=>a[0].localeCompare(b[0])))).digest('hex');}
 function referenceWritersVerified(inventory,policy){

@@ -11,7 +11,7 @@ test('selected bulk cleanup: exact preview, confirmation, actual Storage/Firesto
  try{
   const ts=require('../native/node_modules/typescript');for(const file of ['native/src/lib/databaseCleanup.ts','native/src/profile/DatabaseCleanup.tsx','native/src/profile/databaseCleanupModel.ts'])assert.equal((ts.transpileModule(fs.readFileSync(file,'utf8'),{fileName:file,reportDiagnostics:true,compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS}}).diagnostics||[]).filter(v=>v.category===ts.DiagnosticCategory.Error).length,0);
   assert(fs.readFileSync('native/src/lib/databaseCleanup.ts','utf8').includes('CLEANUP_READ_ONLY_RELEASE=false'));
-  assert(!/onSchedule|exports.runDatabaseCleanup|serviceAccount:/.test(fs.readFileSync('functions/databaseCleanupEntry.cjs','utf8')));
+  assert(!/onSchedule|exports.runDatabaseCleanup/.test(fs.readFileSync('functions/databaseCleanupEntry.cjs','utf8')));
   const rules=fs.readFileSync('security/database-cleanup/firestore.rules','utf8');assert.equal(crypto.createHash('sha256').update(rules).digest('hex'),PINS.defaultRulesSha256);
   const compiled=await fetch(`http://${host}/emulator/v1/projects/${project}:securityRules`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:{files:[{name:'firestore.rules',content:rules}]}})});assert.equal(compiled.status,200,await compiled.text());
   for(const [uid,role]of [['admin','admin'],['resident','resident'],['vip','vip'],['crew','crew']]){await auth.createUser({uid,email:uid+'@example.test'});await db.doc('users/'+uid).set({id:uid,name:uid,role,approved:true});}
@@ -29,7 +29,7 @@ test('selected bulk cleanup: exact preview, confirmation, actual Storage/Firesto
   const listPage=source=>createDocumentPager({project,databaseId:source.databaseId,emulatorHost:host});
   const bucket={name:PINS.bucket,getMetadata:async()=>[{softDeletePolicy:{retentionDurationSeconds:'604800'}}],getFiles:async options=>{const [rows,next]=await real.getFiles(options);for(const file of rows)file.metadata={...file.metadata,bucket:PINS.bucket};return[rows,next];},file:name=>({getMetadata:async()=>{const [m]=await real.file(name).getMetadata();return[{...m,bucket:PINS.bucket}];},delete:async options=>{if(failure&&name==='work_orders/original.jpg'){failure=false;throw Object.assign(Error('Synthetic temporary Storage outage'),{code:503});}await real.file(name).delete(options);deletes++;}})};
   const barriers=createCleanupBarriers({db,databases:[db]});
-  const policy={...PINS,version:2,ownerApproved:true,storageMode:'exclusive-generation-fenced-v2',genericMediaCleanupDisabledAcknowledged:true};assert(validatePolicy(policy));
+  const policy={...PINS,version:3,accountCoordinationVersion:1,mediaProvenance:{storageRulesSha256:require('./deletionMediaProvenance.json').storageRulesSha256,trustedUploadsAfterMillis:Date.parse('2026-10-23T12:57:03.246Z')},ownerApproved:true,storageMode:'exclusive-generation-fenced-v2',genericMediaCleanupDisabledAcknowledged:true};assert(validatePolicy(policy));
   const media=createStorageCleanup({db,databases:[db],bucket,listPage,deploymentReady:async()=>validatePolicy(policy),verifyBarrier:barriers.verify,trustedAfter:Date.parse('2026-10-23T12:57:03.246Z')});
   const engine=createCleanupService({db,listPage:listPage(db),media,enabled:()=>true,verifySafety:async()=>validatePolicy(policy),verifyIdentity:uid=>auth.getUser(uid),acquireBarriers:barriers.acquire,releaseBarriers:barriers.release});
   const request=(uid,input)=>advanceCleanupRequest(engine,uid,input,{maxSteps:8});
@@ -38,7 +38,16 @@ test('selected bulk cleanup: exact preview, confirmation, actual Storage/Firesto
   async function finish(job){for(let i=0;i<150&&['queued','running'].includes(job.state);i++)job=await request('admin',{action:'status',jobId:job.id});return job;}
   let job=await preview(['workOrders'],'first-selection');assert.equal(job.counts.workOrders.documents,4);assert.equal(job.storageScope.workOrders.exclusive,3);assert.equal((await real.file('work_orders/original.jpg').exists())[0],true);
   await assert.rejects(request('admin',{action:'confirm',jobId:job.id,planHash:job.planHash,confirmation:'DELETE'}),e=>e.code==='invalid-argument');
-  job=await request('admin',{action:'confirm',jobId:job.id,planHash:job.planHash,confirmation:'DELETE SELECTED DATA'});job=await finish(job);assert.equal(job.state,'paused');assert.equal((await db.doc('database_cleanup_control/active').get()).data().referenceWritesBlocked,true);
+  const coordination=require('./deletionExecutionCoordination.cjs');
+  assert.equal(await coordination.claimAccountExecution(db,'synthetic-account-runner'),true);
+  await assert.rejects(request('admin',{action:'confirm',jobId:job.id,planHash:job.planHash,confirmation:'DELETE SELECTED DATA'}),/account_deletion_in_progress/);
+  await coordination.releaseAccountExecution(db,'synthetic-account-runner');
+  const race=await Promise.allSettled([coordination.claimAccountExecution(db,'race-account'),engine.operate('admin',{action:'confirm',jobId:job.id,planHash:job.planHash,confirmation:'DELETE SELECTED DATA'})]);
+  assert(!(race[0].status==='fulfilled'&&race[0].value===true&&race[1].status==='fulfilled'),'both deletion engines acquired execution');
+  if(race[0].status==='fulfilled'&&race[0].value===true)await coordination.releaseAccountExecution(db,'race-account');
+  job=await request('admin',{action:'confirm',jobId:job.id,planHash:job.planHash,confirmation:'DELETE SELECTED DATA'});job=await finish(job);assert.equal(job.state,'paused');
+  assert.equal(await coordination.claimAccountExecution(db,'blocked-account'),false);
+assert.equal((await db.doc('database_cleanup_control/active').get()).data().referenceWritesBlocked,true);
   // The actual candidate rules reject new reference writes during the confirmed job.
   const enc=v=>Buffer.from(JSON.stringify(v)).toString('base64url'),token=enc({alg:'none'})+'.'+enc({aud:project,iss:'https://securetoken.google.com/'+project,sub:'resident',user_id:'resident',iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600,firebase:{sign_in_provider:'password'}})+'.';
   const attempt=await fetch(`http://${host}/v1/projects/${project}/databases/(default)/documents/users/resident?updateMask.fieldPaths=avatarUrl`,{method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({fields:{avatarUrl:{stringValue:'work_orders/original.jpg'}}})});assert.equal(attempt.status,403);

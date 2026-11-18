@@ -31,14 +31,15 @@ async function functionInventory(){
 async function verifySafety(){
  if(!enabled())return false;
  const policy=(await db.doc('database_cleanup_policies/current').get()).data();if(!validatePolicy(policy))return false;
+ const mediaPolicy=(await db.doc('deletion_policies/media').get()).data();if(!require('./deletionRulesCompatibility.cjs').mediaProvenanceMatches(policy,mediaPolicy))return false;
  const [rules,storage,inventory,named,processing]=await Promise.all([rulesHash('cloud.firestore'),rulesHash(`firebase.storage/${PINS.bucket}`),functionInventory(),rulesHash('cloud.firestore/'+databases[1].databaseId),db.collection('account_deletion_jobs').where('status','==','processing').limit(1).get()]);
  return rules===PINS.defaultRulesSha256&&storage===PINS.storageRulesSha256&&named===PINS.namedRulesSha256&&mediaDeletionDisabled(inventory)&&referenceWritersVerified(inventory,policy)&&processing.empty;
 }
 const {createStorageCleanup}=require('./databaseCleanupStorage.cjs');
 const media=createStorageCleanup({db,databases,bucket:getStorage(app).bucket(PINS.bucket),listPage:source=>createDocumentPager({project:PROJECT,databaseId:source.databaseId,getAccessToken:token}),deploymentReady:verifySafety,verifyBarrier:barriers.verify,trustedAfter:async()=>{const policy=(await db.doc('deletion_policies/media').get()).data();return policy?.ownerApproved&&policy.storageRulesSha256===require('./deletionMediaProvenance.json').storageRulesSha256?policy.trustedUploadsAfter?.toMillis?.():NaN;}});
 const service=createCleanupService({db,enabled,verifySafety,verifyIdentity:uid=>auth.getUser(uid),listPage:createDocumentPager({project:PROJECT,getAccessToken:token}),media,acquireBarriers:barriers.acquire,releaseBarriers:barriers.release});
-// Reuse the existing Firebase runtime identity; no new service account or schedule.
-const options={region:'us-central1',maxInstances:1,concurrency:1};
+// Dedicated least-privilege cleanup identity. No scheduler can start a purge.
+const options={region:'us-central1',serviceAccount:'townloop-database-cleanup@cc-livingcommunity-app.iam.gserviceaccount.com',maxInstances:1,concurrency:1};
 exports.manageDatabaseCleanup=onCall({...options,timeoutSeconds:120},async request=>{
  const bearer=request.rawRequest.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
  if(!request.auth||!bearer)throw new HttpsError('unauthenticated','Sign in with an approved Admin account.');
