@@ -22,3 +22,22 @@ test('Discussion retry: lost commit response, quota at partial recount, legacy r
   job=await service.operate('admin',{action:'resume',jobId:job.id});await untilStopped();assert.equal(job.state,'completed_with_holds');assert.equal(job.remainingVerified,true);assert.equal(job.counts.discussion.remaining,4);assert.equal(job.counts.discussion.deleted,10);assert.equal(job.recordSummary.discussion.deletedRoots,10);assert.equal(job.recordSummary.discussion.deletedNested,0);assert.equal(job.counts.discussion.failed,2);assert.equal((await files(job).get()).size,6);assert.equal(deletionCommits,10);assert((await db.doc('resident_chats/private').get()).exists);assert.notEqual((await db.doc('database_cleanup_control/active').get()).data().referenceWritesBlocked,true);
  }finally{await deleteApp(app);}
 });
+test('explicit resume rechecks only confirmed unchanged incomplete scans, preserving ownership holds and other categories',async()=>{
+ const project='demo-townloop-cleanup-recheck',app=initializeApp({projectId:project},project),db=getFirestore(app);let rechecks=0;
+ try{
+  await db.doc('users/admin').set({role:'admin',approved:true});await db.doc('users/resident').set({role:'resident',approved:true});
+  for(const id of ['safe','changed','legacy'])await db.doc('discussion_feed/'+id).set({body:'Synthetic'});
+  await db.doc('work_orders/keep').set({body:'Unrelated'});await db.doc('resident_chats/keep').set({body:'Private'});
+  const media={planRoot:async(job,item)=>{if(job.confirmedAt){rechecks++;assert.equal(item.path,'discussion_feed/safe');return{files:[],reason:null};}return{files:[],reason:item.path.endsWith('legacy')?'metadata_missing':'inventory_incomplete'};},inventoryOrphans:async()=>{},summary:async()=>({discussion:{files:0,bytes:0,exclusive:0,held:0,missing:0,remaining:0,reasons:[]}}),digest:async()=> 'synthetic',removeRoot:async(_j,item)=>{assert.equal(item.path,'discussion_feed/safe');return true;},settle:async()=>true,noInFlight:async()=>true,verifyRemaining:async()=>{}};
+  const service=createCleanupService({db,listPage:createDocumentPager({project,emulatorHost:host}),enabled:()=>true,verifyIdentity:async()=>({disabled:false}),verifySafety:async()=>true,media});
+  let job=await service.operate('admin',{action:'preview',categories:['discussion'],requestId:'synthetic-recheck'});const status=()=>service.operate('admin',{action:'status',jobId:job.id});
+  async function untilStopped(){for(let i=0;i<100&&['planning','queued','running'].includes(job.state);i++){await service.tick(job.id);job=await status();}}
+  await untilStopped();assert.equal(job.counts.discussion.held,3);
+  job=await service.operate('admin',{action:'confirm',jobId:job.id,planHash:job.planHash,confirmation:'DELETE SELECTED DATA'});
+  await untilStopped();assert.equal(job.state,'completed_with_holds');await db.doc('discussion_feed/changed').update({body:'Changed after preview'});
+  await assert.rejects(service.operate('admin',{action:'resume',jobId:job.id,recheckHeld:true}),e=>e.code==='invalid-argument');
+  await assert.rejects(service.operate('resident',{action:'resume',jobId:job.id,recheckHeld:true}),e=>e.code==='permission-denied');
+  job=await service.operate('admin',{action:'resume',jobId:job.id,recheckHeld:true,planHash:job.planHash,confirmation:'DELETE SELECTED DATA'});await untilStopped();assert.equal(job.state,'completed_with_holds');assert.equal(rechecks,1);assert.equal(job.counts.discussion.deleted,1);assert.equal(job.counts.discussion.held,2);assert.equal(job.counts.discussion.remaining,2);assert(!(await db.doc('discussion_feed/safe').get()).exists);
+  for(const path of ['discussion_feed/changed','discussion_feed/legacy','work_orders/keep','resident_chats/keep'])assert((await db.doc(path).get()).exists);assert.notEqual((await db.doc('database_cleanup_control/active').get()).data().referenceWritesBlocked,true);
+ }finally{await deleteApp(app);}
+});

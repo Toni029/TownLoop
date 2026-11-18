@@ -101,8 +101,16 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   return publicJob(await db.runTransaction(async tx=>{
    const [snap,lock]=await Promise.all([tx.get(ref),tx.get(control)]);const job=snap.data();
    if(!job)fail('not-found','This cleanup job is not available.');
-   if(TERMINAL.has(job.state))return job;
-   if(lock.data()?.jobId!==job.id)fail('failed-precondition','This preview is no longer active. Create a new inventory.');
+   const reopen=job.state==='completed_with_holds'&&input.action==='resume'&&input.recheckHeld===true;
+   if(reopen){
+    if(input.confirmation!==PHRASE||input.planHash!==job.planHash)fail('invalid-argument','Confirm the original cleanup plan before rechecking incomplete references.');
+    assertCleanupExecutionAvailable(lock.data());
+    if(lock.data()?.jobId&&lock.data().jobId!==job.id)fail('failed-precondition','Another cleanup is active.');
+    delete job.finalizing;delete job.completedAt;delete job.cancelRequested;
+    job.state='paused';job.reconfirmedAt=now();
+    tx.set(control,{jobId:job.id,operatorUid:uid,collections:job.scan.map(item=>item.collection),referenceWritesBlocked:true,phase:'running'},{merge:true});
+   }else if(TERMINAL.has(job.state))return job;
+   if(!reopen&&lock.data()?.jobId!==job.id)fail('failed-precondition','This preview is no longer active. Create a new inventory.');
    if(input.action==='confirm'){
     assertCleanupExecutionAvailable(lock.data());
     if(input.confirmation!==PHRASE)fail('invalid-argument','Enter the exact confirmation phrase.');
@@ -115,6 +123,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
    }else if(input.action==='resume'){
     if(!['paused','failed'].includes(job.state))return job;
     delete job.lastError;
+    if(input.recheckHeld===true&&job.confirmedAt){job.recheckHeld=true;job.recheckHeldCursor='';}
     if(job.verifyIndex!==undefined){job.verifyIndex=0;job.verifyPageToken='';delete job.verificationCounts;job.remainingVerified=false;}
     job.operatorUid=uid;job.state=job.confirmedAt?'queued':'planning';job.message='Retrying from the last confirmed checkpoint.';job.leaseUntil=0;
    }else{
@@ -207,7 +216,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   return checkpoint(job,{...advance,counts,digest:hash(job.digest+JSON.stringify(item))},tx=>{tx.create(itemRef,item);if(item.reason&&item.newsletterId)tx.set(jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)),{reason:item.reason});if(item.reason&&item.listingId)tx.set(jobRef(job.id).collection('marketplace_holds').doc(hash(item.listingId)),{reason:item.reason});});
  }
  async function propagateNewsletterHolds(job){
-  let query=jobRef(job.id).collection('items').orderBy(FieldPath.documentId()).limit(1);
+  let query=jobRef(job.id).collection('items').where('state','==','held').orderBy(FieldPath.documentId()).limit(1);
   if(job.dependencyCursor)query=query.startAfter(job.dependencyCursor);
   const rows=await query.get();if(rows.empty)return checkpoint(job,{dependenciesChecked:true});
   const row=rows.docs[0],item=row.data();
@@ -219,6 +228,19 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   if(media)await media.holdRoot(job,item,reason);
   const counts=structuredClone(job.counts);counts[item.category].held++;counts[item.category].storageHeld+=item.storageHeld||0;
   return checkpoint(job,{counts,message:'Some selected records were protected or changed after preview and have been retained.'},tx=>tx.update(itemRef,{state:'held',reason}));
+ }
+ // Explicit Admin resume can reverify ONLY incomplete reference scans in the
+ // already-confirmed manifest. Ownership, legal and shared-file holds never lift here.
+ async function recheckHeld(job){
+  let query=jobRef(job.id).collection('items').where('state','==','held').orderBy(FieldPath.documentId()).limit(1);
+  if(job.recheckHeldCursor)query=query.startAfter(job.recheckHeldCursor);
+  const rows=await query.get();if(rows.empty)return checkpoint(job,{recheckHeld:false});
+  const row=rows.docs[0],item=row.data();
+  if(item.state!=='held'||item.reason!=='inventory_incomplete'||!media)return checkpoint(job,{recheckHeldCursor:row.id});
+  const current=await tree(item.path),kind=await classification(item.path,item.category,job);
+  if(kind.reason||current.hold||current.mixed||JSON.stringify(current.documents)!==JSON.stringify(item.documents))return checkpoint(job,{recheckHeldCursor:row.id});
+  const result=await media.planRoot(job,{...item,state:'pending',reason:null});
+  return checkpoint(job,latest=>{const counts=structuredClone(latest.counts);if(!result.reason)counts[item.category].held=Math.max(0,counts[item.category].held-1);return{counts,recheckHeldCursor:row.id};},tx=>tx.update(row.ref,{state:result.reason?'held':'pending',reason:result.reason||null,storageHeld:result.files.filter(file=>file.status!=='exclusive').length}));
  }
  async function remove(job){
   const partial=await jobRef(job.id).collection('items').where('state','==','deleting').limit(1).get();
@@ -350,7 +372,7 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
     });return true;
    }
    if(job.confirmedAt){await safety();await acquireBarriers(job);}
-   if(job.finalizing)await finalize(job);else if(job.state==='planning')await plan(job);else await remove(job);
+   if(job.finalizing)await finalize(job);else if(job.state==='planning')await plan(job);else if(job.recheckHeld)await recheckHeld(job);else await remove(job);
   }catch(error){
    onError(error,{jobId:job.id,stage:job.verifyIndex!==undefined?'final_recount':job.currentPath?'record_operation':'inventory'});
    if(job.currentPath&&((error.cleanupHold&&job.confirmedAt)||['cleanup_record_changed','cleanup_reported_evidence','cleanup_retention_changed','cleanup_active_analysis'].includes(error.message))){
