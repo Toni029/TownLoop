@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import vm from 'node:vm';
 import {validDeletionConfirmation} from '../src/profile/deletionConfirmation.ts';
 const ts=createRequire(import.meta.url)('typescript');
-function fixture(provider='password',failure=false){
+function fixture(provider='password',failure=false,status:any={status:'none'}){
  let cursor=0;const state:any[]=[],calls:any[]=[];let effectsStarted=false;const effects:Array<()=>void>=[];
  const jsx=(type:any,props:any)=>({type,props});
  const modules:Record<string,any>={
@@ -15,7 +15,7 @@ function fixture(provider='password',failure=false){
   '../keyboard/KeyboardScrollView':{TextInput:'Input'},'lucide-react-native':{Trash2:'Trash',ChevronRight:'Chevron'},'../motion/Pressable':{MotionPressable:'Button'},
   './DeletionRequestSuccess':{DeletionRequestSuccess:'Success'},'./deletionConfirmation':{validDeletionConfirmation},
   '../lib/firebase':{auth:{currentUser:{uid:'fixture',providerData:[{providerId:provider}]}}},
-  '../lib/accountDeletion':{requestAccountDeletion:async(...args:any[])=>{calls.push(args);if(failure)throw Error('Request could not be submitted');return {status:'requested',jobId:'fixture'};},getAccountDeletionStatus:async()=>({status:'none'}),deletionStatusText:()=> 'Awaiting Admin/VIP review.'},
+  '../lib/accountDeletion':{requestAccountDeletion:async(...args:any[])=>{calls.push(args);if(failure)throw Error('Request could not be submitted');return {status:'requested',jobId:'fixture'};},getAccountDeletionStatus:async()=>status,deletionStatusText:()=> 'Awaiting Admin/VIP review.'},
  };
  const exports:any={};
  vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/profile/AccountDeletion.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Error,require:(id:string)=>{assert.ok(id in modules,id);return modules[id];}});
@@ -97,4 +97,12 @@ test('farewell waits for animation completion; reduced motion and a lost complet
  animated.finish();tree=animated.render();assert.ok(nodes(tree).includes('Done'));assert.ok(nodes(tree).includes('Request submitted · Awaiting review'));
  const reduced=successFixture(true);reduced.render();assert.ok(nodes(reduced.render()).includes('Done'));assert.equal(reduced.duration(),0);
  const interrupted=successFixture();interrupted.render();interrupted.timers[0]();assert.ok(nodes(interrupted.render()).includes('Done'));
+});
+
+test('rejected requests can be resubmitted only when the service permits a new verified request',async()=>{
+ for(const allowed of [false,true]){
+  const f=fixture('password',false,{status:'rejected',reason:'Invalid request',canRequestAgain:allowed});f.render();await settle();const tree=f.render();
+  assert.equal(!!input(tree,'Type DELETE to confirm the deletion request'),allowed);
+  assert(nodes(tree).some(n=>typeof n==='string'&&n.includes('Invalid request')));
+ }
 });

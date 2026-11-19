@@ -17,3 +17,12 @@ test('recognized server stages and blockers explain incomplete processing withou
 test('unknown and prototype-like server fields remain harmless display strings',()=>{
  for(const value of ['__proto__','constructor','unknown']){assert.equal(typeof deletionStatusText({status:value}),'string');assert.equal(typeof deletionStatusText({status:'failed',processingIssue:value}),'string');assert.equal(typeof deletionStatusText({status:'processing',processingStage:value}),'string');}
 });
+test('v3 rejection permits a fresh verified request and retries never imply completion',()=>{
+ assert.match(deletionStatusText({status:'rejected'}),/new verified request/);
+ assert.match(deletionStatusText({status:'retrying'}),/not complete/);
+});
+
+test('v3 completion describes verified personal-data cleanup with separately retained receipts',()=>{
+ assert.match(deletionStatusText({status:'complete',workflowVersion:3}),/personal-data cleanup/);
+ assert.match(deletionStatusText({status:'complete',workflowVersion:3}),/receipts/);
+});

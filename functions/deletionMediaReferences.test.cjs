@@ -8,3 +8,8 @@ test('attachment inventory deduplicates object identities and never saves tokens
 test('legacy mediaUrl and Marketplace snapshot URLs are included without reading message bodies',()=>{
  const h=objectHashes({mediaUrl:'marketplace/one.jpg',itemMediaUrl:'marketplace/two.jpg',avatarUrl:'feed/three.jpg',messages:[{body:'marketplace/not-attachment.jpg'}]});assert.equal(h.length,3);
 });
+test('copied participant and author avatars count as live references across supported schemas',()=>{
+ const keys=['senderAvatar','authorAvatar','userAvatar','residentAvatar','sellerAvatar','buyerAvatar','avatar','peerAvatar'];
+ for(const key of keys)assert.equal(objectHashes({[key]:'feed/avatar.jpg'}).length,1,key);
+ assert.equal(objectHashes({participants:[{id:'other',avatar:'feed/avatar.jpg'}]}).length,1);
+});

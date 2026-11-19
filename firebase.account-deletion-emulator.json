@@ -1,0 +1,23 @@
+{
+  "firestore": {
+    "rules": "security/database-cleanup/firestore.rules"
+  },
+  "storage": {
+    "rules": "security/database-cleanup/storage.rules"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9098
+    },
+    "firestore": {
+      "port": 8898
+    },
+    "storage": {
+      "port": 9198
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
+}

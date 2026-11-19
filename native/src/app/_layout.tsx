@@ -1,3 +1,4 @@
+import {AccountDeletionNotice} from '../profile/AccountDeletionNotice';
 import { InboxPushProvider } from '../notifications/InboxPushProvider';
 import { AppErrorBoundary } from "../monitoring/AppErrorBoundary";
 import { ApprovedStartup } from "../components/ApprovedStartup";
@@ -25,6 +26,7 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
   return (
     <ApprovedStartup ready={(!loading || registrationInProgress) && ready && fontsReady}>
     <View style={{ flex: 1 }}>
+    <AccountDeletionNotice />
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream },

@@ -1,19 +1,20 @@
+const lifecycle=require('./accountDeletionLifecycle.cjs');
 const {randomBytes}=require('node:crypto');
 const {DATABASES,databaseCompletionReady,writeFreezeReady}=require('./accountDeletionScope.cjs');
 const retention=require('./accountDeletionRetention.cjs');
 const {jobIdFor}=require('./accountDeletionPolicy.cjs');
 const {processRetentionStep}=require('./accountDeletionV2.cjs');
 const {INVENTORY_VERSION}=require('./accountDeletionInventory.cjs');
-const PRIVATE=['notification_devices','safety_limits'];
+const PRIVATE=['notification_devices','safety_limits','notification_state'];
 // Every call is made under the root worker lease and per-request independent approval.
 async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('firebase-admin/firestore').getFirestore(id),step=processRetentionStep,clearWebAccess=()=>require('./storageWebAccessPolicy.cjs').syncWebMembership(control,dbFor(DATABASES[1]),job.uid),now=Date.now(),clock=Date.now}={}) {
  if(process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED!=='true'||process.env.TOWNLOOP_SCOPED_DELETION_ENABLED!=='true')return;
- if(job.processingProtocol!==3||job.status==='needs_review'||job.review?.processingAuthorized!==true||job.review?.decision!=='approved'||job.review.reviewerId===job.uid)return;
+ if((lifecycle.isNewJob(job)?job.processingProtocol!==4:job.processingProtocol!==3)||job.status==='needs_review'||!lifecycle.executionAuthorized(job)||job.review?.reviewerId===job.uid)return;
  const policy=(await control.doc('deletion_policies/account').get()).data();
- if(!retention.policyReady(policy)||job.review.policyReference!==policy.approvalReference)return;
+ if(!(lifecycle.isNewJob(job)?lifecycle.policyReady(policy):retention.policyReady(policy))||lifecycle.authorizationReference(job)!==policy.approvalReference)return;
  if(!writeFreezeReady(policy)){await ref.update({status:'pending_owner_approval',lastError:'verified_scope_write_freeze_required'});return;}
- const uid=job.uid,id=jobIdFor(uid),dates=retention.deadlines(job.createdAt,job.review.reviewedAt);
- if(!uid||uid.includes('/')||dates.requiresDeadlineReview||!Number.isFinite(retention.millis(job.review.reviewedAt))){await ref.update({status:'needs_review',lastError:'invalid_identity_or_deadline'});return;}
+ const uid=job.uid,id=jobIdFor(uid),dates=lifecycle.executionDates(job);
+ if(!uid||uid.includes('/')||dates.requiresDeadlineReview||!Number.isFinite(retention.millis(lifecycle.authorizationTime(job)))){await ref.update({status:'needs_review',lastError:'invalid_identity_or_deadline'});return;}
  if(job.phase==='requested'||job.phase==='disable') {
   // Verify the exact Firebase identity before a single scope is mutated. No email/name matching.
   const identity=await auth.getUser(uid);if(identity.uid!==uid)throw Error('identity_mismatch');
@@ -29,7 +30,7 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
    const profileRef=dbFor(databaseId).doc(`users/${uid}`),profile=(await tx.get(profileRef)).data();
    if(profile&&['id','uid','userId','authorId'].some(key=>profile[key]!=null&&profile[key]!==uid))throw Error('profile_identity_conflict');
    if(existing&&(existing.uid!==uid||existing.jobId!==id||existing.policyReference!==policy.approvalReference))throw Error('access_fence_conflict');
-   if(!existing)tx.create(access,{uid,jobId:id,policyReference:policy.approvalReference,createdAt:new Date(now),expiresAt:new Date(dates.retentionDueAt)});
+   if(!existing)tx.create(access,{uid,jobId:id,policyReference:policy.approvalReference,...(lifecycle.isNewJob(job)?{requestId:job.requestId}:{}),createdAt:new Date(now),expiresAt:new Date(dates.retentionDueAt)});
    if(profile)tx.update(profileRef,{approved:false,deletionPending:true});
    tx.delete(dbFor(databaseId).doc(`resident_directory/${uid}`));
   });
@@ -37,9 +38,9 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   await auth.updateUser(uid,{disabled:true});await auth.revokeRefreshTokens(uid);
   // Bind proof expiry to the original request, never extend it with processing retries.
   const devices=await control.collection('account_cleanup_devices').where('uid','==',uid).limit(50).get();
-  for(const device of devices.docs)await device.ref.update({deletionConfirmed:true,expiresAt:new Date(Math.min(retention.millis(device.data().expiresAt),dates.retentionDueAt))});
+  for(const device of devices.docs)await device.ref.update({deletionConfirmed:true,...(lifecycle.isNewJob(job)?{requestId:job.requestId}:{}),expiresAt:new Date(Math.min(retention.millis(device.data().expiresAt),dates.retentionDueAt))});
   // Existing authenticated/offline device credentials learn authoritative state without an Auth session.
-  await ref.update({phase:'scoped_drain',tokensDrainUntil:Math.max(now,clock())+policy.tokenDrainMs,scopeIndex:job.scopeIndex||0});return;
+  await ref.update({phase:'scoped_drain',tokensDrainUntil:Math.max(now,clock())+policy.tokenDrainMs,...(lifecycle.isNewJob(job)?{accessSecuredAt:new Date(now)}:{}),scopeIndex:job.scopeIndex||0});return;
  }
  if(job.phase==='scoped_drain'){
   const drainUntil=retention.millis(job.tokensDrainUntil);
@@ -53,10 +54,10 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   const db=dbFor(databaseId),scopeRef=db.doc(`account_deletion_scopes/${id}`);
   let snap=await scopeRef.get();
   if(!snap.exists) {
-   await db.runTransaction(async tx=>{const existing=await tx.get(scopeRef);if(!existing.exists)tx.create(scopeRef,{uid,rootJobId:ref.id||ref.path.split('/').at(-1),databaseId,redactionKey:job.redactionKey,phase:'requested',status:'processing',policyVersion:2,createdAt:job.createdAt,review:job.review,expiresAt:new Date(dates.retentionDueAt)});});return;
+   await db.runTransaction(async tx=>{const existing=await tx.get(scopeRef);if(!existing.exists)tx.create(scopeRef,{uid,rootJobId:ref.id||ref.path.split('/').at(-1),databaseId,redactionKey:job.redactionKey,phase:'requested',status:'processing',policyVersion:2,createdAt:job.createdAt,...(job.review?{review:job.review}:{}),...(lifecycle.isNewJob(job)?{workflowVersion:3,requestId:job.requestId,autoDeleteAt:job.autoDeleteAt,authorization:job.authorization}:{}),expiresAt:new Date(dates.retentionDueAt)});});return;
   }
   const scope=snap.data();
-  if(scope.uid!==uid||scope.databaseId!==databaseId||scope.review.policyReference!==job.review.policyReference)throw Error('scope_identity_mismatch');
+  if(scope.uid!==uid||scope.databaseId!==databaseId||lifecycle.authorizationReference(scope)!==lifecycle.authorizationReference(job))throw Error('scope_identity_mismatch');
   if(scope.phase!=='requested'&&scope.phase!=='disable'&&scope.inventoryVersion!==INVENTORY_VERSION){await scopeRef.update({phase:'v2_inventory',status:'processing',collectionIndex:0,cursor:'',verifyCursor:'',finalInventory:false,inventoryComplete:false,inventoryVersion:INVENTORY_VERSION});return;}
   if(scope.status==='needs_review') {await ref.update({status:'needs_review',blockedDatabase:databaseId,lastError:'scope_exception_requires_review'});return;}
   if(scope.phase==='scoped_reconcile'){await scopeRef.update({phase:'v2_inventory',collectionIndex:0,cursor:'',verifyCursor:'',finalInventory:true,incomingBlocksChecked:false,blockCursor:''});return;}
@@ -81,7 +82,7 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   if(scope.phase==='scoped_private') {
    const collection=PRIVATE[scope.privateIndex||0];
    if(collection) {
-    const page=await db.collection(collection).where(collection==='safety_limits'?'__name__':'uid','==',uid).limit(50).get();
+    const page=await db.collection(collection).where(['safety_limits','notification_state'].includes(collection)?'__name__':'uid','==',uid).limit(50).get();
     const batch=db.batch();for(const doc of page.docs)batch.delete(doc.ref);
     if(page.size<50)batch.update(scopeRef,{privateIndex:(scope.privateIndex||0)+1});await batch.commit();return;
    }
@@ -101,7 +102,7 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   if(scope.phase==='scoped_complete') {
    // Write through to the root AFTER the independent database's transaction committed.
    // A crash between those commits simply replays this deterministic receipt.
-   const receipt={databaseId,uid,policyReference:job.review.policyReference,inventoryVersion:scope.inventoryVersion,inventoryComplete:true,recordsComplete:true,writesFrozen:true,unresolvedIdentityCount:0,unresolvedMediaCount:0,completedAt:scope.completedAt};
+   const receipt={databaseId,uid,policyReference:lifecycle.authorizationReference(job),inventoryVersion:scope.inventoryVersion,inventoryComplete:true,recordsComplete:true,writesFrozen:true,unresolvedIdentityCount:0,unresolvedMediaCount:0,completedAt:scope.completedAt};
    const proofs=(job.databaseCompletion||[]).filter(s=>s.databaseId!==databaseId);
    await ref.update({databaseCompletion:[...proofs,receipt],scopeIndex:(job.scopeIndex||0)+1,status:'processing',lastError:''});return;
   }
@@ -111,8 +112,9 @@ async function advanceScopedDeletion(control,auth,ref,job,{dbFor=id=>require('fi
   if(!databaseCompletionReady(job,now)) {await ref.update({status:'needs_review',lastError:'cross_database_completion_required'});return;}
   await clearWebAccess();
   try{await auth.deleteUser(uid);}catch(error){if(error.code!=='auth/user-not-found')throw error;}
-  await ref.update({phase:'scoped_retention',status:'retention_pending',identityDeletedAt:new Date(now),completedAt:new Date(now)});return;
+  if(lifecycle.isNewJob(job))await lifecycle.completeDeletion(control,ref,job,now);else await ref.update({phase:'scoped_retention',status:'retention_pending',identityDeletedAt:new Date(now),completedAt:new Date(now)});return;
  }
+ if(lifecycle.isNewJob(job)&&job.phase==='complete')return;
  if(job.phase==='scoped_retention') {
   if(now<dates.retentionDueAt)return;
   // Each scope's receipts are removed independently before the root, preserving retry progress.

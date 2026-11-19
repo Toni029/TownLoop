@@ -1,3 +1,4 @@
+import type {DeletionRequestStatus} from './deletionStatus';
 import {validDeletionConfirmation} from '../profile/deletionConfirmation';
 import {clearPushAccount} from '../notifications/device';
 import { clearPrivateMediaCache } from '../localData/privateMediaCache';
@@ -9,7 +10,7 @@ import { authPersistenceStorage, clearResidentHomeData } from '../localData/nati
 import { app, auth } from './firebase';
 import { reauthenticateDeletionGoogle } from './accountDeletionGoogle';
 
-export async function requestAccountDeletion(password: string, confirmation: string): Promise<{ jobId: string; status: string }> {
+export async function requestAccountDeletion(password: string, confirmation: string): Promise<DeletionRequestStatus & {jobId:string}> {
   const user = auth.currentUser;
   if (!user) throw new Error('Sign in first.');
   if (!validDeletionConfirmation(confirmation)) throw new Error('Type DELETE to confirm.');
@@ -26,7 +27,7 @@ export async function requestAccountDeletion(password: string, confirmation: str
   if (auth.currentUser?.uid !== user.uid) throw new Error('Your session changed. Sign in again.');
   await user.getIdToken(true);
   if (auth.currentUser?.uid !== user.uid) throw new Error('Your session changed. Sign in again.');
-  const request = httpsCallable<{ confirmation: string; requestOnly: boolean }, { jobId: string; status: string }>(getFunctions(app, 'us-central1'), 'submitAccountDeletionRequest');
+  const request = httpsCallable<{ confirmation: string; requestOnly: boolean }, DeletionRequestStatus & {jobId:string}>(getFunctions(app, 'us-central1'), 'submitAccountDeletionRequest');
   return (await request({ confirmation: 'DELETE', requestOnly: true })).data;
 }
 
@@ -47,11 +48,10 @@ export const retryPendingAccountCleanup = async () => {
 };
 
 export type {DeletionRequestStatus} from './deletionStatus';
-import type {DeletionRequestStatus} from './deletionStatus';
 export {deletionStatusText} from './deletionStatus';
 export type DeletionReviewItem = DeletionRequestStatus & { jobId: string; name: string; canReview: boolean; isOwnRequest: boolean };
 const deletionCall = <T, R>(name: string, data: T) => httpsCallable<T, R>(getFunctions(app, 'us-central1'), name)(data).then(result => result.data);
-export const getAccountDeletionStatus = () => deletionCall<Record<string, never>, DeletionRequestStatus>('getAccountDeletionStatus', {});
+export const getAccountDeletionStatus = (options: {ackNotice?:string} = {}) => deletionCall<{ackNotice?:string}, DeletionRequestStatus>('getAccountDeletionStatus', options);
 export const listAccountDeletionRequests = (cursor?: string) => deletionCall<{cursor?: string}, { requests: DeletionReviewItem[]; policyReady: boolean; exceptionsAvailable?:boolean; processingAvailable?:boolean; nextCursor: string | null }>('listAccountDeletionRequests', cursor ? {cursor} : {});
-export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved' | 'rejected' | 'delayed', reason: string, context?: {reasonCategory?:string;reasonReference?:string;delayUntil?:number}) =>
-  deletionCall<Record<string,unknown>,{jobId:string;status:string}>('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision, ...context });
+export const reviewAccountDeletionRequest = (jobId: string, decision: 'approved' | 'rejected' | 'retry', reason: string, context?: {requestId?:string;reasonCategory?:'identity_verification'|'invalid_request'|'requester_withdrawal';reasonReference?:string}) =>
+  deletionCall<Record<string,unknown>,DeletionRequestStatus & {jobId:string}>('reviewAccountDeletionRequest', { jobId, decision, reason, confirmation: decision, ...context });

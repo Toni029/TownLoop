@@ -1,0 +1,11 @@
+{
+  "status": "LOCAL_PREPARATION_ONLY_NOT_ACTIVATED",
+  "field": "v3ReceiptExpiresAt",
+  "databases": [
+    "(default)"
+  ],
+  "collectionGroups": [
+    "account_deletion_jobs"
+  ],
+  "safety": "Only verified completed v3 root jobs receive this field. Reopening clears it atomically. The existing job event prunes associated server-only proof metadata after root expiry. No child TTL; no legacy expiresAt or retentionDueAt TTL."
+}

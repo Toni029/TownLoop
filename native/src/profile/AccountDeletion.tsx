@@ -21,7 +21,7 @@ export function AccountDeletion({onDone}:{onDone?:()=>void}={}) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [request, setRequest] = useState<DeletionRequestStatus>({ status: 'none' });
-  const accepted = request.status !== 'none';
+  const accepted = request.status !== 'none' && !(request.status === 'rejected' && request.canRequestAgain === true);
   const [checking, setChecking] = useState(true);
   const [verifying,setVerifying]=useState(false),[success,setSuccess]=useState(false);
   const submitLock=useRef(false);
@@ -30,13 +30,13 @@ export function AccountDeletion({onDone}:{onDone?:()=>void}={}) {
     const uid = auth.currentUser?.uid;
     setChecking(true);
     try { const result = await getAccountDeletionStatus(); if (auth.currentUser?.uid === uid) setRequest(result); }
-    catch { setMessage('Unable to check your request status. Retry or contact the community office.'); }
-    finally { setChecking(false); }
+    catch { if (auth.currentUser?.uid === uid) setMessage('Unable to check your request status. Retry or contact the community office.'); }
+    finally { if (auth.currentUser?.uid === uid) setChecking(false); }
   }
   useEffect(() => {
     let active = true;
     const uid = auth.currentUser?.uid;
-    void getAccountDeletionStatus().then(result => { if (active && auth.currentUser?.uid === uid) setRequest(result); }).catch(() => {if(active)setMessage('Unable to check request status. You can retry safely.');}).finally(()=>{if(active)setChecking(false);});
+    void getAccountDeletionStatus().then(result => { if (active && auth.currentUser?.uid === uid) setRequest(result); }).catch(() => {if(active && auth.currentUser?.uid === uid)setMessage('Unable to check request status. You can retry safely.');}).finally(()=>{if(active && auth.currentUser?.uid === uid)setChecking(false);});
     return () => { active = false; };
   }, []);
   const needsPassword = auth.currentUser?.providerData.some(provider => provider.providerId === 'password');
@@ -53,6 +53,7 @@ export function AccountDeletion({onDone}:{onDone?:()=>void}={}) {
       if(result.status==='requested')setSuccess(true);
       else setMessage(deletionStatusText(result));
     } catch (error) {
+      if (auth.currentUser?.uid !== uid) return;
       setMessage(error instanceof Error ? error.message : 'Unable to request deletion. Please retry.');
     } finally { submitLock.current=false;setBusy(false); }
   }
@@ -60,13 +61,14 @@ export function AccountDeletion({onDone}:{onDone?:()=>void}={}) {
   const disabled=busy||checking||!valid||(verifying&&needsPassword&&!password);
   return <View style={styles.card}>
     <Text accessibilityRole="header" style={styles.title}>{verifying?'Verify your identity':'Request Account Deletion'}</Text>
+    {request.status === 'rejected' && request.canRequestAgain === true && <Text accessibilityLiveRegion="polite" style={styles.body}>{deletionStatusText(request)}{request.reason ? ` Reason: ${request.reason}` : ''}</Text>}
     {!accepted && <View style={styles.fields}>
       {verifying ? <>
         <Text style={styles.body}>Enter your current password to securely submit your request.</Text>
         <TextInput accessibilityLabel="Current password" placeholder="Current password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!busy} style={styles.input} />
       </> : <>
         <Text style={styles.body}>Submit a verified request to permanently delete your account and associated data. Sending the request does not immediately delete your account or sign you out.</Text>
-        <Text style={styles.body}>Admin/VIP review is due within 3 business days, with escalation after 7 calendar days. Approved requests target personal-data processing within 7 days. Type "DELETE" to confirm.</Text>
+        <Text style={styles.body}>Deletion starts automatically after approval. If your request remains undecided for 30 days (30 × 24 hours from server submission), deletion is authorized automatically. You can keep using your account while it awaits a decision. Type &quot;DELETE&quot; to confirm.</Text>
         <TextInput accessibilityLabel="Type DELETE to confirm the deletion request" placeholder="Type DELETE here" value={confirmation} onChangeText={setConfirmation} autoCapitalize="none" autoCorrect={false} editable={!busy} style={styles.input} />
       </>}
       <MotionPressable accessibilityRole="button" accessibilityLabel={verifying?'Verify and submit request':'Submit Deletion Request'} accessibilityState={{ disabled }} disabled={disabled} onPress={() => void submit()} style={[styles.button, disabled && styles.disabled]}>
@@ -76,7 +78,8 @@ export function AccountDeletion({onDone}:{onDone?:()=>void}={}) {
     </View>}
     {accepted && <View style={styles.fields}>
       <Text accessibilityLiveRegion="polite" style={styles.body}>{deletionStatusText(request)}{request.reason ? ` ${request.reason}` : ''}</Text>
-      {!!request.reviewDueAt && <Text style={styles.body}>Review due: {new Date(request.reviewDueAt).toLocaleString()}{request.escalated ? " — escalated to the office" : ""}.</Text>}
+      {!!request.autoDeleteAt && request.workflowVersion === 3 && request.status === 'requested' && <Text style={styles.body}>Automatic authorization if undecided: {new Date(request.autoDeleteAt).toLocaleString()}.</Text>}
+      {!!request.reviewDueAt && request.workflowVersion !== 3 && <Text style={styles.body}>Review due: {new Date(request.reviewDueAt).toLocaleString()}{request.escalated ? " — escalated to the office" : ""}.</Text>}
       <MotionPressable accessibilityRole="button" accessibilityLabel="Refresh deletion request status" disabled={busy || checking} onPress={() => void refresh()} style={{minHeight:44,justifyContent:'center'}}><Text style={styles.body}>{checking ? 'Checking status…' : 'Refresh request status'}</Text></MotionPressable>
     </View>}
     {!!message && <Text accessibilityRole="alert" style={styles.body}>{message}</Text>}

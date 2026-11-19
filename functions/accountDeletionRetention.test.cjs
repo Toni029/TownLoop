@@ -43,3 +43,30 @@ test('private-chat leave markers and system notices redact the departed UID whil
  assert.equal(result.patch.leftBy.a,undefined);assert.equal(result.patch.leftBy[alias],true);assert.equal(result.patch.leftBy.b,false);
  assert.equal(result.patch.messages[0].actorId,alias);assert.equal(result.patch.messages[0].body,'A former participant left the conversation.');assert.equal(result.patch.messages[1],record.messages[1]);assert.equal(record.leftBy.a,true);
 });
+
+test('received Inbox receipts erase only the departed positive epoch audience without upgrading status',()=>{
+ const record={senderId:'bob',visibility:['alice:2','bob:1','alice:bad'],receipts:{'alice:1':{readAt:1},'alice:2':{deliveredAt:2},'bob:1':{readAt:3},'alice:bad':{deliveredAt:4}},receiptState:'sent',receiptVersion:1};
+ const patch=r.plan('inbox_messages',record,'alice').patch;
+ assert.deepEqual(patch.visibility,['bob:1','alice:bad']);
+ assert.deepEqual(patch.receipts,{'bob:1':{readAt:3},'alice:bad':{deliveredAt:4}});
+ assert.equal(patch.receiptState,undefined);assert.equal(patch.receiptVersion,undefined);assert.equal(record.receipts['alice:1'].readAt,1);
+ const {referencesUid}=require('./accountDeletionPolicy.cjs');assert.equal(referencesUid({receipts:{'alice:2':{readAt:1}}},'alice'),true);assert.equal(referencesUid({receipts:{'alice:bad':{}}},'alice'),false);
+ assert.equal(referencesUid({...record,...patch},'alice'),false);
+});
+test('shared chat keeps other messages while removing deleted readers and copied peer identity',()=>{
+ const other={id:'m',senderId:'bob',body:'Keep',readBy:['alice','bob']};
+ const patch=r.plan('resident_chats',{identityVersion:2,messages:[other]},'alice').patch;
+ assert.deepEqual(patch.messages[0].readBy,['bob']);assert.equal(patch.messages[0].body,'Keep');assert.deepEqual(other.readBy,['alice','bob']);
+ const member=r.plan('inbox_memberships',{uid:'bob',peerId:'alice',name:'Alice',avatar:'data:image/private',peerAvatar:'private',conversationStatus:'open'},'alice').patch;
+ assert.equal(member.avatar,'');assert.equal(member.peerAvatar,'');
+});
+test('notification ownership removes own state and redacts sender only on another recipient notice',()=>{
+ assert.equal(r.plan('notification_state',{uid:'alice',preferences:{}},'alice').action,'delete_record');
+ assert.equal(r.plan('notification_events',{uid:'alice',senderId:'bob'},'alice').action,'delete_record');
+ const other={uid:'bob',senderId:'alice',target:'posts/p',seen:false};const result=r.plan('notification_events',other,'alice');
+ assert.equal(result.action,'patch');assert.notEqual(result.patch.senderId,'alice');assert.equal(result.patch.uid,undefined);assert.equal(result.patch.seen,undefined);
+});
+test('event pending attendance and work completion UID copies are removed without removing other history',()=>{
+ assert.deepEqual(r.plan('community_events',{rsvpChange:{attendee:{userId:'alice',name:'Alice'}}},'alice').patch.rsvpChange,{});
+ const patch=r.plan('work_orders',{userId:'bob',completedBy:'alice',status:'Done',comments:[]},'alice').patch;assert.equal(patch.completedBy,'Deleted staff member');assert.equal(patch.status,undefined);
+});

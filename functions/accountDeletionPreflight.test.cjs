@@ -42,3 +42,29 @@ test('cleanup and late-upload reconciliation paginate beyond 100 completed paren
 }});
 
 test('current server-only cleanup/routing/config metadata does not block unrelated residents; self references still hold',async()=>{const h=fixture();for(const db of h.stores){for(const collection of ['database_cleanup_audit','database_cleanup_control','database_cleanup_fences','database_cleanup_jobs','database_cleanup_policies','inbox_conversation_routes','security_controls'])db.records.set(collection+'/fixture',{operatorUid:'other-admin',reference:'opaque'});}assert.equal((await preflightDeletion(h.job,h.options)).holds.length,0);h.stores[0].records.set('database_cleanup_audit/relevant',{operatorUid:'alice',outcome:'retained audit'});const held=await preflightDeletion(h.job,h.options);assert(held.holds.some(x=>x.reason==='administrative_reference_requires_disposition'));assert.equal(h.deleted.length,0);});
+test('external provider avatars do not require deletion of provider-owned objects; bucket avatars still require proof',async()=>{
+ for(const avatar of ['https://lh3.googleusercontent.com/a/provider-avatar','https://firebasestorage.googleapis.com/v0/b/cc-livingcommunity-app.firebasestorage.app/o/feed%2Ffixture.jpg?alt=media']){
+  const h=fixture();h.stores[0].records.set('users/alice',{uid:'alice',avatarUrl:avatar});const proof=await preflightDeletion(h.job,h.options);
+  assert.equal(proof.holds.some(h=>h.reason==='avatar_object_ownership_adapter_required'),avatar.includes('firebasestorage'));
+ }
+});
+test('receipt-only Inbox references and sender-only notifications participate in preflight without blanket holds',async()=>{
+ const h=fixture();h.stores[0].records.set('inbox_conversations/c/messages/m',{senderId:'bob',visibility:['bob:1'],receipts:{'alice:2':{readAt:2}},receiptState:'sent'});
+ h.stores[0].records.set('notification_events/n',{uid:'bob',senderId:'alice',target:'posts/p',seen:false});
+ assert.deepEqual((await preflightDeletion(h.job,h.options)).holds,[]);
+});
+test('new timeout authorization permits only request-bound media work and invalid generations are rejected',async()=>{
+ const h=fixture(),lifecycle=require('./accountDeletionLifecycle.cjs'),created=Date.now()-31*86400000,due=created+30*86400000;
+ Object.assign(h.job,{workflowVersion:3,requestId:'request',status:'processing',createdAt:new Date(created),autoDeleteAt:new Date(due),authorization:{source:'pending_timeout',requestId:'request',policyReference:lifecycle.POLICY_ID,authorizedAt:new Date(),dueAt:new Date(due)}});delete h.job.review;
+ h.job.preflight=await preflightDeletion(h.job,h.options);h.stores[0].records.delete('marketplace_posts/listing');h.stores[0].records.set('media_cleanup_jobs/a',{accountDeletionJobId:'job',uid:'alice',databaseId:DATABASES[0],collection:'marketplace_posts',recordId:'listing',objectHashes:[sha(h.path)],status:'queued'});
+ await assert.rejects(processAccountMedia(h.stores[0].db,{...h.job,authorization:{...h.job.authorization,requestId:'old'}},h.options),/media_preflight_required/);
+ await processAccountMedia(h.stores[0].db,h.job,h.options);assert.deepEqual(h.deleted,[h.path]);
+});
+test('late timeout media requires the same request generation as its preflight receipt',async()=>{
+ const h=fixture(),lifecycle=require('./accountDeletionLifecycle.cjs'),created=Date.now()-31*86400000,due=created+30*86400000;
+ Object.assign(h.job,{workflowVersion:3,requestId:'request',status:'processing',createdAt:new Date(created),autoDeleteAt:new Date(due),authorization:{source:'pending_timeout',requestId:'request',policyReference:lifecycle.POLICY_ID,authorizedAt:new Date(),dueAt:new Date(due)}});delete h.job.review;
+ h.job.preflight=await preflightDeletion(h.job,h.options);assert.equal(h.job.preflight.requestId,'request');h.stores[0].records.delete('marketplace_posts/listing');h.stores[0].records.set('media_cleanup_jobs/a',{accountDeletionJobId:'job',uid:'alice',databaseId:DATABASES[0],collection:'marketplace_posts',recordId:'listing',objectHashes:[sha(h.path)],status:'complete'});
+ const ref=h.stores[0].db.doc('account_deletion_jobs/job');await ref.create(h.job);const late=require('./accountDeletionLateMedia.cjs').reconcileLateAccountMedia;
+ const stale={...h.job,preflight:{...h.job.preflight,requestId:'old'}};await assert.rejects(late(h.stores[0].db,ref,stale,h.options),/media_preflight_required/);await assert.rejects(processAccountMedia(h.stores[0].db,stale,h.options),/media_preflight_required/);
+ await late(h.stores[0].db,ref,h.job,h.options);assert.deepEqual(h.deleted,[h.path]);
+});

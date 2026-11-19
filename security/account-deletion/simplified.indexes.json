@@ -1,0 +1,1 @@
+{"indexes":[{"collectionGroup":"account_deletion_jobs","queryScope":"COLLECTION","fields":[{"fieldPath":"workflowVersion","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"autoDeleteAt","order":"ASCENDING"}]}],"fieldOverrides":[]}

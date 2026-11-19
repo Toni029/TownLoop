@@ -1,3 +1,4 @@
+const { audienceKeyFor } = require('./accountDeletionPolicy.cjs');
 const { createHash } = require('node:crypto');
 const DAY = 86400000;
 const POLICY_ID = 'townloop-request-deletion-2026-10-25';
@@ -60,6 +61,7 @@ function plan(collection, record, uid, alias=pseudonym(uid)) {
       const index=patch.comments.findIndex(c=>c.id===record.resolutionCommentId);
       if(index>=0)patch.resolutionCommentIndex=index;else return {action:'review',reason:'resolution_identity_requires_review'};
     }
+    if(record.completedBy===uid)patch.completedBy='Deleted staff member';
     if(record.resolutionAuthorId===uid) Object.assign(patch,{resolutionAuthorId:'',resolutionCommentId:'',resolutionCommentIndex:-1,resolutionNote:'',completedBy:'Deleted staff member'});
     return {action:'patch',patch};
   }
@@ -77,7 +79,7 @@ function plan(collection, record, uid, alias=pseudonym(uid)) {
       ? {id:message.id,type:'leave',isSystem:true,actorId:alias,senderId:'system',senderName:'System',senderRole:'system',senderAvatar:'',body:'A former participant left the conversation.',createdAt:message.createdAt,time:message.time}
       : message.senderId===uid
       ? {id:message.id,senderId:alias,senderName:'Deleted resident',senderAvatar:'',...(message.body!==undefined?{body:'[Removed]'}:{text:'[Removed]'}),...(message.timestamp!==undefined?{timestamp:message.timestamp}:{}),...(message.createdAt!==undefined?{createdAt:message.createdAt}:{}),...(message.time!==undefined?{time:message.time}:{})}
-      : message);
+      : Array.isArray(message.readBy)&&message.readBy.includes(uid)?{...message,readBy:message.readBy.filter(id=>id!==uid)}:message);
     if(Array.isArray(record.participantIds))patch.participantIds=record.participantIds.map(id=>id===uid?alias:id);
     if(Array.isArray(record.participants))patch.participants=record.participants.map(p=>p.id===uid?{id:alias,name:'Deleted resident',avatar:''}:p);
     for(const side of ['seller','buyer','resident'])if(record[`${side}Id`]===uid) {
@@ -100,26 +102,34 @@ function plan(collection, record, uid, alias=pseudonym(uid)) {
   if(collection==='inbox_memberships') {
     if(record.uid===uid)return {action:'delete_record'};
     const patch={};
-    if(record.peerId===uid)Object.assign(patch,{peerId:alias,name:'Deleted resident',conversationStatus:'read_only'});
+    if(record.peerId===uid)Object.assign(patch,{peerId:alias,name:'Deleted resident',conversationStatus:'read_only',...Object.fromEntries(['avatar','peerAvatar','peerName','peerEmail','peerPhone','peerAddress'].filter(k=>k in record).map(k=>[k,k==='peerName'?'Deleted resident':'']))});
     if(record.residentId===uid)Object.assign(patch,{residentId:alias,subject:'Conversation'});
     return {action:'patch',patch};
   }
   if(collection==='inbox_messages') {
     if(record.senderId===uid||record.actorId===uid)return {action:'delete_record'};
     if(!Array.isArray(record.visibility))return {action:'review',reason:'message_visibility_requires_review'};
-    return {action:'patch',patch:{visibility:record.visibility.filter(key=>typeof key!=='string'||!key.startsWith(`${uid}:`))}};
+    const patch={visibility:record.visibility.filter(key=>!audienceKeyFor(key,uid))};
+    // Receipt aggregation is historical: removing an audience must never promote sent to read.
+    if(record.receipts&&typeof record.receipts==='object'&&!Array.isArray(record.receipts))patch.receipts=Object.fromEntries(Object.entries(record.receipts).filter(([key])=>!audienceKeyFor(key,uid)));
+    if(Array.isArray(record.readBy))patch.readBy=record.readBy.filter(id=>id!==uid);
+    return {action:'patch',patch};
   }
   if(collection==='community_events') {
     const patch={};
     if(Array.isArray(record.attendees)) {patch.attendees=record.attendees.filter(a=>a.id!==uid&&a.userId!==uid);patch.attendeesCount=patch.attendees.length;if(typeof record.spotsLeft==='number')patch.spotsLeft=record.spotsLeft+record.attendees.length-patch.attendees.length;}
     if(record.rsvpMembers)patch.rsvpMembers=Object.fromEntries(Object.entries(record.rsvpMembers).filter(([id])=>id!==uid));
     if(record.createdBy===uid)patch.createdBy=alias;
-    if(record.rsvpChange?.attendee?.id===uid)patch.rsvpChange={};
+    if((record.rsvpChange?.attendee?.id===uid||record.rsvpChange?.attendee?.userId===uid))patch.rsvpChange={};
     return {action:'patch',patch};
   }
   // Evidence retention/disposal requires a documented case and expiry; never silently erase it.
   if(['moderation_reports','moderation_audit'].includes(collection))return {action:'review',reason:'reported_evidence_requires_disposition'};
-  if(['notification_events','notification_reads'].includes(collection))return record.uid===uid?{action:'delete_record'}:{action:'review',reason:'notification_identity_requires_review'};
+  if(['notification_events','notification_reads','notification_state'].includes(collection)) {
+    if(record.uid===uid)return {action:'delete_record'};
+    if(collection==='notification_events'&&typeof record.uid==='string'&&record.senderId===uid)return {action:'patch',patch:{senderId:alias}};
+    return {action:'review',reason:'notification_identity_requires_review'};
+  }
   if(collection==='notification_deliveries') {
     const keep=['status','kind','action','createdAt','handledAt'];
     return {action:'replace_audit',data:Object.fromEntries(keep.filter(k=>record[k]!==undefined).map(k=>[k,record[k]]))};

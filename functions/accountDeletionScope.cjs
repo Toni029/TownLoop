@@ -29,7 +29,7 @@ function databaseCompletionReady(job,now=Date.now()) {
     const matches=scopes.filter(scope=>scope.databaseId===databaseId);
     if(matches.length!==1)return false;
     const s=matches[0],completed=millis(s.completedAt);
-    return s.uid===job.uid && s.policyReference===job.review?.policyReference &&
+    return s.uid===job.uid && s.policyReference===require('./accountDeletionLifecycle.cjs').authorizationReference(job) &&
       typeof s.policyReference==='string' && s.policyReference.length>0 &&
       s.inventoryVersion===INVENTORY_VERSION && s.inventoryComplete===true && s.recordsComplete===true && s.writesFrozen===true &&
       s.unresolvedIdentityCount===0 && s.unresolvedMediaCount===0 &&

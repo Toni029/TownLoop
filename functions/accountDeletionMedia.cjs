@@ -1,3 +1,4 @@
+const {executionAuthorized,isNewJob}=require('./accountDeletionLifecycle.cjs');
 const {createHash}=require('node:crypto');
 const {TARGETS}=require('./accountDeletionInventory.cjs');
 const {objectHashes}=require('./deletionMediaReferences.cjs');
@@ -16,7 +17,7 @@ async function hasLiveReference(dbFor,objectHash){
 }
 // Account-request jobs only. This never activates general orphan/draft cleanup.
 async function processAccountMedia(control,job,{dbFor,bucket,mediaPolicy}) {
- if(job.review?.processingAuthorized!==true||job.review.decision!=='approved'||job.preflight?.jobId!==job.id||job.preflight.uid!==job.uid||job.preflight.holds?.length)throw Error('media_preflight_required');
+ if(!executionAuthorized(job)||job.preflight?.jobId!==job.id||job.preflight.uid!==job.uid||(isNewJob(job)&&job.preflight.requestId!==job.requestId)||job.preflight.holds?.length)throw Error('media_preflight_required');
  for(const databaseId of require('./accountDeletionScope.cjs').DATABASES){const db=dbFor(databaseId);let cursor;
  for(let page=0;;page++){
   if(page>=100)throw Error('inventory_bound');let query=db.collection('media_cleanup_jobs').where('accountDeletionJobId','==',job.id).orderBy('__name__').limit(100);if(cursor)query=query.startAfter(cursor);const jobs=await query.get();

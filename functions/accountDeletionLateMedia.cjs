@@ -1,3 +1,4 @@
+const {executionAuthorized,isNewJob}=require('./accountDeletionLifecycle.cjs');
 const {createHash}=require('node:crypto');
 const {DATABASES}=require('./accountDeletionScope.cjs');
 const {trustedMedia}=require('./mediaCleanupPolicy.cjs');
@@ -6,7 +7,7 @@ const provenance=require('./deletionMediaProvenance.json');
 // Resumable uploads accepted before revocation can finish later. Reconcile under
 // the same root lease before Auth removal and during the finite receipt window.
 async function reconcileLateAccountMedia(control,ref,job,{dbFor,bucket,mediaPolicy,now=Date.now()}){
- if(job.preflight?.jobId!==job.id||job.preflight.uid!==job.uid||job.preflight.holds?.length||job.review?.processingAuthorized!==true)throw Error('media_preflight_required');
+ if(job.preflight?.jobId!==job.id||job.preflight.uid!==job.uid||(isNewJob(job)&&job.preflight.requestId!==job.requestId)||job.preflight.holds?.length||!executionAuthorized(job))throw Error('media_preflight_required');
  const parents=[];
  for(const databaseId of DATABASES){let cursor;for(let page=0;;page++){
   if(page>=100)throw Error('inventory_bound');let query=dbFor(databaseId).collection('media_cleanup_jobs').where('accountDeletionJobId','==',job.id).orderBy('__name__').limit(100);if(cursor)query=query.startAfter(cursor);const rows=await query.get();

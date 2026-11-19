@@ -1,15 +1,6 @@
-// Deterministic local packaging only; never invokes Firebase or reads live data.
-const fs = require('node:fs');
-const path = require('node:path');
-const source = path.resolve(__dirname, '..');
-const target = path.resolve(source, '../.release/deletion-review');
-const files = ['abuseLimits.cjs','abusePolicy.cjs','accountDeletionReview.cjs', 'accountDeletionStatus.cjs', 'accountDeletionPolicy.cjs', 'accountDeletionRetention.cjs', 'accountDeletionScope.cjs', 'accountDeletionInventory.cjs', 'package.json', 'package-lock.json'];
-fs.mkdirSync(target, {recursive: true});
-// Reject stale/unreviewed source additions, rather than ship anything extra.
-const allowed = new Set([...files, 'index.cjs', 'node_modules']);
-for (const file of fs.readdirSync(target)) if (!allowed.has(file)) throw Error('Unexpected staged release file');
-for (const file of files) fs.copyFileSync(path.join(source, file), path.join(target, file));
-fs.copyFileSync(path.join(source, 'deletionReviewEntry.cjs'), path.join(target, 'index.cjs'));
-// Reuse installed dependencies for local discovery; deployment excludes this link.
-if (!fs.existsSync(path.join(target, 'node_modules'))) fs.symlinkSync(path.join(source, 'node_modules'), path.join(target, 'node_modules'), 'dir');
-console.log('Prepared review-only source; no deployment performed.');
+'use strict';
+// Review/status callables only. Importing never stages files or initializes SDKs.
+const path=require('node:path');
+function prepare({target}={}){return require('./deletion-package.cjs').prepare({target:target||path.resolve(__dirname,'../../.release/deletion-review'),entries:['deletionReviewEntry.cjs']});}
+module.exports={prepare};
+if(require.main===module){prepare();console.log('Prepared review-only sources; no deployment performed.');}

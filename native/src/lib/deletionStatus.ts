@@ -1,14 +1,16 @@
-export type DeletionRequestStatus = { status: string; processingStage?: string | null; processingIssue?: string | null; jobId?: string; createdAt?: number | null; reviewedAt?: number | null; reason?: string; processingHeld?: boolean; reviewDueAt?: number; escalateAt?: number; retentionDueAt?: number; completionDueAt?: number | null; reviewOverdue?: boolean; escalated?: boolean; processingOverdue?: boolean; retentionOverdue?: boolean };
+export type DeletionRejectionNotice = {requestId:string;decision:'rejected';reason:string;at?:number|null};
+export type DeletionRequestStatus = { status: string; workflowVersion?: number; requestId?: string; submittedAt?: number | null; autoDeleteAt?: number | null; canRequestAgain?: boolean; canRetry?: boolean; accountDeletionNotice?: DeletionRejectionNotice | null; processingStage?: string | null; processingIssue?: string | null; jobId?: string; createdAt?: number | null; reviewedAt?: number | null; reason?: string; processingHeld?: boolean; reviewDueAt?: number; escalateAt?: number; retentionDueAt?: number; completionDueAt?: number | null; reviewOverdue?: boolean; escalated?: boolean; processingOverdue?: boolean; retentionOverdue?: boolean };
 export function deletionStatusText(request: DeletionRequestStatus): string {
+  if(request.workflowVersion===3&&request.status==='complete')return 'Verified personal-data cleanup is complete. Minimal operational receipts may remain under the retention policy.';
   const labels: Record<string, string> = {
     waiting_for_media:'Verified record processing is waiting for attachment cleanup; account deletion is not complete.',
     delayed:'Request delayed for a documented legal/security reason; original deadlines remain in effect.', needs_review:'Processing needs office review; unresolved items have not been marked complete.', failed:'Processing was interrupted. Deletion is not complete; a retry is required.', retention_pending:'Account access removed. Retained receipts still await expiry; deletion processing is not fully complete.', none: 'No deletion request submitted.', requested: 'Awaiting Admin/VIP review.',
     approved_held: 'Approved. Processing is paused until deletion safeguards are verified. Your account has not been deleted.',
-    queued: 'Approved. Awaiting authorized processing.', processing: 'Deletion processing is in progress.',
+    queued: 'Deletion is authorized and queued. Processing starts automatically; deletion is not complete.', retrying: 'Deletion processing is retrying. Deletion is not complete.', processing: 'Deletion processing is in progress.',
     pending_owner_approval: 'Processing is paused until retention and database safeguards are verified.',
     identity_complete_media_pending: 'Account removed; associated media cleanup is pending.',
     complete: 'Deletion processing completed under the approved retention policy.',
-    rejected: 'Request closed after documented withdrawal. Contact the office if this is incorrect.',
+    rejected: 'Request rejected and closed. You may submit a new verified request. See the documented reason or contact the office for help.',
   };
   const issues: Record<string,string> = {
     verified_scope_write_freeze_required:'Processing is paused: account writes must be secured in both databases.',

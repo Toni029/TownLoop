@@ -8,13 +8,13 @@ function mediaDeletionDisabled(inventory){
   const entry=fn.buildConfig?.entryPoint||fn.entryPoint||'';
   const id=(fn.name?.split('/').at(-1)||'').replace(/[^a-zA-Z]/g,'');
   const generic=/^(cleanupDeleted_|cleanupLateOrphanMedia$|resumeMediaCleanup$|expireMediaDrafts$)/i.test(entry)||/^(cleanupdeleted|cleanuplateorphanmedia$|resumemediacleanup$|expiremediadrafts$)/i.test(id);
-  const account=/^(fulfillApprovedAccountDeletions|resumeAccountDeletions)$/.test(entry)||/^(fulfillapprovedaccountdeletions|resumeaccountdeletions)$/i.test(id);
+  const account=/^(fulfillApprovedAccountDeletions|resumeAccountDeletions|processAccountDeletionJob|reconcileAccountDeletionUpload)$/.test(entry)||/^(fulfillapprovedaccountdeletions|resumeaccountdeletions|processaccountdeletionjob|reconcileaccountdeletionupload)$/i.test(id);
   if(account){const env=fn.serviceConfig?.environmentVariables||fn.environmentVariables||{};if(env.TOWNLOOP_ACCOUNT_DELETION_ENABLED!=='false'&&env.TOWNLOOP_DELETION_COORDINATION_VERSION!=='1')return false;}
   return !generic||((fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_MEDIA_CLEANUP_ENABLED==='false'&&(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_POST_DELETE_MEDIA_ENABLED!=='true');
  });
 }
 const REQUIRED_WRITERS=['manageInboxConversation','revokeInboxGroupMemberships','syncResidentDirectory','submitSafetyReport','reviewSafetyReport','newsletterApi','runNewsletterAnalysis','fulfillApprovedAccountDeletions'];
-const OPTIONAL_WRITERS=['monitorInboxRetention','resumeAccountDeletions'];
+const OPTIONAL_WRITERS=['monitorInboxRetention','resumeAccountDeletions','processAccountDeletionJob','reconcileAccountDeletionUpload'];
 const revision=fn=>fn.serviceConfig?.revision||fn.updateTime;
 function inventoryDigest(inventory){return require('node:crypto').createHash('sha256').update(JSON.stringify(inventory.functions.map(fn=>[fn.name,fn.buildConfig?.entryPoint||fn.entryPoint||'',revision(fn)||'',(fn.serviceConfig?.environmentVariables||fn.environmentVariables)?.TOWNLOOP_MEDIA_CLEANUP_ENABLED||'']).sort((a,b)=>a[0].localeCompare(b[0])))).digest('hex');}
 function referenceWritersVerified(inventory,policy){

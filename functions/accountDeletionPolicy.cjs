@@ -9,14 +9,16 @@ function validateRequest(auth, data, now = Date.now()) {
   if (typeof data?.confirmation !== 'string' || data.confirmation.trim().toLowerCase() !== 'delete') return 'confirmation-required';
   return null;
 }
+const audienceKeyFor = (key, uid) => typeof key === 'string' && key.startsWith(`${uid}:`) && /^[1-9][0-9]*$/.test(key.slice(uid.length + 1));
 function referencesUid(data, uid) {
   if (!data || typeof data !== 'object') return false;
   // Include embedded messages/comments and legacy participant objects; never compare display names.
   if (Array.isArray(data)) return data.some(item => referencesUid(item, uid));
   return Object.hasOwn(data, uid) || Object.entries(data).some(([key, value]) =>
     (['userId', 'authorId', 'authorUid', 'senderId', 'residentId', 'uid', 'id', 'createdBy', 'ownerId', 'sellerId', 'buyerId', 'resolutionAuthorId', 'completedBy', 'reporterId', 'targetUid', 'actorId', 'uploadedBy', 'peerId'].includes(key) && value === uid) ||
-    (['participantIds','memberIds'].includes(key) && Array.isArray(value) && value.includes(uid)) ||
-    (key === 'visibility' && Array.isArray(value) && value.some(entry => typeof entry === 'string' && entry.startsWith(`${uid}:`) && /^[1-9][0-9]*$/.test(entry.slice(uid.length+1)))) ||
+    (['participantIds','memberIds','readBy','unreadBy','deletedBy','leftBy'].includes(key) && Array.isArray(value) && value.includes(uid)) ||
+    (key === 'visibility' && Array.isArray(value) && value.some(entry => typeof entry === 'string' && audienceKeyFor(entry,uid))) ||
+    (key === 'receipts' && value && typeof value === 'object' && Object.keys(value).some(entry => audienceKeyFor(entry,uid))) ||
     (value && typeof value === 'object' && referencesUid(value, uid)));
 }
 function approvedRetention(policy, collection) {
@@ -51,4 +53,4 @@ function accountPolicyReady(policy) {
       (approvedSocialDeletion(policy, collection) && approvedSharedSocialRetention(policy, collection));
   });
 }
-module.exports = { accountPolicyReady, jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention };
+module.exports = { audienceKeyFor, accountPolicyReady, jobIdFor, SHARED, validateRequest, referencesUid, approvedRetention, approvedSocialDeletion, ownsSocial, approvedSharedSocialRetention };

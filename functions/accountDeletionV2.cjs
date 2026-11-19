@@ -3,14 +3,15 @@ const {createHmac}=require('node:crypto');
 const { FieldPath, FieldValue } = require('firebase-admin/firestore');
 const { jobIdFor, referencesUid } = require('./accountDeletionPolicy.cjs');
 const retention = require('./accountDeletionRetention.cjs');
+const lifecycle = require('./accountDeletionLifecycle.cjs');
 const {INVENTORY_VERSION,TARGETS,legacyPathReferencesUid,inventoryReferencesUid}=require('./accountDeletionInventory.cjs');
 const timestamp = () => FieldValue.serverTimestamp();
 /** Bounded durable phases. Called only through the existing leased, disabled worker. */
 async function processRetentionStep(db, auth, ref, job, scope = {}) {
-  const uid = job.uid, dates = retention.deadlines(job.createdAt, job.review?.reviewedAt);
-  if (dates.requiresDeadlineReview || !Number.isFinite(retention.millis(job.review?.reviewedAt))) { await ref.update({status:'needs_review',lastError:'missing_submission_time'}); return; }
+  const uid = job.uid, dates = lifecycle.executionDates(job);
+  if (dates.requiresDeadlineReview || !Number.isFinite(retention.millis(lifecycle.authorizationTime(job)))) { await ref.update({status:'needs_review',lastError:'missing_submission_time'}); return; }
   const policy = scope.policy || (await db.doc('deletion_policies/account').get()).data();
-  if (!retention.policyReady(policy) || job.review?.policyReference !== policy.approvalReference) {
+  if (!(lifecycle.isNewJob(job)?lifecycle.policyReady(policy)&&lifecycle.executionAuthorized(job,policy):retention.policyReady(policy)) || lifecycle.authorizationReference(job) !== policy.approvalReference) {
     await ref.update({status:'pending_owner_approval',lastError:'policy_changed_or_incomplete'}); return;
   }
   if (job.phase === 'requested' || job.phase === 'disable') {
@@ -46,24 +47,25 @@ async function processRetentionStep(db, auth, ref, job, scope = {}) {
       if(plan.action==='delete_record'){tx.delete(recordRef);tx.update(receipt.ref,{state:'redacted'});return;}
       if(plan.action==='delete_parent') {
         const cleanupJobId=jobIdFor(`account:${ref.path}:${path}`),cleanup=db.doc(`media_cleanup_jobs/${cleanupJobId}`),existing=await tx.get(cleanup);
-        if(!existing.exists)tx.create(cleanup,{collection:current.data().collection,recordId:record.id,uid,accountDeletionJobId:ref.path.split('/').at(-1),...(scope.databaseId?{databaseId:scope.databaseId,expiresAt:new Date(dates.retentionDueAt),objectHashes:objectHashes(before)}:{}),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
+        if(!existing.exists)tx.create(cleanup,{collection:current.data().collection,recordId:record.id,uid,accountDeletionJobId:ref.path.split('/').at(-1),...(lifecycle.isNewJob(job)?{requestId:job.requestId}:{}),...(scope.databaseId?{databaseId:scope.databaseId,expiresAt:new Date(dates.retentionDueAt),objectHashes:objectHashes(before)}:{}),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
         tx.set(db.doc(`media_deletion_tombstones/${current.data().collection}/records/${record.id}`),{deletedAt:timestamp()});
         tx.delete(recordRef);tx.update(receipt.ref,{state:'redacted',cleanupJobId});
       }else{
         // Full replacement is restricted to owned Work Orders; ticket reservations are never touched.
         if(['replace','replace_audit'].includes(plan.action))tx.set(recordRef,{...plan.data,...(plan.action==='replace'?{personalDataRemoved:true}:{}),...(plan.action==='replace_audit'?{deletionExpiresAt:dates.retentionDueAt}: {})});else if(Object.keys(plan.patch).length)tx.update(recordRef,plan.patch);
-        const commentMedia=Array.isArray(before.comments)&&before.comments.some(c=>(c.authorId===uid||c.userId===uid)&&(c.photoUrl||c.media?.length));
-        const removedMedia=plan.action==='replace'&&(before.photoUrl||before.photos?.length||before.comments?.some(c=>c.photoUrl));
+        const ownComments=Array.isArray(before.comments)?before.comments.filter(c=>c.authorId===uid||c.userId===uid||c.senderId===uid):[];
+        const commentMedia=objectHashes({comments:ownComments}).length>0;
+        const removedMedia=plan.action==='replace'&&objectHashes(before).length>0;
         if(removedMedia) {
           // The parent remains as anonymous maintenance history, so use a narrowly
           // scoped cleanup job which rechecks that the personal/media fields stay absent.
           const cleanupJobId=jobIdFor(`detached:${ref.path}:${path}`);
           // Deterministic set is safe on transaction retry; receipt state gates re-entry.
-          tx.set(db.doc(`media_cleanup_jobs/${cleanupJobId}`),{collection:current.data().collection,recordId:record.id,uid,detached:true,accountDeletionJobId:ref.path.split('/').at(-1),...(scope.databaseId?{databaseId:scope.databaseId,expiresAt:new Date(dates.retentionDueAt),objectHashes:objectHashes(before)}:{}),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
+          tx.set(db.doc(`media_cleanup_jobs/${cleanupJobId}`),{collection:current.data().collection,recordId:record.id,uid,detached:true,accountDeletionJobId:ref.path.split('/').at(-1),...(lifecycle.isNewJob(job)?{requestId:job.requestId}:{}),...(scope.databaseId?{databaseId:scope.databaseId,expiresAt:new Date(dates.retentionDueAt),objectHashes:objectHashes(before)}:{}),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
           tx.update(receipt.ref,{state:'redacted',cleanupJobId});
         } else if(commentMedia&&scope.databaseId){
-          const cleanupJobId=jobIdFor(`comment:${ref.path}:${path}`),comments=before.comments.filter(c=>c.authorId===uid||c.userId===uid);
-          tx.set(db.doc(`media_cleanup_jobs/${cleanupJobId}`),{collection:current.data().collection,recordId:record.id,uid,databaseId:scope.databaseId,commentAuthorOnly:true,objectHashes:objectHashes({comments}),expiresAt:new Date(dates.retentionDueAt),accountDeletionJobId:ref.path.split('/').at(-1),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
+          const cleanupJobId=jobIdFor(`comment:${ref.path}:${path}`),comments=ownComments;
+          tx.set(db.doc(`media_cleanup_jobs/${cleanupJobId}`),{collection:current.data().collection,recordId:record.id,uid,databaseId:scope.databaseId,commentAuthorOnly:true,objectHashes:objectHashes({comments}),expiresAt:new Date(dates.retentionDueAt),accountDeletionJobId:ref.path.split('/').at(-1),...(lifecycle.isNewJob(job)?{requestId:job.requestId}:{}),status:'queued',pageToken:'',createdAt:timestamp(),lastAttemptAt:timestamp()});
           tx.update(receipt.ref,{state:'redacted',cleanupJobId});
         } else tx.update(receipt.ref,{state:commentMedia?'needs_review':'redacted',...(commentMedia?{reason:'removed_comment_media_requires_exact_link_review'}:{}),...(plan.action==='replace_audit'?{expireRecord:true}:{})});
       }

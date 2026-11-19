@@ -1,4 +1,5 @@
 const {budget}=require('./abuseLimits.cjs');
+const lifecycle=require('./accountDeletionLifecycle.cjs');
 // Review-only surface: never import workers, Storage, or deletion engines here.
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -20,6 +21,8 @@ exports.requestAccountDeletion = onCall({ ...options, timeoutSeconds: 60 }, asyn
   if (verified.uid !== request.auth.uid || validateRequest({ uid: verified.uid, token: verified }, request.data))
     throw new HttpsError('failed-precondition', 'Sign in again before deleting your account.');
   const db = getFirestore(database), jobId = jobIdFor(verified.uid), ref = db.doc(`account_deletion_jobs/${jobId}`);
+  const activePolicy=(await db.doc('deletion_policies/account').get()).data();
+  if(lifecycle.policyReady(activePolicy))return lifecycle.submitRequest(db,verified.uid);
   const status = await db.runTransaction(async tx => {
     const existing = await tx.get(ref);
     if (!existing.exists) tx.create(ref, { uid: verified.uid, phase: 'requested', status: 'requested',
@@ -50,6 +53,7 @@ async function managerSession(request) {
   return token;
 }
 function requestSummary(id, job) {
+  if(lifecycle.isNewJob(job))return {...lifecycle.summary(id,job),...require('./accountDeletionStatus.cjs').processingSummary(job)};
   return { ...require('./accountDeletionStatus.cjs').processingSummary(job), jobId: id, status: job.status, createdAt: job.createdAt?.toMillis?.() || null,
     reviewedAt: job.review?.reviewedAt?.toMillis?.() || null,
     ...retention.deadlines(job.createdAt, job.review?.decision === 'approved' ? job.review.reviewedAt : null),
@@ -60,12 +64,15 @@ function requestSummary(id, job) {
 exports.getAccountDeletionStatus = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const token = await verifiedSession(request), id = jobIdFor(token.uid);
   const job = await getFirestore(database).doc(`account_deletion_jobs/${id}`).get();
-  return job.exists ? requestSummary(id, job.data()) : { status: 'none' };
+  const db=getFirestore(database),profileRef=db.doc(`users/${token.uid}`);
+  if(typeof request.data?.ackNotice==='string')await db.runTransaction(async tx=>{const p=await tx.get(profileRef);if(p.data()?.accountDeletionNotice?.requestId===request.data.ackNotice)tx.update(profileRef,{accountDeletionNotice:null});});
+  const profile=(await profileRef.get()).data();
+  return {...(job.exists ? requestSummary(id, job.data()) : { status: 'none' }),accountDeletionNotice:profile?.accountDeletionNotice?{...profile.accountDeletionNotice,at:lifecycle.millis(profile.accountDeletionNotice.at)}:null};
 });
 exports.listAccountDeletionRequests = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   await managerSession(request);
   const db = getFirestore(database);
-  let query = db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'pending_owner_approval', 'queued', 'approved_held', 'delayed', 'processing', 'needs_review', 'identity_complete_media_pending', 'retention_pending', 'waiting_for_media', 'failed']).orderBy('lastAttemptAt').limit(50);
+  let query = db.collection('account_deletion_jobs').where('status', 'in', ['requested', 'pending_owner_approval', 'queued', 'approved_held', 'delayed', 'processing', 'needs_review', 'identity_complete_media_pending', 'retention_pending', 'waiting_for_media', 'failed', 'retrying', 'complete', 'rejected', 'cancelled']).orderBy('lastAttemptAt').limit(50);
   if (request.data?.cursor) {
     if (!/^[a-f0-9]{64}$/.test(request.data.cursor)) throw new HttpsError('invalid-argument', 'Invalid page.');
     const cursor = await db.doc(`account_deletion_jobs/${request.data.cursor}`).get();
@@ -77,13 +84,17 @@ exports.listAccountDeletionRequests = onCall({ ...options, timeoutSeconds: 60 },
   const requests = await Promise.all(jobs.docs.map(async job => {
     const data = job.data(), profile = (await db.doc(`resident_directory/${data.uid}`).get()).data();
     return { ...requestSummary(job.id, data), name: profile?.name || 'Resident',
-      canReview: !['approved','rejected'].includes(data.review?.decision), isOwnRequest: data.uid === request.auth.uid };
+      canReview: lifecycle.canReview(data), canRetry:lifecycle.canRetry(data), historical:!lifecycle.isNewJob(data), isOwnRequest: data.uid === request.auth.uid };
   }));
-  return { requests, policyReady: retention.policyReady(policy), exceptionsAvailable:process.env.TOWNLOOP_SCOPED_DELETION_REVIEW_ENABLED==='true',processingAvailable:process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED==='true'&&process.env.TOWNLOOP_SCOPED_DELETION_ENABLED==='true', nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
+  return { requests, policyReady: lifecycle.policyReady(policy)||retention.policyReady(policy), exceptionsAvailable:process.env.TOWNLOOP_SCOPED_DELETION_REVIEW_ENABLED==='true',processingAvailable:process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED==='true'&&process.env.TOWNLOOP_SCOPED_DELETION_ENABLED==='true', nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
 });
 exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const token = await managerSession(request);
   const { jobId, decision, reason, confirmation } = request.data || {};
+  if(/^[a-f0-9]{64}$/.test(jobId||'')){
+    const current=await getFirestore(database).doc(`account_deletion_jobs/${jobId}`).get();
+    if(lifecycle.isNewJob(current.data())){try{return await lifecycle.decideRequest(getFirestore(database),token.uid,request.data);}catch(error){const code=['permission-denied','failed-precondition','invalid-argument','not-found','resource-exhausted'].includes(error.code)?error.code:'internal';throw new HttpsError(code,code==='internal'?'The deletion decision could not be confirmed. Refresh its status.':error.message);}}
+  }
   if (!/^[a-f0-9]{64}$/.test(jobId || '') || !['approved', 'rejected', 'delayed'].includes(decision) || confirmation !== decision ||
       typeof reason !== 'string' || !reason.trim() || reason.length > 1000)
     throw new HttpsError('invalid-argument', 'Confirm the decision and provide a brief reason.');

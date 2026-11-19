@@ -37,7 +37,7 @@ function harness(initial, authorizeProcessing = false) {
   };
   const warnings = [], adminAlerts = [];
   const exports = {}, context = { exports, module: { exports }, require: name => {
-    if (name === './deletionMediaReferences.cjs' || name === './accountDeletionRetention.cjs' || name === './accountDeletionScope.cjs') return require(name);
+    if (name === './abuseLimits.cjs' || name === './accountDeletionLifecycle.cjs' || name === './deletionMediaReferences.cjs' || name === './accountDeletionRetention.cjs' || name === './accountDeletionScope.cjs') return require(name);
     if (['./accountDeletionV2.cjs','./accountDeletionReview.cjs','./accountDeletionMonitor.cjs'].includes(name)) { const module={exports:{}};vm.runInNewContext(fs.readFileSync(require.resolve(name),'utf8'),{exports:module.exports,module,require:n=>context.require(n),Date,process:context.process});return module.exports; }
     if (name === './deletionAlertExpiry.cjs') return {expireAlertClaims:async()=>{}};
     if (name === './accountDeletionAdminAlerts.cjs') return {notifyAdmins:async()=>{adminAlerts.push('generic_admin_digest');}};

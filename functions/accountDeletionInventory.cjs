@@ -3,7 +3,7 @@ const {SHARED,referencesUid}=require('./accountDeletionPolicy.cjs');
 const INVENTORY_VERSION=3;
 const TARGETS=Object.freeze([
  ...SHARED.map(collection=>({collection})),
- ...['inbox_conversations','inbox_memberships','inbox_legacy_authorizations','inbox_media_references','inbox_retention_holds','notification_events','notification_reads'].map(collection=>({collection})),
+ ...['inbox_conversations','inbox_memberships','inbox_legacy_authorizations','inbox_media_references','inbox_retention_holds','notification_events','notification_reads','notification_state'].map(collection=>({collection})),
  {collection:'inbox_messages',group:'messages'},
 ]);
 function legacyPathReferencesUid(path,uid){

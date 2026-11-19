@@ -1,0 +1,21 @@
+{
+  "ownerApproved": false,
+  "policyVersion": 3,
+  "approvalReference": "townloop-account-deletion-v3-2026-11-19",
+  "pendingPeriodDays": 30,
+  "executionMode": "firestore-event-v1",
+  "effectiveFrom": null,
+  "receiptRetentionDays": 60,
+  "identityCoverageVerified": false,
+  "mediaCoverageVerified": false,
+  "databaseScopeVerified": false,
+  "scopeWriteFreezeVerified": {
+    "(default)": false,
+    "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb": false
+  },
+  "scopeRuleHashes": {
+    "(default)": "8d105d51885783e5b98993ca185d0ac968abf4d1eb423f53d78710e78dcc9047",
+    "ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb": "8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d"
+  },
+  "tokenDrainMs": 3900000
+}
