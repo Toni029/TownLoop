@@ -216,12 +216,15 @@ function createCleanupService({db,listPage,enabled=()=>false,verifySafety,verify
   return checkpoint(job,{...advance,counts,digest:hash(job.digest+JSON.stringify(item))},tx=>{tx.create(itemRef,item);if(item.reason&&item.newsletterId)tx.set(jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)),{reason:item.reason});if(item.reason&&item.listingId)tx.set(jobRef(job.id).collection('marketplace_holds').doc(hash(item.listingId)),{reason:item.reason});});
  }
  async function propagateNewsletterHolds(job){
-  let query=jobRef(job.id).collection('items').where('state','==','held').orderBy(FieldPath.documentId()).limit(1);
+  if(!job.categories.some(category=>category==='newsletters'||category==='marketplace'))return checkpoint(job,{dependenciesChecked:true});
+  // Holds were recorded while building the manifest. Apply them to the linked
+  // records that are still eligible for deletion, not the ones already held.
+  let query=jobRef(job.id).collection('items').where('state','==','pending').orderBy(FieldPath.documentId()).limit(1);
   if(job.dependencyCursor)query=query.startAfter(job.dependencyCursor);
   const rows=await query.get();if(rows.empty)return checkpoint(job,{dependenciesChecked:true});
   const row=rows.docs[0],item=row.data();
   const blocked=item.newsletterId&&(await jobRef(job.id).collection('edition_holds').doc(hash(item.newsletterId)).get()).exists||item.listingId&&(await jobRef(job.id).collection('marketplace_holds').doc(hash(item.listingId)).get()).exists;
-  if(item.state==='pending'&&blocked){if(media)await media.holdRoot(job,item,(item.listingId?'protected_marketplace_dependency':'protected_newsletter_dependency'));const counts=structuredClone(job.counts);counts[item.category].held++;return checkpoint(job,{dependencyCursor:row.id,counts},tx=>tx.update(row.ref,{state:'held',reason:(item.listingId?'protected_marketplace_dependency':'protected_newsletter_dependency')}));}
+  if(item.state==='pending'&&blocked){if(media)await media.holdRoot(job,item,(item.listingId?'protected_marketplace_dependency':'protected_newsletter_dependency'));const counts=structuredClone(job.counts);counts[item.category].held++;counts[item.category].storageHeld+=item.storageHeld||0;return checkpoint(job,{dependencyCursor:row.id,counts},tx=>tx.update(row.ref,{state:'held',reason:(item.listingId?'protected_marketplace_dependency':'protected_newsletter_dependency')}));}
   return checkpoint(job,{dependencyCursor:row.id});
  }
  async function protectChanged(job,itemRef,item,reason){

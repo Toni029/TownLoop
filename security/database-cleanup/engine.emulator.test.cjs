@@ -119,7 +119,10 @@ test('retention and nested evidence preserve the whole root, including related n
  await db.doc('community_events/event').set({newsletterId:'nov',isAiExtracted:true});
  await db.doc('moderation_reports/event').set({collection:'community_events',id:'event'});
  job=await review(['newsletters'],'request-0000002');assert.equal(job.counts.newsletters.held,3);await confirm(job);job=await finish(job);
- assert.equal((await db.doc('newsletters/nov/chunks/0').get()).exists,true);
+ assert.equal(job.state,'completed_with_holds');
+ assert.equal((await db.doc('newsletters/nov/chunks/0').get()).data().data,'keep exact synthetic bytes');
+ assert.equal((await db.doc('newsletters/current').get()).data().id,'nov');
+ assert.equal((await db.doc('community_events/event').get()).exists,true);
  assert.equal(job.counts.newsletters.deleted,0);
 });
 test('partial batches resume exactly once and safe cancellation releases locks with fences retained',async()=>{
@@ -128,8 +131,12 @@ test('partial batches resume exactly once and safe cancellation releases locks w
  let job=await review();assert.equal(job.counts.workOrders.documents,106);await confirm(job);await service.tick();
  job=await service.operate('admin',{action:'status',jobId:job.id});assert.equal(job.counts.workOrders.deleted,100);
  failOnce=true;job=await finish(job);assert.equal(job.state,'paused');
- await service.operate('admin',{action:'cancel',jobId:job.id});await service.tick();
- assert.equal((await db.doc(`database_cleanup_jobs/${job.id}`).get()).data().state,'cancelled');
+ await service.operate('admin',{action:'cancel',jobId:job.id});
+ // Cancellation releases any parent Storage lock in a separate bounded tick.
+ job=await finish(job);
+ assert.equal(job.state,'cancelled');
+ assert.equal(job.counts.workOrders.deleted,100);
+ assert.equal((await db.collection('work_orders/large/replies').get()).size,5);
  assert.deepEqual((await db.doc('database_cleanup_control/active').get()).data().collections,[]);
  assert.equal((await db.doc('database_cleanup_fences/work_orders/records/large').get()).exists,true);
  // A new explicitly confirmed job can finish the fenced remainder, without resetting IDs elsewhere.

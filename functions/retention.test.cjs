@@ -13,11 +13,56 @@ test('retention respects exact 30-day boundary, reopening, and historical opt-ou
 });
 test('transaction checks current state, tolerates deletion and never touches attachments', async () => {
   let current = old, removed = 0;
-  const ref = { path: 'work_orders/test' };
-  const db = { runTransaction: async callback => callback({ get: async () => ({ exists: !!current, data: () => current }), delete: actual => { assert.equal(actual, ref); removed++; current = null; } }) };
+  const ref = { path: 'work_orders/test', id: 'test' };
+  const lock = {}, query = { where: () => query, limit: () => query };
+  const db = {
+    doc: () => lock,
+    collection: () => query,
+    runTransaction: callback => callback({
+      get: async target => target === ref ? { exists: !!current, data: () => current }
+        : target === query ? { empty: true } : { data: () => undefined },
+      delete: actual => { assert.equal(actual, ref); removed++; current = null; },
+    }),
+  };
   assert.equal(await deleteIfExpired(db, ref, now), true);
   assert.equal(await deleteIfExpired(db, ref, now), false);
   current = { ...old, status: 'In Progress' };
   assert.equal(await deleteIfExpired(db, ref, now), false);
+  assert.equal(removed, 1);
+});
+
+test('eligible completed orders with current evidence or maintenance holds remain intact', async () => {
+  const ref = { path: 'work_orders/test', id: 'test' };
+  let current = old, lock = {}, report = false, removed = 0;
+  const query = { where: () => query, limit: () => query };
+  const db = {
+    doc: path => ({ path }),
+    collection: () => query,
+    runTransaction: callback => callback({
+      get: async target => target === ref ? { exists: true, data: () => current }
+        : target === query ? { empty: !report } : { data: () => lock },
+      delete: () => removed++,
+    }),
+  };
+  for (const hold of [
+    { legalHold: true },
+    { evidenceHold: { by: 'fixture' } },
+    { hold: 'retention check' },
+    { retentionUntil: { toMillis: () => now + 1 } },
+  ]) {
+    current = { ...old, ...hold };
+    assert.equal(await deleteIfExpired(db, ref, now), false);
+  }
+  current = old;
+  report = true;
+  assert.equal(await deleteIfExpired(db, ref, now), false);
+  report = false;
+  for (const guard of [{ referenceWritesBlocked: true }, { accountDeletionOwner: 'fixture' }, { collections: ['work_orders'] }]) {
+    lock = guard;
+    assert.equal(await deleteIfExpired(db, ref, now), false);
+  }
+  assert.equal(removed, 0);
+  lock = {};
+  assert.equal(await deleteIfExpired(db, ref, now), true);
   assert.equal(removed, 1);
 });
