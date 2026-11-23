@@ -5,7 +5,7 @@ test('three direct public documents share the reference theme and complete cross
  const css=read('legal.css');for(const term of ['#f7f3ea','#047857','#eaf2e8','#fff0c5','focus-visible','min-height:44px','max-width:380px'])assert(css.includes(term));
 });
 test('privacy distinguishes local-only health/checklist records and covers current online services without absolute security claims',()=>{
- const html=read('privacy.html');for(const term of ['not synced','not automatically uploaded','Signing out can preserve','Firebase','Expo','Open-Meteo','Google Gemini','translation','read acknowledgments','emergency-contact','60-calendar-day','not represented as end-to-end encrypted','historical media links'])assert(html.includes(term),term);
+ const html=read('privacy.html');for(const term of ['not synced','not automatically uploaded','Signing out can preserve','Firebase','Expo','Open-Meteo','Google Gemini','translation','read acknowledgments','emergency-contact','30 × 24 hours from the server-recorded submission time','60 calendar days from the original request','Historical requests keep their recorded workflow and deadlines','not represented as end-to-end encrypted','historical media links'])assert(html.includes(term),term);
  assert.doesNotMatch(html,/100% secure|guarantee complete deletion|no provider retention/i);
 });
 test('terms cover adults, approval, safety, marketplace responsibility, restrictions and qualified liability',()=>{

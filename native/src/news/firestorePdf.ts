@@ -28,12 +28,14 @@ export async function pdfRequest(path: string, init: RequestInit = {}, options: 
         check();
         const token = await user.getIdToken(refreshed);
         check();
+        const attestation = await appCheckHeaders();
+        check();
         const controller = new AbortController(), stop = () => controller.abort();
         const timer = setTimeout(stop, options.timeoutMs || 45000);
         init.signal?.addEventListener('abort', stop, { once: true });
         let retry = false;
         try {
-            const response = await fetch(documentBase + path, { ...init, signal: controller.signal, redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...await appCheckHeaders() } });
+            const response = await fetch(documentBase + path, { ...init, signal: controller.signal, redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...attestation } });
             check();
             if (response.status === 404) return null;
             if (response.ok) return await response.json();

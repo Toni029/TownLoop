@@ -2205,13 +2205,13 @@ export function ProfileMenu({
                                             minute: "2-digit",
                                           })}
                                         </Text>
-                                        {mine && status && (
+                                        {mine && !!status && (
                                           <View
                                             accessibilityLabel={
                                               receiptLabel
                                             }
                                           >
-                                            {status!=='sent' ? (
+                                            {status !== 'sent' ? (
                                               <CheckCheck
                                                 size={16}
                                                 color={status==='read'?'#0284c7':muted}

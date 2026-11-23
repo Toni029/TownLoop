@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   getMonthlyCalendarEvents,
@@ -121,6 +122,14 @@ test("reminders stay attached to their selected occurrence, survive serializatio
     0,
   );
 });
+test("an activity reminder never removes a separate checklist task whose title shares its prefix", () => {
+  const event = MONTHLY_ACTIVITIES_LIST.find(e => e.id === "potluck")!;
+  const date = "2026-12-15";
+  const personal = {id: 1, text: "Community Potluck Dinner: bring serving spoons", date, done: false};
+  const added = toggleReminder([personal], event, date);
+  assert.equal(added.length, 2);
+  assert.deepEqual(toggleReminder(added, event, date), [personal]);
+});
 class Memory implements Storage {
   values = new Map<string, string>();
   failRead = false;
@@ -213,6 +222,30 @@ test("medication take is idempotent per day, undo/refill metadata survive and ne
   assert.equal(undoDose(taken, "2026-12-31").bottleCount, 10);
   assert.equal(takeDose(taken, "2027-01-01").bottleCount, 6);
   assert.deepEqual(undoDose(m, "2026-12-31"), m);
+});
+test("native medication tracking explains that residents need a separate dose alarm", () => {
+  const source = readFileSync(new URL("../src/home/Medications.tsx", import.meta.url), "utf8");
+  assert.match(source, /TownLoop does not send dose alarms/);
+  assert.doesNotMatch(source, /Add Medication Reminder|set up your daily pill/);
+});
+test("undo restores only the pills deducted, even after restart, refill and a dose edit", async () => {
+  const memory = new Memory(), today = "2026-12-31";
+  const original = new HomeStore("resident", memory);
+  await original.load();
+  const medication: MedicationItem = {
+    id: "test", name: "Test only", doseCount: 3, bottleCount: 1,
+    timeSlot: "morning", createdAt: 1,
+  };
+  await original.change(d => ({...d, medications: [takeDose(medication, today)]}));
+  const restarted = new HomeStore("resident", memory);
+  await restarted.load();
+  const saved = restarted.data.medications[0];
+  assert.equal(saved.bottleCount, 0);
+  const edited = {...saved, doseCount: 4, bottleCount: 30};
+  const undone = undoDose(edited, today);
+  assert.equal(undone.bottleCount, 31);
+  assert.equal(undone.lastTakenDate, undefined);
+  assert.equal(undoDose(takeDose({...medication, bottleCount: 0}, today), today).bottleCount, 0);
 });
 test("weather uses live current temperature and 12 hours crossing midnight, not sample fallback", () => {
   const time = Array.from(

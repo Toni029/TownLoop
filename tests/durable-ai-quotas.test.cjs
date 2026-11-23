@@ -8,10 +8,16 @@ function memoryDb() {
   const convert = v => v instanceof Date ? { toMillis: () => v.getTime() } : Array.isArray(v) ? v.map(convert) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x]) => [k,convert(x)])) : v;
   return { exists: !!value, data: () => convert(value) };
  };
- const db = { records, count: () => writes, doc: path => ({ path }), collection: name => ({ doc: id => ({ path: name + '/' + id }) }), runTransaction(fn) {
+ function read(ref){
+  if(!ref.query)return snapshot(records.get(ref.path));
+  const [name,field,value,limit]=ref.query;
+  const docs=[...records].filter(([path,data])=>path.startsWith(name+'/')&&data[field]===value).slice(0,limit).map(([path,data])=>({id:path.split('/').at(-1),...snapshot(data)}));
+  return {docs,size:docs.length};
+ }
+ const db = { records, count: () => writes, doc: path => ({ path }), collection: name => ({ doc: id => ({ path: name + '/' + id }),where(field,operator,value){assert.equal(operator,'==');return {limit:limit=>({query:[name,field,value,limit]})};} }), runTransaction(fn) {
   const job = queue.then(async () => {
    let wrote = false; const pending = [];
-   const value = await fn({ get: async ref => { assert.equal(wrote, false, 'transaction read after write'); return snapshot(records.get(ref.path)); }, set(ref,data,opts) { wrote = true; pending.push(() => records.set(ref.path, opts?.merge ? {...records.get(ref.path), ...data} : data)); }, update(ref,data) { wrote = true; pending.push(() => records.set(ref.path, {...records.get(ref.path),...data})); } });
+   const value = await fn({ get: async ref => { assert.equal(wrote, false, 'transaction read after write'); return read(ref); }, set(ref,data,opts) { wrote = true; pending.push(() => records.set(ref.path, opts?.merge ? {...records.get(ref.path), ...data} : data)); }, update(ref,data) { wrote = true; pending.push(() => records.set(ref.path, {...records.get(ref.path),...data})); } });
    for (const apply of pending) { apply(); writes++; } return value;
   }); queue = job.catch(() => {}); return job;
  } }; return db;

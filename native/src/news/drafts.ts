@@ -7,13 +7,15 @@ export type RetainedEdition = NewsletterConfig & {
     totalSize: number;
     sourceBytes: number;
     retainedAt: string;
+    uploadBudgetId?: string;
     partial?: boolean;
+    discardPending?: boolean;
     confirmedChunks?: number;
 };
 /** Ordinary authorized metadata listing. Parentless legacy discovery is server-only. */
 export async function retainedEditions(): Promise<RetainedEdition[]> {
     const user = await approvedUser(true, true);
-    const fields = ['id', 'isRemoved', 'uploadState', 'editionTitle', 'monthEdition', 'fileName', 'fileSize', 'sourceBytes', 'uploadedAt', 'uploadedBy', 'totalChunks', 'totalSize'];
+    const fields = ['id', 'isRemoved', 'uploadState', 'editionTitle', 'monthEdition', 'fileName', 'fileSize', 'sourceBytes', 'uploadedAt', 'uploadedBy', 'totalChunks', 'totalSize', 'uploadBudgetId'];
     async function list() {
         const rows: any[] = [];
         let token: string | undefined;
@@ -33,7 +35,7 @@ export async function retainedEditions(): Promise<RetainedEdition[]> {
     // Current uploads persist a real parent manifest; discover those directly.
     const rows = await list();
     const active = rows.find(r => r.name.endsWith('/current'))?.fields?.id?.stringValue;
-    const candidates = rows.filter(r => !r.name.endsWith('/current') && !r.name.endsWith('/' + active) && !r.fields?.isRemoved?.booleanValue && (!r.fields?.id || ['uploaded', 'uploading'].includes(r.fields?.uploadState?.stringValue)));
+    const candidates = rows.filter(r => !r.name.endsWith('/current') && !r.name.endsWith('/' + active) && !r.fields?.isRemoved?.booleanValue && (!r.fields?.id || ['uploaded', 'uploading', 'purging'].includes(r.fields?.uploadState?.stringValue)));
     if (candidates.length > 50)
         throw Error('Too many retained drafts. Ask the community office to review newsletter staging.');
     const found: RetainedEdition[] = [];
@@ -41,6 +43,7 @@ export async function retainedEditions(): Promise<RetainedEdition[]> {
     async function worker() {
         while (next < candidates.length) {
             const row = candidates[next++], id = pdfId(row.name.split('/').at(-1)), f = row.fields || {};
+            const discardPending = f.uploadState?.stringValue === 'purging';
             const q = new URLSearchParams({ pageSize: '200' });
             for (const key of ['index', 'sha256', 'totalChunks', 'totalSize', 'updatedAt'])
                 q.append('mask.fieldPaths', key);
@@ -64,12 +67,14 @@ export async function retainedEditions(): Promise<RetainedEdition[]> {
             if (!Number.isFinite(Date.parse(latest))) continue;
             // Only a newly journaled upload belonging to this account may resume
             // partially. Legacy chunks without byte hashes remain untouched.
-            if (partial && (f.uploadState?.stringValue !== 'uploading' || f.uploadedBy?.stringValue !== String(user.id) || chunks.some((c: any) => !/^[a-f0-9]{64}$/.test(c.fields?.sha256?.stringValue || '')))) continue;
+            // A partially discarded draft can only retry discard, even if an
+            // earlier attempt removed every chunk. It cannot resume an upload.
+            if (partial && !discardPending && (f.uploadState?.stringValue !== 'uploading' || f.uploadedBy?.stringValue !== String(user.id) || chunks.some((c: any) => !/^[a-f0-9]{64}$/.test(c.fields?.sha256?.stringValue || '')))) continue;
             const sourceBytes = Number(f.sourceBytes?.integerValue) || Math.floor((size - PDF_PREFIX.length) * 3 / 4);
             if (!Number.isSafeInteger(sourceBytes) || sourceBytes <= 0 || sourceBytes > 64 * 1048576)
                 continue;
             if (partial && (Math.ceil(sourceBytes / PDF_CHUNK_BYTES) !== count || size !== PDF_PREFIX.length + Math.ceil(sourceBytes / 3) * 4)) continue;
-            found.push({ partial, confirmedChunks: chunks.length, id, description: '', editionTitle: f.editionTitle?.stringValue || '', monthEdition: f.monthEdition?.stringValue || '', fileName: f.fileName?.stringValue || 'Retained newsletter PDF', fileSize: f.fileSize?.stringValue || `${(sourceBytes / 1048576).toFixed(1)} MB`, pdfUrl: `firestore:${id}`, fileUrl: `firestore:${id}`, isCustomUpload: true, isRemoved: false, hasFirestoreBlob: true, totalChunks: count, totalSize: size, sourceBytes, uploadedAt: Number(f.uploadedAt?.integerValue) || Date.parse(latest), ...(f.uploadedBy?.stringValue ? { uploadedBy: f.uploadedBy.stringValue } : {}), retainedAt: latest } as RetainedEdition);
+            found.push({ discardPending, partial, confirmedChunks: chunks.length, id, description: '', editionTitle: f.editionTitle?.stringValue || '', monthEdition: f.monthEdition?.stringValue || '', fileName: f.fileName?.stringValue || 'Retained newsletter PDF', fileSize: f.fileSize?.stringValue || `${(sourceBytes / 1048576).toFixed(1)} MB`, pdfUrl: `firestore:${id}`, fileUrl: `firestore:${id}`, isCustomUpload: true, isRemoved: false, hasFirestoreBlob: true, totalChunks: count, totalSize: size, sourceBytes, uploadedAt: Number(f.uploadedAt?.integerValue) || Date.parse(latest), ...(f.uploadedBy?.stringValue ? { uploadedBy: f.uploadedBy.stringValue } : {}), ...(f.uploadBudgetId?.stringValue ? { uploadBudgetId: f.uploadBudgetId.stringValue } : {}), retainedAt: latest } as RetainedEdition);
         }
     }
     await Promise.all([worker(), worker(), worker()]);

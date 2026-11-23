@@ -9,6 +9,8 @@ const { randomUUID } = require('node:crypto');
 const { jobIdFor, validateRequest } = require('./accountDeletionPolicy.cjs');
 const database = process.env.TOWNLOOP_FIRESTORE_DATABASE_ID || '(default)';
 const options = { region: 'us-central1', maxInstances: 1, timeoutSeconds: 300 };
+const executionConfigured = () => process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED === 'true' &&
+  process.env.TOWNLOOP_SCOPED_DELETION_ENABLED === 'true';
 exports.requestAccountDeletion = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const invalid = validateRequest(request.auth, request.data);
   if (invalid) throw new HttpsError(invalid === 'unauthenticated' ? 'unauthenticated' : 'failed-precondition', invalid);
@@ -20,16 +22,12 @@ exports.requestAccountDeletion = onCall({ ...options, timeoutSeconds: 60 }, asyn
   try { verified = await getAuth().verifyIdToken(bearer, true); } catch { throw new HttpsError('unauthenticated', 'Sign in again.'); }
   if (verified.uid !== request.auth.uid || validateRequest({ uid: verified.uid, token: verified }, request.data))
     throw new HttpsError('failed-precondition', 'Sign in again before deleting your account.');
-  const db = getFirestore(database), jobId = jobIdFor(verified.uid), ref = db.doc(`account_deletion_jobs/${jobId}`);
-  const activePolicy=(await db.doc('deletion_policies/account').get()).data();
-  if(lifecycle.policyReady(activePolicy))return lifecycle.submitRequest(db,verified.uid);
-  const status = await db.runTransaction(async tx => {
-    const existing = await tx.get(ref);
-    if (!existing.exists) tx.create(ref, { uid: verified.uid, phase: 'requested', status: 'requested',
-      createdAt: FieldValue.serverTimestamp(), ...retention.deadlines(Date.now()), lastAttemptAt: FieldValue.serverTimestamp(), collectionIndex: 0, cursor: '', inventoryComplete: false });
-    return existing.exists ? existing.data().status : 'requested';
-  });
-  return { jobId, status };
+  try {
+    return await lifecycle.submitRequest(getFirestore(database), verified.uid, {allowLegacy:true});
+  } catch (error) {
+    if (error.code === 'failed-precondition') throw new HttpsError(error.code, error.message);
+    throw error;
+  }
 });
 
 // Distinct protocol endpoint: new clients never hit a deployed legacy destructive handler.
@@ -86,14 +84,14 @@ exports.listAccountDeletionRequests = onCall({ ...options, timeoutSeconds: 60 },
     return { ...requestSummary(job.id, data), name: profile?.name || 'Resident',
       canReview: lifecycle.canReview(data), canRetry:lifecycle.canRetry(data), historical:!lifecycle.isNewJob(data), isOwnRequest: data.uid === request.auth.uid };
   }));
-  return { requests, policyReady: lifecycle.policyReady(policy)||retention.policyReady(policy), exceptionsAvailable:process.env.TOWNLOOP_SCOPED_DELETION_REVIEW_ENABLED==='true',processingAvailable:process.env.TOWNLOOP_ACCOUNT_DELETION_ENABLED==='true'&&process.env.TOWNLOOP_SCOPED_DELETION_ENABLED==='true', nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
+  return { requests, policyReady: lifecycle.policyReady(policy)||retention.policyReady(policy), exceptionsAvailable:process.env.TOWNLOOP_SCOPED_DELETION_REVIEW_ENABLED==='true',processingAvailable:lifecycle.policyReady(policy)&&executionConfigured(), nextCursor: jobs.size === 50 ? jobs.docs.at(-1).id : null };
 });
 exports.reviewAccountDeletionRequest = onCall({ ...options, timeoutSeconds: 60 }, async request => {
   const token = await managerSession(request);
   const { jobId, decision, reason, confirmation } = request.data || {};
   if(/^[a-f0-9]{64}$/.test(jobId||'')){
     const current=await getFirestore(database).doc(`account_deletion_jobs/${jobId}`).get();
-    if(lifecycle.isNewJob(current.data())){try{return await lifecycle.decideRequest(getFirestore(database),token.uid,request.data);}catch(error){const code=['permission-denied','failed-precondition','invalid-argument','not-found','resource-exhausted'].includes(error.code)?error.code:'internal';throw new HttpsError(code,code==='internal'?'The deletion decision could not be confirmed. Refresh its status.':error.message);}}
+    if(lifecycle.isNewJob(current.data())){try{return await lifecycle.decideRequest(getFirestore(database),token.uid,request.data,{processingAvailable:executionConfigured()});}catch(error){const code=['permission-denied','failed-precondition','invalid-argument','not-found','resource-exhausted'].includes(error.code)?error.code:'internal';throw new HttpsError(code,code==='internal'?'The deletion decision could not be confirmed. Refresh its status.':error.message);}}
   }
   if (!/^[a-f0-9]{64}$/.test(jobId || '') || !['approved', 'rejected', 'delayed'].includes(decision) || confirmation !== decision ||
       typeof reason !== 'string' || !reason.trim() || reason.length > 1000)

@@ -259,6 +259,7 @@ export interface MedicationItem {
   instructions?: string;
   lastTakenDate?: string; // YYYY-MM-DD
   lastTakenTime?: string; // e.g. 8:15 AM
+  lastTakenPillCount?: number;
   pharmacyPhone?: string;
   createdAt: number;
 }

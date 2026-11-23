@@ -27,27 +27,37 @@ async function pdfRevision(db:any,id:string){
  return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
 }
 export function publicNewsletterJob(id:string,d:any){
- return {jobId:id,state:d.state,completedBatches:Object.keys(d.checkpoints||{}).length,totalBatches:d.totalBatches||0,attempt:d.attempts||0,
+ return {jobId:id,newsletterId:d.newsletterId,state:d.state,completedBatches:Object.keys(d.checkpoints||{}).length,totalBatches:d.totalBatches||0,attempt:d.attempts||0,
  ...(d.state==='succeeded'?{result:d.result}:{}),...(d.error?{error:d.error,code:d.code,retryable:d.retryable}:{}),
  ...(d.state==='retrying'?{retryNotBefore:d.retryNotBefore?.toMillis?.()}:{}),expiresAt:d.expiresAt?.toMillis?.()};
 }
 export async function startNewsletterJob(uid:string,input:any,db?:any,enqueue?: (id:string,generation:number)=>Promise<void>,revisionProvider?: (id:string)=>Promise<string>){
  db ||= await database();
- const request=requestData(input),revision=await (revisionProvider||((id:string)=>pdfRevision(db,id)))(request.newsletterId),id=createHash('sha256').update(JSON.stringify([uid,request,revision,NEWSLETTER_EXTRACTION_VERSION])).digest('hex'),ref=db.collection(COLLECTION).doc(id);
- const result=await db.runTransaction(async(tx:any)=>{
+ const request=requestData(input),revision=await (revisionProvider||((id:string)=>pdfRevision(db,id)))(request.newsletterId);
+ // One canonical slot per immutable PDF/prompt revision, independent of title edits.
+ const canonicalId=createHash('sha256').update(JSON.stringify([request.newsletterId,revision,NEWSLETTER_EXTRACTION_VERSION])).digest('hex');
+ const jobs=db.collection(COLLECTION);
+ const {id,result}=await db.runTransaction(async(tx:any)=>{
   await referenceWriteGuard(tx,db);
-  const [snap,fence]=await Promise.all([tx.get(ref),tx.get(db.collection('newsletter_draft_cleanup').doc(request.newsletterId))]),old=snap.data(),now=Date.now();
+  const [legacy,fence]=await Promise.all([tx.get(jobs.where('newsletterId','==',request.newsletterId).limit(101)),tx.get(db.collection('newsletter_draft_cleanup').doc(request.newsletterId))]);
   if(fence.exists)throw new NewsletterInputError('This unpublished PDF was discarded. Select another upload.',409);
-  if(old&&old.ownerUid!==uid)throw new NewsletterInputError('Analysis is not available to this account.',403);
-  if(old&&!expired(old)&&old.state==='succeeded')return old;
-  if(old&&!expired(old)&&['queued','running','retrying'].includes(old.state)&&!(old.state==='running'&&old.leaseUntil?.toMillis?.()<now)&&now-(old.updatedAt?.toMillis?.()||0)<15*60000)return old;
-  const reuse=old&&!expired(old)&&old.code!=='analysis-input-changed';
-  const next={ownerUid:uid,request,pdfRevision:revision,newsletterId:request.newsletterId,state:'queued',generation:(old?.generation||0)+1,dispatchId:randomUUID(),attempts:0,
+  if(legacy.size>100)throw new NewsletterInputError('Analysis history needs manager review before retrying.',409);
+  // Read every legacy candidate inside the transaction. Two managers retrying
+  // different historical jobs must still agree on which job is active.
+  const matches=legacy.docs.filter((row:any)=>{const data=row.data();return data.pdfRevision===revision&&(data.extractionVersion===NEWSLETTER_EXTRACTION_VERSION||row.id===createHash('sha256').update(JSON.stringify([data.ownerUid,data.request,revision,NEWSLETTER_EXTRACTION_VERSION])).digest('hex'));});
+  const active=matches.find((row:any)=>!expired(row.data())&&['queued','running','retrying'].includes(row.data().state));
+  const previous=active||matches.filter((row:any)=>row.data().ownerUid===uid).sort((a:any,b:any)=>(b.data().updatedAt?.toMillis?.()||0)-(a.data().updatedAt?.toMillis?.()||0))[0];
+  const id=previous?.id||canonicalId,ref=jobs.doc(id),old=(previous||await tx.get(ref)).data(),now=Date.now();
+  if(old&&old.ownerUid!==uid&&(['queued','retrying'].includes(old.state)||old.state==='running'&&old.leaseUntil?.toMillis?.()>now))throw new NewsletterInputError('Another manager already has an active analysis for this PDF. No duplicate job was started.',409);
+  if(old?.ownerUid===uid&&!expired(old)&&old.state==='succeeded')return {id,result:old};
+  if(old&&((old.state==='running'&&old.leaseUntil?.toMillis?.()>now)||(['queued','retrying'].includes(old.state)&&now-(old.updatedAt?.toMillis?.()||0)<15*60000)))return {id,result:old};
+  const reuse=old&&old.pdfRevision===revision&&old.code!=='analysis-input-changed';
+  const next={ownerUid:uid,request:reuse?old.request:request,extractionVersion:NEWSLETTER_EXTRACTION_VERSION,pdfRevision:revision,newsletterId:request.newsletterId,state:'queued',generation:(old?.generation||0)+1,dispatchId:randomUUID(),attempts:0,
     checkpoints:reuse?old.checkpoints||{}:{},...(reuse&&old.inputHash?{inputHash:old.inputHash,totalBatches:old.totalBatches}:{}),createdAt:old?.createdAt||new Date(now),updatedAt:new Date(now),expiresAt:new Date(now+DAY)};
   // Duplicate active/successful requests above are free; every new generation is bounded.
   const applyBudget = await budget(tx,db,uid,'analysis',id,now);
   applyBudget();
-  tx.set(ref,next);return next;
+  tx.set(ref,next);return {id,result:next};
  });
  if(result.state==='queued'){
   const send=enqueue|| (async(jobId:string,generation:number)=>{
@@ -60,6 +70,15 @@ export async function startNewsletterJob(uid:string,input:any,db?:any,enqueue?: 
   catch{throw new NewsletterInputError('Analysis could not be queued. Retry; the PDF and any saved progress are retained.',503);}
  }
  return publicNewsletterJob(id,result);
+}
+/** Read-only reconnect: never enqueues or spends a generation budget. */
+export async function findNewsletterJob(uid:string,newsletterId:unknown,db?:any){
+ if(!validId(newsletterId)||newsletterId==='current')throw new NewsletterInputError('Invalid newsletter reference.');
+ db ||= await database();
+ const rows=await db.collection(COLLECTION).where('newsletterId','==',newsletterId).limit(101).get();
+ if(rows.size>100)throw new NewsletterInputError('Analysis history needs manager review.',409);
+ const own=rows.docs.filter((r:any)=>r.data().ownerUid===uid&&!expired(r.data())&&r.data().state!=='cancelled').sort((a:any,b:any)=>(b.data().updatedAt?.toMillis?.()||0)-(a.data().updatedAt?.toMillis?.()||0));
+ return own.length?getNewsletterJob(uid,own[0].id,db):null;
 }
 export async function getNewsletterJob(uid:string,id:string,db?:any){
  db ||= await database();
@@ -78,7 +97,7 @@ export async function runNewsletterJob(task:{jobId:string;generation:number},dep
  const job=await db.runTransaction(async(tx:any)=>{
   await referenceWriteGuard(tx,db);
   const snap=await tx.get(ref),d=snap.data(),now=Date.now();
-  if(!d||d.generation!==task.generation||expired(d)||['succeeded','failed'].includes(d.state))return null;
+  if(!d||d.generation!==task.generation||expired(d)||['succeeded','failed','cancelled'].includes(d.state))return null;
   if(d.state==='running'&&d.leaseUntil?.toMillis?.()>now)throw Error('Analysis is already running.');
   if((d.attempts||0)>=5){tx.update(ref,{state:'failed',error:'Analysis paused after five attempts. Retry to resume saved progress.',code:'analysis-retries-exhausted',retryable:true});return null;}
   const next={...d,attempts:(d.attempts||0)+1};tx.update(ref,{state:'running',attempts:next.attempts,lease,leaseUntil:new Date(now+LEASE),updatedAt:new Date(now)});return next;
@@ -124,7 +143,7 @@ export async function runNewsletterJob(task:{jobId:string;generation:number},dep
   const code=input?(error as any).analysisCode||'analysis-input':stage==='model-processing'?failure.code:'analysis-source-unavailable';
   const message=input?error.message:stage==='model-processing'?failure.error:'Analysis could not verify its source right now. Retry to resume saved progress; no PDF upload is needed.';
   const retry=retryable&&job.attempts<5;
-  try{await db.runTransaction(async(tx:any)=>{const snap=await tx.get(ref),d=snap.data();if(!d||d.lease!==lease)return;tx.update(ref,{state:retry?'retrying':'failed',error:message,code,retryable,lease:null,retryNotBefore:new Date(Date.now()+60000),updatedAt:new Date()});});}
+  try{await db.runTransaction(async(tx:any)=>{const snap=await tx.get(ref),d=snap.data();if(!d||d.lease!==lease||d.generation!==task.generation||d.state==='cancelled')return;tx.update(ref,{state:retry?'retrying':'failed',error:message,code,retryable,lease:null,retryNotBefore:new Date(Date.now()+60000),updatedAt:new Date()});});}
   catch{throw Error('Analysis progress status could not be saved.');}
   console.warn('[Newsletter Analysis Job]',{jobId:task.jobId,attempt:job.attempts,code,stage:stage==='model-processing'?failure.failureStage:stage,retrying:retry});
   if(retry)throw Error('Retryable newsletter analysis failure. Saved batches are retained.');

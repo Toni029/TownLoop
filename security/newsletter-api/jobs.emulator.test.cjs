@@ -47,3 +47,28 @@ test('direct Firestore access to private job progress is denied even to an appro
  assert.equal((await fetch(url,{headers:{Authorization:'Bearer '+token}})).status,403);
  assert.equal((await fetch(url,{method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({fields:{ownerUid:{stringValue:'manager'},state:{stringValue:'succeeded'}}})})).status,403);
 });
+test('read-only reconnect and changed display metadata reuse legacy checkpoints without another active generation',async()=>{
+ const api=await load();await db.doc('newsletters/reconnect/chunks/0').set({index:0,totalChunks:1,totalSize:43});const request={newsletterId:'reconnect',isNewUpload:true,editionTitle:'November'};let sent=0;const a=await api.startNewsletterJob('manager',request,db,async()=>sent++);const ref=db.doc('newsletter_analysis_jobs/'+a.jobId);await ref.update({checkpoints:{0:{value,model:'saved'}},state:'running',leaseUntil:new Date(Date.now()+400000),updatedAt:new Date(Date.now()-16*60000)});const found=await api.findNewsletterJob('manager','reconnect',db);assert.equal(found.jobId,a.jobId);assert.equal(found.completedBatches,1);assert.equal(await api.findNewsletterJob('other','reconnect',db),null);const b=await api.startNewsletterJob('manager',{...request,editionTitle:'Edited title'},db,async()=>sent++);assert.equal(b.jobId,a.jobId);assert.equal(b.state,'running');assert.equal(sent,1);assert.equal((await ref.get()).data().generation,1);
+});
+test('concurrent title edits share one canonical PDF generation; expired checkpoints survive an explicit retry',async()=>{
+ const api=await load();await db.doc('newsletters/concurrent-title/chunks/0').set({index:0,totalChunks:1,totalSize:43});const r=await Promise.all(['A','B','C'].map(editionTitle=>api.startNewsletterJob('manager',{newsletterId:'concurrent-title',isNewUpload:true,editionTitle},db,async()=>{})));assert.equal(new Set(r.map(x=>x.jobId)).size,1);const ref=db.doc('newsletter_analysis_jobs/'+r[0].jobId);assert.equal((await ref.get()).data().generation,1);await ref.update({state:'failed',expiresAt:new Date(1),checkpoints:{0:{value,model:'retained'}}});const retry=await api.startNewsletterJob('manager',{newsletterId:'concurrent-title',isNewUpload:true,editionTitle:'Changed'},db,async()=>{});assert.equal(retry.jobId,r[0].jobId);assert.equal(retry.completedBatches,1);
+});
+test('different managers cannot create concurrent active analyses for the same immutable PDF',async()=>{
+ const api=await load();await db.doc('newsletters/two-managers/chunks/0').set({index:0,totalChunks:1,totalSize:43});const results=await Promise.allSettled(['manager','manager2'].map(uid=>api.startNewsletterJob(uid,{newsletterId:'two-managers',isNewUpload:true},db,async()=>{})));assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal((await db.collection('newsletter_analysis_jobs').where('newsletterId','==','two-managers').get()).size,1);
+});
+test('concurrent retries from distinct legacy histories still permit only one active analysis',async()=>{
+ const api=await load(),{createHash}=require('node:crypto');
+ const coverage=await build({entryPoints:['src/utils/newsletterCoverage.ts'],bundle:true,platform:'node',format:'cjs',write:false}),m={exports:{}};
+ new Function('module','exports',coverage.outputFiles[0].text)(m,m.exports);
+ const request={newsletterId:'legacy-race',isNewUpload:true,fileName:'',editionTitle:'',monthEdition:''},revision='same-proof';
+ const owners=['manager','manager2'];
+ for(const uid of owners){
+  const id=createHash('sha256').update(JSON.stringify([uid,request,revision,m.exports.NEWSLETTER_EXTRACTION_VERSION])).digest('hex');
+  await db.doc('newsletter_analysis_jobs/'+id).set({ownerUid:uid,request,pdfRevision:revision,newsletterId:request.newsletterId,state:'failed',generation:1,updatedAt:new Date(),expiresAt:new Date(Date.now()+60000)});
+ }
+ const dispatched=[];
+ const results=await Promise.allSettled(owners.map(uid=>api.startNewsletterJob(uid,request,db,async id=>dispatched.push(id),async()=>revision)));
+ assert.deepEqual(results.filter(r=>r.status==='rejected').map(r=>r.reason.status),[409]);
+ assert.equal(dispatched.length,1);
+ assert.equal((await db.collection('newsletter_analysis_jobs').where('newsletterId','==',request.newsletterId).get()).docs.filter(row=>row.data().state==='queued').length,1);
+});

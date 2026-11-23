@@ -7,8 +7,7 @@ import {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 const key = "selected_community";
-const valid = (value: string | null) =>
-  value === "cecil_pines" || value === "upcoming_community" ? value : null;
+const activeCommunity = "cecil_pines";
 const Context = createContext<{
   community: string | null;
   ready: boolean;
@@ -27,7 +26,7 @@ export function CommunityProvider({ children }: PropsWithChildren) {
     let active = true;
     AsyncStorage.getItem(key)
       .then((value) => {
-        if (active) setCommunity(valid(value));
+        if (active) setCommunity(value === activeCommunity || value === "upcoming_community" ? activeCommunity : null);
       })
       .catch(() => {})
       .finally(() => {
@@ -38,7 +37,7 @@ export function CommunityProvider({ children }: PropsWithChildren) {
     };
   }, []);
   async function selectCommunity(id: string) {
-    if (!valid(id)) throw Error("Please select a valid community.");
+    if (id !== activeCommunity) throw Error("Please select a valid community.");
     await AsyncStorage.setItem(key, id);
     setCommunity(id);
   }

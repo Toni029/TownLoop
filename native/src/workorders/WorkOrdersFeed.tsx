@@ -114,6 +114,7 @@ export function WorkOrdersFeed({
     >
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor="#047857" colors={["#047857"]} progressBackgroundColor={dark ? "#1e293b" : "#fff"} />}
+        extraKeyboardSpace
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           padding: 20,
@@ -854,6 +855,7 @@ const OrderCard = memo(function OrderCard({
                       {canTranslateWorkOrder(user)&&<Action label="Translate" icon={Languages} tone="light" size="large" disabled={disabled||picking} onPress={()=>setComposerFor(editorKey)}/>}
                     </View>
                     <TextInput accessibilityLabel="Resolution Note / Description *" value={reply} onChangeText={setReply} multiline editable={!disabled}
+                      keyboardActionSpace={96}
                       placeholder="e.g. Replaced faulty washer, pressure tested at 45 PSI, tested lines."
                       placeholderTextColor="#a8a29e" style={[s.input,{minHeight:90,textAlignVertical:'top'}]}/>
                   </View>

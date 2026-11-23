@@ -9,4 +9,25 @@ before(async()=>{app=initializeApp({projectId:project},'child-safety-check');db=
 after(async()=>deleteApp(app));
 test('resident reports reach the manager-only queue; pending/Crew/Resident reads and direct writes are denied',async()=>{await db.doc('discussion_feed/post').set({userId:'other',title:'Synthetic allowed content'});const r=await api.submitSafetyReport(request('resident',{kind:'post',id:'post',reason:'unsafe',details:'Synthetic safety review'}));assert.equal(r.status,'open');for(const role of ['admin','vip'])assert.equal((await client(role,'moderation_reports/'+r.reportId)).status,200);for(const role of ['resident','crew','pending'])assert.equal((await client(role,'moderation_reports/'+r.reportId)).status,403);assert.equal((await client('admin','moderation_reports/'+r.reportId,{method:'PATCH',body:JSON.stringify({fields:{status:{stringValue:'resolved'}}})})).status,403);await assert.rejects(api.submitSafetyReport(request('pending',{kind:'post',id:'post',reason:'unsafe'})),e=>e.code==='permission-denied');});
 test('Admin/VIP review removes eligible content with audit, but Residents cannot moderate and user reports cannot suspend accounts',async()=>{const r=await api.submitSafetyReport(request('resident',{kind:'post',id:'post',reason:'unsafe'}));await assert.rejects(api.reviewSafetyReport(request('resident',{reportId:r.reportId,action:'remove_content'})),e=>e.code==='permission-denied');await api.reviewSafetyReport(request('vip',{reportId:r.reportId,action:'remove_content',note:'Synthetic review'}));assert.equal((await db.doc('discussion_feed/post').get()).exists,false);const audit=(await db.doc('moderation_reports/'+r.reportId).get()).data();assert.equal(audit.status,'resolved');assert.equal(audit.reviewedBy,'vip');const u=await api.submitSafetyReport(request('resident',{kind:'user',id:'other',reason:'unsafe'}));await assert.rejects(api.reviewSafetyReport(request('admin',{reportId:u.reportId,action:'remove_content'})),e=>e.code==='failed-precondition');assert.equal((await db.doc('users/other').get()).data().approved,true);});
-test('confirmed limitation: another report for a previously dismissed target returns the old status rather than reopening review',async()=>{await db.doc('discussion_feed/repeat').set({userId:'other',title:'Synthetic retained content'});const r=await api.submitSafetyReport(request('resident',{kind:'post',id:'repeat',reason:'spam'}));await api.reviewSafetyReport(request('admin',{reportId:r.reportId,action:'dismiss'}));const again=await api.submitSafetyReport(request('resident',{kind:'post',id:'repeat',reason:'unsafe',details:'New synthetic concern'}));assert.equal(again.reportId,r.reportId);assert.equal(again.status,'dismissed');});
+test('new safety information reopens review separately without rewriting a prior decision or charging duplicate retries',async()=>{
+ await db.doc('discussion_feed/repeat').set({userId:'other',title:'Synthetic retained content'});
+ const first=request('resident',{kind:'post',id:'repeat',reason:'spam'}),r=await api.submitSafetyReport(first);
+ await api.reviewSafetyReport(request('admin',{reportId:r.reportId,action:'dismiss'}));
+ const old=(await db.doc('moderation_reports/'+r.reportId).get()).data();
+ const retry=await api.submitSafetyReport(first);
+ assert.equal(retry.reportId,r.reportId);
+ assert.equal(retry.status,'dismissed');
+ const priorCount=(await db.doc('safety_limits/resident').get()).data().count;
+ const followup=request('resident',{kind:'post',id:'repeat',reason:'unsafe',details:'New synthetic concern'});
+ const results=await Promise.all([api.submitSafetyReport(followup),api.submitSafetyReport(followup)]);
+ assert.notEqual(results[0].reportId,r.reportId);
+ assert.deepEqual(results[0],results[1]);
+ assert.equal(results[0].status,'open');
+ assert.deepEqual((await db.doc('moderation_reports/'+r.reportId).get()).data(),old);
+ const next=(await db.doc('moderation_reports/'+results[0].reportId).get()).data();
+ assert.equal(next.reason,'unsafe');
+ assert.equal(next.details,'New synthetic concern');
+ assert.equal(next.previousReportId,r.reportId);
+ assert.equal((await db.collection('moderation_reports').where('id','==','repeat').get()).size,2);
+ assert.equal((await db.doc('safety_limits/resident').get()).data().count,priorCount+1);
+});

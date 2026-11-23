@@ -14,3 +14,36 @@ test('Resident, Crew, stale generation, self-review and undocumented rejection a
 test('timeout cannot forge due dates or authorize malformed/early generations',async()=>{const h=fixture();await L.submitRequest(h.db,'resident',{now,requestId:'first'});h.records.get(h.path).autoDeleteAt=new Date(now);assert.equal(await L.authorizeOverdue(h.db,{now:now+1}),0);});
 module.exports={policy,fixture,now};
 test('explicit same-generation recheck retains authorization and never removes evidence itself',async()=>{const h=fixture();await L.submitRequest(h.db,'resident',{now,requestId:'first'});await L.decideRequest(h.db,'manager',{jobId:jobIdFor('resident'),requestId:'first',decision:'approved',confirmation:'approved',reason:'Verified'},{now:now+1});const j=h.records.get(h.path);Object.assign(j,{status:'needs_review',lastError:'reported_evidence_requires_disposition',preflight:{holds:[{reason:'reported_evidence_requires_disposition'}]}});await L.decideRequest(h.db,'manager',{jobId:jobIdFor('resident'),requestId:'first',decision:'retry',confirmation:'retry',reason:'Recheck resolved case'},{now:now+2});assert.equal(h.records.get(h.path).recheckRequested,true);assert.equal(h.records.get(h.path).preflight.holds.length,1);assert.equal(h.records.get(h.path).authorization.source,'admin_approval');});
+
+test('the request transaction chooses the active workflow without converting historical jobs', async () => {
+ const oldPolicy = {policyVersion:2};
+ const h = fixture({'deletion_policies/account':oldPolicy});
+ const legacy = await L.submitRequest(h.db, 'resident', {now, requestId:'first', allowLegacy:true});
+ assert.equal(legacy.workflowVersion, null);
+ assert.equal(legacy.status, 'requested');
+ const prior = structuredClone(h.records.get(h.path));
+ h.records.set('deletion_policies/account', policy());
+ const duplicate = await L.submitRequest(h.db, 'resident', {now, requestId:'second', allowLegacy:true});
+ assert.equal(duplicate.workflowVersion, null);
+ assert.deepEqual(h.records.get(h.path), prior);
+ const afterCutover = await L.submitRequest(h.db, 'new-resident', {now, requestId:'third', allowLegacy:true});
+ assert.equal(afterCutover.workflowVersion, 3);
+ assert.equal(afterCutover.autoDeleteAt, now + L.PENDING_MS);
+});
+
+test('a staged version 3 receipt cannot produce a version 2 request', async () => {
+ const h = fixture({'deletion_policies/account':{...policy(), effectiveFrom:new Date(now+1000)}});
+ await assert.rejects(L.submitRequest(h.db, 'resident', {now, requestId:'first', allowLegacy:true}), error=>error.code==='failed-precondition');
+ assert.equal(h.records.has(h.path), false);
+});
+
+test('a paused processor cannot accept an approval that would lose its dispatch', async () => {
+ const h = fixture();
+ await L.submitRequest(h.db, 'resident', {now, requestId:'first'});
+ const input = {jobId:jobIdFor('resident'), requestId:'first', decision:'approved', confirmation:'approved', reason:'Verified'};
+ await assert.rejects(L.decideRequest(h.db, 'manager', input, {now, processingAvailable:false}), error=>error.code==='failed-precondition');
+ assert.equal(h.records.get(h.path).status, 'requested');
+ assert.equal(h.records.get(h.path).executionSignal, 0);
+ await L.decideRequest(h.db, 'manager', {...input, decision:'rejected', confirmation:'rejected', reasonCategory:'invalid_request', reasonReference:'case-1'}, {now, processingAvailable:false});
+ assert.equal(h.records.get(h.path).status, 'rejected');
+});

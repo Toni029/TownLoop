@@ -14,6 +14,10 @@ function reportInput(input) {
     reason: input.reason, details: (input.details || '').trim() };
 }
 const reportKey = (uid, target) => createHash('sha256').update(JSON.stringify([uid, target.collection, target.id, target.commentId])).digest('hex');
+// Preserve each prior decision. A normalized, changed report has its own
+// stable key, so retries cannot create duplicates or consume the quota twice.
+const followupReportKey = (previousKey, target) =>
+  createHash('sha256').update(JSON.stringify([previousKey, target.reason, target.details])).digest('hex');
 function reportTarget(target, data, uid) {
   if (!data) throw Error('This item is no longer available.');
   const comment = target.kind === 'comment' ? (data.comments || []).filter(c => String(c.id) === target.commentId) : null;
@@ -23,4 +27,4 @@ function reportTarget(target, data, uid) {
   // Unknown legacy authors remain unassigned; never resolve identities from names.
   return typeof author === 'string' && id(author) ? author : null;
 }
-module.exports = { approved, manager, id, reportInput, reportKey, reportTarget };
+module.exports = { approved, manager, id, reportInput, reportKey, followupReportKey, reportTarget };

@@ -3,7 +3,9 @@ const {provision}=require('../security/newsletter-api/provision.cjs');
 // Pure packaging/authorization tests run on a clean checkout. Install isolated dependencies to enable runtime/PDF integration checks.
 const runtimeInstalled=fs.existsSync('.release/newsletter-api/node_modules/firebase-functions');
 const pdfInstalled=fs.existsSync('.release/newsletter-api/node_modules/pdfjs-dist');
-test.before(async()=>{await require('../security/newsletter-api/prepare.cjs').prepare();});
+const out=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'townloop-newsletter-package-'));
+ test.before(async()=>{await require('../security/newsletter-api/prepare.cjs').prepare({out});if(runtimeInstalled)fs.symlinkSync(path.resolve('.release/newsletter-api/node_modules'),path.join(out,'node_modules'),'dir');});
+ test.after(()=>fs.rmSync(out,{recursive:true,force:true}));
 test('setup without approval does not read credentials or call cloud APIs',()=>{
  const r=spawnSync(process.execPath,['security/newsletter-api/provision.cjs'],{encoding:'utf8',env:{PATH:process.env.PATH}});assert.equal(r.status,0);assert.match(r.stdout,/Nothing changed/);
 });
@@ -23,17 +25,17 @@ test('isolated analysis API and IAM-protected task worker bind the existing secr
  const config=JSON.parse(fs.readFileSync('firebase.newsletter-api.json'));assert.equal(config.functions.length,1);assert.equal(config.functions[0].codebase,'newsletter-api');assert.equal(config.firestore,undefined);assert.equal(config.hosting,undefined);
 });
 test('prepared package excludes local secrets/website/workers, and app targets the deterministic function URL',()=>{
- const out='.release/newsletter-api';assert.deepEqual(fs.readdirSync(out).filter(n=>n!=='node_modules').sort(),['index.cjs','lib','package-lock.json','package.json']);const code=fs.readFileSync(path.join(out,'lib/native-app.cjs'),'utf8');assert.ok(code.includes('extractNewsletterContent'));assert.ok(code.includes('retainedNativePdf'));assert.ok(!code.includes('onSchedule'));assert.ok(!code.includes('dotenv.config'));
+ assert.deepEqual(fs.readdirSync(out).filter(n=>n!=='node_modules').sort(),['index.cjs','lib','package-lock.json','package.json']);const code=fs.readFileSync(path.join(out,'lib/native-app.cjs'),'utf8');assert.ok(code.includes('extractNewsletterContent'));assert.ok(code.includes('retainedNativePdf'));assert.ok(!code.includes('onSchedule'));assert.ok(!code.includes('dotenv.config'));
  const config=JSON.parse(fs.readFileSync('native/newsletter-api.json'));assert.equal(config.url,'https://us-central1-cc-livingcommunity-app.cloudfunctions.net/newsletterApi');assert.equal(config.deploymentStatus,'deployed');
 });
 test('packaged function rejects unauthenticated inference without contacting Gemini',{skip:!runtimeInstalled},async()=>{
- const http=require('node:http'),handler=require('../.release/newsletter-api/index.cjs').newsletterApi;
+ const http=require('node:http'),handler=require(path.join(out,'index.cjs')).newsletterApi;
  const server=http.createServer(handler);await new Promise(r=>server.listen(0,'127.0.0.1',r));
  try{const url='http://127.0.0.1:'+server.address().port;const r=await fetch(url+'/api/newsletter/native/extract-content',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newsletterId:'fixture',isNewUpload:true})});assert.equal(r.status,401);const health=await fetch(url+'/api/newsletter/native/health');const status=await health.json();assert.equal(status.service,'townloop-native-api');assert.equal(status.pdfLoaderVersion,2);}
  finally{await new Promise(r=>server.close(r));}
 });
 test('packaged PDF.js and native canvas parse/render a synthetic PDF, independent of root dependencies',{skip:!pdfInstalled},async()=>{
- const {getDocument}=await import('../.release/newsletter-api/node_modules/pdfjs-dist/legacy/build/pdf.mjs');
+ const {getDocument}=await import(path.join(out,'node_modules/pdfjs-dist/legacy/build/pdf.mjs'));
  const stream='BT /F1 12 Tf 20 100 Td (TownLoop synthetic newsletter fixture for dependency verification.) Tj ET';
  const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 160] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
  let pdf='%PDF-1.7\n',offsets=[0];objects.forEach((o,i)=>{offsets.push(Buffer.byteLength(pdf));pdf+=`${i+1} 0 obj\n${o}\nendobj\n`;});const xref=Buffer.byteLength(pdf);pdf+=`xref\n0 6\n0000000000 65535 f \n`+offsets.slice(1).map(o=>String(o).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
@@ -42,7 +44,7 @@ test('packaged PDF.js and native canvas parse/render a synthetic PDF, independen
  finally{await task.destroy();}
 });
 test('packaged function rejects oversized Framework-preparsed bodies before any inference',{skip:!runtimeInstalled},async()=>{
- const http=require('node:http'),handler=require('../.release/newsletter-api/index.cjs').newsletterApi;
+ const http=require('node:http'),handler=require(path.join(out,'index.cjs')).newsletterApi;
  const server=http.createServer((req,res)=>{req.rawBody=Buffer.alloc(65537);handler(req,res);});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  try{const r=await fetch('http://127.0.0.1:'+server.address().port+'/api/newsletter/native/extract-content',{method:'POST'});assert.equal(r.status,413);assert.match((await r.json()).error,/retained newsletter reference/);}
  finally{await new Promise(r=>server.close(r));}

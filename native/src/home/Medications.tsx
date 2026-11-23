@@ -101,6 +101,11 @@ export function Medications({
   const [expanded, setExpanded] = useState(false),
     [editor, setEditor] = useState<MedicationItem | "new" | null>(null);
   const taken = items.filter((m) => m.lastTakenDate === today).length;
+  function toggleExpanded() {
+    if (!reduced)
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((value) => !value);
+  }
   async function update(
     id: string,
     fn: (m: MedicationItem) => MedicationItem,
@@ -127,37 +132,40 @@ export function Medications({
         >
           <Bottle />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            expanded ? "Collapse Daily Medications" : "Expand Daily Medications"
-          }
-          accessibilityState={{ expanded }}
-          aria-expanded={expanded}
-          onPress={() => {
-            if (!reduced)
-              LayoutAnimation.configureNext(
-                LayoutAnimation.Presets.easeInEaseOut,
-              );
-            setExpanded(!expanded);
-          }}
-          hitSlop={8}
-          style={{ flex: 1, minHeight: 44, justifyContent: "center" }}
-        >
-          <Row style={{ paddingRight: 44 }}>
-            <Txt
-              bold
-              accessibilityRole="header"
-              style={{ fontSize: 16, lineHeight: 24, flex: 1 }}
-            >
-              Daily Medications
+        <View style={{ flex: 1 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              expanded ? "Collapse Daily Medications" : "Expand Daily Medications"
+            }
+            accessibilityState={{ expanded }}
+            aria-expanded={expanded}
+            onPress={toggleExpanded}
+            hitSlop={8}
+            style={{ minHeight: 44, justifyContent: "center" }}
+          >
+            <Row style={{ paddingRight: 44 }}>
+              <Txt
+                bold
+                accessibilityRole="header"
+                style={{ fontSize: 16, lineHeight: 24, flex: 1 }}
+              >
+                Daily Medications
+              </Txt>
+            </Row>
+            <Txt bold style={{ color: p.blue, fontSize: 12, lineHeight: 18 }}>
+              {taken === items.length && items.length > 0
+                ? "All doses completed for today! 🎉"
+                : `${taken} of ${items.length} doses taken today`}
             </Txt>
-          </Row>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Medication information" onPress={() => setShowInformation(true)} hitSlop={4} style={{ position: "absolute", right: 0, top: 0, width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+            <Info size={21} color={p.blue} />
+          </Pressable>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={expanded ? "Collapse Daily Medications" : "Expand Daily Medications"} accessibilityState={{ expanded }} aria-expanded={expanded} onPress={toggleExpanded} style={{ width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}>
           <View
             style={{
-              position: "absolute",
-              right: 0,
-              top: 0,
               width: 36,
               height: 36,
               borderRadius: 16,
@@ -178,14 +186,6 @@ export function Medications({
               <ChevronDown size={20} color={p.ink} />
             )}
           </View>
-          <Txt bold style={{ color: p.blue, fontSize: 12, lineHeight: 18 }}>
-            {taken === items.length && items.length > 0
-              ? "All doses completed for today! 🎉"
-              : `${taken} of ${items.length} doses taken today`}
-          </Txt>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Medication information" onPress={() => setShowInformation(true)} style={{ width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}>
-          <Info size={21} color={p.blue} />
         </Pressable>
       </Row>
       <Row style={{ gap: 10 }}>
@@ -233,8 +233,8 @@ export function Medications({
               <Bottle />
               <Txt bold>No medications scheduled yet.</Txt>
               <Txt>
-                Tap &quot;+ Add Medication&quot; above to set up your daily pill
-                reminder and doctor directions.
+                Tap &quot;+ Add Medication&quot; above to track doses and save your
+                doctor&apos;s directions.
               </Txt>
             </Box>
           ) : (
@@ -356,7 +356,7 @@ export function Medications({
         </View>
       )}
       {showInformation && <Sheet centered title="Medication information" onClose={() => setShowInformation(false)}>
-        <Txt>Personal tracking only; not medical advice. Follow your clinician’s directions. Reminders are not guaranteed; use another reliable reminder.</Txt>
+        <Txt>Personal tracking only; not medical advice. Follow your clinician’s directions. TownLoop does not send dose alarms. Use a separate alarm if you need one.</Txt>
         <Txt>Do not change medication or doses based on this tracker. Contact your clinician or pharmacist with medication questions.</Txt>
         <Action label="Done" onPress={() => setShowInformation(false)} />
       </Sheet>}
@@ -411,7 +411,7 @@ function MedicationEditor({
   return (
     <Sheet
       centered
-      title={initial ? "Edit Medication" : "Add Medication Reminder"}
+      title={initial ? "Edit Medication" : "Add Medication"}
       onClose={onClose}
     >
       <View style={{ gap: 8 }}>

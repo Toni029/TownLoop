@@ -31,7 +31,7 @@ export const matchesReminder = (
 ) =>
   t.date === date &&
   (t.text.trim().toLowerCase() === activityTitle(e).toLowerCase() ||
-    t.text.trim().toLowerCase().startsWith(e.title.trim().toLowerCase()));
+    t.text.trim().toLowerCase() === e.title.trim().toLowerCase());
 export const nextTaskId = (tasks: TaskItem[]) =>
   tasks.reduce((id, t) => Math.max(id, t.id + 1), Date.now());
 export function toggleReminder(
@@ -58,10 +58,12 @@ export function takeDose(
   now = new Date(),
 ): MedicationItem {
   if (m.lastTakenDate === today) return m;
+  const pillsDeducted = Math.min(m.bottleCount, m.doseCount);
   return {
     ...m,
-    bottleCount: Math.max(0, m.bottleCount - m.doseCount),
+    bottleCount: m.bottleCount - pillsDeducted,
     lastTakenDate: today,
+    lastTakenPillCount: pillsDeducted,
     lastTakenTime: now.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
@@ -73,9 +75,10 @@ export function undoDose(m: MedicationItem, today: string): MedicationItem {
   return m.lastTakenDate === today
     ? {
         ...m,
-        bottleCount: m.bottleCount + m.doseCount,
+        bottleCount: m.bottleCount + (m.lastTakenPillCount ?? m.doseCount),
         lastTakenDate: undefined,
         lastTakenTime: undefined,
+        lastTakenPillCount: undefined,
       }
     : m;
 }
@@ -112,6 +115,8 @@ export function readHome(raw: string | null): HomeData {
         m.doseCount > 0 &&
         Number.isInteger(m.bottleCount) &&
         m.bottleCount >= 0 &&
+        (m.lastTakenPillCount === undefined ||
+          (Number.isSafeInteger(m.lastTakenPillCount) && m.lastTakenPillCount >= 0)) &&
         slots.some((s) => s.id === m.timeSlot),
     )
   )

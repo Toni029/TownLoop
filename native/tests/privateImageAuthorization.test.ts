@@ -1,25 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {readFileSync} from 'node:fs';
+import { readFileSync } from 'node:fs';
 import ts from 'typescript';
-import * as references from '../../src/services/storageReferences.ts';
-function fixture(status=200){
- const requests:any[]=[],removed:string[]=[],errors:string[]=[];let callback:(u:any)=>Promise<void>=async()=>{},cleanup=()=>{};
- const auth={currentUser:{uid:'alice',isAnonymous:false,getIdToken:async()=> 'test-session-token'} as any};
- const code=ts.transpileModule(readFileSync(new URL('../src/components/PrivateImage.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- const module={exports:{} as any};
- const modules:Record<string,any>={react:{useState:()=>[null,()=>{}],useEffect:(f:any)=>{cleanup=f();}},'react/jsx-runtime':{jsx:()=>null},'react-native':{Image:'Image',Platform:{OS:'android'}},'firebase/auth':{onIdTokenChanged:(_a:any,f:any)=>{callback=f;return()=>{};}},'firebase/storage':{ref:()=>({bucket:'demo.firebasestorage.app'})},'expo-file-system/legacy':{cacheDirectory:'file:///cache/',downloadAsync:async(url:string,path:string,options:any)=>{requests.push({url,path,options});return {status,uri:path};},deleteAsync:async(path:string)=>{removed.push(path);}},'../lib/firebase':{auth,storage:{}},'../../../src/services/storageReferences':references,'../localData/privateMediaCache':{accountMediaPrefix:()=> 'townloop-private-5_alice-'}};
- vm.runInNewContext(code,{module,exports:module.exports,require:(name:string)=>{if(!(name in modules))throw Error(name);return modules[name];}});
- module.exports.PrivateImage({source:{uri:'https://firebasestorage.googleapis.com/v0/b/demo.firebasestorage.app/o/marketplace%2Fphoto.jpg?alt=media&token=old-bearer'},onError:()=>errors.push('failed')});
- return {requests,removed,errors,auth,load:()=>callback(auth.currentUser),cleanup:()=>cleanup()};
+
+const source = new URL('../src/components/PrivateImage.tsx', import.meta.url);
+const compiled = ts.transpileModule(readFileSync(source, 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+}).outputText;
+const legacy = 'https://firebasestorage.googleapis.com/v0/b/demo.firebasestorage.app/o/feed%2Fphoto.jpg?alt=media&token=old-bearer';
+
+function fixture(media: { uri?: string; error?: string }) {
+  const calls: Array<{ uri: string; kind: string }> = [];
+  const errors: string[] = [];
+  const modules: Record<string, unknown> = {
+    react: { useEffect: (effect: () => void) => effect() },
+    'react/jsx-runtime': { jsx: (_type: unknown, props: { source?: { uri: string } }) => props },
+    'react-native': { Image: 'Image' },
+    '../media/usePrivateMedia': {
+      usePrivateMedia: (uri: string, kind: string) => { calls.push({ uri, kind }); return media; },
+    },
+  };
+  const exports: Record<string, Function> = {};
+  vm.runInNewContext(compiled, { exports, require: (name: string) => modules[name] });
+  const image = exports.PrivateImage({
+    source: { uri: legacy },
+    onError: (event: { nativeEvent: { error: string } }) => errors.push(event.nativeEvent.error),
+  });
+  return { image, calls, errors };
 }
-test('private Marketplace image uses Firebase session and never forwards a legacy bearer token',async()=>{
- const h=fixture();await h.load();assert.equal(h.requests.length,1);assert.ok(h.requests[0].options.headers.Authorization.startsWith('Firebase '));assert.ok(!h.requests[0].url.includes('token='));h.cleanup();assert.equal(h.removed.length,1);
+
+test('private image presents only the authorized local media URI', () => {
+  const result = fixture({ uri: 'file:///private/owned.img' });
+  assert.deepEqual(result.calls, [{ uri: legacy, kind: 'image' }]);
+  assert.equal(result.image.source.uri, 'file:///private/owned.img');
 });
-test('denied private image fails closed and deletes temporary cache, never retries token URL',async()=>{
- const h=fixture(403);await h.load();assert.equal(h.requests.length,1);assert.equal(h.errors.length,1);assert.equal(h.removed.length,1);
-});
-test('anonymous session cannot request private media',async()=>{
- const h=fixture();h.auth.currentUser.isAnonymous=true;await h.load();assert.equal(h.requests.length,0);
+
+test('loading or denied private image does not fall back to the original bearer URI', () => {
+  assert.equal(fixture({}).image.source, undefined);
+  const denied = fixture({ error: 'Unable to load private attachment.' });
+  assert.equal(denied.image.source, undefined);
+  assert.deepEqual(denied.errors, ['Unable to load private attachment.']);
 });

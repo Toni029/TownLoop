@@ -25,18 +25,26 @@ function executionDates(job){
 function canReview(job){return isNewJob(job)&&job.status==='requested'&&!job.review?.decision&&!job.authorization;}
 function canRetry(job){return isNewJob(job)&&['failed','retrying','needs_review'].includes(job.status)&&executionAuthorized(job);}
 function summary(id,job){return{jobId:id,requestId:job.requestId||null,workflowVersion:job.workflowVersion||null,status:job.status,createdAt:millis(job.createdAt)||null,submittedAt:millis(job.createdAt)||null,autoDeleteAt:isNewJob(job)?millis(job.autoDeleteAt):null,reviewedAt:millis(job.review?.reviewedAt)||null,reason:job.review?.decision==='rejected'?job.review.reason:'',canReview:canReview(job),canRetry:canRetry(job),canRequestAgain:isNewJob(job)&&['rejected','cancelled'].includes(job.status),processingStage:job.phase==='scoped_retention'?'retention_pending':job.phase||null,processingIssue:job.status==='failed'?'retry_required':job.status==='needs_review'?'manual_review_required':null,completedAt:millis(job.completedAt)||null,retainedOperationalReceipts:isNewJob(job)&&job.status==='complete',operationalReceiptsExpireAt:isNewJob(job)?millis(job.v3ReceiptExpiresAt)||executionDates(job).retentionDueAt:null};}
-async function submitRequest(db,uid,{now=Date.now(),requestId=randomUUID()}={}){
+async function submitRequest(db,uid,{now,requestId=randomUUID(),allowLegacy=false}={}){
  const id=require('./accountDeletionPolicy.cjs').jobIdFor(uid),ref=db.doc('account_deletion_jobs/'+id);
  return db.runTransaction(async tx=>{
   const [old,policy,profile]=await Promise.all([tx.get(ref),tx.get(db.doc('deletion_policies/account')),tx.get(db.doc('users/'+uid))]);
+  const submittedAt=now??Date.now(), active=policy.data();
   if(old.exists&&(!isNewJob(old.data())||!['rejected','cancelled'].includes(old.data().status)))return summary(id,old.data());
-  if(!policyReady(policy.data())||now<millis(policy.data().effectiveFrom))fail('failed-precondition','The updated deletion policy is not active. No account data was changed.');
   if(profile.data()?.deletionPending===true)fail('failed-precondition','Account deletion is already processing.');
-  const next={uid,workflowVersion:3,requestId,requestHistory:old.exists?[...new Set([...(old.data().requestHistory||[]),old.data().requestId])]:[],processingProtocol:4,phase:'requested',status:'requested',createdAt:new Date(now),submittedAt:new Date(now),autoDeleteAt:new Date(now+PENDING_MS),lastAttemptAt:new Date(now),executionSignal:0,collectionIndex:0,cursor:'',inventoryComplete:false};
+  // Reading the policy in the intake transaction serializes new requests with cutover.
+  if(!policyReady(active)||submittedAt<millis(active.effectiveFrom)){
+   if(!allowLegacy||active?.policyVersion===3||old.exists)fail('failed-precondition','The updated deletion policy is not active. No account data was changed.');
+   const next={uid,phase:'requested',status:'requested',createdAt:new Date(submittedAt),
+    ...require('./accountDeletionRetention.cjs').deadlines(submittedAt),lastAttemptAt:new Date(submittedAt),collectionIndex:0,cursor:'',inventoryComplete:false};
+   tx.create(ref,next);
+   return summary(id,next);
+  }
+  const next={uid,workflowVersion:3,requestId,requestHistory:old.exists?[...new Set([...(old.data().requestHistory||[]),old.data().requestId])]:[],processingProtocol:4,phase:'requested',status:'requested',createdAt:new Date(submittedAt),submittedAt:new Date(submittedAt),autoDeleteAt:new Date(submittedAt+PENDING_MS),lastAttemptAt:new Date(submittedAt),executionSignal:0,collectionIndex:0,cursor:'',inventoryComplete:false};
   tx.set(ref,next);if(profile.exists&&profile.data()?.accountDeletionNotice)tx.update(db.doc('users/'+uid),{accountDeletionNotice:null});return summary(id,next);
  });
 }
-async function decideRequest(db,actorId,input,{now=Date.now()}={}){
+async function decideRequest(db,actorId,input,{now=Date.now(),processingAvailable=true}={}){
  const {jobId,requestId,decision,reason,confirmation}=input||{};
  if(!/^[a-f0-9]{64}$/.test(jobId||'')||!['approved','rejected','retry'].includes(decision)||confirmation!==decision||typeof reason!=='string'||!reason.trim()||reason.length>1000)fail('invalid-argument','Confirm the decision and provide a documented reason.');
  const ref=db.doc('account_deletion_jobs/'+jobId);
@@ -50,6 +58,7 @@ async function decideRequest(db,actorId,input,{now=Date.now()}={}){
   if(job.uid===actorId)fail('permission-denied','Another Admin/VIP must review your request.');
   if(!policyReady(policy.data()))fail('failed-precondition','Deletion processing is not activated.');
   if(job.review?.decision===decision&&job.review.reviewerId===actorId)return summary(jobId,job);
+  if(decision!=='rejected'&&!processingAvailable)fail('failed-precondition','Deletion processing is paused. The request was not changed.');
   if(decision==='retry'){
    if(!canRetry(job))fail('failed-precondition','This request is not eligible for an automatic retry.');
    const apply=await budget(tx,db,actorId,'adminMutation',ref.path,now);apply();

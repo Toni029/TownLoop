@@ -36,7 +36,10 @@ export function SafetyActions({ target, allowBlock = false, blockInReport = fals
       <Field label="Additional context (optional)" value={details} onChangeText={setDetails} multiline maxLength={1000} editable={!busy}/>
       {!!error && <ErrorNotice message={error}/>}<Action label="Send report" disabled={busy} onPress={() => {
         if (busy) return; setBusy(true); setError('');
-        void submitSafetyReport(app, target, reason, details).then(() => {setOpen(false);setDetails('');setNotice('Report sent to the office.');})
+        void submitSafetyReport(app, target, reason, details).then(({data}) => {
+          setOpen(false);setDetails('');
+          setNotice(data.status === 'open' ? 'Report sent to the office.' : 'The office already reviewed this report. Submit new details if the concern has changed.');
+        })
           .catch(e => setError(e instanceof Error ? e.message : 'Unable to report.')) .finally(() => setBusy(false));
       }}/>
     </ProductDialog>}

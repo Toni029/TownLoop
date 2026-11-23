@@ -1,8 +1,8 @@
-const { assertReferenceWritesAllowed } = require('./referenceWriteBarrier.cjs');
+const {assertReferenceWritesAllowed}=require('./referenceWriteBarrier.cjs');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { approved, manager, id, reportInput, reportKey, reportTarget } = require('./safetyPolicy.cjs');
+const { approved, manager, id, reportInput, reportKey, followupReportKey, reportTarget } = require('./safetyPolicy.cjs');
 const database = process.env.TOWNLOOP_FIRESTORE_DATABASE_ID || '(default)';
 const options = { region: 'us-central1', maxInstances: 2, timeoutSeconds: 60 };
 async function actor(request, needManager = false) {
@@ -24,14 +24,23 @@ exports.submitSafetyReport = onCall(options, async request => {
     await assertReferenceWritesAllowed(tx, db, message => new HttpsError('failed-precondition', message));
     const [existing, content, quota, author] = await Promise.all([tx.get(reference), tx.get(db.doc(`${target.collection}/${target.id}`)), tx.get(db.doc(`safety_limits/${uid}`)), tx.get(db.doc(`users/${uid}`))]);
     if (!approved(author.data())) throw new HttpsError('permission-denied', 'Account approval changed.');
-    if (existing.exists) return { reportId: key, status: existing.data().status }; // retries never duplicate or send automatically
+    const prior = existing.data();
+    if (prior?.reason === target.reason && (prior.details || '') === target.details)
+      return { reportId: key, status: prior.status };
+    const reportId = existing.exists ? followupReportKey(key, target) : key;
+    const destination = existing.exists ? db.doc(`moderation_reports/${reportId}`) : reference;
+    if (existing.exists) {
+      const priorFollowup = await tx.get(destination);
+      if (priorFollowup.exists) return { reportId, status: priorFollowup.data().status };
+    }
     const targetUid = validated(() => reportTarget(target, content.data(), uid));
     const day = new Date().toISOString().slice(0, 10), state = quota.data() || {};
     const count = state.day === day ? state.count || 0 : 0;
     if (count >= 20) throw new HttpsError('resource-exhausted', 'Daily report limit reached. Contact the office for urgent concerns.');
-    tx.set(reference, { ...target, reporterId: uid, targetUid, status: 'open', createdAt: FieldValue.serverTimestamp() });
+    tx.create(destination, { ...target, reporterId: uid, targetUid, status: 'open', createdAt: FieldValue.serverTimestamp(),
+      ...(existing.exists ? { previousReportId: key } : {}) });
     tx.set(db.doc(`safety_limits/${uid}`), { day, count: count + 1 }, {merge:true});
-    return { reportId: key, status: 'open' };
+    return { reportId, status: 'open' };
   });
 });
 exports.setUserBlock = onCall(options, async request => {
@@ -39,6 +48,7 @@ exports.setUserBlock = onCall(options, async request => {
   const { targetUid, blocked } = request.data || {};
   if (!id(targetUid) || targetUid === uid || typeof blocked !== 'boolean') throw new HttpsError('invalid-argument', 'Choose another resident.');
   await db.runTransaction(async tx => {
+    await assertReferenceWritesAllowed(tx, db);
     const [target, author, quota] = await Promise.all([tx.get(db.doc(`users/${targetUid}`)),tx.get(db.doc(`users/${uid}`)),tx.get(db.doc(`safety_limits/${uid}`))]);
     if (!approved(author.data())) throw new HttpsError('permission-denied', 'Account approval changed.');
     const day = new Date().toISOString().slice(0,10), prior = quota.data() || {};
@@ -57,7 +67,7 @@ exports.reviewSafetyReport = onCall(options, async request => {
   if (!id(reportId) || !['dismiss', 'resolve', 'remove_content'].includes(action) || typeof note !== 'string' || note.length > 1000)
     throw new HttpsError('invalid-argument', 'Choose a valid moderation action.');
   await db.runTransaction(async tx => {
-    await assertReferenceWritesAllowed(tx, db, message => new HttpsError('failed-precondition', message));
+    await assertReferenceWritesAllowed(tx, db);
     const ref = db.doc(`moderation_reports/${reportId}`);
     const [snapshot, reviewer] = await Promise.all([tx.get(ref), tx.get(db.doc(`users/${uid}`))]);
     if (!manager(reviewer.data())) throw new HttpsError('permission-denied', 'Office approval changed.');

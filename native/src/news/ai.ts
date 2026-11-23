@@ -7,10 +7,20 @@ import { approvedUser } from "./actions";
 import { activeEdition } from "./edition";
 import { editionKey } from "./model";
 import { analysisItems, type AnalysisResult } from "./analysisModel";
+/** Read-only job discovery; never starts a Gemini request. */
+export async function findNewsletterAnalysis(config:NewsletterConfig):Promise<AnalysisProgress|null>{
+  await approvedUser(true);
+  const owner=auth.currentUser?.uid;
+  if(!owner)throw Error('Please sign in again.');
+  const base=await preflightAnalysis(0,true);
+  const job=await analyzeInBackground(base,{newsletterId:config.id},owner,{findOnly:true});
+  if(auth.currentUser?.uid!==owner)throw Error('Your account changed. Reopen News.');
+  return job;
+}
 export async function analyzeNewsletter(
   config: NewsletterConfig,
   newUpload = false,
-  options: {signal?:AbortSignal;onProgress?:(progress:AnalysisProgress)=>void} = {},
+  options: {signal?:AbortSignal;onProgress?:(progress:AnalysisProgress)=>void;resumeOnly?:boolean} = {},
 ): Promise<AnalysisResult> {
   await approvedUser(true);
   const owner = auth.currentUser?.uid;
@@ -21,6 +31,7 @@ export async function analyzeNewsletter(
     monthEdition: config.monthEdition, isNewUpload: newUpload,
   }, owner, options);
   if (auth.currentUser?.uid !== owner) throw Error("Your account changed. Reopen News.");
+  if(!result)return result;
   analysisItems(result, config, {review:true});
   if (!newUpload) await activeEdition(config);
   return result;

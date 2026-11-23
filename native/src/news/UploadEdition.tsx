@@ -20,7 +20,7 @@ import { newUploadResume, type TransferProgress } from "./pdfTransfer";
 import { auth } from "../lib/firebase";
 import { preflightAnalysis } from "./api";
 import { retainedEditions, type RetainedEdition } from "./drafts";
-import { analyzeNewsletter } from "./ai";
+import { analyzeNewsletter, findNewsletterAnalysis } from "./ai";
 import type {AnalysisProgress} from "./analysisJobs";
 import {discardNewsletterDraft, touchNewsletterDraft} from './discard';
 import { AnalysisCoverage } from "./AnalysisCoverage";
@@ -101,6 +101,39 @@ export function UploadEdition({
     setStep(-1);
     setError("");
   }
+  const recoveryState = useRef({blocked:false, draftId:''});
+  useEffect(() => { recoveryState.current = {blocked:!!file || !!result || step === 3, draftId:staged?.id || ''}; }, [file,result,step,staged?.id]);
+  // Reconnect only: opening/foregrounding never creates or retries a Gemini job.
+  useEffect(() => {
+    let alive = true;
+    const reconnect = async () => {
+      if (lock.current || recoveryState.current.blocked || AppState.currentState !== 'active') return;
+      const owner = auth.currentUser?.uid;
+      if (!owner) return;
+      lock.current = true;
+      try {
+        const drafts = await retainedEditions();
+        for (const draft of drafts.filter(d => !d.partial && !d.discardPending && d.uploadedBy === owner && (!recoveryState.current.draftId || recoveryState.current.draftId === d.id))) {
+          const job = await findNewsletterAnalysis(draft);
+          if (!alive || recoveryState.current.blocked || auth.currentUser?.uid !== owner) return;
+          if (!job) continue;
+          setFile(null); setStaged(draft); setEditionId(draft.id);
+          if (!recoveryState.current.draftId) { setTitle(draft.editionTitle || ''); setMonth(draft.monthEdition || ''); }
+          setStep(1); setProgress(100); setAnalysisProgress(job);
+          if (job.state === 'failed' || job.state === 'cancelled') { setError(job.error || 'Analysis paused. Retry using the retained PDF.'); return; }
+          setBusy(true);
+          const controller = new AbortController(); transfer.current = controller;
+          const restored = await analyzeNewsletter(draft, true, {resumeOnly:true,signal:controller.signal,onProgress:value=>{if(alive)setAnalysisProgress(value);}});
+          if (alive && auth.currentUser?.uid === owner && restored) { setResult(restored); setError(''); }
+          return;
+        }
+      } catch (e) { if (alive && auth.currentUser?.uid === owner) setError(e instanceof Error ? e.message : 'Unable to reconnect. The PDF is retained.'); }
+      finally { if (alive) { lock.current = false; transfer.current = null; setBusy(false); } }
+    };
+    void reconnect();
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') void reconnect(); });
+    return () => { alive = false; listener.remove(); };
+  }, []);
   async function select() {
     if (lock.current) return;
     lock.current = true;
@@ -146,7 +179,7 @@ export function UploadEdition({
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   }
   async function resumeRetained(draft: RetainedEdition) {
-    if (lock.current) return;
+    if (lock.current || draft.discardPending) return;
     if (!draft.partial) {
       setFile(null); setStaged(draft); setEditionId(draft.id); setTitle(draft.editionTitle || ""); setMonth(draft.monthEdition || ""); setResult(null); setStep(0); setProgress(100); setBytes({confirmedBytes:draft.sourceBytes,totalBytes:draft.sourceBytes,percent:100}); setRetained([]); setError("");
       return;
@@ -286,7 +319,7 @@ export function UploadEdition({
             </Copy>
           </Pressable>
           <Action label={finding ? "Checking retained PDFs…" : "Resume an uploaded PDF"} disabled={busy} onPress={() => void findRetained()} />
-          {retained.map(draft => <View key={draft.id} style={{gap:8}}><Action disabled={busy} label={`${draft.fileName} · ${draft.fileSize} · ${draft.partial ? `Resume ${draft.confirmedChunks}/${draft.totalChunks} parts — select original PDF` : new Date(draft.retainedAt).toLocaleString()}`} onPress={() => void resumeRetained(draft)} /><Action icon={Trash2} disabled={busy} label="Discard uploaded PDF" onPress={() => void discard(draft.id)} /></View>)}
+          {retained.map(draft => <View key={draft.id} style={{gap:8}}><Action disabled={busy||draft.discardPending} label={`${draft.fileName} · ${draft.fileSize} · ${draft.discardPending ? 'Discard pending — retry discard' : draft.partial ? `Resume ${draft.confirmedChunks}/${draft.totalChunks} parts — select original PDF` : new Date(draft.retainedAt).toLocaleString()}`} onPress={() => void resumeRetained(draft)} /><Action icon={Trash2} disabled={busy} label="Discard uploaded PDF" onPress={() => void discard(draft.id)} /></View>)}
           {!!staged && <Copy>PDF upload is retained. Retry analysis or publish with AI turned off; no PDF re-upload is needed.</Copy>}
           <Field
             label="Edition Title *"
@@ -588,7 +621,7 @@ export function UploadEdition({
         </>
       )}
       {!!error && <ErrorNotice message={error} />}
-      {step !== 3 && <Copy>Unpublished uploads are removed after 24 hours without activity. Discard an upload to remove it immediately. Published newsletters are kept.</Copy>}
+      {step !== 3 && <Copy>Unpublished PDFs are retained for recovery until discarded. Automatic 24-hour cleanup is not active. Published newsletters are kept.</Copy>}
       {step !== 3 && !!(staged || bytes?.confirmedBytes) && <Action icon={Trash2} label="Discard uploaded PDF" disabled={busy} onPress={() => void discard(editionId)} />}
       {step === 3 ? (
         <Action label="Done" icon={Check} onPress={onClose} />

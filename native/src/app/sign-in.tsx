@@ -214,9 +214,7 @@ export default function SignIn() {
                     dark && { color: "#34d399" },
                   ]}
                 >
-                  {community === "cecil_pines"
-                    ? "Cecil Pines"
-                    : "Upcoming Community"}
+                  Cecil Pines
                 </Text>
                 <LinearGradient
                   colors={["#d99c0000", "#d99c00", "#d99c0000"]}

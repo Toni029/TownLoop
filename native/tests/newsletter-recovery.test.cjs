@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('../node_modules/typescript');
-function load(name,modules,extra={}){modules={'../../newsletter-api.json':{url:''},'expo-crypto':{CryptoDigestAlgorithm:{SHA256:'SHA-256'},digestStringAsync:async(_,s)=>require('crypto').createHash('sha256').update(s).digest('hex')},...modules};const m={exports:{}};const code=ts.transpileModule(fs.readFileSync('native/src/news/'+name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',...Object.keys(extra),code)(id=>modules[id],m,m.exports,...Object.values(extra));return m.exports;}
+function load(name,modules,extra={}){modules={'../lib/appCheck':{appCheckHeaders:async()=>({})},'../../newsletter-api.json':{url:''},'expo-crypto':{CryptoDigestAlgorithm:{SHA256:'SHA-256'},digestStringAsync:async(_,s)=>require('crypto').createHash('sha256').update(s).digest('hex')},...modules};modules['react-native']={AppState:{currentState:'active'},...(modules['react-native']||{})};const m={exports:{}};const code=ts.transpileModule(fs.readFileSync('native/src/news/'+name,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',...Object.keys(extra),code)(id=>modules[id],m,m.exports,...Object.values(extra));return m.exports;}
 const auth={currentUser:{uid:'manager',getIdToken:async()=> 'fixture-id-token'}};
 test('analysis rejects missing URL before any PDF read or upload',async()=>{
  const api=load('api.ts',{'../lib/firebase':{auth},'./actions':{approvedUser:async()=>({id:'manager'})},'react-native':{Platform:{OS:'android'}}},{process:{env:{}},fetch:()=>{throw Error('unexpected request');}});
@@ -57,6 +57,39 @@ test('resume never hides a real permission denial behind a listing fallback',asy
  await assert.rejects(drafts.retainedEditions(),/not authorized/);assert.equal(calls,1);
 });
 
+test('interrupted discard stays discoverable after some or all chunks were removed',async()=>{
+ const n=value=>({integerValue:String(value)}),sourceBytes=480*1024*2,totalSize='data:application/pdf;base64,'.length+Math.ceil(sourceBytes/3)*4;
+ const drafts=load('drafts.ts',{'./actions':{approvedUser:async()=>({id:'manager'})},'./pdfTransfer':{PDF_PREFIX:'data:application/pdf;base64,',PDF_CHUNK_BYTES:480*1024},'./firestorePdf':{
+  pdfId:id=>id,pdfRequest:async path=>{
+   if(path.startsWith('/newsletters?'))return {documents:['partial-purge','empty-purge'].map(id=>({name:'newsletters/'+id,fields:{id:{stringValue:id},uploadState:{stringValue:'purging'},uploadedBy:{stringValue:'previous-manager'},sourceBytes:n(sourceBytes),totalChunks:n(2),totalSize:n(totalSize)}}))};
+   return {documents:path.includes('/partial-purge/')?[{fields:{index:n(1),totalChunks:n(2),totalSize:n(totalSize)}}]:[]};
+  },
+ }});
+ const retained=(await drafts.retainedEditions()).sort((a,b)=>a.id.localeCompare(b.id));
+ assert.deepEqual(retained.map(({id,discardPending,confirmedChunks})=>({id,discardPending,confirmedChunks})),[
+  {id:'empty-purge',discardPending:true,confirmedChunks:0},
+  {id:'partial-purge',discardPending:true,confirmedChunks:1},
+ ]);
+});
+
+test('a recovered upload keeps its original reservation proof for guarded publishing',async()=>{
+ const ticket='b'.repeat(64),n=value=>({integerValue:String(value)});
+ const drafts=load('drafts.ts',{'./actions':{approvedUser:async()=>({id:'manager'})},'./pdfTransfer':{PDF_PREFIX:'data:application/pdf;base64,'},'./firestorePdf':{
+  pdfId:id=>id,pdfRequest:async path=>{
+   if(path.startsWith('/newsletters?')){
+    const requested=new URL('https://fixture.test'+path).searchParams.getAll('mask.fieldPaths');
+    return {documents:[{name:'newsletters/budgeted',fields:{id:{stringValue:'budgeted'},uploadState:{stringValue:'uploaded'},uploadedBy:{stringValue:'manager'},...(requested.includes('uploadBudgetId')?{uploadBudgetId:{stringValue:ticket}}:{})}}]};
+   }
+   return {documents:[{fields:{index:n(0),totalChunks:n(1),totalSize:n(100)}}]};
+  },
+ }});
+ const [recovered]=await drafts.retainedEditions();
+ const writes=[];
+ const edition=load('edition.ts',{'firebase/firestore':{doc:(_db,...path)=>path.join('/'),runTransaction:async(_db,fn)=>fn({get:async()=>({exists:()=>false}),set:(path,data)=>writes.push({path,data})})},'./actions':{approvedUser:async()=>({id:'manager'})},'../lib/firebase':{db:{}},'./model':{editionKey:()=>''}});
+ await edition.finishEdition(recovered,'');
+ assert.equal(writes.find(write=>write.path==='newsletters/budgeted').data.uploadBudgetId,ticket);
+});
+
 test('native analysis ignores misspelled or untrusted environment endpoints in favor of the verified Firebase URL',()=>{
  const backend=JSON.parse(fs.readFileSync('native/newsletter-api.json','utf8'));
  for(const platform of ['android','ios'])for(const override of ['https://us-centrall-cc-livingcommunity-app.cloudfunctions.net/newsletterApi','https://untrusted.example']){
@@ -78,7 +111,7 @@ test('preflight refreshes one expired token, while real Admin/VIP denials remain
  const session={currentUser:{uid:'manager',getIdToken:async force=>{refreshes.push(force);return force?'fresh-token':'old-token';}}};
  const body={service:'townloop-newsletter',projectId:'cc-livingcommunity-app',database:'(default)',version:1,configured:true,maxPdfBytes:64*1048576,analysisJobsVersion:1};
  let calls=0,denied=false;
- const api=load('api.ts',{'../../newsletter-api.json':backend,'../lib/firebase':{auth:session},'./actions':{approvedUser:async(...args)=>{checks.push(args);return {id:'manager'};}},'react-native':{Platform:{OS:'android'}}},{process:{env:{}},fetch:async(_url,init)=>{headers.push(init.headers.Authorization);calls++;const status=denied?403:calls===1?401:200;return {status,ok:status===200,json:async()=>body};}});
+ const api=load('api.ts',{'../../newsletter-api.json':backend,'../lib/firebase':{auth:session},'./actions':{approvedUser:async(...args)=>{checks.push(args);return {id:'manager'};}},'react-native':{Platform:{OS:'android'}}},{process:{env:{}},fetch:async(_url,init)=>{headers.push(new Headers(init.headers).get('Authorization'));calls++;const status=denied?403:calls===1?401:200;return {status,ok:status===200,json:async()=>body};}});
  assert.equal(await api.preflightAnalysis(42*1048576,true),backend.url);assert.deepEqual(checks[0],[true,true]);assert.deepEqual(headers,['Bearer old-token','Bearer fresh-token']);assert.equal(refreshes.filter(x=>x===true).length,1);
  denied=true;const before=calls;await assert.rejects(api.preflightAnalysis(),/authorized/);assert.equal(calls-before,1);
 });
@@ -86,4 +119,17 @@ test('a network failure cannot replay the previous account’s token after an ac
  const backend=JSON.parse(fs.readFileSync('native/newsletter-api.json','utf8')),session={currentUser:{uid:'first'}};
  const api=load('api.ts',{'../../newsletter-api.json':backend,'../lib/firebase':{auth:session},'./actions':{},'react-native':{Platform:{OS:'android'}}},{process:{env:{}}});
  let calls=0;await assert.rejects(api.newsletterFetch(backend.url+'/api/newsletter/native/capabilities',{},async()=>{calls++;session.currentUser={uid:'second'};throw Error('UnknownHostException');}),/account changed/);assert.equal(calls,1);
+});
+
+test('account switch during App Check preparation prevents dispatching a stale newsletter credential',async()=>{
+ const backend=JSON.parse(fs.readFileSync('native/newsletter-api.json','utf8')),session={currentUser:{uid:'first'}};
+ const appCheckHeaders=async()=>{session.currentUser={uid:'second'};return {};};
+ const api=load('api.ts',{'../../newsletter-api.json':backend,'../lib/appCheck':{appCheckHeaders},'../lib/firebase':{auth:session},'./actions':{},'react-native':{Platform:{OS:'android'}}},{process:{env:{}}});
+ let requests=0;
+ await assert.rejects(api.newsletterFetch(backend.url+'/api/newsletter/native/analysis-jobs',{method:'POST',headers:{Authorization:'Bearer fixture'}},async()=>{requests++;return {ok:true};}),/account changed/);
+ assert.equal(requests,0);
+ session.currentUser={uid:'first',getIdToken:async()=> 'fixture'};
+ const pdf=load('firestorePdf.ts',{'../lib/firebase':{auth:session},'../../firebase-config.json':{projectId:'fixture'},'../lib/appCheck':{appCheckHeaders}},{fetch:async()=>{requests++;return {ok:true,json:async()=>({})};}});
+ await assert.rejects(pdf.pdfRequest(':commit',{method:'POST'}),/account changed/);
+ assert.equal(requests,0);
 });

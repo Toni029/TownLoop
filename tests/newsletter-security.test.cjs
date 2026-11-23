@@ -106,6 +106,7 @@ test('web reader sends ID tokens only to same-origin newsletter API and uses aut
 });
 test('native reader fallback rejects unknown hosts and resolves private Storage identities with authenticated byte limits',async()=>{
  const {downloadPdfBytes}=await bundle('native/src/news/download.ts',{
+  '../lib/appCheck':`export const appCheckHeaders=async()=>({});`,
   '../lib/firebase':`export const auth={currentUser:{getIdToken:async()=> 'fixture'}};export const storage={app:{options:{storageBucket:${JSON.stringify(bucket)}}}};`,
   './edition':`export const MAX_PDF_BYTES=32*1024*1024;`,
   'firebase/storage':`export const ref=(_storage,path)=>path;export const getBytes=async(path,max)=>{global.__h10NativeRead={path,max};return new TextEncoder().encode('%PDF-1.7').buffer;};`,

@@ -6,7 +6,7 @@ export function deletionStatusText(request: DeletionRequestStatus): string {
     waiting_for_media:'Verified record processing is waiting for attachment cleanup; account deletion is not complete.',
     delayed:'Request delayed for a documented legal/security reason; original deadlines remain in effect.', needs_review:'Processing needs office review; unresolved items have not been marked complete.', failed:'Processing was interrupted. Deletion is not complete; a retry is required.', retention_pending:'Account access removed. Retained receipts still await expiry; deletion processing is not fully complete.', none: 'No deletion request submitted.', requested: 'Awaiting Admin/VIP review.',
     approved_held: 'Approved. Processing is paused until deletion safeguards are verified. Your account has not been deleted.',
-    queued: 'Deletion is authorized and queued. Processing starts automatically; deletion is not complete.', retrying: 'Deletion processing is retrying. Deletion is not complete.', processing: 'Deletion processing is in progress.',
+    queued: 'Deletion is authorized and queued. Completion depends on processing availability and safety checks.', retrying: 'Deletion processing is retrying. Deletion is not complete.', processing: 'Deletion processing is in progress.',
     pending_owner_approval: 'Processing is paused until retention and database safeguards are verified.',
     identity_complete_media_pending: 'Account removed; associated media cleanup is pending.',
     complete: 'Deletion processing completed under the approved retention policy.',

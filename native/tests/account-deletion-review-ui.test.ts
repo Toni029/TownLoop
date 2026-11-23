@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import vm from 'node:vm';
 const ts=createRequire(import.meta.url)('typescript');
-function fixture(options:{role?:string;own?:boolean;pending?:boolean;fail?:boolean;reviewed?:boolean;mismatch?:boolean;status?:string;canRetry?:boolean}={}){
+function fixture(options:{role?:string;own?:boolean;pending?:boolean;fail?:boolean;reviewed?:boolean;mismatch?:boolean;status?:string;canRetry?:boolean;processingAvailable?:boolean}={}){
  let cursor=0,started=false;const states:any[]=[],effects:Array<()=>void>=[],calls:any[]=[];let lists=0,reviewed=options.reviewed===true,resolve!:(value:any)=>void;
  const jsx=(type:any,props:any)=>({type,props});
  const modules:Record<string,any>={
@@ -14,7 +14,7 @@ function fixture(options:{role?:string;own?:boolean;pending?:boolean;fail?:boole
   '../lib/session':{useSession:()=>({user:{uid:'reviewer'},profile:{approved:true,role:options.role||'admin'}})},
   '../news/ui':{Action:'Action',Copy:'Copy',ErrorNotice:'Error',Field:'Field'},
   '../lib/accountDeletion':{
-   listAccountDeletionRequests:async()=>{lists++;return{requests:[{jobId:'fixture',requestId:'request-3',workflowVersion:options.reviewed?2:3,name:'Fixture Resident',createdAt:Date.parse('2026-10-29T12:00:00Z'),status:options.status||(reviewed?'retention_pending':'requested'),canRetry:options.canRetry===true,canReview:!reviewed&&!options.status,isOwnRequest:options.own===true}],nextCursor:null};},
+   listAccountDeletionRequests:async()=>{lists++;return{requests:[{jobId:'fixture',requestId:'request-3',workflowVersion:options.reviewed?2:3,name:'Fixture Resident',createdAt:Date.parse('2026-10-29T12:00:00Z'),status:options.status||(reviewed?'retention_pending':'requested'),canRetry:options.canRetry===true,canReview:!reviewed&&!options.status,isOwnRequest:options.own===true}],nextCursor:null,processingAvailable:options.processingAvailable!==false};},
    reviewAccountDeletionRequest:async(...args:any[])=>{calls.push(args);if(options.fail){options.fail=false;throw Error('Fixture service unavailable');}if(options.pending)return new Promise(done=>{resolve=done;});reviewed=true;return{jobId:options.mismatch?'wrong-request':'fixture',status:'queued',requestId:'request-3'};},
    deletionStatusText:(item:any)=>`Status: ${item.status}`,
   },
@@ -75,4 +75,13 @@ test('retry is available only when authorized and requires generation-bound conf
  nodes(tree).find(n=>n.type==='Action'&&n.props.label==='Retry processing').props.onPress();assert.equal(h.calls.length,0);
  tree=h.render();nodes(tree).find(n=>n.type==='Action'&&n.props.label==='Confirm retry').props.onPress();await settle();
  assert.equal(h.calls[0][1],'retry');assert.equal(h.calls[0][3].requestId,'request-3');assert(nodes(h.render()).includes('Status: queued'));
+});
+
+test('inactive production processing disables review and retry controls with a clear notice',async()=>{
+ for(const options of [{processingAvailable:false},{processingAvailable:false,status:'retrying',canRetry:true}]){
+  const h=await loaded(options),tree=h.render(),text=nodes(tree).filter(n=>typeof n==='string').join(' ');
+  assert(text.includes('Account deletion processing is currently paused'));
+  for(const n of nodes(tree).filter(n=>n.type==='Button'||n.type==='Action'))if(['Approve','Deny','Retry processing'].includes(n.props.accessibilityLabel||n.props.label))assert.equal(n.props.disabled,true);
+  assert.equal(h.calls.length,0);
+ }
 });

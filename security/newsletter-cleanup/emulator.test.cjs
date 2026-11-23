@@ -2,13 +2,20 @@ const {test,after}=require('node:test'),assert=require('node:assert/strict'),fs=
 if(!/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST||''))throw Error('Local emulator required; never run against production.');
 const fnRequire=require('node:module').createRequire(require.resolve('../../functions/package.json'));
 const {initializeApp,deleteApp}=fnRequire('firebase-admin/app'),{getFirestore}=fnRequire('firebase-admin/firestore');
-const {AGE_MS,purgeDraft,sweepDrafts}=require('../../functions/newsletterDraftCleanup.cjs');
+const {AGE_MS,manifestEligible,purgeDraft,sweepDrafts}=require('../../functions/newsletterDraftCleanup.cjs');
 const project='demo-townloop-news-cleanup',app=initializeApp({projectId:project}),db=getFirestore(app,'(default)');
 after(()=>deleteApp(app));
 const base=`http://${process.env.FIRESTORE_EMULATOR_HOST}/v1/projects/${project}/databases/(default)/documents`;
-const manifest=(id,extra={})=>({id,uploadState:'uploaded',uploadedBy:'manager',hasFirestoreBlob:true,pdfUrl:`firestore:${id}`,fileUrl:`firestore:${id}`,pageImages:[],sourceBytes:10,totalChunks:1,totalSize:43,...extra});
+const encodedSize=bytes=>'data:application/pdf;base64,'.length+Math.ceil(bytes/3)*4;
+const manifest=(id,extra={})=>({id,uploadState:'uploaded',uploadedBy:'manager',hasFirestoreBlob:true,pdfUrl:`firestore:${id}`,fileUrl:`firestore:${id}`,pageImages:[],sourceBytes:10,totalChunks:1,totalSize:encodedSize(10),...extra});
 async function seed(id,extra={}){const ref=db.doc('newsletters/'+id),m=manifest(id,extra);await ref.set(m);await ref.collection('chunks').doc('0').set({index:0,totalChunks:m.totalChunks,totalSize:m.totalSize,data:'fixture-pdf'});return ref;}
 async function exists(path){return (await db.doc(path).get()).exists;}
+test('discard accepts the real native uploader dimensions and rejects off-by-one manifests',()=>{
+ const size=39435477,draft=manifest('fixture',{sourceBytes:size,totalChunks:81,totalSize:52580664});
+ assert.equal(draft.totalSize,encodedSize(size));
+ assert.equal(manifestEligible('fixture',draft),true);
+ assert.equal(manifestEligible('fixture',{...draft,totalSize:draft.totalSize-1}),false);
+});
 test('newsletter cleanup eligibility, fences, idempotency, crash recovery and authorization',async()=>{
  const reset=await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${project}/databases/(default)/documents`,{method:'DELETE'});assert.equal(reset.ok,true);
  await db.doc('users/manager').set({approved:true,role:'admin'});await db.doc('users/vip').set({approved:true,role:'vip'});await db.doc('users/resident').set({approved:true,role:'resident'});
@@ -33,7 +40,7 @@ test('newsletter cleanup eligibility, fences, idempotency, crash recovery and au
  await seed('resume');let txs=0;const interrupted=new Proxy(db,{get(target,key){if(key==='runTransaction')return fn=>{if(++txs===2)throw Error('fixture interruption');return target.runTransaction(fn);};const v=target[key];return typeof v==='function'?v.bind(target):v;}});
  await assert.rejects(purgeDraft(interrupted,'resume',{reason:'discarded',actor:'manager',enabled:true}),/interruption/);assert.equal((await db.doc('newsletter_draft_cleanup/resume').get()).data().state,'purging');assert.equal(await exists('newsletters/resume/chunks/0'),true);
  assert.equal((await purgeDraft(db,'resume',{enabled:true})).purged,true);
- const many=await seed('many',{sourceBytes:480*1024*100+10,totalChunks:101,totalSize:27+Math.ceil((480*1024*100+10)/3)*4});const m=(await many.get()).data(),batch=db.batch();for(let i=1;i<101;i++)batch.set(many.collection('chunks').doc(String(i)),{index:i,totalChunks:101,totalSize:m.totalSize,data:'fixture'});await batch.commit();
+ const many=await seed('many',{sourceBytes:480*1024*100+10,totalChunks:101,totalSize:encodedSize(480*1024*100+10)});const m=(await many.get()).data(),batch=db.batch();for(let i=1;i<101;i++)batch.set(many.collection('chunks').doc(String(i)),{index:i,totalChunks:101,totalSize:m.totalSize,data:'fixture'});await batch.commit();
  let rounds=0;const afterBatch=new Proxy(db,{get(target,key){if(key==='runTransaction')return fn=>{if(++rounds===3)throw Error('fixture batch interruption');return target.runTransaction(fn);};const v=target[key];return typeof v==='function'?v.bind(target):v;}});
  await assert.rejects(purgeDraft(afterBatch,'many',{reason:'discarded',actor:'manager',enabled:true}),/batch interruption/);assert.equal((await many.collection('chunks').get()).size,1);assert.equal(await exists('newsletters/many'),true);assert.equal((await purgeDraft(db,'many',{enabled:true})).purged,true);assert.equal((await many.collection('chunks').get()).size,0);
  await seed('concurrent');const results=await Promise.all([purgeDraft(db,'concurrent',{reason:'discarded',actor:'manager',enabled:true}),purgeDraft(db,'concurrent',{reason:'discarded',actor:'vip',enabled:true})]);assert.ok(results.every(r=>r.purged));
@@ -76,4 +83,29 @@ test('fresh-rules patch changes only the reviewed newsletter block and refuses d
  const patched=patch(original);assert.match(patched,/newsletterDraftFenced/);
  const before=original.slice(0,original.indexOf('    match /newsletters/')),after=original.slice(original.indexOf('    // A resident can change only their own RSVP'));
  assert.ok(patched.startsWith(before));assert.ok(patched.endsWith(after));assert.throws(()=>patch(patched),/Stop and review/);
+});
+test('manual discard cancels only selected analysis, drains an active lease and leaves protected evidence untouched',async()=>{
+ const now=Date.now();await seed('inflight');await db.doc('newsletter_analysis_jobs/inflight').set({newsletterId:'inflight',state:'running',generation:1,lease:'active',leaseUntil:new Date(now+1000)});
+ const pending=await purgeDraft(db,'inflight',{enabled:true,reason:'discarded',actor:'manager',now});assert.equal(pending.pending,true);assert.equal(await exists('newsletters/inflight/chunks/0'),true);assert.equal((await db.doc('newsletter_analysis_jobs/inflight').get()).data().state,'cancelled');assert.equal((await purgeDraft(db,'inflight',{enabled:true,reason:'discarded',actor:'manager',now:now+2000})).purged,true);
+ await seed('held-evidence',{legalHold:true});await assert.rejects(purgeDraft(db,'held-evidence',{enabled:true,reason:'discarded',actor:'manager'}),/protection|hold/);assert.equal(await exists('newsletters/held-evidence/chunks/0'),true);
+ const storageUnknown=await seed('storage-unknown');await assert.rejects(purgeDraft(db,'storage-unknown',{enabled:true,reason:'discarded',actor:'manager',assertStorageEmpty:async()=>{throw Error('Unverified shared Storage file');}}),/Unverified/);assert.equal(await exists('newsletters/storage-unknown/chunks/0'),true);assert.equal((await storageUnknown.get()).data().uploadState,'uploaded');assert.equal(await exists('database_cleanup_fences/newsletters/records/storage-unknown'),false);
+});
+test('deployed-rules candidate requires the original reservation for an atomic publish and fences stale publishes after discard',async()=>{
+ const rules=fs.readFileSync('security/database-cleanup/firestore.rules','utf8');
+ const r=await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${project}:securityRules`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:{files:[{name:'firestore.rules',content:rules}]}})});
+ assert.equal(r.ok,true,await r.text());
+ await db.doc('security_controls/abuse_limits').set({enforceWrites:true});
+ const ticket='9'.repeat(64),id='guarded-publish',held='guarded-discard';
+ await seed(id,{uploadBudgetId:ticket}); await seed(held,{uploadBudgetId:ticket});
+ const docName=`projects/${project}/databases/(default)/documents/newsletters/`;
+ const fieldsFor=(id,reservation)=>Object.fromEntries(Object.entries({...manifest(id),uploadState:'published',...(reservation?{uploadBudgetId:reservation}:{})}).filter(([,value])=>!Array.isArray(value)).map(([key,value])=>[key,typeof value==='number'?{integerValue:String(value)}:typeof value==='boolean'?{booleanValue:value}:{stringValue:value}]));
+ const publish=(id,reservation)=>fetch(base+':commit',{method:'POST',headers:{Authorization:'Bearer '+token('manager'),'Content-Type':'application/json'},body:JSON.stringify({writes:[{update:{name:docName+id,fields:fieldsFor(id,reservation)}},{update:{name:docName+'current',fields:fieldsFor(id,reservation)}}]})});
+ const original=(await db.doc('newsletters/current').get()).data();
+ assert.equal((await publish(id)).status,403);
+ assert.deepEqual((await db.doc('newsletters/current').get()).data(),original);
+ assert.equal((await publish(id,ticket)).status,200);
+ assert.equal((await db.doc('newsletters/current').get()).data().id,id);
+ assert.equal((await purgeDraft(db,held,{enabled:true,reason:'discarded',actor:'manager'})).purged,true);
+ assert.equal((await publish(held,ticket)).status,403);
+ assert.equal((await db.doc('newsletters/current').get()).data().id,id);
 });

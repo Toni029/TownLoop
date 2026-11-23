@@ -18,6 +18,7 @@ function AccountDeletionRequestsForAccount({uid,accountKey}:{uid:string;accountK
  const [busy,setBusy]=useState(true),[error,setError]=useState('');
  const [rejecting,setRejecting]=useState<string|null>(null),[reason,setReason]=useState(''),[reference,setReference]=useState(''),[category,setCategory]=useState<ReasonCategory>('invalid_request');
  const [retrying,setRetrying]=useState<string|null>(null);
+ const [processingAvailable,setProcessingAvailable]=useState(false);
  const operation=useRef(false),mounted=useRef(true);
  async function refresh(cursor?:string){
   if(operation.current||!mounted.current||auth.currentUser?.uid!==uid)return;
@@ -25,7 +26,7 @@ function AccountDeletionRequestsForAccount({uid,accountKey}:{uid:string;accountK
   try{
    const result=await listAccountDeletionRequests(cursor);
    if(!mounted.current||auth.currentUser?.uid!==uid)return;
-   setRequests(result.requests);setLoadedFor(accountKey);setNextCursor(result.nextCursor);
+   setRequests(result.requests);setLoadedFor(accountKey);setNextCursor(result.nextCursor);setProcessingAvailable(result.processingAvailable===true);
   }catch(e){if(mounted.current&&auth.currentUser?.uid===uid)setError(e instanceof Error?e.message:'Unable to load requests.');}
   finally{if(mounted.current&&auth.currentUser?.uid===uid){operation.current=false;setBusy(false);}}
  }
@@ -33,13 +34,13 @@ function AccountDeletionRequestsForAccount({uid,accountKey}:{uid:string;accountK
   let alive=true;mounted.current=true;operation.current=true;
   void listAccountDeletionRequests().then(result=>{
    if(!alive||auth.currentUser?.uid!==uid)return;
-   setRequests(result.requests);setLoadedFor(accountKey);setNextCursor(result.nextCursor);
+   setRequests(result.requests);setLoadedFor(accountKey);setNextCursor(result.nextCursor);setProcessingAvailable(result.processingAvailable===true);
   }).catch(e=>{if(alive&&auth.currentUser?.uid===uid)setError(e instanceof Error?e.message:'Unable to load requests.');})
   .finally(()=>{if(alive&&auth.currentUser?.uid===uid){operation.current=false;setBusy(false);}});
   return()=>{alive=false;mounted.current=false;};
  },[uid,accountKey]);
  async function decide(item:DeletionReviewItem,decision:'approved'|'rejected'|'retry'){
-  if(operation.current||busy||!mounted.current||item.workflowVersion!==3||!item.requestId||item.isOwnRequest||auth.currentUser?.uid!==uid)return;
+  if(operation.current||busy||!processingAvailable||!mounted.current||item.workflowVersion!==3||!item.requestId||item.isOwnRequest||auth.currentUser?.uid!==uid)return;
   if(decision==='retry'?!item.canRetry:!item.canReview)return;
   if(decision==='rejected'&&(!reason.trim()||!reference.trim()||rejecting!==item.jobId))return;
   if(decision==='retry'&&retrying!==item.jobId)return;
@@ -58,18 +59,19 @@ function AccountDeletionRequestsForAccount({uid,accountKey}:{uid:string;accountK
  const visible=loadedFor===accountKey?requests:[];
  return <View style={{gap:12}}>
   <Copy weight="bold">Account deletion requests</Copy>
+  {!busy&&!processingAvailable&&<Copy>Account deletion processing is currently paused. Requests remain recorded; approval and retries will be available after the policy is activated.</Copy>}
   {!!error&&<ErrorNotice message={error}/>}
   <Action compact label={busy?'Loading requests…':'Refresh'} disabled={busy} onPress={()=>void refresh()}/>
   {!busy&&loadedFor===accountKey&&!visible.length&&<Copy>{nextCursor?'No deletion requests on this page.':'No deletion requests.'}</Copy>}
   {visible.map(item=>{
    const current=item.workflowVersion===3&&!!item.requestId;
-   const disabled=busy||!current||!item.canReview||item.isOwnRequest;
+   const disabled=busy||!processingAvailable||!current||!item.canReview||item.isOwnRequest;
    return <View key={`${item.jobId}/${item.requestId||'legacy'}`} style={{padding:16,borderWidth:1,borderColor:'#94a3b8',borderRadius:16,gap:10}}>
     <Copy weight="bold" style={{fontSize:15,lineHeight:21}}>{item.name}</Copy>
     <Copy style={{color:'#78716c'}}>Submitted {item.submittedAt||item.createdAt?new Date((item.submittedAt||item.createdAt)!).toLocaleDateString():'Date unavailable'}</Copy>
     <Copy>{deletionStatusText(item)}</Copy>
     {current&&item.status==='requested'&&!!item.autoDeleteAt&&<Copy>Automatic authorization if undecided: {new Date(item.autoDeleteAt).toLocaleString()}</Copy>}
-    {!current&&<Copy>Historical request · read-only</Copy>}
+    {!current&&<Copy>Earlier-policy request · read-only</Copy>}
     {current&&item.canReview&&<>
     <Field label="Note (optional)" value={notes[item.jobId]||''} onChangeText={value=>setNotes(previous=>({...previous,[item.jobId]:value}))} maxLength={1000} editable={!disabled} multiline/>
     <View style={{flexDirection:'row',flexWrap:'wrap',gap:10}}>
@@ -90,8 +92,8 @@ function AccountDeletionRequestsForAccount({uid,accountKey}:{uid:string;accountK
     </>}
     </>}
     {current&&item.canRetry&&!item.isOwnRequest&&<>
-     <Action compact label="Retry processing" disabled={busy} onPress={()=>setRetrying(item.jobId)}/>
-     {retrying===item.jobId&&<><Copy>Retry this request&apos;s authorized deletion processing? Completion still requires verification.</Copy><Action compact label="Confirm retry" disabled={busy} onPress={()=>void decide(item,'retry')}/><Action compact label="Cancel retry" disabled={busy} onPress={()=>setRetrying(null)}/></>}
+     <Action compact label="Retry processing" disabled={busy||!processingAvailable} onPress={()=>setRetrying(item.jobId)}/>
+     {retrying===item.jobId&&<><Copy>Retry this request&apos;s authorized deletion processing? Completion still requires verification.</Copy><Action compact label="Confirm retry" disabled={busy||!processingAvailable} onPress={()=>void decide(item,'retry')}/><Action compact label="Cancel retry" disabled={busy} onPress={()=>setRetrying(null)}/></>}
     </>}
     {item.isOwnRequest&&item.canReview&&<Copy>Another Admin/VIP must review this request.</Copy>}
    </View>;

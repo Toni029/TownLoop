@@ -13,7 +13,7 @@ function fields(x){return Object.fromEntries(Object.entries(x).map(([k,v])=>[k,v
 async function request(url,{id,body,method='GET',owner=false}={}){const r=await fetch(url,{method,headers:{'Content-Type':'application/json',...(owner?{Authorization:'Bearer owner'}:id?{Authorization:`Bearer ${token(id)}`}:{})},...(body?{body:JSON.stringify(body)}:{})});return{status:r.status,body:await r.json()};}
 const seed=(path,data)=>request(`${base}/${path}`,{method:'PATCH',owner:true,body:{fields:fields(data)}});
 const q=(collection,id,filters=[])=>request(base+':runQuery',{id,method:'POST',body:{structuredQuery:{from:[{collectionId:collection}],...(filters.length?{where:filters.length===1?filters[0]:{compositeFilter:{op:'AND',filters}}}:{})}}});
-const filter=(fieldPath,op,stringValue)=>({fieldFilter:{field:{fieldPath},op,value:typeof stringValue==='number'?{integerValue:String(stringValue)}:{stringValue}}});
+const filter=(fieldPath,op,stringValue)=>({fieldFilter:{field:{fieldPath},op,value:val(stringValue)}});
 before(async()=>{
  const content=await readFile(process.env.RULES_FILE||'security/release/firestore.client-compatibility.rules','utf8');
  const r=await request(`${root}/emulator/v1/projects/${project}:securityRules`,{method:'PUT',owner:true,body:{rules:{files:[{name:'firestore.rules',content}]}}});assert.equal(r.status,200);
@@ -24,8 +24,8 @@ before(async()=>{
  await seed('discussion_feed/post',{userId:uid('resident'),storageDraft:false,createdAt:1});
 });
 for(const role of roles)test(`${role}: approved deployed-client feed, directory and canonical Inbox queries work`,async()=>{
- const id=uid(role);const result=await Promise.all([q('discussion_feed',id),q('resident_directory',id),q('resident_chats',id,[filter('participantIds','ARRAY_CONTAINS',id),filter('identityVersion','EQUAL',2)])]);
- assert.deepEqual(result.map(x=>x.status),[200,200,200],`${role} sees permission-denied in directory/Inbox despite a valid canonical role`);
+ const id=uid(role);const result=await Promise.all([q('discussion_feed',id,[filter('storageDraft','EQUAL',false)]),q('resident_directory',id),q('resident_chats',id,[filter('participantIds','ARRAY_CONTAINS',id),filter('identityVersion','EQUAL',2)])]);
+ assert.deepEqual(result.map(x=>x.status),[200,200,200],`${role} sees permission-denied in feed, directory or Inbox despite a valid canonical role`);
 });
 test('pending and unauthenticated users cannot read directory or Inbox',async()=>{
  for(const id of [undefined,uid('pending')]){assert.equal((await q('resident_directory',id)).status,403);assert.equal((await q('resident_chats',id,[filter('participantIds','ARRAY_CONTAINS',uid('pending')),filter('identityVersion','EQUAL',2)])).status,403);}

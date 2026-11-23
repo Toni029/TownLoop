@@ -68,7 +68,7 @@ export function AccountDeletion({onDone}:{onDone?:()=>void}={}) {
         <TextInput accessibilityLabel="Current password" placeholder="Current password" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} editable={!busy} style={styles.input} />
       </> : <>
         <Text style={styles.body}>Submit a verified request to permanently delete your account and associated data. Sending the request does not immediately delete your account or sign you out.</Text>
-        <Text style={styles.body}>Deletion starts automatically after approval. If your request remains undecided for 30 days (30 × 24 hours from server submission), deletion is authorized automatically. You can keep using your account while it awaits a decision. Type &quot;DELETE&quot; to confirm.</Text>
+        <Text style={styles.body}>Your request is recorded for Admin/VIP review. Processing follows the active deletion policy and safety checks. You can keep using your account while it awaits a decision. Type &quot;DELETE&quot; to confirm.</Text>
         <TextInput accessibilityLabel="Type DELETE to confirm the deletion request" placeholder="Type DELETE here" value={confirmation} onChangeText={setConfirmation} autoCapitalize="none" autoCorrect={false} editable={!busy} style={styles.input} />
       </>}
       <MotionPressable accessibilityRole="button" accessibilityLabel={verifying?'Verify and submit request':'Submit Deletion Request'} accessibilityState={{ disabled }} disabled={disabled} onPress={() => void submit()} style={[styles.button, disabled && styles.disabled]}>
@@ -78,7 +78,7 @@ export function AccountDeletion({onDone}:{onDone?:()=>void}={}) {
     </View>}
     {accepted && <View style={styles.fields}>
       <Text accessibilityLiveRegion="polite" style={styles.body}>{deletionStatusText(request)}{request.reason ? ` ${request.reason}` : ''}</Text>
-      {!!request.autoDeleteAt && request.workflowVersion === 3 && request.status === 'requested' && <Text style={styles.body}>Automatic authorization if undecided: {new Date(request.autoDeleteAt).toLocaleString()}.</Text>}
+      {!!request.autoDeleteAt && request.workflowVersion === 3 && request.status === 'requested' && <Text style={styles.body}>Undecided-request policy deadline: {new Date(request.autoDeleteAt).toLocaleString()}.</Text>}
       {!!request.reviewDueAt && request.workflowVersion !== 3 && <Text style={styles.body}>Review due: {new Date(request.reviewDueAt).toLocaleString()}{request.escalated ? " — escalated to the office" : ""}.</Text>}
       <MotionPressable accessibilityRole="button" accessibilityLabel="Refresh deletion request status" disabled={busy || checking} onPress={() => void refresh()} style={{minHeight:44,justifyContent:'center'}}><Text style={styles.body}>{checking ? 'Checking status…' : 'Refresh request status'}</Text></MotionPressable>
     </View>}

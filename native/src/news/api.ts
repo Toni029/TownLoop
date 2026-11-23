@@ -26,8 +26,10 @@ export async function newsletterFetch(url: string, init: RequestInit = {}, fetch
     const routes = [backend.url, backend.fallbackUrl].filter(Boolean).map(value => value.replace(/\/$/, ''));
     const primary = routes.find(base => url.startsWith(base + '/api/newsletter/native/'));
     if(primary)init={...init,headers:{...Object.fromEntries(new Headers(init.headers)),...await appCheckHeaders()}};
+    if (auth.currentUser?.uid !== owner) throw Error('Your account changed. Reopen News.');
+    if (init.signal?.aborted) throw init.signal.reason || Error('Newsletter request was cancelled.');
     const suffix = primary ? url.slice(primary.length) : '';
-    const retrySafe = /^\/api\/newsletter\/native\/(?:capabilities|analysis-jobs(?:\/[a-f0-9]{64})?)$/.test(suffix);
+    const retrySafe = /^\/api\/newsletter\/native\/(?:capabilities|analysis-jobs(?:\/[a-f0-9]{64})?)$/.test(suffix.split('?')[0]);
     const alternate = retrySafe ? routes.find(base => base !== primary) : undefined;
     try { return await fetcher(url, init); }
     catch (error) {
@@ -48,6 +50,7 @@ export async function preflightAnalysis(bytes = 0, requireJobs = false) {
     let token = await user?.getIdToken();
     if (!user || !token)
         throw Error('Please sign in again.');
+    if (auth.currentUser?.uid !== user.uid) throw Error('Your account changed. Reopen News.');
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
     try {
         let response = await newsletterFetch(`${base}/api/newsletter/native/capabilities`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, redirect: 'error' });

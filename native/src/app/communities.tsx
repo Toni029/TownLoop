@@ -183,11 +183,12 @@ export default function Communities() {
                     <Pressable
                       key={id}
                       accessibilityRole="button"
-                      accessibilityLabel={`Continue with ${name}`}
-                      disabled={busy}
+                      accessibilityLabel={primary ? `Continue with ${name}` : "Upcoming community, not yet available"}
+                      accessibilityState={{ disabled: !primary || busy }}
+                      disabled={!primary || busy}
                       onHoverIn={() => setHovered(id)}
                       onHoverOut={() => setHovered("")}
-                      onPress={() => void select(id)}
+                      onPress={primary ? () => void select(id) : undefined}
                       style={({ pressed }) => ({
                         padding: wide ? 24 : 20,
                         borderRadius: wide ? 36 : 32,
@@ -426,7 +427,7 @@ export default function Communities() {
                             textAlign: "center",
                           }}
                         >
-                          Continue with {name}
+                          {primary ? `Continue with ${name}` : "Not yet available"}
                         </Text>
                         <ArrowRight size={14} color={primary ? "#fff" : ink} />
                       </View>

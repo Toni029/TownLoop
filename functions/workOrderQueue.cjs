@@ -13,8 +13,13 @@ exports.getWorkOrderQueuePositions=onCall({region:'us-central1',timeoutSeconds:3
  const token=request.rawRequest?.headers?.authorization?.match(/^Bearer (.+)$/i)?.[1];
  let identity;try{identity=await getAuth().verifyIdToken(token||'',true);}catch{throw new HttpsError('unauthenticated','Sign in again.');}
  if(identity.uid!==request.auth.uid)throw new HttpsError('unauthenticated','Session mismatch.');
- const db=getFirestore('(default)'),profile=(await db.doc(`users/${identity.uid}`).get()).data();
- if(!profile||profile.approved!==true||profile.deletionPending===true||!['resident','crew','vip','admin'].includes(profile.role))throw new HttpsError('permission-denied','An approved account is required.');
+ const db=getFirestore('(default)');
+ const [profileSnapshot,revocation]=await Promise.all([
+  db.doc(`users/${identity.uid}`).get(),
+  db.doc(`account_access_revocations/${identity.uid}`).get(),
+ ]);
+ const profile=profileSnapshot.data();
+ if(revocation.exists||!profile||profile.approved!==true||profile.deletionPending===true||!['resident','crew','vip','admin'].includes(profile.role))throw new HttpsError('permission-denied','An approved account is required.');
  // Projection excludes descriptions, comments, media, names, addresses and contact details.
  const snapshot=await db.collection('work_orders').where('status','!=','Done').select('createdAt','userId','status','storageDraft').limit(2001).get();
  if(snapshot.size>2000)throw new HttpsError('resource-exhausted','Queue lookup needs a larger-scale configuration.');

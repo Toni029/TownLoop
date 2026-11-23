@@ -29,7 +29,7 @@ test('legacy Inbox polling coalesces initial requests and stops background polls
  const h=lifecycleHarness('profile/groupInbox.ts',()=>({
   '../lib/foregroundPoll':{foregroundPoll:(app:any,run:any,period:number,pause:any)=>foregroundPoll(app,run,period,pause,timers as any)},
   'react-native':{AppState:lifecycle.app},'./inboxActionError':{inboxActionError:(e:any)=>e},'./legacyLeaveEvents':{confirmedLegacyLeave:()=>{},onConfirmedLegacyLeave:()=>()=>{}},
-  'firebase/firestore':{collection:()=>0,query:()=>0,where:()=>0,orderBy:()=>0,limit:()=>0,onSnapshot:(_:any,next:any)=>{next({docs:[]});return()=>stopped++;}},
+  'firebase/firestore':{collection:()=>0,query:()=>0,where:()=>0,orderBy:()=>0,limit:()=>0,onSnapshot:(_:any,options:any,next:any)=>{assert.equal(options.includeMetadataChanges,true);next({docs:[],metadata:{fromCache:false,hasPendingWrites:false}});return()=>stopped++;}},
   'firebase/functions':{getFunctions:()=>0,httpsCallable:()=>async(d:any)=>{if(d.op==='listLegacy')scans++;return{data:d.op==='capabilities'?{enabled:true,protocolVersion:3}:{rows:[]}};}},'../lib/firebase':{app:{},auth:{currentUser:{uid:'a'}},db:{}},'./model':{readThread:()=>null},
   __globals:timers,
  }));h.render(h.exports.useGroupInbox,{id:'a',approved:true,role:'resident'});await settle();const initialScans=scans;const before=scans;lifecycle.change('background');for(let i=0;i<10;i++){timers.tick();await settle();}const backgroundScans=scans-before;assert.equal(stopped,0);lifecycle.change('active');await settle();const resumedScans=scans;h.dispose();console.log(JSON.stringify({measurement:'legacy-inbox',initialScans,backgroundScans}));assert.equal(initialScans,1);assert.equal(backgroundScans,0);assert.equal(resumedScans,before+1);assert.equal(stopped,1);assert.equal(timers.count,0);
@@ -89,7 +89,7 @@ test('account switching discards a late Inbox bootstrap and disposes the previou
  const h=lifecycleHarness('profile/groupInbox.ts',()=>({
   'react-native':{AppState:lifecycle.app},'../lib/foregroundPoll':{foregroundPoll:(app:any,run:any,period:number,pause:any)=>foregroundPoll(app,run,period,pause,timers as any)},
   './inboxActionError':{inboxActionError:(e:any)=>e},'./legacyLeaveEvents':{confirmedLegacyLeave:()=>{},onConfirmedLegacyLeave:()=>()=>{}},'./model':{readThread:()=>null},
-  'firebase/firestore':{collection:()=>0,query:()=>0,where:()=>0,orderBy:()=>0,limit:()=>0,onSnapshot:(_:any,next:any)=>{subscribed++;next({docs:[]});return()=>unsubscribed++;}},
+  'firebase/firestore':{collection:()=>0,query:()=>0,where:()=>0,orderBy:()=>0,limit:()=>0,onSnapshot:(_:any,options:any,next:any)=>{assert.equal(options.includeMetadataChanges,true);subscribed++;next({docs:[],metadata:{fromCache:false,hasPendingWrites:false}});return()=>unsubscribed++;}},
   'firebase/functions':{getFunctions:()=>0,httpsCallable:()=>async(d:any)=>{if(d.op==='capabilities'&&auth.currentUser.uid==='a')return await new Promise(done=>{release=done;});return{data:d.op==='capabilities'?{enabled:true,protocolVersion:3}:{rows:[]}};}},'../lib/firebase':{app:{},auth,db:{}},__globals:timers,
  }));
  h.render(h.exports.useGroupInbox,{id:'a',approved:true,role:'resident'});auth.currentUser={uid:'b'};h.render(h.exports.useGroupInbox,{id:'b',approved:true,role:'resident'});await settle();

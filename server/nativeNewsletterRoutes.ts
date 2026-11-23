@@ -7,7 +7,7 @@ import { extractNewsletterContent } from './newsletterExtractor.ts';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { newsletterAnalysisFailure } from './newsletterAnalysisErrors.ts';
-import {newsletterJobsEnabled, startNewsletterJob, getNewsletterJob, chargeNewsletterAnalysis} from './newsletterJobs.ts';
+import {newsletterJobsEnabled, startNewsletterJob, getNewsletterJob, findNewsletterJob, chargeNewsletterAnalysis} from './newsletterJobs.ts';
 const asText = (value: unknown, limit: number) => typeof value === 'string' ? value.slice(0, limit) : '';
 // Monitoring verifies app identity only; canonical account/role authorization still runs for every request.
 const monitorAppCheck: express.RequestHandler = async (req,res,next) => {
@@ -49,6 +49,10 @@ nativeNewsletterRouter.post('/analysis-jobs',monitorAppCheck,requireNativeNewsle
     if(!newsletterJobsEnabled()){res.status(503).json({error:'Background analysis service update is pending. The PDF is retained.'});return;}
     try{res.status(202).json(await startNewsletterJob(res.locals.newsletterManagerUid,req.body));}
     catch(error){if(quotaResponse(error,res))return;res.status(error instanceof NewsletterInputError?error.status:503).json({error:error instanceof NewsletterInputError?error.message:'Analysis could not be queued. Retry using the retained PDF.'});}
+});
+nativeNewsletterRouter.get('/analysis-jobs',monitorAppCheck,requireNativeNewsletterManager,async(req,res)=>{
+ try{res.json({job:await findNewsletterJob(res.locals.newsletterManagerUid,req.query.newsletterId)});}
+ catch(error){res.status(error instanceof NewsletterInputError?error.status:503).json({error:error instanceof NewsletterInputError?error.message:'Unable to reconnect to saved analysis. Retry without uploading again.'});}
 });
 nativeNewsletterRouter.get('/analysis-jobs/:jobId',monitorAppCheck,requireNativeNewsletterManager,async(req,res)=>{
     if(!newsletterJobsEnabled()){res.status(503).json({error:'Background analysis service update is pending. The PDF is retained.'});return;}

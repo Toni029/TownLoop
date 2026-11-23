@@ -118,7 +118,6 @@ export function Checklist({
         <Row style={{gap:8,justifyContent:"center"}}>
           <Action label="Today" active={filter==="today"} onPress={()=>setFilter("today")}/>
           <Action label="Tomorrow" active={filter==="tomorrow"} onPress={()=>setFilter("tomorrow")}/>
-          <Action icon={CalendarIcon} label="Choose Day" onPress={()=>{setMonth(parseDate(target));setDialog("calendar");}}/>
         </Row>
         <Row style={{gap:8,justifyContent:"center"}}>
           <Action label="All Tasks" active={filter==="all"} onPress={()=>setFilter("all")}/>

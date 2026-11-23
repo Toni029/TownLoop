@@ -106,3 +106,9 @@ test('rejected requests can be resubmitted only when the service permits a new v
   assert(nodes(tree).some(n=>typeof n==='string'&&n.includes('Invalid request')));
  }
 });
+test('inactive or unknown policy never promises automatic 30-day execution before submission',async()=>{
+ const h=fixture();h.render();await settle();const text=nodes(h.render()).filter(n=>typeof n==='string').join(' ');
+ assert(!text.includes('Deletion starts automatically after approval'));
+ assert(!text.includes('30 days (30 × 24 hours'));
+ assert(text.includes('active deletion policy and safety checks'));
+});
