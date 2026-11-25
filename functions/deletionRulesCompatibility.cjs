@@ -13,8 +13,9 @@ function rulesCompatible({database,liveHash,expectedHash,releaseUpdatedAt,policy
  // The compatibility receipt NEVER grants processing approval or fixes an account
  // policy implicitly. The independently approved account policy must match live rules.
  if(policy?.scopeRuleHashes?.[database]!==liveHash)return false;
+ if(database==='(default)')return liveHash===receipt?.defaultRulesSha256&&validatePolicy(receipt);
  if(liveHash===expectedHash)return true;
- const candidate=database==='(default)'?PINS.defaultRulesSha256:database===PINS.namedDatabase?PINS.namedRulesSha256:null;
+ const candidate=database===PINS.namedDatabase?PINS.namedRulesSha256:null;
  return !!candidate&&liveHash===candidate&&validatePolicy(receipt);
 }
 module.exports={rulesCompatible,mediaProvenanceMatches};

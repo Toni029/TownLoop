@@ -1,6 +1,16 @@
 'use strict';
-const PINS=Object.freeze({project:'cc-livingcommunity-app',database:'(default)',namedDatabase:'ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb',bucket:'cc-livingcommunity-app.firebasestorage.app',defaultRulesSha256:'8d105d51885783e5b98993ca185d0ac968abf4d1eb423f53d78710e78dcc9047',namedRulesSha256:'8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d',storageRulesSha256:'b844e570c4e44c8abb8961d934bf3d8393ae97b3ae2408d5cf7828dcb80f80b5'});
-function validatePolicy(policy){return policy?.ownerApproved===true&&policy.version===3&&policy.accountCoordinationVersion===1&&policy.mediaProvenance?.storageRulesSha256===require('./deletionMediaProvenance.json').storageRulesSha256&&Number.isSafeInteger(policy.mediaProvenance?.trustedUploadsAfterMillis)&&policy.mediaProvenance.trustedUploadsAfterMillis>0&&Object.entries(PINS).every(([key,value])=>policy[key]===value)&&policy.storageMode==='exclusive-generation-fenced-v2'&&policy.genericMediaCleanupDisabledAcknowledged===true;}
+const PINS=Object.freeze({project:'cc-livingcommunity-app',database:'(default)',namedDatabase:'ai-studio-cclivingv27-5fc1a0f6-cd75-4964-8c9e-e219a265f7bb',bucket:'cc-livingcommunity-app.firebasestorage.app',defaultRulesSha256:'131cd432198c5d70c331480658d0409b7c21f3b78fe73fe965eab4245bc79bc6',namedRulesSha256:'8493ef2624b905208328f9ac7116dfe59e8349b1d24a8c3aa0883ceabd0da02d',storageRulesSha256:'b844e570c4e44c8abb8961d934bf3d8393ae97b3ae2408d5cf7828dcb80f80b5'});
+// Permit staging and rollback to the exact previous release. The receipt still
+// selects one deployed hash and all other scope pins must match exactly.
+const PREVIOUS_DEFAULT_RULES_SHA256='8d105d51885783e5b98993ca185d0ac968abf4d1eb423f53d78710e78dcc9047';
+function validatePolicy(policy){
+ return policy?.ownerApproved===true&&policy.version===3&&policy.accountCoordinationVersion===1&&
+  policy.mediaProvenance?.storageRulesSha256===require('./deletionMediaProvenance.json').storageRulesSha256&&
+  Number.isSafeInteger(policy.mediaProvenance?.trustedUploadsAfterMillis)&&policy.mediaProvenance.trustedUploadsAfterMillis>0&&
+  Object.entries(PINS).every(([key,value])=>policy[key]===value||
+   (key==='defaultRulesSha256'&&policy[key]===PREVIOUS_DEFAULT_RULES_SHA256))&&
+  policy.storageMode==='exclusive-generation-fenced-v2'&&policy.genericMediaCleanupDisabledAcknowledged===true;
+}
 /** Fail closed on incomplete inventory or a live generic reaper that could be triggered indirectly. */
 function mediaDeletionDisabled(inventory){
  if(!Array.isArray(inventory?.functions)||inventory.nextPageToken||inventory.unreachable?.length)return false;

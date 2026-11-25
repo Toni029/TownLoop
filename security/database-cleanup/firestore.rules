@@ -729,9 +729,12 @@ match /newsletters/{newsletterId} {
     }
 
     // C1: Marketplace chats authorize exact UIDs, never names/sanitized aliases.
+    function marketProfileApproved(profile) {
+      return profile.approved == true && profile.get('deletionPending', false) == false &&
+        profile.role in ['resident', 'admin', 'vip', 'crew'];
+    }
     function marketApproved() {
-      return isSignedIn() && currentProfile().approved == true && currentProfile().get('deletionPending', false) == false &&
-        currentProfile().role in ['resident', 'admin', 'vip', 'crew'];
+      return isSignedIn() && marketProfileApproved(currentProfile());
     }
     function marketParticipant(data) {
       return data.get('sellerId', '') == request.auth.uid || data.get('buyerId', '') == request.auth.uid;
@@ -741,7 +744,7 @@ match /newsletters/{newsletterId} {
         : data.get('buyerLeft', false) || data.get('deletedByBuyer', false)) ||
         data.get('deletedBy', []).hasAny([side]);
     }
-    function marketMessage(before, after, leaving) {
+    function marketMessage(before, after, leaving, profile) {
       let added = after.messages[after.messages.size() - 1];
       return after.messages.size() == before.size() + 1 && !before.hasAny([added]) &&
         after.messages.removeAll([added]) == before &&
@@ -751,16 +754,17 @@ match /newsletters/{newsletterId} {
         added.timestamp is string && added.timestamp.size() <= 80 && added.createdAt is int && added.createdAt >= 0 &&
         after.lastMessage == added.text && after.lastMessageTime == added.timestamp && after.updatedAt == added.createdAt &&
         (leaving ? (added.senderId == 'system' && added.senderName == 'System' && added.isSystem == true &&
-          added.actorId == request.auth.uid && added.text == currentProfile().get('name', 'Resident') + ' left the conversation.') :
-          (added.senderId == request.auth.uid && added.senderName == currentProfile().get('name', 'Resident') &&
+          added.actorId == request.auth.uid && added.text == profile.get('name', 'Resident') + ' left the conversation.') :
+          (added.senderId == request.auth.uid && added.senderName == profile.get('name', 'Resident') &&
            added.get('isSystem', false) == false && !added.keys().hasAny(['actorId']))) &&
-        added.get('senderAvatar', '') == currentProfile().get('avatarUrl', currentProfile().get('avatar_url', ''));
+        added.get('senderAvatar', '') == profile.get('avatarUrl', profile.get('avatar_url', ''));
     }
     function marketCreate(chatId) {
+      let profile = currentProfile();
       let data = request.resource.data;
       let listing = get(/databases/$(database)/documents/marketplace_posts/$(data.itemId)).data;
       let seller = get(/databases/$(database)/documents/users/$(data.sellerId)).data;
-      return data.keys().hasOnly(['id', 'itemId', 'itemTitle', 'itemPrice', 'itemMediaUrl', 'sellerId', 'sellerName', 'sellerAvatar', 'sellerApt',
+      return marketProfileApproved(profile) && data.keys().hasOnly(['id', 'itemId', 'itemTitle', 'itemPrice', 'itemMediaUrl', 'sellerId', 'sellerName', 'sellerAvatar', 'sellerApt',
         'buyerId', 'buyerName', 'buyerAvatar', 'buyerApt', 'participantIds', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForSeller', 'unreadForBuyer', 'messages']) &&
         data.id == chatId && data.itemId is string && data.itemId.size() > 0 && data.sellerId is string &&
         chatId == 'mkt_' + data.itemId.lower().replace('[^a-zA-Z0-9_-]', '_') + '_' + request.auth.uid.lower().replace('[^a-zA-Z0-9_-]', '_') &&
@@ -769,40 +773,69 @@ match /newsletters/{newsletterId} {
         !listing.get('sold', false) && !listing.get('claimed', false) &&
         seller.approved == true && seller.role in ['resident', 'admin', 'vip', 'crew'] &&
         data.participantIds == [data.sellerId, data.buyerId] &&
-        data.buyerName == currentProfile().get('name', 'Resident') && data.sellerName == seller.get('name', 'Resident') &&
-        data.buyerAvatar == currentProfile().get('avatarUrl', currentProfile().get('avatar_url', '')) &&
+        data.buyerName == profile.get('name', 'Resident') && data.sellerName == seller.get('name', 'Resident') &&
+        data.buyerAvatar == profile.get('avatarUrl', profile.get('avatar_url', '')) &&
         data.sellerAvatar == seller.get('avatarUrl', seller.get('avatar_url', '')) &&
         data.itemTitle == listing.get('title', '') && data.itemPrice == string(listing.get('price', 'FREE')) &&
-        data.unreadForSeller == true && data.unreadForBuyer == false && marketMessage([], data, false);
+        data.unreadForSeller == true && data.unreadForBuyer == false && marketMessage([], data, false, profile);
     }
     function marketUpdate() {
+      let profile = currentProfile();
       let before = resource.data;
       let after = request.resource.data;
       let changes = after.diff(before).affectedKeys();
       let seller = before.sellerId == request.auth.uid;
       let side = seller ? 'seller' : 'buyer';
       let other = seller ? 'buyer' : 'seller';
-      return
+      return marketProfileApproved(profile) && (
         // Read acknowledgments never alter messages or the other participant's state.
         (changes.hasOnly([seller ? 'unreadForSeller' : 'unreadForBuyer']) &&
           (seller ? after.unreadForSeller == false : after.unreadForBuyer == false)) ||
         (!marketLeft(before, side) && (
           (!marketLeft(before, other) && !userBlocked(before.sellerId, before.buyerId) &&
            changes.hasOnly(['messages', 'lastMessage', 'lastMessageTime', 'updatedAt', 'unreadForBuyer', 'unreadForSeller']) &&
-           after.unreadForBuyer == seller && after.unreadForSeller == !seller && marketMessage(before.messages, after, false)) ||
+           after.unreadForBuyer == seller && after.unreadForSeller == !seller && marketMessage(before.messages, after, false, profile)) ||
           (changes.hasOnly(seller ? ['sellerLeft', 'deletedBySeller', 'messages', 'lastMessage', 'lastMessageTime', 'updatedAt'] :
                                     ['buyerLeft', 'deletedByBuyer', 'messages', 'lastMessage', 'lastMessageTime', 'updatedAt']) &&
            (seller ? after.sellerLeft == true && after.deletedBySeller == true : after.buyerLeft == true && after.deletedByBuyer == true) &&
-           marketMessage(before.messages, after, true))
-        ));
+           marketMessage(before.messages, after, true, profile))
+        )));
     }
+    function changedMarketplaceProof(counter, scope, proof) {
+      let before = get(counter);
+      return before == null || proof != before.data.get('activity', {}).get(scope, {});
+    }
+
+    function marketplaceQuota(scope, target) {
+      let counter = /databases/$(database)/documents/safety_limits/$(request.auth.uid);
+      let after = getAfter(counter);
+      let proof = after == null ? {} : after.data.get('activity', {}).get(scope, {});
+      return (after != null && after.data.get('activityScope', '') == scope &&
+        proof.get('target', '') == target && proof.get('lastAt', null) == request.time &&
+        changedMarketplaceProof(counter, scope, proof)) ||
+        marketplaceQuotasOptional();
+    }
+
+    function marketplaceCleanupWriteAllowed(chatId) {
+      let control = get(/databases/$(database)/documents/database_cleanup_control/active);
+      let cleanup = control == null ? {} : control.data;
+      return cleanup.get('referenceWritesBlocked', false) != true &&
+        !('marketplace_chats' in cleanup.get('collections', [])) &&
+        !exists(/databases/$(database)/documents/database_cleanup_fences/marketplace_chats/records/$(chatId));
+    }
+
+    function marketplaceQuotasOptional() {
+      let config = get(/databases/$(database)/documents/security_controls/abuse_limits);
+      return config == null || config.data.get('enforceWrites', false) != true;
+    }
+
     match /marketplace_chats/{chatId} {
       allow get: if marketApproved() && (!exists(/databases/$(database)/documents/marketplace_chats/$(chatId)) || marketParticipant(resource.data));
       allow list: if marketApproved() && marketParticipant(resource.data);
-      allow create: if databaseCleanupWriteAllowed() && (marketApproved() && marketCreate(chatId) && usesQuota('inquiries', 'marketplace_chats/'+chatId));
-      allow update: if databaseCleanupWriteAllowed() && (marketApproved() && marketParticipant(resource.data) && marketUpdate() && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || usesQuota('messages', 'marketplace_chats/'+chatId)));
+      allow create: if marketplaceCleanupWriteAllowed(chatId) && (isSignedIn() && marketCreate(chatId) && marketplaceQuota('inquiries', 'marketplace_chats/'+chatId));
+      allow update: if marketplaceCleanupWriteAllowed(chatId) && (isSignedIn() && marketParticipant(resource.data) && marketUpdate() && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['messages']) || marketplaceQuota('messages', 'marketplace_chats/'+chatId)));
       // Second participant may remove the chat only after the other already left.
-      allow delete: if databaseCleanupWriteAllowed() && (marketApproved() && marketParticipant(resource.data) &&
+      allow delete: if marketplaceCleanupWriteAllowed(chatId) && (marketApproved() && marketParticipant(resource.data) &&
         marketLeft(resource.data, resource.data.sellerId == request.auth.uid ? 'buyer' : 'seller'));
     }
 

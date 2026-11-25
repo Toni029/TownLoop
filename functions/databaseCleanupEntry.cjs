@@ -34,7 +34,7 @@ async function verifySafetyNow(){
  const policy=(await db.doc('database_cleanup_policies/current').get()).data();if(!validatePolicy(policy))return false;
  const mediaPolicy=(await db.doc('deletion_policies/media').get()).data();if(!require('./deletionRulesCompatibility.cjs').mediaProvenanceMatches(policy,mediaPolicy))return false;
  const [rules,storage,inventory,named,processing]=await Promise.all([rulesHash('cloud.firestore'),rulesHash(`firebase.storage/${PINS.bucket}`),functionInventory(),rulesHash('cloud.firestore/'+databases[1].databaseId),db.collection('account_deletion_jobs').where('status','==','processing').limit(1).get()]);
- return rules===PINS.defaultRulesSha256&&storage===PINS.storageRulesSha256&&named===PINS.namedRulesSha256&&mediaDeletionDisabled(inventory)&&referenceWritersVerified(inventory,policy)&&processing.empty;
+ return rules===policy.defaultRulesSha256&&storage===PINS.storageRulesSha256&&named===PINS.namedRulesSha256&&mediaDeletionDisabled(inventory)&&referenceWritersVerified(inventory,policy)&&processing.empty;
 }
 const verifySafety=()=>enabled()?safetyReader.verify(verifySafetyNow):Promise.resolve(false);
 const {createStorageCleanup}=require('./databaseCleanupStorage.cjs');
